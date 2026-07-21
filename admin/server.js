@@ -18,6 +18,7 @@ const speakeasy = require('speakeasy');
 const qrcode = require('qrcode');
 const mime = require('mime-types');
 const sharp = require('sharp');
+const { OAuth2Client } = require('google-auth-library');
 
 const { logger, audit, requestLogger, LOG_DIR, tailFile } = require('./lib/logger');
 const { maybeEncrypt, maybeDecrypt } = require('./lib/crypto');
@@ -198,6 +199,37 @@ function randomToken() {
   return crypto.randomBytes(32).toString('base64url');
 }
 
+function googleClientId() {
+  return String(process.env.GOOGLE_CLIENT_ID || '').trim();
+}
+
+function isGoogleAuthEnabled() {
+  return Boolean(googleClientId());
+}
+
+let cachedGoogleOauthClient = null;
+let cachedGoogleOauthClientId = '';
+
+function getGoogleOauthClient() {
+  const cid = googleClientId();
+  if (!cid) return null;
+  if (!cachedGoogleOauthClient || cachedGoogleOauthClientId !== cid) {
+    cachedGoogleOauthClient = new OAuth2Client(cid);
+    cachedGoogleOauthClientId = cid;
+  }
+  return cachedGoogleOauthClient;
+}
+
+function googleApprovedEmailsFromEnv() {
+  const raw = String(process.env.GOOGLE_ALLOWED_EMAILS || '').trim();
+  if (!raw) return new Set();
+  const values = raw
+    .split(',')
+    .map((v) => String(v || '').trim().toLowerCase())
+    .filter(Boolean);
+  return new Set(values);
+}
+
 function getBaseUrl(req) {
   // Prefer explicit base URL for invite links (useful if accessed on LAN)
   const configured = String(process.env.PUBLIC_BASE_URL || '').trim();
@@ -373,9 +405,151 @@ function sanitizeSegment(input) {
     .slice(0, 80);
 }
 
+const ROLE = Object.freeze({
+  ADMINISTRATOR: 'administrator',
+  WEBSITE_EDITOR: 'website_editor',
+  FINANCE_ENTRY: 'finance_entry',
+  TREASURER: 'treasurer',
+  AUDITOR: 'auditor'
+});
+
+const PERMISSIONS = Object.freeze({
+  WEBSITE_WRITE: 'website.write',
+  COMMUNICATIONS_MANAGE: 'communications.manage',
+  FINANCE_READ: 'finance.read',
+  FINANCE_WRITE: 'finance.write',
+  FINANCE_META: 'finance.meta',
+  REPORTS_READ: 'reports.read',
+  USERS_MANAGE: 'users.manage',
+  SUPPORT_SEND: 'support.send',
+  EXPORTS_RUN: 'exports.run'
+});
+
+const ROLE_PERMISSIONS = Object.freeze({
+  [ROLE.ADMINISTRATOR]: Object.values(PERMISSIONS),
+  [ROLE.WEBSITE_EDITOR]: [
+    PERMISSIONS.WEBSITE_WRITE,
+    PERMISSIONS.COMMUNICATIONS_MANAGE,
+    PERMISSIONS.SUPPORT_SEND
+  ],
+  [ROLE.FINANCE_ENTRY]: [
+    PERMISSIONS.FINANCE_READ,
+    PERMISSIONS.FINANCE_WRITE,
+    PERMISSIONS.SUPPORT_SEND
+  ],
+  [ROLE.TREASURER]: [
+    PERMISSIONS.FINANCE_READ,
+    PERMISSIONS.FINANCE_WRITE,
+    PERMISSIONS.FINANCE_META,
+    PERMISSIONS.REPORTS_READ,
+    PERMISSIONS.EXPORTS_RUN,
+    PERMISSIONS.SUPPORT_SEND
+  ],
+  [ROLE.AUDITOR]: [
+    PERMISSIONS.FINANCE_READ,
+    PERMISSIONS.REPORTS_READ,
+    PERMISSIONS.SUPPORT_SEND
+  ]
+});
+
+function normalizeRole(inputRole) {
+  const raw = String(inputRole || '').trim().toLowerCase();
+  if (!raw) return ROLE.WEBSITE_EDITOR;
+  if (raw === 'admin') return ROLE.ADMINISTRATOR;
+  if (raw === 'website' || raw === 'editor' || raw === 'website editor') return ROLE.WEBSITE_EDITOR;
+  if (raw === 'finance' || raw === 'financeentry' || raw === 'finance_entry') return ROLE.FINANCE_ENTRY;
+  if (raw === 'treasurer') return ROLE.TREASURER;
+  if (raw === 'auditor' || raw === 'read-only' || raw === 'readonly') return ROLE.AUDITOR;
+  if (Object.prototype.hasOwnProperty.call(ROLE_PERMISSIONS, raw)) return raw;
+  return ROLE.WEBSITE_EDITOR;
+}
+
+function permissionsForRole(role) {
+  const normalized = normalizeRole(role);
+  return ROLE_PERMISSIONS[normalized] || [];
+}
+
+function hasPermission(role, permission) {
+  const allowed = permissionsForRole(role);
+  return allowed.includes(String(permission || ''));
+}
+
+function sessionUser(req) {
+  const user = req.session?.user;
+  if (!user || !user.id) return null;
+  return {
+    ...user,
+    role: normalizeRole(user.role)
+  };
+}
+
 function requireAuth(req, res, next) {
-  if (req.session && req.session.user && req.session.user.role === 'admin') return next();
-  res.status(401).json({ error: 'Unauthorized' });
+  const user = sessionUser(req);
+  if (user) {
+    req.session.user.role = user.role;
+    return next();
+  }
+  audit('auth_denied', {
+    at: new Date().toISOString(),
+    ip: req.ip,
+    path: req.originalUrl,
+    reason: 'no_session'
+  });
+  return res.status(401).json({ error: 'Unauthorized' });
+}
+
+function requirePermission(permission) {
+  return (req, res, next) => {
+    const user = sessionUser(req);
+    if (!user) {
+      audit('auth_denied', {
+        at: new Date().toISOString(),
+        ip: req.ip,
+        path: req.originalUrl,
+        reason: 'no_session'
+      });
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (hasPermission(user.role, permission)) return next();
+    audit('authz_denied', {
+      at: new Date().toISOString(),
+      ip: req.ip,
+      path: req.originalUrl,
+      userId: user.id,
+      userEmail: user.email,
+      role: user.role,
+      permission
+    });
+    return res.status(403).json({ error: 'Forbidden' });
+  };
+}
+
+function requireAnyPermission(permissions) {
+  const list = Array.isArray(permissions) ? permissions : [];
+  return (req, res, next) => {
+    const user = sessionUser(req);
+    if (!user) {
+      audit('auth_denied', {
+        at: new Date().toISOString(),
+        ip: req.ip,
+        path: req.originalUrl,
+        reason: 'no_session'
+      });
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const ok = list.some((perm) => hasPermission(user.role, perm));
+    if (ok) return next();
+    audit('authz_denied', {
+      at: new Date().toISOString(),
+      ip: req.ip,
+      path: req.originalUrl,
+      userId: user.id,
+      userEmail: user.email,
+      role: user.role,
+      permissions: list
+    });
+    return res.status(403).json({ error: 'Forbidden' });
+  };
 }
 
 function isAllowedImage(mimeType) {
@@ -520,6 +694,7 @@ app.use((req, res, next) => {
   if (!req.path.startsWith('/api/')) return next();
   const p = req.path;
   if (p === '/api/auth/login' || p === '/api/auth/logout' || p === '/api/auth/recover') return next();
+  if (p === '/api/auth/google' || p === '/api/auth/providers') return next();
   if (p.startsWith('/api/invites/')) return next();
   if (p === '/api/csrf') return next();
   // Support emailer automation: allow server-to-server calls with a shared secret
@@ -708,6 +883,7 @@ function loadUsers() {
   // Decrypt at rest (optional) for sensitive secrets.
   for (const u of users) {
     if (!u || typeof u !== 'object') continue;
+    u.role = normalizeRole(u.role);
     if (u.twoFactorSecret) u.twoFactorSecret = maybeDecrypt(u.twoFactorSecret);
     if (u.twoFactorPendingSecret) u.twoFactorPendingSecret = maybeDecrypt(u.twoFactorPendingSecret);
   }
@@ -762,7 +938,7 @@ async function ensureMasterAdmin() {
       id: newId(),
       email,
       passwordHash,
-      role: 'admin',
+      role: ROLE.ADMINISTRATOR,
       createdAt: new Date().toISOString(),
       isMaster: true,
       name: 'Master Admin',
@@ -775,7 +951,7 @@ async function ensureMasterAdmin() {
   } else {
     // Keep env vars as source of truth for master password.
     user.passwordHash = passwordHash;
-    user.role = 'admin';
+    user.role = ROLE.ADMINISTRATOR;
     user.isMaster = true;
     if (!user.name) user.name = 'Master Admin';
     if (typeof user.mustOnboard !== 'boolean') user.mustOnboard = false;
@@ -799,17 +975,17 @@ app.get('/api/me', (req, res) => {
   req.session.user = {
     id: user.id,
     email: user.email,
-    role: user.role,
+      role: normalizeRole(user.role),
     name: user.name || '',
     isMaster: !!user.isMaster,
     mustOnboard: !!user.mustOnboard,
     twoFactorEnabled: !!user.twoFactorEnabled
   };
-  res.json({ user: req.session.user });
+  res.json({ user: req.session.user, permissions: permissionsForRole(req.session.user.role) });
 });
 
 // ----------------- ADMIN DEBUG (secured) -----------------
-app.get('/api/admin/health', requireAuth, (req, res) => {
+app.get('/api/admin/health', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
   res.json({
     ok: true,
     time: new Date().toISOString(),
@@ -826,7 +1002,7 @@ app.get('/api/admin/health', requireAuth, (req, res) => {
   });
 });
 
-app.get('/api/admin/logs', requireAuth, (req, res) => {
+app.get('/api/admin/logs', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
   const type = String(req.query.type || 'app');
   const maxLines = Math.min(1000, Math.max(50, Number(req.query.lines || 300)));
   const prefix = type === 'audit' ? 'audit' : 'app';
@@ -884,7 +1060,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     req.session.user = {
       id: user.id,
       email: user.email,
-      role: user.role,
+      role: normalizeRole(user.role),
       name: user.name || '',
       isMaster: !!user.isMaster,
       mustOnboard: !!user.mustOnboard,
@@ -892,6 +1068,129 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     };
     audit('auth_login_success', { at: new Date().toISOString(), email, ip: req.ip, userId: user.id });
     res.json({ ok: true });
+  });
+});
+
+app.get('/api/auth/providers', (req, res) => {
+  const cid = googleClientId();
+  res.json({
+    google: {
+      enabled: Boolean(cid),
+      clientId: cid || ''
+    }
+  });
+});
+
+app.post('/api/auth/google', loginLimiter, async (req, res) => {
+  if (!isGoogleAuthEnabled()) {
+    return res.status(503).json({ error: 'Google sign-in is not configured on this server.' });
+  }
+
+  const idToken = String(req.body?.idToken || '').trim();
+  if (!idToken) return res.status(400).json({ error: 'Missing Google ID token.' });
+
+  const oauthClient = getGoogleOauthClient();
+  if (!oauthClient) {
+    return res.status(503).json({ error: 'Google sign-in client is unavailable.' });
+  }
+
+  let payload = null;
+  try {
+    const ticket = await oauthClient.verifyIdToken({
+      idToken,
+      audience: googleClientId()
+    });
+    payload = ticket.getPayload() || null;
+  } catch (err) {
+    audit('auth_login_failed', {
+      at: new Date().toISOString(),
+      ip: req.ip,
+      reason: 'google_token_invalid',
+      error: String(err?.message || err || '').slice(0, 200)
+    });
+    return res.status(401).json({ error: 'Invalid Google sign-in token.' });
+  }
+
+  const email = String(payload?.email || '').trim().toLowerCase();
+  const emailVerified = Boolean(payload?.email_verified);
+  if (!email || !emailVerified) {
+    audit('auth_login_failed', {
+      at: new Date().toISOString(),
+      ip: req.ip,
+      reason: 'google_unverified_email',
+      email
+    });
+    return res.status(403).json({ error: 'Google account email is not verified.' });
+  }
+
+  const usersData = loadUsers();
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  let user = users.find((u) => String(u.email).toLowerCase() === email);
+
+  if (!user) {
+    const approvedEmails = googleApprovedEmailsFromEnv();
+    if (!approvedEmails.has(email)) {
+      audit('auth_login_failed', {
+        at: new Date().toISOString(),
+        ip: req.ip,
+        email,
+        reason: 'google_not_approved'
+      });
+      return res.status(403).json({ error: 'This Google account is not approved for admin access.' });
+    }
+
+    user = {
+      id: newId(),
+      email,
+      passwordHash: await bcrypt.hash(randomToken(), 12),
+      role: ROLE.WEBSITE_EDITOR,
+      createdAt: new Date().toISOString(),
+      isMaster: false,
+      name: String(payload?.name || '').trim().slice(0, 120),
+      mustOnboard: false,
+      onboardedAt: new Date().toISOString(),
+      twoFactorEnabled: false,
+      twoFactorSecret: ''
+    };
+    users.push(user);
+    saveUsers({ users });
+    audit('auth_user_created_google', {
+      at: new Date().toISOString(),
+      email,
+      userId: user.id,
+      role: user.role,
+      ip: req.ip
+    });
+  }
+
+  if (user.mustOnboard) {
+    audit('auth_login_failed', { at: new Date().toISOString(), email, ip: req.ip, reason: 'must_onboard' });
+    return res.status(403).json({ error: 'Account setup required. Use your invite link to finish setup.' });
+  }
+
+  req.session.regenerate((err) => {
+    if (err) {
+      logger.error('session_regenerate_failed', { err, email, ip: req.ip });
+      return res.status(500).json({ error: 'Login failed. Try again.' });
+    }
+
+    req.session.user = {
+      id: user.id,
+      email: user.email,
+      role: normalizeRole(user.role),
+      name: user.name || String(payload?.name || '').trim().slice(0, 120),
+      isMaster: !!user.isMaster,
+      mustOnboard: !!user.mustOnboard,
+      twoFactorEnabled: false
+    };
+    audit('auth_login_success', {
+      at: new Date().toISOString(),
+      email,
+      ip: req.ip,
+      userId: user.id,
+      method: 'google'
+    });
+    return res.json({ ok: true });
   });
 });
 
@@ -924,13 +1223,23 @@ app.post('/api/auth/recover', async (req, res) => {
 });
 
 app.post('/api/auth/logout', (req, res) => {
+  const user = sessionUser(req);
+  if (user) {
+    audit('auth_logout', {
+      at: new Date().toISOString(),
+      userId: user.id,
+      userEmail: user.email,
+      ip: req.ip
+    });
+  }
   req.session.destroy(() => res.json({ ok: true }));
 });
 
 // ----------------- SUPPORT -----------------
 app.post('/api/support/message', (req, res, next) => {
   // Allow either an authenticated admin session OR a support API token.
-  if (req.session && req.session.user && req.session.user.role === 'admin') return next();
+  const user = sessionUser(req);
+  if (user && hasPermission(user.role, PERMISSIONS.SUPPORT_SEND)) return next();
   if (hasValidSupportApiToken(req)) return next();
   return res.status(401).json({ error: 'Unauthorized' });
 }, async (req, res) => {
@@ -989,7 +1298,7 @@ app.post('/api/support/message', (req, res, next) => {
 });
 
 // ----------------- USERS (admin) -----------------
-app.get('/api/users', requireAuth, (req, res) => {
+app.get('/api/users', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
   const usersData = loadUsers();
   const safe = (usersData.users || []).map((u) => ({
     id: u.id,
@@ -1002,7 +1311,7 @@ app.get('/api/users', requireAuth, (req, res) => {
   res.json({ users: safe });
 });
 
-app.post('/api/users', requireAuth, async (req, res) => {
+app.post('/api/users', requirePermission(PERMISSIONS.USERS_MANAGE), async (req, res) => {
   const email = String(req.body.email || '').toLowerCase().trim();
   const password = String(req.body.password || '');
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
@@ -1023,7 +1332,7 @@ app.post('/api/users', requireAuth, async (req, res) => {
     id: newId(),
     email,
     passwordHash: await bcrypt.hash(password, 12),
-    role: 'admin',
+    role: ROLE.WEBSITE_EDITOR,
     createdAt: new Date().toISOString(),
     isMaster: false,
     name: ''
@@ -1034,7 +1343,7 @@ app.post('/api/users', requireAuth, async (req, res) => {
 });
 
 // Create an invite link for a new admin (recommended flow)
-app.post('/api/users/invite', requireAuth, async (req, res) => {
+app.post('/api/users/invite', requirePermission(PERMISSIONS.USERS_MANAGE), async (req, res) => {
   const email = String(req.body.email || '').toLowerCase().trim();
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
@@ -1053,7 +1362,7 @@ app.post('/api/users/invite', requireAuth, async (req, res) => {
     id: newId(),
     email,
     passwordHash: await bcrypt.hash(placeholderPassword, 12),
-    role: 'admin',
+    role: ROLE.WEBSITE_EDITOR,
     createdAt: new Date().toISOString(),
     isMaster: false,
     name: '',
@@ -1123,7 +1432,7 @@ app.post('/api/invites/:token/complete', async (req, res) => {
   req.session.user = {
     id: user.id,
     email: user.email,
-    role: user.role,
+    role: normalizeRole(user.role),
     name: user.name || '',
     isMaster: !!user.isMaster,
     mustOnboard: !!user.mustOnboard,
@@ -1156,7 +1465,13 @@ app.put('/api/account', requireAuth, (req, res) => {
   user.name = nextName;
   user.email = nextEmail;
   saveUsers({ users });
-  req.session.user = { id: user.id, email: user.email, role: user.role, name: user.name || '', isMaster: !!user.isMaster };
+  req.session.user = {
+    id: user.id,
+    email: user.email,
+    role: normalizeRole(user.role),
+    name: user.name || '',
+    isMaster: !!user.isMaster
+  };
   res.json({ ok: true });
 });
 
@@ -1186,7 +1501,7 @@ app.put('/api/account/password', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/users/:id', requireAuth, (req, res) => {
+app.delete('/api/users/:id', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
   const usersData = loadUsers();
   const users = usersData.users || [];
   const id = String(req.params.id);
@@ -1364,21 +1679,21 @@ function proxyToWorkerStream(req, res, { forceAccept } = {}) {
 }
 
 // Worker-backed R2 gallery APIs (for bucket browsing/sync)
-app.get('/api/gallery/r2tree', requireAuth, (req, res) => proxyToWorker(req, res));
-app.delete('/api/gallery/r2object', requireAuth, (req, res) => proxyToWorker(req, res));
-app.post('/api/gallery/sync', requireAuth, (req, res) => proxyToWorker(req, res));
+app.get('/api/gallery/r2tree', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => proxyToWorker(req, res));
+app.delete('/api/gallery/r2object', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => proxyToWorker(req, res));
+app.post('/api/gallery/sync', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => proxyToWorker(req, res));
 
 // Worker-backed CDN gallery objects (for previewing /cdn/gallery/* when running locally)
 app.use('/cdn/gallery', (req, res) => proxyToWorkerStream(req, res));
 
-app.get('/api/gallery', requireAuth, (req, res) => {
+app.get('/api/gallery', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
   if (String(process.env.WORKER_ORIGIN || '').trim()) return proxyToWorker(req, res);
   return res.json(loadGallery());
 });
 
 app.post(
   '/api/gallery/upload',
-  requireAuth,
+  requirePermission(PERMISSIONS.WEBSITE_WRITE),
   (req, res, next) => {
     if (String(process.env.WORKER_ORIGIN || '').trim()) return proxyToWorkerStream(req, res, { forceAccept: 'application/json' });
     return next();
@@ -1464,7 +1779,7 @@ app.post(
   }
 );
 
-app.put('/api/gallery/order', requireAuth, (req, res) => {
+app.put('/api/gallery/order', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
   if (String(process.env.WORKER_ORIGIN || '').trim()) return proxyToWorker(req, res);
   const album = sanitizeSegment(req.body?.album || '');
   const orderedIds = Array.isArray(req.body?.orderedIds) ? req.body.orderedIds.map((x) => String(x)) : [];
@@ -1504,7 +1819,7 @@ app.put('/api/gallery/order', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.put('/api/gallery/:id', requireAuth, (req, res) => {
+app.put('/api/gallery/:id', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
   if (String(process.env.WORKER_ORIGIN || '').trim()) return proxyToWorker(req, res);
   const id = String(req.params.id);
   const gallery = loadGallery();
@@ -1529,7 +1844,7 @@ app.put('/api/gallery/:id', requireAuth, (req, res) => {
   res.json({ ok: true, item });
 });
 
-app.delete('/api/gallery/:id', requireAuth, (req, res) => {
+app.delete('/api/gallery/:id', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
   if (String(process.env.WORKER_ORIGIN || '').trim()) return proxyToWorker(req, res);
   const id = String(req.params.id);
   const gallery = loadGallery();
@@ -1692,7 +2007,7 @@ async function exportAnnouncementsUnifiedToRoot() {
   writeJsonAtomic(path.join(ROOT_DIR, 'announcements.json'), data);
 }
 
-app.get('/api/announcements', requireAuth, async (req, res) => {
+app.get('/api/announcements', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
   try {
     res.json(await loadAnnouncementsUnified());
   } catch (err) {
@@ -1700,7 +2015,7 @@ app.get('/api/announcements', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/announcements', requireAuth, async (req, res) => {
+app.post('/api/announcements', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
   try {
     const title = String(req.body.title || '').trim().slice(0, 120);
     const body = String(req.body.body || '').trim().slice(0, 5000);
@@ -1724,7 +2039,7 @@ app.post('/api/announcements', requireAuth, async (req, res) => {
   }
 });
 
-app.delete('/api/announcements/:id', requireAuth, async (req, res) => {
+app.delete('/api/announcements/:id', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
   try {
     const id = String(req.params.id);
     await deleteAnnouncementUnified(id);
@@ -1856,11 +2171,11 @@ function exportScheduleJson(events) {
   writeJsonAtomic(schedulePath, schedule);
 }
 
-app.get('/api/events', requireAuth, (req, res) => {
+app.get('/api/events', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), (req, res) => {
   res.json(loadEvents());
 });
 
-app.post('/api/events', requireAuth, (req, res) => {
+app.post('/api/events', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), (req, res) => {
   const title = String(req.body.title || '').trim().slice(0, 120);
   const date = String(req.body.date || '').trim();
   const time = normalizeTimeValue(req.body.time);
@@ -1879,7 +2194,7 @@ app.post('/api/events', requireAuth, (req, res) => {
   res.json({ ok: true, event: ev, events: pruned.kept });
 });
 
-app.put('/api/events/:id', requireAuth, (req, res) => {
+app.put('/api/events/:id', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), (req, res) => {
   const id = String(req.params.id);
   const title = String(req.body.title || '').trim().slice(0, 120);
   const date = String(req.body.date || '').trim();
@@ -1905,7 +2220,7 @@ app.put('/api/events/:id', requireAuth, (req, res) => {
   res.json({ ok: true, event: ev, events: pruned.kept });
 });
 
-app.delete('/api/events/:id', requireAuth, (req, res) => {
+app.delete('/api/events/:id', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), (req, res) => {
   const id = String(req.params.id);
   const data = loadEvents();
   const events = Array.isArray(data.events) ? data.events : [];
@@ -1917,11 +2232,11 @@ app.delete('/api/events/:id', requireAuth, (req, res) => {
 });
 
 // ----------------- FINANCES (internal only) -----------------
-app.get('/api/finances', requireAuth, (req, res) => {
+app.get('/api/finances', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
   res.json(loadFinances());
 });
 
-app.put('/api/finances/meta', requireAuth, (req, res) => {
+app.put('/api/finances/meta', requirePermission(PERMISSIONS.FINANCE_META), (req, res) => {
   const categories = uniqNonEmptyStrings(req.body?.categories || []);
   const funds = uniqNonEmptyStrings(req.body?.funds || []);
   const data = loadFinances();
@@ -1933,7 +2248,7 @@ app.put('/api/finances/meta', requireAuth, (req, res) => {
   res.json({ ok: true, data: next });
 });
 
-app.post('/api/finances/entries', requireAuth, (req, res) => {
+app.post('/api/finances/entries', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
   const date = normalizeDateOnly(req.body?.date);
   const type = String(req.body?.type || '').trim().toLowerCase();
   const category = normalizeFinanceText(req.body?.category, 80);
@@ -1977,7 +2292,7 @@ app.post('/api/finances/entries', requireAuth, (req, res) => {
   res.json({ ok: true, entry, data: next });
 });
 
-app.put('/api/finances/entries/:id', requireAuth, (req, res) => {
+app.put('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
   const id = String(req.params.id);
   const date = normalizeDateOnly(req.body?.date);
   const type = String(req.body?.type || '').trim().toLowerCase();
@@ -2019,7 +2334,7 @@ app.put('/api/finances/entries/:id', requireAuth, (req, res) => {
   res.json({ ok: true, entry, data: next });
 });
 
-app.delete('/api/finances/entries/:id', requireAuth, (req, res) => {
+app.delete('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
   const id = String(req.params.id);
   const data = loadFinances();
   const entries = Array.isArray(data.entries) ? data.entries : [];
@@ -2183,7 +2498,7 @@ const bulletinsUpload = multer({
   limits: { fileSize: 25 * 1024 * 1024 }
 });
 
-app.get('/api/bulletins', requireAuth, async (req, res) => {
+app.get('/api/bulletins', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
   try {
     res.json(await loadBulletinsUnified());
   } catch (err) {
@@ -2191,7 +2506,7 @@ app.get('/api/bulletins', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/bulletins/upload', requireAuth, bulletinsUpload.single('file'), (req, res) => {
+app.post('/api/bulletins/upload', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), bulletinsUpload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   const title = String(req.body.title || 'Bulletin').trim().slice(0, 120) || 'Bulletin';
@@ -2254,7 +2569,7 @@ app.post('/api/bulletins/upload', requireAuth, bulletinsUpload.single('file'), (
 
 });
 
-app.delete('/api/bulletins/:id', requireAuth, async (req, res) => {
+app.delete('/api/bulletins/:id', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
   try {
     const id = String(req.params.id);
     const bulletin = await getBulletinByIdUnified(id);
@@ -2303,11 +2618,11 @@ const docsUpload = multer({
   limits: { fileSize: 25 * 1024 * 1024 }
 });
 
-app.get('/api/documents', requireAuth, (req, res) => {
+app.get('/api/documents', requireAnyPermission([PERMISSIONS.COMMUNICATIONS_MANAGE, PERMISSIONS.FINANCE_READ]), (req, res) => {
   res.json(loadDocuments());
 });
 
-app.post('/api/documents/upload', requireAuth, docsUpload.single('file'), (req, res) => {
+app.post('/api/documents/upload', requireAnyPermission([PERMISSIONS.COMMUNICATIONS_MANAGE, PERMISSIONS.FINANCE_WRITE]), docsUpload.single('file'), (req, res) => {
   const kind = String(req.body.kind || 'document').trim().slice(0, 30);
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
@@ -2330,7 +2645,7 @@ app.post('/api/documents/upload', requireAuth, docsUpload.single('file'), (req, 
   res.json({ ok: true, doc });
 });
 
-app.delete('/api/documents/:id', requireAuth, (req, res) => {
+app.delete('/api/documents/:id', requireAnyPermission([PERMISSIONS.COMMUNICATIONS_MANAGE, PERMISSIONS.FINANCE_WRITE]), (req, res) => {
   const id = String(req.params.id);
   const data = loadDocuments();
   const documents = Array.isArray(data.documents) ? data.documents : [];
@@ -2363,11 +2678,11 @@ function saveLivestream(data) {
   writeJsonAtomic(LIVESTREAM_DATA_PATH, data);
 }
 
-app.get('/api/livestream', requireAuth, (req, res) => {
+app.get('/api/livestream', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), (req, res) => {
   res.json(loadLivestream());
 });
 
-app.put('/api/livestream', requireAuth, (req, res) => {
+app.put('/api/livestream', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), (req, res) => {
   const data = loadLivestream();
 
   const allowedPlatforms = new Set(['website', 'youtube', 'facebook']);
@@ -2440,21 +2755,21 @@ function sanitizeThemeInput(theme) {
 }
 
 // Theme preview is stored per-session for the logged-in admin only.
-app.post('/api/theme/preview', requireAuth, (req, res) => {
+app.post('/api/theme/preview', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
   req.session.themePreview = sanitizeThemeInput(req.body?.theme);
   res.json({ ok: true });
 });
 
-app.post('/api/theme/preview/clear', requireAuth, (req, res) => {
+app.post('/api/theme/preview/clear', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
   delete req.session.themePreview;
   res.json({ ok: true });
 });
 
-app.get('/api/settings', requireAuth, (req, res) => {
+app.get('/api/settings', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
   res.json(loadSettings());
 });
 
-app.put('/api/settings', requireAuth, (req, res) => {
+app.put('/api/settings', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
   const current = loadSettings();
   const next = {
     social: {
@@ -2478,7 +2793,7 @@ app.put('/api/settings', requireAuth, (req, res) => {
 });
 
 // ----------------- EXPORT ALL -----------------
-app.post('/api/export', requireAuth, async (req, res) => {
+app.post('/api/export', requirePermission(PERMISSIONS.EXPORTS_RUN), async (req, res) => {
   try {
     if (!ENABLE_EXPORTS) return res.status(400).json({ error: 'Exports disabled' });
 

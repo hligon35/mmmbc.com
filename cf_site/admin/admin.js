@@ -1,5 +1,6 @@
 let csrfToken = '';
 let csrfReady = Promise.resolve();
+let authProviders = { google: { enabled: false, clientId: '' } };
 
 async function fetchCsrfToken() {
   try {
@@ -187,6 +188,90 @@ function isWorkersDeployment() {
   // In that mode, authentication is handled by Cloudflare Access instead of the legacy password form.
   const host = String(window.location.hostname || '').toLowerCase();
   return host.endsWith('.workers.dev');
+}
+
+async function loadAuthProviders() {
+  try {
+    const data = await api('/api/auth/providers', { method: 'GET' });
+    const google = data?.google || {};
+    authProviders = {
+      google: {
+        enabled: !!google.enabled,
+        clientId: String(google.clientId || '')
+      }
+    };
+  } catch {
+    authProviders = { google: { enabled: false, clientId: '' } };
+  }
+}
+
+function hideGoogleButton() {
+  const btnWrap = $('googleSignInBtn');
+  if (btnWrap) btnWrap.innerHTML = '';
+}
+
+async function loginWithGoogle(idToken) {
+  await api('/api/auth/google', {
+    method: 'POST',
+    body: JSON.stringify({ idToken })
+  });
+  csrfReady = fetchCsrfToken();
+  await csrfReady;
+}
+
+function initGoogleSignInButton() {
+  const hint = $('googleLoginHint');
+  const panel = $('googleLoginPanel');
+  const wrap = $('googleSignInBtn');
+  if (!panel || !wrap || !hint) return;
+
+  if (!authProviders.google.enabled || !authProviders.google.clientId) {
+    panel.hidden = true;
+    hideGoogleButton();
+    return;
+  }
+
+  panel.hidden = false;
+
+  const g = window.google;
+  if (!g || !g.accounts || !g.accounts.id) {
+    hint.textContent = 'Google sign-in failed to load. Refresh and try again.';
+    hideGoogleButton();
+    return;
+  }
+
+  hint.textContent = 'Use your approved Google account.';
+  wrap.innerHTML = '';
+
+  g.accounts.id.initialize({
+    client_id: authProviders.google.clientId,
+    callback: async (response) => {
+      const token = String(response?.credential || '').trim();
+      if (!token) {
+        showToast('Google sign-in did not return a credential.', { variant: 'danger' });
+        return;
+      }
+      try {
+        await loginWithGoogle(token);
+        await refreshAuthUI();
+      } catch (err) {
+        const el = $('loginError');
+        if (el) {
+          el.textContent = String(err?.message || 'Google sign-in failed.');
+          el.hidden = false;
+        }
+      }
+    }
+  });
+
+  g.accounts.id.renderButton(wrap, {
+    type: 'standard',
+    shape: 'rectangular',
+    size: 'large',
+    text: 'signin_with',
+    theme: 'outline',
+    logo_alignment: 'left'
+  });
 }
 
 function uniqStringsLower(list) {
@@ -473,22 +558,17 @@ async function refreshAuthUI() {
   $('dashboardCard').hidden = !loggedIn || inInviteFlow;
   $('logoutBtn').hidden = !loggedIn;
 
-  // Access-only UI: /admin is the single entry point.
-  // Cloudflare Access (when configured) should intercept /admin/* and handle authentication.
-  // Avoid client-side redirects here to prevent refresh loops when Access is not active.
   if (!loggedIn && !inInviteFlow) {
-    const accessPanel = $('accessOnlyPanel');
     const form = $('loginForm');
     const forgotToggle = $('forgotToggle');
     const forgotPanel = $('forgotPanel');
-
-    if (accessPanel) accessPanel.hidden = false;
-    if (form) form.hidden = true;
-    if (forgotToggle) forgotToggle.hidden = true;
+    if (form) form.hidden = false;
+    if (forgotToggle) forgotToggle.hidden = false;
     if (forgotPanel) forgotPanel.hidden = true;
+    initGoogleSignInButton();
   }
 
-  $('authStatus').textContent = loggedIn ? `Signed in as ${me.user.email}` : 'Cloudflare Access required';
+  $('authStatus').textContent = loggedIn ? `Signed in as ${me.user.email}` : 'Sign in required';
 
   if (loggedIn) {
     $('salutation').textContent = `Welcome, ${me.user.name || me.user.email}`;
@@ -511,10 +591,6 @@ async function refreshAuthUI() {
 }
 
 async function login(email, password) {
-  if (isWorkersDeployment()) {
-    // In Option B, Access is the auth layer (no password login endpoint).
-    throw new Error('This admin uses Cloudflare Access. Use Access login.');
-  }
   await api('/api/auth/login', {
     method: 'POST',
     body: JSON.stringify({
@@ -2861,7 +2937,7 @@ async function loadAll() {
 }
 
 // -------- Wire UI --------
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   updateHeaderBumper();
   window.addEventListener('resize', () => {
     try { updateHeaderBumper(); } catch { /* ignore */ }
@@ -3328,14 +3404,6 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     $('loginError').hidden = true;
 
-    if (isWorkersDeployment()) {
-      showToast(
-        'Cloudflare Access login happens in Cloudflare Zero Trust (not inside this admin page). If you are not being redirected to a Cloudflare login screen, you still need to configure an Access policy for this hostname and for /admin/* (and usually /api/*).',
-        { variant: 'danger', timeoutMs: 9000 }
-      );
-      return;
-    }
-
     const fd = new FormData(e.currentTarget);
     try {
       await login(String(fd.get('email')), String(fd.get('password')));
@@ -3346,35 +3414,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Cloudflare Access button (Workers deployments)
-  const accessBtn = $('accessLoginBtn');
-  if (accessBtn) {
-    accessBtn.addEventListener('click', async () => {
-      let diag = null;
-      try {
-        diag = await api('/api/access/status', { method: 'GET' });
-      } catch {
-        diag = null;
-      }
-
-      if (!diag?.access) {
-        showToast(
-          'Access check failed. If you are not being redirected to a Cloudflare login screen, configure a Zero Trust Access app + policy for this hostname and for /admin/* (and /api/*).',
-          { variant: 'danger', timeoutMs: 10000 }
-        );
-        return;
-      }
-
-      const a = diag.access;
-      const flags = `cookie=${a.hasSessionCookie ? 'yes' : 'no'}, jwt=${a.hasJwtAssertion ? 'yes' : 'no'}, emailHeader=${a.hasEmailHeader ? 'yes' : 'no'}`;
-      const who = a.email ? `email=${a.email}` : 'email=(none)';
-
-      showToast(
-        `Cloudflare Access diagnostics: ${flags}; ${who}. ${String(diag.hint || '')}`.trim(),
-        { variant: 'danger', timeoutMs: 11000 }
-      );
-    });
-  }
+  await loadAuthProviders();
+  initGoogleSignInButton();
 
   // Invite onboarding
   if ($('copySecretBtn') && $('inviteSecret')) {

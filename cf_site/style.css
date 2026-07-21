@@ -966,7 +966,7 @@ section div p {
 }
 
 .faq-item.active .faq-question {
-    background-color: rgba(196, 97, 35, 0.8);
+    background-color: #c46123cc;
     border-radius: 10px 10px 10px 10px;
 }
 

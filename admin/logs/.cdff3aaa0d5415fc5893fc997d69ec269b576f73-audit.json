@@ -6,29 +6,9 @@
     "auditLog": "C:\\Users\\Harold Ligon\\Desktop\\MyMobileApps\\MoriahFaithConnect\\mmmbc\\admin\\logs\\.cdff3aaa0d5415fc5893fc997d69ec269b576f73-audit.json",
     "files": [
         {
-            "date": 1768606241673,
-            "name": "C:\\Users\\Harold Ligon\\Desktop\\MyMobileApps\\MoriahFaithConnect\\mmmbc\\admin\\logs\\app-2026-01-16.log",
-            "hash": "f46de6af69b5b99ee8569f0b7d903c421a0cf3eef1c5ab71114ea86ab0eec8bf"
-        },
-        {
-            "date": 1769024120748,
-            "name": "C:\\Users\\Harold Ligon\\Desktop\\MyMobileApps\\MoriahFaithConnect\\mmmbc\\admin\\logs\\app-2026-01-21.log",
-            "hash": "44c9927e4650ad0aa3a2c0c0ffb7cf95592b46cd3c5af501b8a6a5f13336ddf7"
-        },
-        {
-            "date": 1769099038689,
-            "name": "C:\\Users\\Harold Ligon\\Desktop\\MyMobileApps\\MoriahFaithConnect\\mmmbc\\admin\\logs\\app-2026-01-22.log",
-            "hash": "6b6ca1171eeca30915ffacf612242d0696c42e3d20f31d5029aa39fe3000151f"
-        },
-        {
-            "date": 1769145132009,
-            "name": "C:\\Users\\Harold Ligon\\Desktop\\MyMobileApps\\MoriahFaithConnect\\mmmbc\\admin\\logs\\app-2026-01-23.log",
-            "hash": "22ac0ad0cd1dc4945c8d47a1fb927fc69c7dfdf6f151cf1a096db8a145de8f6b"
-        },
-        {
-            "date": 1769457941134,
-            "name": "C:\\Users\\Harold Ligon\\Desktop\\MyMobileApps\\MoriahFaithConnect\\mmmbc\\admin\\logs\\app-2026-01-26.log",
-            "hash": "dffc2ba1ef9c178e9785f77da11c1433058e797451e1c1617bece7c9b93a1994"
+            "date": 1784657794383,
+            "name": "C:\\Users\\Harold Ligon\\Desktop\\MyMobileApps\\MoriahFaithConnect\\mmmbc\\admin\\logs\\app-2026-07-21.log",
+            "hash": "697eafa5c4b58d3126c915002e141659bad5430ca89b591f958fb00e46336d45"
         }
     ],
     "hashType": "sha256"

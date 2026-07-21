@@ -26,12 +26,12 @@
   <main id="app" class="app" role="main">
     <section class="card loginCard" id="loginCard" aria-label="Login">
       <h1 class="card__title">Sign in</h1>
-      <p class="muted">This admin is protected by Cloudflare Access.</p>
+      <p class="muted">Use your approved Google account to sign in.</p>
 
-      <div class="card" id="accessOnlyPanel" hidden>
-        <div class="card__subtitle">Cloudflare Access sign-in</div>
-        <p class="muted">This admin does not run its own login page. The Cloudflare-branded login screen only appears after you configure a Zero Trust <strong>Access</strong> policy for this hostname and path (typically <code>/admin/*</code> and <code>/api/*</code>). If Access is configured, you’ll be redirected <em>before</em> this page loads.</p>
-        <button class="btn btn--primary" id="accessLoginBtn" type="button">Why am I not seeing the Cloudflare login?</button>
+      <div class="card" id="googleLoginPanel">
+        <div class="card__subtitle">Google sign-in</div>
+        <p class="muted" id="googleLoginHint">Loading Google sign-in…</p>
+        <div id="googleSignInBtn" aria-label="Google sign-in button"></div>
       </div>
 
       <form id="loginForm" class="form" hidden>
@@ -728,6 +728,7 @@
     </section>
   </main>
 
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="/admin/admin.js?v=20260123"></script>
 </body>
 </html>
