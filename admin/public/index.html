@@ -10,25 +10,31 @@
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
 
-  <header class="header">
+  <header class="header" id="adminHeader" hidden>
     <div class="header__left">
-      <div class="header__brandRow">
-        <img class="header__logo" src="/Icons/favicon.png" alt="MMMBC" />
-        <div class="salutation salutation--header" id="salutation" aria-live="polite"></div>
-      </div>
-      <button class="btn btn--drawerToggle" id="navDrawerToggle" type="button" aria-expanded="true" aria-controls="adminSideNav">Collapse Menu</button>
+      <img class="header__logo" src="/ConImg/MtMoriahLogo-1.png" alt="Mt. Moriah Missionary Baptist Church" />
     </div>
-    <div class="header__right">
-      <div class="header__adminMeta" aria-label="Admin dashboard status">
-        <div class="header__title">Church Website Manager</div>
-        <span class="status" id="authStatus" aria-live="polite">Admin server not running</span>
+    <div class="header__center">
+      <div class="headerGreeting salutation salutation--header" id="salutation" aria-live="polite"></div>
+      <div class="headerSignedIn status" id="authStatus" aria-live="polite"></div>
+      <div class="headerActions">
+        <button class="btn btn--drawerToggle" id="navDrawerToggle" type="button" aria-expanded="false" aria-controls="adminSideNav" aria-label="Open Menu">Open Menu</button>
+        <button class="btn" id="logoutBtn" type="button" hidden>Log out</button>
       </div>
-      <button class="btn" id="logoutBtn" type="button" hidden>Log out</button>
+    </div>
+    <div class="header__right" aria-hidden="true">
     </div>
   </header>
+  <button class="adminDrawerBackdrop" id="adminDrawerBackdrop" type="button" aria-label="Close menu" hidden></button>
 
   <main id="app" class="app" role="main">
     <div class="srOnly" id="adminLiveRegion" aria-live="polite" aria-atomic="true"></div>
+    <section class="loginShell" id="authShell" aria-label="Sign-in layout">
+      <div class="loginBrand" aria-hidden="true">
+        <img class="loginBrand__logo" src="/ConImg/MtMoriahLogo-1.png" alt="" />
+      </div>
+
+      <div class="loginStage">
     <section class="card loginCard" id="loginCard" aria-label="Login">
       <h1 class="card__title">Sign in</h1>
       <p class="muted">Use your approved Google account to sign in.</p>
@@ -155,8 +161,11 @@
         <div class="hint" id="inviteHint" aria-live="polite"></div>
       </form>
     </section>
+      </div>
+    </section>
 
     <section class="card" id="dashboardCard" aria-label="Admin dashboard" hidden>
+      <div class="adminSectionExtension noPrint" id="adminSectionExtension" hidden>
       <div class="financeTopBar noPrint" id="financeTopBar" aria-label="Finance totals" hidden>
         <div class="financePeriodTabs" role="tablist" aria-label="Finance period">
           <button class="miniTab miniTab--xs" id="financePeriodWeekBtn" type="button" role="tab" aria-selected="true">This Week</button>
@@ -180,9 +189,10 @@
         <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="live_praise">Live Praise</button>
         <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="contact">Contact</button>
       </div>
+      </div>
 
       <div class="adminLayout">
-        <nav class="sideNav" id="adminSideNav" role="tablist" aria-label="Admin sections">
+        <nav class="sideNav adminDrawer" id="adminSideNav" role="tablist" aria-label="Admin sections" aria-hidden="true" tabindex="-1">
           <button class="tab tab--nav" role="tab" aria-selected="true" aria-controls="tab-home" id="tabBtn-home">Home</button>
 
           <p class="sideNav__groupLabel" aria-hidden="true">Website Updates</p>
@@ -1037,8 +1047,27 @@
 
           <aside class="editorSplit__preview">
             <div class="card previewPane" id="siteEditorPreviewPane" aria-live="polite">
-              <div class="sectionHeader sectionHeader--compact">
-                <h3 class="card__subtitle">Live Page Preview</h3>
+              <div class="sitePreviewToolbar" id="sitePreviewToolbar">
+                <div class="sitePreviewToolbar__titles">
+                  <strong>Published Page Preview</strong>
+                  <span id="sitePreviewPageName"></span>
+                </div>
+                <div class="sitePreviewToolbar__actions">
+                  <button class="btn" id="sitePreviewRefreshBtn" type="button">Refresh Preview</button>
+                  <a class="btn" id="sitePreviewOpenBtn" href="/" target="_blank" rel="noopener noreferrer">Open Full Page</a>
+                </div>
+              </div>
+              <div class="hint" id="sitePreviewStatus" aria-live="polite"></div>
+              <iframe
+                id="sitePagePreviewFrame"
+                title="Selected website page preview"
+                class="sitePagePreviewFrame"
+                loading="lazy"
+                sandbox="allow-same-origin allow-scripts allow-forms"
+              ></iframe>
+
+              <div class="sectionHeader sectionHeader--compact previewDraftHeader">
+                <h3 class="card__subtitle">Unsaved Changes Preview</h3>
                 <span class="previewBadge">Updates as you type</span>
               </div>
               <div id="siteEditorLivePreview" class="siteEditorLivePreview"></div>

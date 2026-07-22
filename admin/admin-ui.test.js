@@ -31,9 +31,9 @@ describe('Admin accessibility redesign guards', () => {
     expect(indexHtml).toContain('Help &amp; Support');
   });
 
-  test('Collapse Menu and Show Menu states are present', () => {
-    expect(indexHtml).toContain('Collapse Menu');
-    expect(adminJs).toContain("btn.textContent = isCollapsed ? 'Show Menu' : 'Collapse Menu';");
+  test('Drawer toggle states are present', () => {
+    expect(indexHtml).toContain('Open Menu');
+    expect(adminJs).toContain("btn.textContent = next ? 'Close Menu' : 'Open Menu';");
   });
 
   test('Advanced Photo Tools are collapsed by default', () => {
