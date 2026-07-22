@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MMMBC Admin Dashboard</title>
+  <title>Church Website Manager</title>
   <meta name="description" content="Admin dashboard for Mt. Moriah Missionary Baptist Church website." />
   <link rel="stylesheet" href="/admin/admin.css?v=20260124" />
 </head>
@@ -16,11 +16,11 @@
         <img class="header__logo" src="/Icons/favicon.png" alt="MMMBC" />
         <div class="salutation salutation--header" id="salutation" aria-live="polite"></div>
       </div>
-      <button class="btn btn--drawerToggle" id="navDrawerToggle" type="button" aria-expanded="true" aria-controls="adminSideNav">Hide Menu</button>
+      <button class="btn btn--drawerToggle" id="navDrawerToggle" type="button" aria-expanded="true" aria-controls="adminSideNav">Collapse Menu</button>
     </div>
     <div class="header__right">
       <div class="header__adminMeta" aria-label="Admin dashboard status">
-        <div class="header__title">Admin Dashboard</div>
+        <div class="header__title">Church Website Manager</div>
         <span class="status" id="authStatus" aria-live="polite">Admin server not running</span>
       </div>
       <button class="btn" id="logoutBtn" type="button" hidden>Log out</button>
@@ -28,6 +28,7 @@
   </header>
 
   <main id="app" class="app" role="main">
+    <div class="srOnly" id="adminLiveRegion" aria-live="polite" aria-atomic="true"></div>
     <section class="card loginCard" id="loginCard" aria-label="Login">
       <h1 class="card__title">Sign in</h1>
       <p class="muted">Use your approved Google account to sign in.</p>
@@ -158,8 +159,8 @@
     <section class="card" id="dashboardCard" aria-label="Admin dashboard" hidden>
       <div class="financeTopBar noPrint" id="financeTopBar" aria-label="Finance totals" hidden>
         <div class="financePeriodTabs" role="tablist" aria-label="Finance period">
-          <button class="miniTab miniTab--xs" id="financePeriodWeekBtn" type="button" role="tab" aria-selected="true">Wk</button>
-          <button class="miniTab miniTab--xs" id="financePeriodMonthBtn" type="button" role="tab" aria-selected="false">Mon</button>
+          <button class="miniTab miniTab--xs" id="financePeriodWeekBtn" type="button" role="tab" aria-selected="true">This Week</button>
+          <button class="miniTab miniTab--xs" id="financePeriodMonthBtn" type="button" role="tab" aria-selected="false">This Month</button>
         </div>
         <div class="financeTopBar__label">Finance Totals</div>
         <span class="statusChip" id="financeIncomeTotal">$0.00 Income</span>
@@ -182,31 +183,71 @@
 
       <div class="adminLayout">
         <nav class="sideNav" id="adminSideNav" role="tablist" aria-label="Admin sections">
-          <button class="tab tab--nav" role="tab" aria-selected="true" aria-controls="tab-photos" id="tabBtn-photos">Photo Gallery</button>
-          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-events" id="tabBtn-events">Events</button>
-          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-content" id="tabBtn-content">Announcements</button>
-          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-finances" id="tabBtn-finances">Finances</button>
-          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-newsletter" id="tabBtn-newsletter">Newsletter</button>
-          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-profiles" id="tabBtn-profiles">Site Editor</button>
-          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-support" id="tabBtn-support">Support</button>
+          <button class="tab tab--nav" role="tab" aria-selected="true" aria-controls="tab-home" id="tabBtn-home">Home</button>
 
-          <div class="photoBulkBar photoBulkBar--nav" id="photoBulkBar" hidden>
-            <button class="btn btn--primary" id="photoBulkEditBtn" type="button">Edit selected</button>
-            <button class="btn" id="photoBulkDeleteBtn" type="button">Delete selected</button>
-            <span class="muted" id="photoBulkCount" aria-live="polite"></span>
-          </div>
+          <p class="sideNav__groupLabel" aria-hidden="true">Website Updates</p>
+          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-content" id="tabBtn-content">Announcements</button>
+          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-events" id="tabBtn-events">Events</button>
+          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-profiles" id="tabBtn-profiles">Edit Website Pages</button>
+          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-photos" id="tabBtn-photos">Photos</button>
+
+          <p class="sideNav__groupLabel" aria-hidden="true">Communication</p>
+          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-newsletter" id="tabBtn-newsletter">Newsletter</button>
+
+          <p class="sideNav__groupLabel" aria-hidden="true">Administration</p>
+          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-finances" id="tabBtn-finances">Church Finances</button>
+          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-support" id="tabBtn-support">Help &amp; Support</button>
         </nav>
 
         <div class="adminMain">
 
-      <!-- Photo Gallery -->
-      <section class="tabPanel" role="tabpanel" id="tab-photos" aria-labelledby="tabBtn-photos">
+      <section class="tabPanel" role="tabpanel" id="tab-home" aria-labelledby="tabBtn-home">
+        <div class="pageContext" id="pageContext-home">
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a></p>
+          <h2 class="pageContext__title">Church Website Manager</h2>
+          <p class="pageContext__description" id="homeWelcomeLine">Welcome</p>
+          <p class="pageContext__description">What would you like to update today?</p>
+        </div>
+        <div class="homeTaskGrid" aria-label="Quick tasks">
+          <button class="homeTaskCard" type="button" data-section-target="tab-content" data-subtab-target="panel-content-announcements">
+            <span class="homeTaskCard__title">Post an Announcement</span>
+            <span class="homeTaskCard__desc">Share an important message on the church website.</span>
+          </button>
+          <button class="homeTaskCard" type="button" data-section-target="tab-events">
+            <span class="homeTaskCard__title">Add or Update an Event</span>
+            <span class="homeTaskCard__desc">Add service times, meetings, programs, or special events.</span>
+          </button>
+          <button class="homeTaskCard" type="button" data-section-target="tab-profiles">
+            <span class="homeTaskCard__title">Edit Website Pages</span>
+            <span class="homeTaskCard__desc">Update ministries, leadership, church history, contact information, and other website pages.</span>
+          </button>
+          <button class="homeTaskCard" type="button" data-section-target="tab-newsletter">
+            <span class="homeTaskCard__title">Send a Newsletter</span>
+            <span class="homeTaskCard__desc">Email church members and subscriber groups.</span>
+          </button>
+          <button class="homeTaskCard" type="button" data-section-target="tab-photos" data-subtab-target="panel-photos-manage">
+            <span class="homeTaskCard__title">Add Photos</span>
+            <span class="homeTaskCard__desc">Upload church photos and organize them into albums.</span>
+          </button>
+          <button class="homeTaskCard" type="button" data-section-target="tab-finances">
+            <span class="homeTaskCard__title">Manage Church Finances</span>
+            <span class="homeTaskCard__desc">Record income and expenses or prepare church financial reports.</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Photos -->
+      <section class="tabPanel" role="tabpanel" id="tab-photos" aria-labelledby="tabBtn-photos" hidden>
+        <div class="pageContext" id="pageContext-photos">
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Photos</p>
+          <h2 class="pageContext__title">Photos</h2>
+          <p class="pageContext__description">Upload, organize, and refresh website photo galleries.</p>
+        </div>
         <div class="sectionHeader">
           <div class="sectionHeader__left">
-            <h2 class="sectionHeader__title">Media Library</h2>
+            <h2 class="sectionHeader__title">Photos</h2>
             <div class="tabs subTabs photoSubTabs" role="tablist" aria-label="Photo gallery sections">
               <button class="tab tab--sub" role="tab" aria-selected="true" aria-controls="panel-photos-manage" id="subTabBtn-photos-manage" type="button">Add Photos</button>
-              <button class="tab tab--sub" role="tab" aria-selected="false" aria-controls="panel-photos-bucket" id="subTabBtn-photos-bucket" type="button">Storage View</button>
             </div>
           </div>
           <div class="iconGroup" aria-label="Photo gallery actions">
@@ -253,6 +294,12 @@
 
         <div class="subTabPanel" role="tabpanel" id="panel-photos-manage" aria-labelledby="subTabBtn-photos-manage">
           <p class="muted">Add photos, group them by album, and use tags so the library stays easy to browse.</p>
+
+          <div class="photoBulkBar" id="photoBulkBar" hidden>
+            <button class="btn" id="photoBulkEditBtn" type="button">Edit selected photos</button>
+            <button class="btn btn--danger" id="photoBulkDeleteBtn" type="button">Delete selected photos</button>
+            <span class="muted" id="photoBulkCount" aria-live="polite"></span>
+          </div>
 
           <form id="photoUploadForm" class="form form--row" enctype="multipart/form-data">
             <label class="label">
@@ -308,47 +355,56 @@
             <button class="btn" id="photoNextPageBtn" type="button">Next</button>
           </div>
 
-          <div class="grid" id="photoGrid" aria-live="polite"></div>
+          <div class="grid" id="photoGrid" aria-live="polite" tabindex="-1"></div>
 
           <div class="toolbar toolbar--tightTop photoPager photoPager--bottom" id="photoPagerBottom" aria-label="Photo gallery pagination (bottom)" hidden>
             <button class="btn" id="photoPrevPageBtnBottom" type="button">Prev</button>
             <span class="muted" id="photoPageInfoBottom" aria-live="polite"></span>
             <button class="btn" id="photoNextPageBtnBottom" type="button">Next</button>
           </div>
-        </div>
 
-        <div class="subTabPanel" role="tabpanel" id="panel-photos-bucket" aria-labelledby="subTabBtn-photos-bucket" hidden>
-          <div class="card r2BrowserCard" aria-label="Bucket browser">
-            <div class="sectionHeader sectionHeader--compact">
-              <h3 class="sectionHeader__title">Bucket Browser</h3>
-              <div class="inlineRow" aria-label="Bucket actions">
-                <button class="btn" id="r2RefreshBtn" type="button">Refresh</button>
-                <button class="btn" id="r2UpBtn" type="button">Up</button>
-                <button class="btn" id="r2SyncFolderBtn" type="button">Sync Folder</button>
-              </div>
-            </div>
-
-            <p class="muted">Browse R2 objects and folders for the gallery.</p>
-
-            <div class="formRow">
-              <label class="label">
-                Prefix
-                <div class="inlineRow">
-                  <input class="input" id="r2PrefixInput" type="text" value="gallery/" />
-                  <button class="btn" id="r2GoBtn" type="button">Go</button>
+          <details class="advancedTools" id="advancedPhotoTools">
+            <summary class="advancedTools__summary">Advanced Photo Tools</summary>
+            <p class="muted">These tools are intended for advanced troubleshooting. Most administrators will not need to use them.</p>
+            <div class="card r2BrowserCard" aria-label="Photo storage">
+              <div class="sectionHeader sectionHeader--compact">
+                <h3 class="sectionHeader__title">Photo Storage</h3>
+                <div class="inlineRow" aria-label="Photo storage actions">
+                  <button class="btn" id="r2RefreshBtn" type="button">Refresh</button>
+                  <button class="btn" id="r2UpBtn" type="button">Up</button>
+                  <button class="btn" id="r2SyncFolderBtn" type="button">Refresh This Folder</button>
                 </div>
-              </label>
-            </div>
+              </div>
 
-            <div class="r2Breadcrumb" id="r2Breadcrumb" aria-label="Bucket breadcrumb"></div>
-            <div class="hint" id="r2Status" aria-live="polite"></div>
-            <div class="list list--scroll5" id="r2Tree" aria-label="Bucket browser tree"></div>
-          </div>
+              <p class="muted">Browse stored photo files and folders for the gallery.</p>
+
+              <div class="formRow">
+                <label class="label">
+                  Folder
+                  <div class="inlineRow">
+                    <input class="input" id="r2PrefixInput" type="text" value="gallery/" />
+                    <button class="btn" id="r2GoBtn" type="button">Go</button>
+                  </div>
+                </label>
+              </div>
+
+              <div class="r2Breadcrumb" id="r2Breadcrumb" aria-label="Photo storage breadcrumb"></div>
+              <div class="hint" id="r2Status" aria-live="polite"></div>
+              <div class="list list--scroll5" id="r2Tree" aria-label="Stored photo files and folders"></div>
+            </div>
+          </details>
         </div>
+
+        <div class="subTabPanel" role="tabpanel" id="panel-photos-bucket" aria-labelledby="subTabBtn-photos-manage" hidden></div>
       </section>
 
       <!-- Announcements -->
       <section class="tabPanel" role="tabpanel" id="tab-content" aria-labelledby="tabBtn-content" hidden>
+        <div class="pageContext" id="pageContext-content">
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Announcements</p>
+          <h2 class="pageContext__title">Announcements</h2>
+          <p class="pageContext__description">Share updates and publish bulletins for the church website.</p>
+        </div>
         <div class="sectionHeader">
           <h2 class="sectionHeader__title">Announcements</h2>
           <div class="tabs subTabs" role="tablist" aria-label="Announcements and bulletins tabs">
@@ -430,10 +486,15 @@
 
       <!-- Finances -->
       <section class="tabPanel" role="tabpanel" id="tab-finances" aria-labelledby="tabBtn-finances" hidden>
+        <div class="pageContext" id="pageContext-finances">
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Church Finances</p>
+          <h2 class="pageContext__title">Church Finances</h2>
+          <p class="pageContext__description">Record giving and expenses, then review and print reports.</p>
+        </div>
         <div class="sectionHeader financeHeader">
           <div class="financeHeaderLeftTop">
             <div class="financeHeaderTitleRow">
-              <h2 class="sectionHeader__title">Finances</h2>
+              <h2 class="sectionHeader__title">Church Finance Overview</h2>
               <a class="btn btn--primary" id="financeDashboardBtn" href="/admin/finances/dashboard">Finance Dashboard</a>
 
               <div class="iconGroup noPrint financeActionButtons" aria-label="Finance actions">
@@ -686,7 +747,11 @@
 
       <!-- Events -->
       <section class="tabPanel" role="tabpanel" id="tab-events" aria-labelledby="tabBtn-events" hidden>
-        <h2>Events</h2>
+        <div class="pageContext" id="pageContext-events">
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Events</p>
+          <h2 class="pageContext__title">Events</h2>
+          <p class="pageContext__description">Add service times, meetings, and church programs.</p>
+        </div>
         <p class="muted">Add, edit, and delete events. This exports to the website's existing schedule format when exports are enabled.</p>
 
         <form id="eventForm" class="form form--row">
@@ -711,12 +776,16 @@
 
       <!-- Newsletter -->
       <section class="tabPanel" role="tabpanel" id="tab-newsletter" aria-labelledby="tabBtn-newsletter" hidden>
-        <h2>Newsletter</h2>
-        <p class="muted">Manage subscriber emails and send newsletters to selected recipients or groups.</p>
+        <div class="pageContext" id="pageContext-newsletter">
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Newsletter</p>
+          <h2 class="pageContext__title">Newsletter</h2>
+          <p class="pageContext__description">Write and send church newsletters in three clear steps.</p>
+        </div>
 
         <div class="card">
+          <h3 class="card__subtitle">Manage Subscribers</h3>
           <div class="sectionHeader sectionHeader--compact">
-            <h3 class="card__subtitle">Subscribers</h3>
+            <h4 class="card__subtitle">Subscriber List</h4>
             <button class="btn" id="subscriberCollapseBtn" type="button" aria-expanded="false" aria-controls="subscriberPanel">View Subscribers</button>
           </div>
           <p class="muted" id="subscriberSummary">No subscribers loaded yet.</p>
@@ -754,7 +823,8 @@
         </div>
 
         <div class="card card--spacedTop">
-          <h3 class="card__subtitle">Send Newsletter</h3>
+          <h3 class="card__subtitle">Step 1: Choose Recipients</h3>
+          <p class="muted" id="newsletterRecipientSummary">This newsletter will be sent to 0 people.</p>
           <form id="newsletterForm" class="form" aria-label="Newsletter send form">
             <div class="formRow">
               <label class="label">
@@ -776,6 +846,8 @@
                 <select class="select" id="newsletterRecipients" size="8" multiple aria-label="Recipients" hidden></select>
               </div>
             </div>
+            <h3 class="card__subtitle">Step 2: Write Newsletter</h3>
+
             <label class="label">
               Subject line
               <input class="input" id="newsletterSubject" type="text" maxlength="140" required />
@@ -786,7 +858,8 @@
             </label>
 
             <div class="card card--spacedTop">
-              <h4 class="card__subtitle">Schedule</h4>
+              <h4 class="card__subtitle">Step 3: Review and Send</h4>
+              <p class="muted" id="newsletterReviewSummary">Review recipients, subject, and delivery details before sending.</p>
               <div class="formRow">
                 <label class="label">
                   Date to send
@@ -817,7 +890,7 @@
                 <button class="btn" id="newsletterSendTestBtn" type="button">Send Test</button>
                 <button class="btn btn--primary" id="newsletterSendNowBtn" type="button">Send Now</button>
                 <button class="btn" id="newsletterSaveDraftBtn" type="button">Save Draft</button>
-                <button class="btn btn--primary" id="newsletterScheduleBtn" type="button">Schedule Send</button>
+                <button class="btn" id="newsletterScheduleBtn" type="button">Schedule for Later</button>
               </div>
             </div>
 
@@ -846,7 +919,11 @@
 
       <!-- Profiles -->
       <section class="tabPanel" role="tabpanel" id="tab-profiles" aria-labelledby="tabBtn-profiles" hidden>
-        <h2>Site Editor</h2>
+        <div class="pageContext" id="pageContext-profiles">
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Edit Website Pages</p>
+          <h2 class="pageContext__title">Edit Website Pages</h2>
+          <p class="pageContext__description">Update ministries, leadership, church history, contact details, and more.</p>
+        </div>
         <p class="muted" id="siteEditorPageHelp">Edit each website page from the tabs above. The public top navigation stays fixed here.</p>
 
         <h3 class="card__subtitle" id="siteEditorPageTitle">Home</h3>
@@ -972,7 +1049,11 @@
 
       <!-- Support -->
       <section class="tabPanel" role="tabpanel" id="tab-support" aria-labelledby="tabBtn-support" hidden>
-        <h2>Help Desk</h2>
+        <div class="pageContext" id="pageContext-support">
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Help &amp; Support</p>
+          <h2 class="pageContext__title">Help &amp; Support</h2>
+          <p class="pageContext__description">Send a support request if you need help with the website manager.</p>
+        </div>
         <p class="muted">Send a message to <strong>support@alphazonelabs.com</strong>.</p>
 
         <form id="supportForm" class="form">
@@ -992,6 +1073,20 @@
           <div class="hint" id="supportHint" aria-live="polite"></div>
           <div class="error" id="supportError" role="alert" hidden></div>
         </form>
+
+        <div class="card card--spacedTop" id="appearanceCard">
+          <h3 class="card__subtitle">Appearance</h3>
+          <p class="muted">Choose the look that is easiest for you to read.</p>
+          <label class="label">
+            Appearance setting
+            <select class="select" id="appearanceSelect">
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="system">Use Device Setting</option>
+            </select>
+          </label>
+          <div class="hint" id="appearanceHint" aria-live="polite"></div>
+        </div>
       </section>
 
 

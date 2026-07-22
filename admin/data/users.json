@@ -1,0 +1,30 @@
+{
+  "users": [
+    {
+      "id": "347009ff-e3a4-46ae-a5ec-3f236700d52b",
+      "email": "admin@example.com",
+      "passwordHash": "$2a$12$NOXz.2p.fgIPDOHn8cRdUu/PL5kBFPVN6kjzXr89Gq3hsOGfrMSFq",
+      "role": "administrator",
+      "createdAt": "2026-07-22T15:40:17.407Z",
+      "isMaster": true,
+      "name": "Master Admin",
+      "mustOnboard": false,
+      "onboardedAt": "2026-07-22T15:40:17.408Z",
+      "twoFactorEnabled": false,
+      "twoFactorSecret": ""
+    },
+    {
+      "id": "1b73e4ca-dec5-449d-a3ce-6f1c0a5e5f7e",
+      "email": "hligon@getsparqd.com",
+      "passwordHash": "$2a$12$wX5TpN4LB50W/vR/DZlyA.MYOiZT1MA.FHLJN2APHmwnBBMAAGek6",
+      "role": "administrator",
+      "createdAt": "2026-07-22T15:56:57.049Z",
+      "isMaster": true,
+      "name": "Master Admin",
+      "mustOnboard": false,
+      "onboardedAt": "2026-07-22T15:56:57.050Z",
+      "twoFactorEnabled": false,
+      "twoFactorSecret": ""
+    }
+  ]
+}

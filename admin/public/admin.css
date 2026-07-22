@@ -1567,3 +1567,150 @@ body.navDrawerCollapsed .sideNav{
   .previewProfileCard{grid-template-columns:1fr;}
   .previewEmail__meta{flex-direction:column;align-items:flex-start;}
 }
+
+.sideNav__groupLabel{
+  margin:12px 8px 4px;
+  font-size:.95rem;
+  font-weight:900;
+  color:#5a5044;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+}
+
+.pageContext{
+  margin:0 0 14px;
+  padding:16px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:#fff;
+}
+
+.pageContext__crumb{
+  margin:0 0 6px;
+  font-size:1rem;
+  color:var(--muted);
+}
+
+.pageContext__homeLink{
+  color:inherit;
+  font-weight:800;
+}
+
+.pageContext__title{
+  margin:0;
+  font-size:1.9rem;
+  line-height:1.25;
+}
+
+.pageContext__description{
+  margin:8px 0 0;
+  font-size:1.02rem;
+  line-height:1.55;
+  color:var(--muted);
+}
+
+.homeTaskGrid{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:14px;
+}
+
+.homeTaskCard{
+  min-height:96px;
+  border-radius:14px;
+  border:2px solid rgba(26,26,26,.26);
+  background:#fff;
+  color:#171717;
+  padding:14px;
+  text-align:left;
+  display:grid;
+  gap:8px;
+  align-content:start;
+  cursor:pointer;
+}
+
+.homeTaskCard:hover{
+  border-color:rgba(139,63,31,.75);
+  background:rgba(139,63,31,.06);
+}
+
+.homeTaskCard:focus-visible,
+.tab:focus-visible,
+.btn:focus-visible,
+.select:focus-visible,
+.input:focus-visible,
+.textarea:focus-visible,
+summary:focus-visible{
+  outline:3px solid #0a58ca;
+  outline-offset:2px;
+}
+
+.homeTaskCard__title{
+  font-size:1.18rem;
+  font-weight:900;
+  line-height:1.35;
+}
+
+.homeTaskCard__desc{
+  font-size:1rem;
+  line-height:1.55;
+  color:#3f3f3f;
+}
+
+.advancedTools{
+  margin-top:14px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:#fff;
+  padding:10px 12px;
+}
+
+.advancedTools__summary{
+  cursor:pointer;
+  font-weight:900;
+  list-style:none;
+}
+
+.advancedTools__summary::-webkit-details-marker{display:none;}
+
+.btn--danger{
+  background:#8b1f1f;
+  color:#fff;
+  border-color:#611313;
+}
+
+.btn--danger:hover{filter:brightness(1.05);}
+
+.miniTab{border-radius:10px;}
+
+body.theme-dark,
+body.theme-system.theme-effective-dark{
+  --bg:#121212;
+  --panel:#1a1a1a;
+  --text:#f4f4f4;
+  --muted:#d1d1d1;
+  --accent:#c46123;
+  --danger:#d24040;
+  --border:rgba(255,255,255,.22);
+}
+
+body.theme-dark .pageContext,
+body.theme-system.theme-effective-dark .pageContext,
+body.theme-dark .homeTaskCard,
+body.theme-system.theme-effective-dark .homeTaskCard,
+body.theme-dark .advancedTools,
+body.theme-system.theme-effective-dark .advancedTools{
+  background:#1f1f1f;
+  color:#f4f4f4;
+}
+
+body.theme-dark .homeTaskCard__desc,
+body.theme-system.theme-effective-dark .homeTaskCard__desc,
+body.theme-dark .sideNav__groupLabel,
+body.theme-system.theme-effective-dark .sideNav__groupLabel{
+  color:#dfdfdf;
+}
+
+@media (max-width:1100px){
+  .homeTaskGrid{grid-template-columns:1fr;}
+}

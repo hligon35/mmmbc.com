@@ -95,6 +95,10 @@ function escapeAttr(value) {
 
 let syncProgressHideTimer = null;
 const NAV_DRAWER_COLLAPSE_KEY = 'mmmbc_admin_nav_drawer_collapsed_v1';
+const APPEARANCE_PREF_KEY = 'mmmbc_admin_appearance_v1';
+const UNSAVED_WARNING_TEXT = 'You have unsaved changes. Leave this page without saving them?';
+const unsavedSnapshots = new Map();
+const unsavedDirtyForms = new Set();
 
 function updateHeaderBumper() {
   const header = document.querySelector?.('.header');
@@ -104,6 +108,86 @@ function updateHeaderBumper() {
     document.documentElement.style.setProperty('--header-bumper', `${h}px`);
   } catch {
     // ignore
+  }
+}
+
+function getAppearancePreference() {
+  try {
+    const value = String(window.localStorage.getItem(APPEARANCE_PREF_KEY) || '').trim().toLowerCase();
+    if (value === 'light' || value === 'dark' || value === 'system') return value;
+  } catch {
+    // ignore storage errors
+  }
+  return 'light';
+}
+
+function applyAppearancePreference(pref) {
+  const selected = (pref === 'dark' || pref === 'system') ? pref : 'light';
+  document.body.classList.remove('theme-light', 'theme-dark', 'theme-system');
+  document.body.classList.add(`theme-${selected}`);
+
+  if (selected === 'system') {
+    try {
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.body.classList.toggle('theme-effective-dark', !!prefersDark);
+      document.body.classList.toggle('theme-effective-light', !prefersDark);
+    } catch {
+      document.body.classList.remove('theme-effective-dark');
+      document.body.classList.add('theme-effective-light');
+    }
+  } else {
+    document.body.classList.toggle('theme-effective-dark', selected === 'dark');
+    document.body.classList.toggle('theme-effective-light', selected === 'light');
+  }
+}
+
+function serializeFormState(form) {
+  const pairs = [];
+  const elements = Array.from(form.elements || []);
+  for (const el of elements) {
+    if (!el || !el.name) continue;
+    if (el.disabled) continue;
+    if (el.type === 'file') continue;
+    if (el.type === 'checkbox' || el.type === 'radio') {
+      pairs.push(`${el.name}:${el.checked ? '1' : '0'}`);
+      continue;
+    }
+    pairs.push(`${el.name}:${String(el.value || '')}`);
+  }
+  return pairs.join('|');
+}
+
+function resetUnsavedBaseline(form) {
+  if (!(form instanceof HTMLFormElement) || !form.id) return;
+  unsavedSnapshots.set(form.id, serializeFormState(form));
+  unsavedDirtyForms.delete(form.id);
+}
+
+function updateUnsavedForForm(form) {
+  if (!(form instanceof HTMLFormElement) || !form.id) return;
+  const baseline = unsavedSnapshots.get(form.id);
+  if (baseline === undefined) {
+    resetUnsavedBaseline(form);
+    return;
+  }
+  const current = serializeFormState(form);
+  if (current !== baseline) unsavedDirtyForms.add(form.id);
+  else unsavedDirtyForms.delete(form.id);
+}
+
+function hasUnsavedChanges() {
+  return unsavedDirtyForms.size > 0;
+}
+
+function confirmUnsavedChanges() {
+  if (!hasUnsavedChanges()) return true;
+  return confirmWrite(UNSAVED_WARNING_TEXT);
+}
+
+function resetAllUnsavedBaselines() {
+  const forms = document.querySelectorAll('form[id]');
+  for (const form of Array.from(forms)) {
+    if (form instanceof HTMLFormElement) resetUnsavedBaseline(form);
   }
 }
 
@@ -195,6 +279,15 @@ function showToast(message, { variant = 'success', timeoutMs = 3500 } = {}) {
 
   setTimeout(remove, Math.max(500, Number(timeoutMs) || 0));
   toast.addEventListener('click', remove);
+}
+
+function announceLive(message) {
+  const live = $('adminLiveRegion');
+  if (!live) return;
+  live.textContent = '';
+  window.setTimeout(() => {
+    live.textContent = String(message || '');
+  }, 20);
 }
 
 function confirmWrite(message) {
@@ -558,6 +651,7 @@ function wirePasswordMeter(inputId, meterId, textId) {
 
 function setTab(activeId) {
   const tabButtons = [
+    $('tabBtn-home'),
     $('tabBtn-photos'),
     $('tabBtn-events'),
     $('tabBtn-content'),
@@ -567,6 +661,7 @@ function setTab(activeId) {
     $('tabBtn-support')
   ];
   const panels = [
+    $('tab-home'),
     $('tab-photos'),
     $('tab-events'),
     $('tab-content'),
@@ -605,13 +700,45 @@ function setTab(activeId) {
   if (siteEditorTabs) siteEditorTabs.hidden = activeId !== 'tab-profiles';
 }
 
+function activateMainSection(sectionId, { subTabId = '' } = {}) {
+  if (!sectionId) return;
+  const currentPanel = document.querySelector('.tabPanel:not([hidden])');
+  if (currentPanel && currentPanel.id !== sectionId && !confirmUnsavedChanges()) {
+    return;
+  }
+
+  setTab(sectionId);
+
+  if (sectionId === 'tab-content' && subTabId) {
+    setContentSubTab(subTabId);
+  }
+  if (sectionId === 'tab-photos') {
+    setPhotosSubTab(subTabId || 'panel-photos-manage');
+  }
+
+  const hashMap = {
+    'tab-home': 'home',
+    'tab-photos': 'photos',
+    'tab-events': 'events',
+    'tab-content': subTabId === 'panel-content-bulletins' ? 'bulletins' : 'announcements',
+    'tab-finances': 'finances',
+    'tab-newsletter': 'newsletter',
+    'tab-profiles': 'profiles',
+    'tab-support': 'support'
+  };
+  const nextHash = hashMap[sectionId];
+  if (nextHash) {
+    try { window.location.hash = nextHash; } catch { /* ignore */ }
+  }
+}
+
 function setNavDrawerCollapsed(collapsed) {
   const isCollapsed = !!collapsed;
   document.body.classList.toggle('navDrawerCollapsed', isCollapsed);
   const btn = $('navDrawerToggle');
   if (btn) {
     btn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
-    btn.textContent = isCollapsed ? 'Show Menu' : 'Hide Menu';
+    btn.textContent = isCollapsed ? 'Show Menu' : 'Collapse Menu';
   }
 }
 
@@ -645,13 +772,20 @@ async function refreshAuthUI() {
   $('authStatus').textContent = loggedIn ? `Signed in as ${me.user.email}` : 'Sign in required';
 
   if (loggedIn) {
-    $('salutation').textContent = `Welcome, ${me.user.name || me.user.email}`;
+    const nowHour = new Date().getHours();
+    const greeting = nowHour < 12 ? 'Good morning' : (nowHour < 18 ? 'Good afternoon' : 'Good evening');
+    const nameOrEmail = String(me.user.name || me.user.email || '').trim();
+    $('salutation').textContent = nameOrEmail ? `${greeting}, ${nameOrEmail}` : 'Welcome';
+    const homeWelcome = $('homeWelcomeLine');
+    if (homeWelcome) homeWelcome.textContent = nameOrEmail ? `${greeting}, ${nameOrEmail}` : 'Welcome';
     const avatarText = $('avatarText');
     if (avatarText) avatarText.textContent = getInitials(me.user);
     const financeTopBar = $('financeTopBar');
     if (financeTopBar) financeTopBar.hidden = false;
   } else {
-    $('salutation').textContent = 'Welcome to MMMBC Admin';
+    $('salutation').textContent = 'Welcome';
+    const homeWelcome = $('homeWelcomeLine');
+    if (homeWelcome) homeWelcome.textContent = 'Welcome';
   }
 
   if (loggedIn) {
@@ -659,6 +793,7 @@ async function refreshAuthUI() {
     await csrfReady;
     await loadAll();
     applyHashNavigation();
+    resetAllUnsavedBaselines();
   }
 
   if (inInviteFlow) {
@@ -702,29 +837,30 @@ function getInviteTokenFromHash() {
 
 function applyHashNavigation() {
   const h = normalizeHash();
-  if (!h) return;
+  if (!h) {
+    activateMainSection('tab-home');
+    return;
+  }
 
   if (/invite=/.test(h)) return;
 
-  if (h === 'photos') setTab('tab-photos');
-  if (h === 'events') setTab('tab-events');
+  if (h === 'home') activateMainSection('tab-home');
+  if (h === 'photos') activateMainSection('tab-photos', { subTabId: 'panel-photos-manage' });
+  if (h === 'events') activateMainSection('tab-events');
   if (h === 'content') {
-    setTab('tab-content');
-    setContentSubTab('panel-content-announcements');
+    activateMainSection('tab-content', { subTabId: 'panel-content-announcements' });
   }
-  if (h === 'finances' || h === 'finance') setTab('tab-finances');
-  if (h === 'newsletter') setTab('tab-newsletter');
-  if (h === 'profiles' || h === 'staff') setTab('tab-profiles');
-  if (h === 'support') setTab('tab-support');
+  if (h === 'finances' || h === 'finance') activateMainSection('tab-finances');
+  if (h === 'newsletter') activateMainSection('tab-newsletter');
+  if (h === 'profiles' || h === 'staff') activateMainSection('tab-profiles');
+  if (h === 'support') activateMainSection('tab-support');
 
   if (h === 'announcements') {
-    setTab('tab-content');
-    setContentSubTab('panel-content-announcements');
+    activateMainSection('tab-content', { subTabId: 'panel-content-announcements' });
   }
 
   if (h === 'bulletins') {
-    setTab('tab-content');
-    setContentSubTab('panel-content-bulletins');
+    activateMainSection('tab-content', { subTabId: 'panel-content-bulletins' });
   }
 }
 
@@ -1364,14 +1500,6 @@ function setPhotosSubTab(panelId) {
     ['panel-photos-manage', 'panel-photos-bucket'],
     panelId
   );
-
-  if (panelId === 'panel-photos-bucket') {
-    // Lazy refresh when switching to the bucket browser.
-    // Do not fetch before login (would spam 401s and confuse the login flow).
-    const dashboard = $('dashboardCard');
-    const loggedIn = dashboard && dashboard.hidden === false;
-    if (loggedIn) loadR2Tree(r2Prefix).catch(() => {});
-  }
 }
 
 let inviteLoadedToken = '';
@@ -1433,8 +1561,10 @@ function photoUpdateBulkBar() {
   bar.hidden = n === 0;
   if (count) count.textContent = n ? `${n} selected` : '';
 
-  // For the nav bulk bar, CSS handles sticky using the header bumper.
-  if (bar.classList.contains('photoBulkBar--nav')) return;
+  const editBtn = $('photoBulkEditBtn');
+  const deleteBtn = $('photoBulkDeleteBtn');
+  if (editBtn) editBtn.textContent = n === 1 ? 'Edit 1 selected photo' : `Edit ${n} selected photos`;
+  if (deleteBtn) deleteBtn.textContent = n === 1 ? 'Delete 1 selected photo' : `Delete ${n} selected photos`;
 
   // (Fallback) Stick in-view while scrolling down, but never let it move
   // higher than where it first appeared.
@@ -1699,13 +1829,18 @@ function renderPhotoGrid(items) {
     }
 
     const del = document.createElement('button');
-    del.className = 'btn';
+    del.className = 'btn btn--danger';
     del.type = 'button';
     del.textContent = 'Delete';
     del.addEventListener('click', async () => {
-      if (!confirm('Delete this photo?')) return;
+      const labelText = String(item.label || item.originalName || 'this photo');
+      const ok = confirmWrite(
+        `Delete ${labelText}?\n\nThis will remove it from the website gallery after refresh.`
+      );
+      if (!ok) return;
       await api(`/api/gallery/${item.id}`, { method: 'DELETE' });
       await loadGallery();
+      announceLive(`Deleted ${labelText}.`);
     });
 
     actions.appendChild(del);
@@ -1903,7 +2038,7 @@ function renderR2Tree(prefix, data) {
     delBtn.addEventListener('click', async () => {
       const key = String(o.key || '');
       if (!key) return;
-      if (!confirmWrite(`Delete this object from R2?\n\n${key}`)) return;
+      if (!confirmWrite(`Delete this stored photo file?\n\n${key}`)) return;
       setR2UiBusy(true);
       setR2Status('Deleting…');
       try {
@@ -1940,9 +2075,9 @@ async function loadR2Tree(prefix) {
   try {
     const data = await api(`/api/gallery/r2tree?prefix=${encodeURIComponent(r2Prefix)}&limit=1000`, { method: 'GET' });
     renderR2Tree(r2Prefix, data);
-    setR2Status(data?.truncated ? 'Showing first page (use narrower prefix for faster browsing).' : '');
+    setR2Status(data?.truncated ? 'Showing first page (use a narrower folder for faster browsing).' : '');
   } catch (e) {
-    const msg = String(e?.message || e || 'Unable to load bucket listing.');
+    const msg = String(e?.message || e || 'Unable to load photo storage listing.');
     setR2Status(msg);
     showToast(msg, { variant: 'danger' });
     throw e;
@@ -1952,22 +2087,22 @@ async function loadR2Tree(prefix) {
 async function syncFromR2(prefix, { confirm: shouldConfirm = true } = {}) {
   const p = normalizeR2Prefix(prefix);
   if (shouldConfirm) {
-    const ok = confirmWrite(`Sync D1 gallery records from R2 under:\n\n${p}\n\nThis updates what the public Photo Gallery shows.`);
+    const ok = confirmWrite(`Refresh website gallery records from photo storage under:\n\n${p}\n\nThis updates what the public Photos page shows.`);
     if (!ok) {
-      setR2Status('Sync canceled.');
+      setR2Status('Refresh canceled.');
       return { ok: false, canceled: true };
     }
   }
 
   setR2UiBusy(true);
-  setR2Status('Syncing…');
+  setR2Status('Refreshing…');
 
   if (syncProgressHideTimer) {
     try { window.clearTimeout(syncProgressHideTimer); } catch { /* ignore */ }
     syncProgressHideTimer = null;
   }
 
-  setSyncProgress({ visible: true, indeterminate: true, text: 'Starting sync…' });
+  setSyncProgress({ visible: true, indeterminate: true, text: 'Starting refresh…' });
 
   let cursor = null;
   const seenCursors = new Set();
@@ -1979,14 +2114,14 @@ async function syncFromR2(prefix, { confirm: shouldConfirm = true } = {}) {
   try {
     while (true) {
       loops += 1;
-      if (loops > 500) throw new Error('Sync aborted: too many pages (possible cursor loop).');
+      if (loops > 500) throw new Error('Refresh stopped: too many pages (possible cursor loop).');
 
       setSyncProgress({
         visible: true,
         indeterminate: false,
         max: 500,
         value: loops,
-        text: `Syncing… page ${loops} • processed ${totalProcessed} (added ${totalAdded}, existing ${totalExisting})`
+        text: `Refreshing… page ${loops} • processed ${totalProcessed} (added ${totalAdded}, existing ${totalExisting})`
       });
       const qs = new URLSearchParams({ prefix: p, limit: '1000' });
       if (cursor) qs.set('cursor', cursor);
@@ -2001,30 +2136,30 @@ async function syncFromR2(prefix, { confirm: shouldConfirm = true } = {}) {
       totalAdded += Number(res.added || 0);
       totalExisting += Number(res.existing || 0);
       totalProcessed += Number(res.processed || 0);
-      setR2Status(`Syncing… processed ${totalProcessed} (added ${totalAdded}, existing ${totalExisting})`);
+      setR2Status(`Refreshing… processed ${totalProcessed} (added ${totalAdded}, existing ${totalExisting})`);
 
       setSyncProgress({
         visible: true,
         indeterminate: false,
         max: 500,
         value: loops,
-        text: `Syncing… page ${loops} • processed ${totalProcessed} (added ${totalAdded}, existing ${totalExisting})`
+        text: `Refreshing… page ${loops} • processed ${totalProcessed} (added ${totalAdded}, existing ${totalExisting})`
       });
       cursor = res.nextCursor;
       if (!cursor) break;
-      if (seenCursors.has(String(cursor))) throw new Error('Sync aborted: pagination cursor repeated (possible server cursor bug).');
+      if (seenCursors.has(String(cursor))) throw new Error('Refresh stopped: pagination cursor repeated (possible server cursor bug).');
       seenCursors.add(String(cursor));
     }
-    setR2Status(`Sync complete. Added ${totalAdded} item(s).`);
-    setSyncProgress({ visible: true, indeterminate: false, max: 500, value: Math.min(500, loops), text: `Sync complete. Added ${totalAdded} item(s).` });
-    showToast(`Gallery synced. Added ${totalAdded} item(s).`, { variant: 'success' });
+    setR2Status(`Refresh complete. Added ${totalAdded} item(s).`);
+    setSyncProgress({ visible: true, indeterminate: false, max: 500, value: Math.min(500, loops), text: `Refresh complete. Added ${totalAdded} item(s).` });
+    showToast(`Website photos refreshed. Added ${totalAdded} item(s).`, { variant: 'success' });
     await loadGallery();
     await loadR2Tree(p);
     return { ok: true, added: totalAdded, existing: totalExisting, processed: totalProcessed };
   } catch (e) {
     setR2Status(e.message);
     setSyncProgress({ visible: true, indeterminate: false, max: 500, value: Math.min(500, loops || 0), text: `Sync failed: ${String(e?.message || e || 'Unknown error')}` });
-    showToast(`Gallery sync failed: ${String(e?.message || e || 'Unknown error')}`, { variant: 'danger' });
+    showToast(`Photo refresh failed: ${String(e?.message || e || 'Unknown error')}`, { variant: 'danger' });
     return { ok: false, error: String(e?.message || e || 'Unknown error') };
   } finally {
     setR2UiBusy(false);
@@ -3049,6 +3184,24 @@ function updateRecipientTriggerLabel() {
   btn.textContent = `${count} selected - Open Recipient List`;
 }
 
+function updateNewsletterStepSummaries() {
+  const payload = buildNewsletterPayloadFromForm();
+  const recipients = Array.isArray(payload.emails) ? payload.emails.length : 0;
+  const recipientSummary = $('newsletterRecipientSummary');
+  if (recipientSummary) {
+    recipientSummary.textContent = `This newsletter will be sent to ${recipients} ${recipients === 1 ? 'person' : 'people'}.`;
+  }
+
+  const review = $('newsletterReviewSummary');
+  if (review) {
+    const subject = payload.subject || '(no subject yet)';
+    const schedule = (payload.scheduleDate && payload.scheduleTime)
+      ? `Scheduled for ${payload.scheduleDate} at ${payload.scheduleTime} ${payload.scheduleTimezone || 'America/Chicago'}.`
+      : 'This newsletter will be sent immediately when you choose Send Now.';
+    review.textContent = `${recipients} recipient(s) • Subject: ${subject}. ${schedule}`;
+  }
+}
+
 function setNewsletterPopoverOpen(open) {
   newsletterPopoverOpen = !!open;
   const pop = $('newsletterRecipientPopover');
@@ -3157,6 +3310,7 @@ function renderRecipientOptions() {
   }
   updateRecipientTriggerLabel();
   renderNewsletterPreview();
+  updateNewsletterStepSummaries();
 }
 
 function buildNewsletterPayloadFromForm() {
@@ -3567,6 +3721,7 @@ function renderNewsletterPreview() {
       </div>
     </div>
   `;
+  updateNewsletterStepSummaries();
 }
 
 function renderProfileSelect() {
@@ -3671,13 +3826,6 @@ async function loadAll() {
     loadProfiles(),
   ]);
 
-  // Keep bucket browsing non-blocking so a missing endpoint can't break login.
-  try {
-    await loadR2Tree(r2Prefix);
-  } catch {
-    // loadR2Tree reports status in the UI.
-  }
-
   for (const r of results) {
     if (r.status === 'rejected') throw r.reason;
   }
@@ -3691,6 +3839,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   resetTransientUiState();
+
+  applyAppearancePreference(getAppearancePreference());
+  if ($('appearanceSelect')) {
+    $('appearanceSelect').value = getAppearancePreference();
+    $('appearanceSelect').addEventListener('change', () => {
+      const value = String($('appearanceSelect').value || 'light');
+      try { window.localStorage.setItem(APPEARANCE_PREF_KEY, value); } catch { /* ignore */ }
+      applyAppearancePreference(value);
+      if ($('appearanceHint')) {
+        $('appearanceHint').textContent = value === 'system' ? 'Using your device appearance setting.' : `${value[0].toUpperCase()}${value.slice(1)} appearance selected.`;
+      }
+    });
+  }
+  try {
+    if (window.matchMedia) {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      mq.addEventListener('change', () => {
+        if (getAppearancePreference() === 'system') applyAppearancePreference('system');
+      });
+    }
+  } catch {
+    // ignore
+  }
 
   // If the page is restored from bfcache (back/forward), DOMContentLoaded
   // may not run; this ensures transient UI stays reset.
@@ -3715,16 +3886,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Tabs
-  $('tabBtn-photos').addEventListener('click', () => setTab('tab-photos'));
-  $('tabBtn-events').addEventListener('click', () => setTab('tab-events'));
-  $('tabBtn-content').addEventListener('click', () => {
-    setTab('tab-content');
-    setContentSubTab('panel-content-announcements');
-  });
-  $('tabBtn-finances').addEventListener('click', () => setTab('tab-finances'));
-  if ($('tabBtn-newsletter')) $('tabBtn-newsletter').addEventListener('click', () => setTab('tab-newsletter'));
-  if ($('tabBtn-profiles')) $('tabBtn-profiles').addEventListener('click', () => setTab('tab-profiles'));
-  if ($('tabBtn-support')) $('tabBtn-support').addEventListener('click', () => setTab('tab-support'));
+  if ($('tabBtn-home')) $('tabBtn-home').addEventListener('click', () => activateMainSection('tab-home'));
+  $('tabBtn-photos').addEventListener('click', () => activateMainSection('tab-photos', { subTabId: 'panel-photos-manage' }));
+  $('tabBtn-events').addEventListener('click', () => activateMainSection('tab-events'));
+  $('tabBtn-content').addEventListener('click', () => activateMainSection('tab-content', { subTabId: 'panel-content-announcements' }));
+  $('tabBtn-finances').addEventListener('click', () => activateMainSection('tab-finances'));
+  if ($('tabBtn-newsletter')) $('tabBtn-newsletter').addEventListener('click', () => activateMainSection('tab-newsletter'));
+  if ($('tabBtn-profiles')) $('tabBtn-profiles').addEventListener('click', () => activateMainSection('tab-profiles'));
+  if ($('tabBtn-support')) $('tabBtn-support').addEventListener('click', () => activateMainSection('tab-support'));
+
+  for (const trigger of Array.from(document.querySelectorAll('[data-section-target]'))) {
+    trigger.addEventListener('click', (e) => {
+      const target = String(trigger.getAttribute('data-section-target') || '').trim();
+      const subTab = String(trigger.getAttribute('data-subtab-target') || '').trim();
+      if (!target) return;
+      e.preventDefault();
+      activateMainSection(target, { subTabId: subTab });
+    });
+  }
 
   // Sub-tabs
   if ($('subTabBtn-content-announcements')) {
@@ -3736,9 +3915,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if ($('subTabBtn-photos-manage')) {
     $('subTabBtn-photos-manage').addEventListener('click', () => setPhotosSubTab('panel-photos-manage'));
-  }
-  if ($('subTabBtn-photos-bucket')) {
-    $('subTabBtn-photos-bucket').addEventListener('click', () => setPhotosSubTab('panel-photos-bucket'));
   }
   // Default Photo Gallery view
   if ($('panel-photos-manage') && $('panel-photos-bucket')) {
@@ -3753,6 +3929,33 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   applyDetectedNewsletterTimezone();
+
+  const unsavedFormIds = [
+    'announceForm',
+    'eventForm',
+    'bulletinForm',
+    'financeEntryForm',
+    'newsletterForm',
+    'profileHeaderForm',
+    'profileForm',
+    'supportForm'
+  ];
+  for (const formId of unsavedFormIds) {
+    const form = $(formId);
+    if (!(form instanceof HTMLFormElement)) continue;
+    resetUnsavedBaseline(form);
+    form.addEventListener('input', () => updateUnsavedForForm(form));
+    form.addEventListener('change', () => updateUnsavedForForm(form));
+    form.addEventListener('reset', () => {
+      window.setTimeout(() => resetUnsavedBaseline(form), 0);
+    });
+  }
+
+  window.addEventListener('beforeunload', (e) => {
+    if (!hasUnsavedChanges()) return;
+    e.preventDefault();
+    e.returnValue = UNSAVED_WARNING_TEXT;
+  });
 
   // Finances
   if ($('financeEntryForm')) {
@@ -3816,6 +4019,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         financeResetForm();
         renderFinances();
         setFinanceHint(id ? 'Saved.' : 'Added.');
+        const financeForm = $('financeEntryForm');
+        if (financeForm instanceof HTMLFormElement) resetUnsavedBaseline(financeForm);
       } catch (err) {
         setFinanceHint(err.message);
       }
@@ -4259,6 +4464,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (hint) hint.textContent = '';
         showToast('Email sent to support.', { variant: 'success' });
         safeResetForm(e);
+        const supportForm = $('supportForm');
+        if (supportForm instanceof HTMLFormElement) resetUnsavedBaseline(supportForm);
       } catch (err) {
         if (errEl) {
           errEl.textContent = err.message;
@@ -4548,6 +4755,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         if (hint) hint.textContent = out?.disabled ? 'Sending is disabled on this server.' : `Sent to ${Number(out?.sent || 0)} recipient(s).`;
         await loadNewsletterRecords();
+        const newsletterForm = $('newsletterForm');
+        if (newsletterForm instanceof HTMLFormElement) resetUnsavedBaseline(newsletterForm);
       } catch (err) {
         if (hint) hint.textContent = '';
         writeNewsletterError(err.message);
@@ -4605,6 +4814,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         await mutateNewsletterRecord('save_draft', payload);
         setNewsletterRecordsTab('drafts');
         if (hint) hint.textContent = 'Draft saved.';
+        const newsletterForm = $('newsletterForm');
+        if (newsletterForm instanceof HTMLFormElement) resetUnsavedBaseline(newsletterForm);
       } catch (err) {
         if (hint) hint.textContent = '';
         writeNewsletterError(err.message);
@@ -4630,6 +4841,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         await mutateNewsletterRecord('schedule', payload);
         setNewsletterRecordsTab('scheduled');
         if (hint) hint.textContent = 'Scheduled.';
+        const newsletterForm = $('newsletterForm');
+        if (newsletterForm instanceof HTMLFormElement) resetUnsavedBaseline(newsletterForm);
       } catch (err) {
         if (hint) hint.textContent = '';
         writeNewsletterError(err.message);
@@ -4762,6 +4975,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         await saveProfiles(profiles, nextMeta);
         if (hint) hint.textContent = 'Saved.';
+        const headerForm = $('profileHeaderForm');
+        if (headerForm instanceof HTMLFormElement) resetUnsavedBaseline(headerForm);
       } catch (err) {
         if (hint) hint.textContent = err.message;
       }
@@ -4797,6 +5012,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         await saveProfiles(next, profilePageMeta);
         fillProfileEditor(id);
         if (hint) hint.textContent = 'Saved.';
+        const profileForm = $('profileForm');
+        if (profileForm instanceof HTMLFormElement) resetUnsavedBaseline(profileForm);
       } catch (err) {
         if (hint) hint.textContent = err.message;
       }
@@ -5108,7 +5325,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      if (!confirmWrite(`Apply changes to ${ids.length} selected photo(s)?`)) return;
+      if (!confirmWrite(`Apply updates to ${ids.length} selected photo(s)?`)) {
+        try { $('photoBulkEditBtn')?.focus(); } catch { /* ignore */ }
+        return;
+      }
 
       const btn = $('photoBulkEditBtn');
       const prevText = btn?.textContent;
@@ -5131,9 +5351,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           $('photoBulkBar').dataset.stickyTopSet = '0';
         }
         await loadGallery();
-        showToast(`Updated ${ok} photo(s).`, { variant: 'success' });
+        const msg = `Updated ${ok} selected photo(s).`;
+        showToast(msg, { variant: 'success' });
+        announceLive(msg);
+        try { $('photoBulkEditBtn')?.focus(); } catch { /* ignore */ }
       } catch (e) {
-        showToast(`Bulk edit failed: ${String(e?.message || e || 'Unknown error')}`, { variant: 'danger' });
+        const msg = `Bulk edit failed: ${String(e?.message || e || 'Unknown error')}`;
+        showToast(msg, { variant: 'danger' });
+        announceLive(msg);
       } finally {
         if (btn) {
           btn.disabled = false;
@@ -5147,7 +5372,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('photoBulkDeleteBtn').addEventListener('click', async () => {
       const ids = Array.from(photoSelectedIds);
       if (!ids.length) return;
-      if (!confirmWrite(`Delete ${ids.length} selected photo(s)?\n\nThis cannot be undone.`)) return;
+      const countLabel = ids.length === 1 ? '1 selected photo' : `${ids.length} selected photos`;
+      const confirmed = confirmWrite(
+        `Delete ${countLabel}?\n\nThis will remove the selected images from the photo gallery and public website after refresh. This cannot be undone.`
+      );
+      if (!confirmed) {
+        try { $('photoBulkDeleteBtn')?.focus(); } catch { /* ignore */ }
+        announceLive('Photo deletion canceled.');
+        return;
+      }
 
       const btn = $('photoBulkDeleteBtn');
       const prevText = btn?.textContent;
@@ -5167,9 +5400,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           $('photoBulkBar').dataset.stickyTopSet = '0';
         }
         await loadGallery();
-        showToast(`Deleted ${ok} photo(s).`, { variant: 'success' });
+        const msg = `${ok === 1 ? 'One photo was' : `${ok} photos were`} deleted and removed from the public gallery.`;
+        showToast(msg, { variant: 'success' });
+        announceLive(msg);
+        try { $('photoGrid')?.focus(); } catch { /* ignore */ }
       } catch (e) {
-        showToast(`Bulk delete failed: ${String(e?.message || e || 'Unknown error')}`, { variant: 'danger' });
+        const msg = `Bulk delete failed: ${String(e?.message || e || 'Unknown error')}`;
+        showToast(msg, { variant: 'danger' });
+        announceLive(msg);
       } finally {
         if (btn) {
           btn.disabled = false;
@@ -5184,32 +5422,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     const prevText = btn ? btn.textContent : '';
     if (btn) {
       btn.disabled = true;
-      btn.textContent = 'Syncing…';
+      btn.textContent = 'Refreshing…';
     }
 
     // Failsafe: never leave the UI stuck forever.
     const watchdog = window.setTimeout(() => {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = prevText || 'Sync Gallery';
+        btn.textContent = prevText || 'Refresh Website Gallery';
       }
       setR2UiBusy(false);
-      setR2Status('Sync timed out.');
-      showToast('Gallery sync timed out. Please try again.', { variant: 'danger' });
+      setR2Status('Refresh timed out.');
+      showToast('Gallery refresh timed out. Please try again.', { variant: 'danger' });
     }, 120_000);
 
     try {
       // Avoid confirm() here: some embedded browsers/policies block dialogs,
       // which makes the button appear to do nothing.
       const out = await syncFromR2('gallery/', { confirm: false });
-      if (out?.canceled) showToast('Gallery sync canceled.', { variant: 'success' });
+      if (out?.canceled) showToast('Gallery refresh canceled.', { variant: 'success' });
     } catch (e) {
-      showToast(`Gallery sync failed: ${String(e?.message || e || 'Unknown error')}`, { variant: 'danger' });
+      showToast(`Gallery refresh failed: ${String(e?.message || e || 'Unknown error')}`, { variant: 'danger' });
     } finally {
       window.clearTimeout(watchdog);
       if (btn) {
         btn.disabled = false;
-        btn.textContent = prevText || 'Sync Gallery';
+        btn.textContent = prevText || 'Refresh Website Gallery';
       }
 
       // Never leave the progress meter hanging around after the action.
@@ -5346,6 +5584,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  if ($('advancedPhotoTools')) {
+    $('advancedPhotoTools').addEventListener('toggle', () => {
+      if (!$('advancedPhotoTools').open) return;
+      loadR2Tree(r2Prefix).catch((e) => setR2Status(e.message));
+    });
+  }
+
   // Announcements
   if ($('announceForm')) {
     $('announceForm').addEventListener('submit', async (e) => {
@@ -5371,6 +5616,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       safeResetForm(e);
       hint.textContent = 'Posted.';
       await loadAnnouncements();
+      const announceForm = $('announceForm');
+      if (announceForm instanceof HTMLFormElement) resetUnsavedBaseline(announceForm);
     });
   }
 
@@ -5402,6 +5649,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       safeResetForm(e);
       hint.textContent = 'Saved.';
       await loadEvents();
+      const eventForm = $('eventForm');
+      if (eventForm instanceof HTMLFormElement) resetUnsavedBaseline(eventForm);
     });
   }
 
