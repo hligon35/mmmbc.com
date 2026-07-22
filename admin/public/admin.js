@@ -98,49 +98,6 @@ const NAV_DRAWER_OPEN_KEY = 'mmmbc_admin_drawer_open_v1';
 const NAV_DRAWER_COLLAPSE_KEY = 'mmmbc_admin_nav_drawer_collapsed_v1';
 const APPEARANCE_PREF_KEY = 'mmmbc_admin_appearance_v1';
 const UNSAVED_WARNING_TEXT = 'You have unsaved changes. Leave this page without saving them?';
-const NEWSLETTER_BODY_TEMPLATE = [
-  'Header',
-  '',
-  'Welcome',
-  '',
-  'Announcements',
-  '',
-  'Events',
-  '',
-  'Ministry updates',
-  '',
-  'Pastor message',
-  '',
-  'Contact line',
-  '',
-  'Footer line'
-].join('\n');
-const NEWSLETTER_TEMPLATE_SECTIONS = [
-  'Header',
-  'Welcome',
-  'Announcements',
-  'Events',
-  'Ministry updates',
-  'Pastor message',
-  'Contact line',
-  'Footer line'
-];
-const NEWSLETTER_SECTION_ALIASES = {
-  'header and welcome': 'Welcome',
-  'announcements and events': 'Announcements',
-  'ministry updates and pastor message': 'Ministry updates',
-  'giving, contact, and footer': 'Contact line'
-];
-const NEWSLETTER_SECTION_FIELDS = [
-  { heading: 'Header', fieldId: 'newsletterSectionHeader', inputTag: 'TEXTAREA' },
-  { heading: 'Welcome', fieldId: 'newsletterSectionWelcome', inputTag: 'TEXTAREA' },
-  { heading: 'Announcements', fieldId: 'newsletterSectionAnnouncements', inputTag: 'TEXTAREA' },
-  { heading: 'Events', fieldId: 'newsletterSectionEvents', inputTag: 'TEXTAREA' },
-  { heading: 'Ministry updates', fieldId: 'newsletterSectionMinistryUpdates', inputTag: 'TEXTAREA' },
-  { heading: 'Pastor message', fieldId: 'newsletterSectionPastorMessage', inputTag: 'TEXTAREA' },
-  { heading: 'Contact line', fieldId: 'newsletterSectionContactLine', inputTag: 'INPUT' },
-  { heading: 'Footer line', fieldId: 'newsletterSectionFooterLine', inputTag: 'INPUT' }
-];
 const unsavedSnapshots = new Map();
 const unsavedDirtyForms = new Set();
 let adminDrawerOpen = false;
@@ -923,7 +880,6 @@ async function refreshAuthUI() {
   if (authShell) authShell.hidden = loggedIn;
   $('dashboardCard').hidden = !loggedIn || inInviteFlow;
   $('logoutBtn').hidden = !loggedIn;
-  document.body.classList.toggle('authMode', !loggedIn && !inInviteFlow);
 
   if (!loggedIn && !inInviteFlow) {
     const form = $('loginForm');
@@ -948,6 +904,8 @@ async function refreshAuthUI() {
     if (homeWelcome) homeWelcome.textContent = nameOrEmail ? `${greeting}, ${nameOrEmail}` : 'Welcome';
     const avatarText = $('avatarText');
     if (avatarText) avatarText.textContent = getInitials(me.user);
+    const financeTopBar = $('financeTopBar');
+    if (financeTopBar) financeTopBar.hidden = false;
   } else {
     $('salutation').textContent = '';
     const homeWelcome = $('homeWelcomeLine');
@@ -3486,7 +3444,6 @@ function renderRecipientOptions() {
 }
 
 function buildNewsletterPayloadFromForm() {
-  syncNewsletterMessageFromSections();
   return {
     subject: String($('newsletterSubject')?.value || '').trim(),
     message: String($('newsletterMessage')?.value || '').trim(),
@@ -3500,7 +3457,6 @@ function buildNewsletterPayloadFromForm() {
 function applyNewsletterPayloadToForm(record) {
   if ($('newsletterSubject')) $('newsletterSubject').value = String(record?.subject || '');
   if ($('newsletterMessage')) $('newsletterMessage').value = String(record?.message || '');
-  populateNewsletterSectionsFromMessage(String(record?.message || ''));
   if ($('newsletterScheduleDate')) $('newsletterScheduleDate').value = String(record?.scheduleDate || '');
   if ($('newsletterScheduleTime')) $('newsletterScheduleTime').value = String(record?.scheduleTime || '');
   if ($('newsletterScheduleTimezone')) $('newsletterScheduleTimezone').value = String(record?.scheduleTimezone || 'America/Chicago');
@@ -3544,115 +3500,6 @@ function applyDetectedNewsletterTimezone() {
   }
 
   if (hint) hint.textContent = `Detected time zone: ${detected}`;
-}
-
-function ensureNewsletterBodyTemplate() {
-  const rawField = $('newsletterMessage');
-  if (!(rawField instanceof HTMLTextAreaElement)) return;
-
-  const hasAnySectionText = NEWSLETTER_SECTION_FIELDS
-    .map(({ fieldId }) => $(fieldId))
-    .some((field) => (field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement) && String(field.value || '').trim());
-
-  if (!String(rawField.value || '').trim() && !hasAnySectionText) {
-    rawField.value = NEWSLETTER_BODY_TEMPLATE;
-  }
-
-  if (hasAnySectionText) {
-    syncNewsletterMessageFromSections();
-    return;
-  }
-
-  populateNewsletterSectionsFromMessage(String(rawField.value || ''));
-}
-
-function composeNewsletterMessageFromSections() {
-  return NEWSLETTER_SECTION_FIELDS.map(({ heading, fieldId }) => {
-    const field = $(fieldId);
-    const body = (field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement)
-      ? String(field.value || '').trim()
-      : '';
-    return `${heading}\n\n${body}`;
-  }).join('\n\n');
-}
-
-function syncNewsletterMessageFromSections() {
-  const rawField = $('newsletterMessage');
-  if (!(rawField instanceof HTMLTextAreaElement)) return;
-  rawField.value = composeNewsletterMessageFromSections();
-}
-
-function populateNewsletterSectionsFromMessage(message) {
-  const parsed = parseNewsletterTemplateSections(message);
-  for (const { heading, fieldId } of NEWSLETTER_SECTION_FIELDS) {
-    const field = $(fieldId);
-    if (!(field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement)) continue;
-    field.value = String(parsed[heading] || '').trim();
-  }
-}
-
-function bindNewsletterSectionEditor() {
-  for (const { fieldId } of NEWSLETTER_SECTION_FIELDS) {
-    const field = $(fieldId);
-    if (!(field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement)) continue;
-    field.addEventListener('input', () => {
-      syncNewsletterMessageFromSections();
-      renderNewsletterPreview();
-      updateNewsletterStepSummaries();
-    });
-  }
-
-  const rawField = $('newsletterMessage');
-  if (rawField instanceof HTMLTextAreaElement) {
-    rawField.addEventListener('input', () => {
-      populateNewsletterSectionsFromMessage(String(rawField.value || ''));
-      renderNewsletterPreview();
-      updateNewsletterStepSummaries();
-    });
-  }
-
-  const subjectField = $('newsletterSubject');
-  if (subjectField instanceof HTMLInputElement) {
-    subjectField.addEventListener('input', () => {
-      renderNewsletterPreview();
-      updateNewsletterStepSummaries();
-    });
-  }
-
-  for (const fieldId of ['newsletterScheduleDate', 'newsletterScheduleTime', 'newsletterScheduleTimezone']) {
-    const field = $(fieldId);
-    if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement)) continue;
-    field.addEventListener('change', () => {
-      renderNewsletterPreview();
-      updateNewsletterStepSummaries();
-    });
-  }
-}
-
-function parseNewsletterTemplateSections(message) {
-  const lines = String(message || '').split(/\r?\n/);
-  const sections = new Map(NEWSLETTER_TEMPLATE_SECTIONS.map((name) => [name, []]));
-  let activeSection = NEWSLETTER_TEMPLATE_SECTIONS[0];
-
-  for (const rawLine of lines) {
-    const line = String(rawLine || '').trim();
-    const normalized = line.toLowerCase();
-    const matchedHeading = NEWSLETTER_TEMPLATE_SECTIONS.find((name) => normalized === name.toLowerCase());
-    const aliasedHeading = NEWSLETTER_SECTION_ALIASES[normalized];
-    const resolvedHeading = matchedHeading || aliasedHeading;
-    if (resolvedHeading) {
-      activeSection = resolvedHeading;
-      continue;
-    }
-    sections.get(activeSection).push(rawLine);
-  }
-
-  const out = {};
-  for (const sectionName of NEWSLETTER_TEMPLATE_SECTIONS) {
-    const text = (sections.get(sectionName) || []).join('\n').trim();
-    out[sectionName] = text;
-  }
-  return out;
 }
 
 function setNewsletterRecordsTab(nextTab) {
@@ -4037,58 +3884,28 @@ function renderNewsletterPreview() {
   if (!preview) return;
   const payload = buildNewsletterPayloadFromForm();
   const subject = payload.subject || 'Newsletter subject';
-  const message = payload.message || '';
+  const message = payload.message || 'Newsletter message preview will appear here.';
   const recipients = Array.isArray(payload.emails) ? payload.emails : [];
-  const parsedSections = parseNewsletterTemplateSections(message);
-  const bodyHeader = String(parsedSections['Header'] || '').trim() || 'Weekly Newsletter Header';
-  const welcomeBody = String(parsedSections['Welcome'] || '').trim() || 'Add the welcome message for this newsletter issue.';
-  const contactLine = String(parsedSections['Contact line'] || '').trim() || 'www.mmbc.church';
-  const footerLine = String(parsedSections['Footer line'] || '').trim() || 'Mt. Moriah Newsletter';
-
-  const contentSections = [
-    { heading: 'Announcements', body: String(parsedSections['Announcements'] || '').trim() || 'Add announcements for this week.' },
-    { heading: 'Events', body: String(parsedSections['Events'] || '').trim() || 'Add event details, dates, and times.' },
-    { heading: 'Ministry updates', body: String(parsedSections['Ministry updates'] || '').trim() || 'Add ministry updates and highlights.' },
-    { heading: 'Pastor message', body: String(parsedSections['Pastor message'] || '').trim() || 'Add the pastor message for this issue.' }
-  ];
-
-  const sectionMarkup = contentSections.map(({ heading, body }, index) => {
-    const step = String(index + 1).padStart(2, '0');
-    return `
-      <section class="newsletterTemplate__section">
-        <div class="newsletterTemplate__step">${step}</div>
-        <h5 class="newsletterTemplate__sectionTitle">${escapeHtml(heading)}</h5>
-        <p class="newsletterTemplate__sectionBody">${escapeHtml(body).replace(/\n/g, '<br />')}</p>
-      </section>
-    `;
-  }).join('');
+  const scheduleBits = [];
+  if (payload.scheduleDate) scheduleBits.push(payload.scheduleDate);
+  if (payload.scheduleTime) scheduleBits.push(payload.scheduleTime);
+  if (payload.scheduleTimezone) scheduleBits.push(payload.scheduleTimezone);
 
   preview.innerHTML = `
-    <article class="newsletterTemplate">
-      <div class="newsletterTemplate__masthead">
-        <div class="newsletterTemplate__headerGrid">
-          <div class="newsletterTemplate__logoWrap">
-            <img class="newsletterTemplate__logo" src="/ConImg/MtMoriahLogo-1.png" alt="Mt. Moriah logo" />
-          </div>
-          <div class="newsletterTemplate__titleWrap">
-            <div class="newsletterTemplate__kicker">Mt. Moriah Missionary Baptist Church</div>
-            <h4 class="newsletterTemplate__title">${escapeHtml(subject)}</h4>
-            <div class="newsletterTemplate__tagline">Building Faith. Strengthening Families. Serving Our Community.</div>
-          </div>
-        </div>
+    <div class="previewEmail">
+      <div class="previewEmail__header">
+        <div class="previewKicker">Email preview</div>
+        <h4>${escapeHtml(subject)}</h4>
       </div>
-      <div class="newsletterTemplate__body">
-        <section class="newsletterTemplate__intro">
-          <h5 class="newsletterTemplate__bodyHeader">${escapeHtml(bodyHeader)}</h5>
-          <p class="newsletterTemplate__welcomeBody">${escapeHtml(welcomeBody).replace(/\n/g, '<br />')}</p>
-        </section>
-        ${sectionMarkup}
+      <div class="previewEmail__meta">
+        <span>${recipients.length ? `${recipients.length} recipient(s)` : 'No recipients selected yet'}</span>
+        <span>${scheduleBits.length ? escapeHtml(scheduleBits.join(' · ')) : 'Send now or schedule later'}</span>
       </div>
-      <div class="newsletterTemplate__footer">
-        <div class="newsletterTemplate__footerLineWrap"><span>${escapeHtml(contactLine)}</span><span class="newsletterTemplate__footerSep">|</span><span>${escapeHtml(footerLine)}</span></div>
-        <div class="newsletterTemplate__footerPills">${recipients.length ? recipients.map((email) => `<span class="previewPill">${escapeHtml(email)}</span>`).join('') : '<span class="previewPill previewPill--muted">Recipient list will appear here</span>'}</div>
+      <div class="previewEmail__body">${escapeHtml(message).replace(/\n/g, '<br />')}</div>
+      <div class="previewEmail__footer">
+        ${recipients.length ? recipients.map((email) => `<span class="previewPill">${escapeHtml(email)}</span>`).join('') : '<span class="previewPill previewPill--muted">Recipient list will appear here</span>'}
       </div>
-    </article>
+    </div>
   `;
   updateNewsletterStepSummaries();
 }
@@ -4341,9 +4158,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   applyDetectedNewsletterTimezone();
-  ensureNewsletterBodyTemplate();
-  bindNewsletterSectionEditor();
-  renderNewsletterPreview();
 
   const unsavedFormIds = [
     'announceForm',
