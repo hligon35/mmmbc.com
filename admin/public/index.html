@@ -781,7 +781,52 @@
       <!-- Profiles -->
       <section class="tabPanel" role="tabpanel" id="tab-profiles" aria-labelledby="tabBtn-profiles" hidden>
         <h2>Ministries, Leadership &amp; Staff Profiles</h2>
-        <p class="muted">Edit image, name, title, and short bio for entries on the Ministries and Leadership pages.</p>
+        <p class="muted">Header/title labels are edited separately from section profiles so it is clear what you are changing.</p>
+
+        <div class="card">
+          <h3 class="card__subtitle">Page Header &amp; Navigation Labels</h3>
+          <p class="muted">Use this area for page titles, section headings, and nav pill labels such as Ministries, Staff, and Official Team.</p>
+          <form id="profileHeaderForm" class="form" aria-label="Profile header editor">
+            <label class="label">
+              Page title
+              <input class="input" id="profileHeaderPageTitle" type="text" maxlength="120" required />
+            </label>
+            <label class="label" id="profileHeaderMinistriesIntroRow">
+              Ministries intro text
+              <textarea class="textarea" id="profileHeaderIntroText" rows="4" maxlength="700"></textarea>
+            </label>
+            <label class="label">
+              Top nav label: Ministries
+              <input class="input" id="profileHeaderNavMinistries" type="text" maxlength="80" required />
+            </label>
+            <label class="label">
+              Top nav label: Leadership &amp; Staff
+              <input class="input" id="profileHeaderNavLeadership" type="text" maxlength="80" required />
+            </label>
+
+            <div id="profileHeaderLeadershipFields">
+              <label class="label">
+                Section heading: Staff
+                <input class="input" id="profileHeaderStaffHeading" type="text" maxlength="80" />
+              </label>
+              <label class="label">
+                Section heading: Deacons
+                <input class="input" id="profileHeaderDeaconsHeading" type="text" maxlength="80" />
+              </label>
+              <label class="label">
+                Section heading: Deaconesses
+                <input class="input" id="profileHeaderDeaconessesHeading" type="text" maxlength="80" />
+              </label>
+              <label class="label">
+                Section heading: Official Team &amp; Trustees
+                <input class="input" id="profileHeaderOfficialTeamHeading" type="text" maxlength="120" />
+              </label>
+            </div>
+
+            <button class="btn btn--primary" type="submit">Save Header Labels</button>
+            <div class="hint" id="profileHeaderHint" aria-live="polite"></div>
+          </form>
+        </div>
 
         <div class="formRow">
           <label class="label">
@@ -792,7 +837,7 @@
             </select>
           </label>
           <label class="label">
-            Profile
+            Profile (name only)
             <select class="select" id="profileSelect" size="8" aria-label="Profile list"></select>
           </label>
         </div>

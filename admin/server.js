@@ -4577,6 +4577,31 @@ function normalizeProfiles(list) {
   return out;
 }
 
+function normalizeProfilePageMeta(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const ministries = src.ministries && typeof src.ministries === 'object' ? src.ministries : {};
+  const leadership = src.leadership && typeof src.leadership === 'object' ? src.leadership : {};
+  const nav = src.nav && typeof src.nav === 'object' ? src.nav : {};
+
+  return {
+    ministries: {
+      pageTitle: String(ministries.pageTitle || 'Ministries').trim().slice(0, 120),
+      introText: String(ministries.introText || 'Learn more about the ministries and leaders who serve the Mt. Moriah Missionary Baptist Church family.').trim().slice(0, 700)
+    },
+    leadership: {
+      pageTitle: String(leadership.pageTitle || 'Leadership & Staff').trim().slice(0, 120),
+      staffHeading: String(leadership.staffHeading || 'Staff').trim().slice(0, 80),
+      deaconsHeading: String(leadership.deaconsHeading || 'Deacons').trim().slice(0, 80),
+      deaconessesHeading: String(leadership.deaconessesHeading || 'Deaconesses').trim().slice(0, 80),
+      officialTeamHeading: String(leadership.officialTeamHeading || 'Official Team & Trustees').trim().slice(0, 120)
+    },
+    nav: {
+      ministriesLabel: String(nav.ministriesLabel || 'Ministries').trim().slice(0, 80),
+      leadershipLabel: String(nav.leadershipLabel || 'Leadership & Staff').trim().slice(0, 80)
+    }
+  };
+}
+
 function seedProfilesFromPages() {
   const ministriesPath = path.join(ROOT_DIR, 'Pages', 'ministries.html');
   const leadershipPath = path.join(ROOT_DIR, 'Pages', 'leadership.html');
@@ -4588,22 +4613,26 @@ function seedProfilesFromPages() {
 }
 
 function loadProfiles() {
-  const data = readJson(PROFILES_DATA_PATH, { profiles: [] });
+  const data = readJson(PROFILES_DATA_PATH, { profiles: [], pageMeta: {} });
   const current = normalizeProfiles(data?.profiles || []);
-  if (current.length) return { profiles: current };
+  const pageMeta = normalizeProfilePageMeta(data?.pageMeta);
+  if (current.length) return { profiles: current, pageMeta };
 
   const seeded = seedProfilesFromPages();
   if (seeded.length) {
-    writeJsonAtomic(PROFILES_DATA_PATH, { profiles: seeded });
+    writeJsonAtomic(PROFILES_DATA_PATH, { profiles: seeded, pageMeta });
   }
-  return { profiles: seeded };
+  return { profiles: seeded, pageMeta };
 }
 
-function saveProfiles(profiles) {
+function saveProfiles(profiles, pageMeta) {
+  const existing = readJson(PROFILES_DATA_PATH, { profiles: [], pageMeta: {} });
   const normalized = normalizeProfiles(profiles);
-  writeJsonAtomic(PROFILES_DATA_PATH, { profiles: normalized });
-  if (ENABLE_EXPORTS) writeJsonAtomic(path.join(ROOT_DIR, 'profiles.json'), { profiles: normalized });
-  return { profiles: normalized };
+  const normalizedMeta = normalizeProfilePageMeta(pageMeta === undefined ? existing?.pageMeta : pageMeta);
+  const payload = { profiles: normalized, pageMeta: normalizedMeta };
+  writeJsonAtomic(PROFILES_DATA_PATH, payload);
+  if (ENABLE_EXPORTS) writeJsonAtomic(path.join(ROOT_DIR, 'profiles.json'), payload);
+  return payload;
 }
 
 function buildThemeCss(theme) {
@@ -4717,7 +4746,8 @@ app.get('/api/profiles', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res
 
 app.put('/api/profiles', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
   const list = Array.isArray(req.body?.profiles) ? req.body.profiles : [];
-  const data = saveProfiles(list);
+  const pageMeta = req.body?.pageMeta;
+  const data = saveProfiles(list, pageMeta);
   res.json({ ok: true, ...data });
 });
 
@@ -4804,8 +4834,9 @@ async function boot({ listen = true } = {}) {
 
   if (!fs.existsSync(PROFILES_DATA_PATH)) {
     const seeded = seedProfilesFromPages();
-    writeJsonAtomic(PROFILES_DATA_PATH, { profiles: seeded });
-    if (ENABLE_EXPORTS) writeJsonAtomic(path.join(ROOT_DIR, 'profiles.json'), { profiles: seeded });
+    const payload = { profiles: seeded, pageMeta: normalizeProfilePageMeta({}) };
+    writeJsonAtomic(PROFILES_DATA_PATH, payload);
+    if (ENABLE_EXPORTS) writeJsonAtomic(path.join(ROOT_DIR, 'profiles.json'), payload);
   }
 
   await ensureMasterAdmin();

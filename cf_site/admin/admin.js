@@ -3055,6 +3055,53 @@ function clearSubscriberEditor() {
 
 // -------- Profiles --------
 let profiles = [];
+let profilePageMeta = null;
+
+function createDefaultProfilePageMeta() {
+  return {
+    ministries: {
+      pageTitle: 'Ministries',
+      introText: 'Learn more about the ministries and leaders who serve the Mt. Moriah Missionary Baptist Church family.'
+    },
+    leadership: {
+      pageTitle: 'Leadership & Staff',
+      staffHeading: 'Staff',
+      deaconsHeading: 'Deacons',
+      deaconessesHeading: 'Deaconesses',
+      officialTeamHeading: 'Official Team & Trustees'
+    },
+    nav: {
+      ministriesLabel: 'Ministries',
+      leadershipLabel: 'Leadership & Staff'
+    }
+  };
+}
+
+function normalizeProfilePageMeta(raw) {
+  const base = createDefaultProfilePageMeta();
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const ministries = src.ministries && typeof src.ministries === 'object' ? src.ministries : {};
+  const leadership = src.leadership && typeof src.leadership === 'object' ? src.leadership : {};
+  const nav = src.nav && typeof src.nav === 'object' ? src.nav : {};
+
+  return {
+    ministries: {
+      pageTitle: String(ministries.pageTitle || base.ministries.pageTitle).trim(),
+      introText: String(ministries.introText || base.ministries.introText).trim()
+    },
+    leadership: {
+      pageTitle: String(leadership.pageTitle || base.leadership.pageTitle).trim(),
+      staffHeading: String(leadership.staffHeading || base.leadership.staffHeading).trim(),
+      deaconsHeading: String(leadership.deaconsHeading || base.leadership.deaconsHeading).trim(),
+      deaconessesHeading: String(leadership.deaconessesHeading || base.leadership.deaconessesHeading).trim(),
+      officialTeamHeading: String(leadership.officialTeamHeading || base.leadership.officialTeamHeading).trim()
+    },
+    nav: {
+      ministriesLabel: String(nav.ministriesLabel || base.nav.ministriesLabel).trim(),
+      leadershipLabel: String(nav.leadershipLabel || base.nav.leadershipLabel).trim()
+    }
+  };
+}
 
 function activeProfilePage() {
   return String($('profilePageFilter')?.value || 'ministries').trim().toLowerCase();
@@ -3070,13 +3117,33 @@ function renderProfileSelect() {
   for (const p of list) {
     const opt = document.createElement('option');
     opt.value = p.id;
-    opt.textContent = `${p.section || page}: ${p.name}`;
+    opt.textContent = String(p.name || '').trim() || '(Unnamed profile)';
     sel.appendChild(opt);
   }
   if (list.length) {
     sel.value = list.some((p) => p.id === prev) ? prev : list[0].id;
     fillProfileEditor(sel.value);
   }
+}
+
+function fillProfileHeaderEditor() {
+  const page = activeProfilePage();
+  const meta = normalizeProfilePageMeta(profilePageMeta);
+  const pageMeta = page === 'leadership' ? meta.leadership : meta.ministries;
+
+  if ($('profileHeaderPageTitle')) $('profileHeaderPageTitle').value = pageMeta.pageTitle || '';
+  if ($('profileHeaderIntroText')) $('profileHeaderIntroText').value = meta.ministries.introText || '';
+  if ($('profileHeaderNavMinistries')) $('profileHeaderNavMinistries').value = meta.nav.ministriesLabel || '';
+  if ($('profileHeaderNavLeadership')) $('profileHeaderNavLeadership').value = meta.nav.leadershipLabel || '';
+  if ($('profileHeaderStaffHeading')) $('profileHeaderStaffHeading').value = meta.leadership.staffHeading || '';
+  if ($('profileHeaderDeaconsHeading')) $('profileHeaderDeaconsHeading').value = meta.leadership.deaconsHeading || '';
+  if ($('profileHeaderDeaconessesHeading')) $('profileHeaderDeaconessesHeading').value = meta.leadership.deaconessesHeading || '';
+  if ($('profileHeaderOfficialTeamHeading')) $('profileHeaderOfficialTeamHeading').value = meta.leadership.officialTeamHeading || '';
+
+  const leadershipOnly = $('profileHeaderLeadershipFields');
+  if (leadershipOnly) leadershipOnly.hidden = page !== 'leadership';
+  const ministriesIntro = $('profileHeaderMinistriesIntroRow');
+  if (ministriesIntro) ministriesIntro.hidden = page !== 'ministries';
 }
 
 function fillProfileEditor(id) {
@@ -3095,18 +3162,24 @@ async function loadProfiles() {
   try {
     const data = await api('/api/profiles', { method: 'GET' });
     profiles = Array.isArray(data?.profiles) ? data.profiles : [];
+    profilePageMeta = normalizeProfilePageMeta(data?.pageMeta);
   } catch {
     profiles = [];
+    profilePageMeta = createDefaultProfilePageMeta();
   }
+  fillProfileHeaderEditor();
   renderProfileSelect();
 }
 
-async function saveProfiles(nextProfiles) {
+async function saveProfiles(nextProfiles, nextPageMeta) {
+  const payloadMeta = normalizeProfilePageMeta(nextPageMeta || profilePageMeta || createDefaultProfilePageMeta());
   const data = await api('/api/profiles', {
     method: 'PUT',
-    body: JSON.stringify({ profiles: nextProfiles })
+    body: JSON.stringify({ profiles: nextProfiles, pageMeta: payloadMeta })
   });
   profiles = Array.isArray(data?.profiles) ? data.profiles : [];
+  profilePageMeta = normalizeProfilePageMeta(data?.pageMeta);
+  fillProfileHeaderEditor();
   renderProfileSelect();
 }
 
@@ -3835,10 +3908,53 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Profiles
   if ($('profilePageFilter')) {
-    $('profilePageFilter').addEventListener('change', () => renderProfileSelect());
+    $('profilePageFilter').addEventListener('change', () => {
+      fillProfileHeaderEditor();
+      renderProfileSelect();
+    });
   }
   if ($('profileSelect')) {
     $('profileSelect').addEventListener('change', () => fillProfileEditor($('profileSelect').value));
+  }
+  if ($('profileHeaderForm')) {
+    $('profileHeaderForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const hint = $('profileHeaderHint');
+      const page = activeProfilePage();
+      const current = normalizeProfilePageMeta(profilePageMeta || createDefaultProfilePageMeta());
+      const nextMeta = {
+        ministries: { ...current.ministries },
+        leadership: { ...current.leadership },
+        nav: { ...current.nav }
+      };
+
+      nextMeta.nav.ministriesLabel = String($('profileHeaderNavMinistries')?.value || '').trim();
+      nextMeta.nav.leadershipLabel = String($('profileHeaderNavLeadership')?.value || '').trim();
+      if (page === 'ministries') {
+        nextMeta.ministries.pageTitle = String($('profileHeaderPageTitle')?.value || '').trim();
+        nextMeta.ministries.introText = String($('profileHeaderIntroText')?.value || '').trim();
+      } else {
+        nextMeta.leadership.pageTitle = String($('profileHeaderPageTitle')?.value || '').trim();
+        nextMeta.leadership.staffHeading = String($('profileHeaderStaffHeading')?.value || '').trim();
+        nextMeta.leadership.deaconsHeading = String($('profileHeaderDeaconsHeading')?.value || '').trim();
+        nextMeta.leadership.deaconessesHeading = String($('profileHeaderDeaconessesHeading')?.value || '').trim();
+        nextMeta.leadership.officialTeamHeading = String($('profileHeaderOfficialTeamHeading')?.value || '').trim();
+      }
+
+      if (!nextMeta.nav.ministriesLabel || !nextMeta.nav.leadershipLabel || !nextMeta.ministries.pageTitle || !nextMeta.leadership.pageTitle) {
+        if (hint) hint.textContent = 'Page titles and nav labels are required.';
+        return;
+      }
+
+      if (!confirmWrite('Save header/title label changes?')) return;
+      if (hint) hint.textContent = 'Saving…';
+      try {
+        await saveProfiles(profiles, nextMeta);
+        if (hint) hint.textContent = 'Saved.';
+      } catch (err) {
+        if (hint) hint.textContent = err.message;
+      }
+    });
   }
   if ($('profileForm')) {
     $('profileForm').addEventListener('submit', async (e) => {
@@ -3867,7 +3983,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!confirmWrite('Save profile changes?')) return;
       if (hint) hint.textContent = 'Saving…';
       try {
-        await saveProfiles(next);
+        await saveProfiles(next, profilePageMeta);
         fillProfileEditor(id);
         if (hint) hint.textContent = 'Saved.';
       } catch (err) {

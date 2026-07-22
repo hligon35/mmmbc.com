@@ -3,22 +3,22 @@
     {
       "id": "ministries-1",
       "page": "ministries",
-      "section": "ministries",
+      "section": "Menistries",
       "image": "Evangelist Melanie Nunn",
       "name": "Evangelist Melanie Nunn",
       "title": "",
       "bio": "Before moving to Paducah, she and her family lived in Detroit, MI for twenty-five years where she taught English and Journalism at Henry Ford High School.",
-      "alt": "../ConImg/webPages/ministries_image1.png"
+      "alt": "Evangelist Melanie Nunn"
     },
     {
       "id": "ministries-2",
       "page": "ministries",
-      "section": "Evangelist Melanie Nunn",
+      "section": "Evangelist Melanie",
       "image": "Elder Jimmy Jones",
       "name": "Elder Jimmy Jones",
       "title": "",
-      "bio": "Elder Jones was born in Cairo IL, graduate of Sumner High School, West KY Vocational-Technical School and attended Coyne Electronic Institute for 15 months. He was an employee of USEC for 37 years in instrument maintenance.",
-      "alt": "../ConImg/webPages/ministries_image2.jpeg"
+      "bio": "Elder Jones was born in Cairo IL, graduate of Sumner High School, West KY Vocational-Technical School and attended Coyne Electronic Institute for 15 months. He was an employee of USEC for 37 years in",
+      "alt": "Elder Jimmy Jones"
     },
     {
       "id": "ministries-3",
@@ -300,22 +300,5 @@
       "bio": "Member over 20 years, member of Official Team, former head of Decorations Ministry.",
       "alt": "../ConImg/webPages/official_team_image8.png"
     }
-  ],
-  "pageMeta": {
-    "ministries": {
-      "pageTitle": "Ministries",
-      "introText": "Learn more about the ministries and leaders who serve the Mt. Moriah Missionary Baptist Church family."
-    },
-    "leadership": {
-      "pageTitle": "Leadership & Staff",
-      "staffHeading": "Staff",
-      "deaconsHeading": "Deacons",
-      "deaconessesHeading": "Deaconesses",
-      "officialTeamHeading": "Official Team & Trustees"
-    },
-    "nav": {
-      "ministriesLabel": "Ministries",
-      "leadershipLabel": "Leadership & Staff"
-    }
-  }
+  ]
 }

@@ -92,6 +92,88 @@ document.addEventListener('DOMContentLoaded', () => {
         contactForm.classList.remove('hidden');
     }
 
+    const defaultProfilePageMeta = {
+        ministries: {
+            pageTitle: 'Ministries',
+            introText: 'Learn more about the ministries and leaders who serve the Mt. Moriah Missionary Baptist Church family.'
+        },
+        leadership: {
+            pageTitle: 'Leadership & Staff',
+            staffHeading: 'Staff',
+            deaconsHeading: 'Deacons',
+            deaconessesHeading: 'Deaconesses',
+            officialTeamHeading: 'Official Team & Trustees'
+        },
+        nav: {
+            ministriesLabel: 'Ministries',
+            leadershipLabel: 'Leadership & Staff'
+        }
+    };
+
+    const normalizeProfilePageMeta = (raw) => {
+        const src = raw && typeof raw === 'object' ? raw : {};
+        const ministries = src.ministries && typeof src.ministries === 'object' ? src.ministries : {};
+        const leadership = src.leadership && typeof src.leadership === 'object' ? src.leadership : {};
+        const nav = src.nav && typeof src.nav === 'object' ? src.nav : {};
+        return {
+            ministries: {
+                pageTitle: String(ministries.pageTitle || defaultProfilePageMeta.ministries.pageTitle).trim(),
+                introText: String(ministries.introText || defaultProfilePageMeta.ministries.introText).trim()
+            },
+            leadership: {
+                pageTitle: String(leadership.pageTitle || defaultProfilePageMeta.leadership.pageTitle).trim(),
+                staffHeading: String(leadership.staffHeading || defaultProfilePageMeta.leadership.staffHeading).trim(),
+                deaconsHeading: String(leadership.deaconsHeading || defaultProfilePageMeta.leadership.deaconsHeading).trim(),
+                deaconessesHeading: String(leadership.deaconessesHeading || defaultProfilePageMeta.leadership.deaconessesHeading).trim(),
+                officialTeamHeading: String(leadership.officialTeamHeading || defaultProfilePageMeta.leadership.officialTeamHeading).trim()
+            },
+            nav: {
+                ministriesLabel: String(nav.ministriesLabel || defaultProfilePageMeta.nav.ministriesLabel).trim(),
+                leadershipLabel: String(nav.leadershipLabel || defaultProfilePageMeta.nav.leadershipLabel).trim()
+            }
+        };
+    };
+
+    const applyProfilePageMeta = (meta) => {
+        const pageMeta = normalizeProfilePageMeta(meta);
+
+        const navMinistries = document.querySelector('.nav-links a[href="ministries.html"]');
+        if (navMinistries && pageMeta.nav.ministriesLabel) navMinistries.textContent = pageMeta.nav.ministriesLabel;
+        const navLeadership = document.querySelector('.nav-links a[href="leadership.html"]');
+        if (navLeadership && pageMeta.nav.leadershipLabel) navLeadership.textContent = pageMeta.nav.leadershipLabel;
+
+        const path = String(window.location.pathname || '').toLowerCase();
+        const isMinistries = path.includes('/pages/ministries');
+        const isLeadership = path.includes('/pages/leadership');
+
+        if (isMinistries) {
+            const title = document.querySelector('section.content-section h1');
+            if (title && pageMeta.ministries.pageTitle) title.textContent = pageMeta.ministries.pageTitle;
+
+            const intro = document.querySelector('section.content-section > p');
+            if (intro && pageMeta.ministries.introText) intro.textContent = pageMeta.ministries.introText;
+        }
+
+        if (isLeadership) {
+            const title = document.querySelector('section.content-section h1');
+            if (title && pageMeta.leadership.pageTitle) title.textContent = pageMeta.leadership.pageTitle;
+
+            const headingMap = [
+                { id: 'staff', value: pageMeta.leadership.staffHeading },
+                { id: 'deacons', value: pageMeta.leadership.deaconsHeading },
+                { id: 'deaconesses', value: pageMeta.leadership.deaconessesHeading },
+                { id: 'official-team', value: pageMeta.leadership.officialTeamHeading }
+            ];
+
+            for (const row of headingMap) {
+                const heading = document.getElementById(row.id);
+                if (heading && row.value) heading.textContent = row.value;
+                const pill = document.querySelector(`.content-subnav a[href="#${row.id}"]`);
+                if (pill && row.value) pill.textContent = row.value;
+            }
+        }
+    };
+
     // Site settings: update social/contact links from exported site-settings.json
     const normalizePhoneDigits = (value) => String(value || '').replace(/\D/g, '');
     const buildMapsUrl = (address) => {
@@ -237,6 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (settings) applySiteSettings(settings);
 
         const profilesData = await tryFetchJson(['profiles.json', '../profiles.json', '/profiles.json']);
+        applyProfilePageMeta(profilesData?.pageMeta);
         const profiles = Array.isArray(profilesData?.profiles) ? profilesData.profiles : [];
         if (profiles.length) {
             const path = String(window.location.pathname || '').toLowerCase();
