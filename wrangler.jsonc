@@ -29,8 +29,12 @@
 			"destination_address": "hligon@getsparqd.com"
 		}
 	],
+	// Cloudflare-side Worker vars.
+	// These belong in Wrangler/Cloudflare, not in the Node admin .env file used by local dev or Cloud Run.
+	// For local admin -> Worker proxying, set WORKER_ORIGIN plus matching CF_ACCESS_CLIENT_ID /
+	// CF_ACCESS_CLIENT_SECRET in the admin environment, and store the same token pair as Worker secrets.
 	"vars": {
-		// Comma-separated emails allowed for admin API access (when Cloudflare Access is enabled).
+		// Comma-separated emails allowed for Worker admin API access (when Cloudflare Access is enabled).
 		// Example: "you@example.com,other@example.com"
 		"ADMIN_ALLOW_EMAILS": "",
 		// Optional: set this when you move the Worker to a custom domain (e.g. mmmbc.com).
@@ -41,7 +45,9 @@
 		// Set to true only for local development/testing.
 		"DEV_BYPASS_AUTH": "false"
 		,
+		// Visible support mailbox settings for Worker-sent support emails.
 		"SUPPORT_TO_EMAIL": "support@hldesignedit.com",
+		// Must be a verified destination for the SUPPORT_EMAIL binding in Cloudflare Email Routing.
 		"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com"
 	},
 	// Optional parallel environment:
