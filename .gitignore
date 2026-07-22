@@ -1,0 +1,18 @@
+# Node modules
+node_modules/
+admin/node_modules/
+
+# Runtime/session/log artifacts
+admin/sessions/
+admin/logs/
+admin/uploads/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
