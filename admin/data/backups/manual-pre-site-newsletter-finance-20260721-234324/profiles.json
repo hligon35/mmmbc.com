@@ -3,7 +3,7 @@
     {
       "id": "ministries-1",
       "page": "ministries",
-      "section": "Ministries",
+      "section": "Menistries",
       "image": "Evangelist Melanie Nunn",
       "name": "Evangelist Melanie Nunn",
       "title": "",
@@ -300,22 +300,5 @@
       "bio": "Member over 20 years, member of Official Team, former head of Decorations Ministry.",
       "alt": "../ConImg/webPages/official_team_image8.png"
     }
-  ],
-  "pageMeta": {
-    "ministries": {
-      "pageTitle": "Ministries",
-      "introText": "Learn more about the ministries and leaders who serve the Mt. Moriah Missionary Baptist Church family."
-    },
-    "leadership": {
-      "pageTitle": "Leadership & Staff",
-      "staffHeading": "Staff",
-      "deaconsHeading": "Deacons",
-      "deaconessesHeading": "Deaconesses",
-      "officialTeamHeading": "Official Team & Trustees"
-    },
-    "nav": {
-      "ministriesLabel": "Ministries",
-      "leadershipLabel": "Leadership & Staff"
-    }
-  }
+  ]
 }

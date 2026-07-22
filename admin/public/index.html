@@ -12,13 +12,17 @@
 
   <header class="header">
     <div class="header__left">
-      <img class="header__logo" src="/Icons/favicon.png" alt="MMMBC" />
-    </div>
-    <div class="header__center" aria-label="Admin Dashboard">
-      <div class="header__title">Admin Dashboard</div>
+      <div class="header__brandRow">
+        <img class="header__logo" src="/Icons/favicon.png" alt="MMMBC" />
+        <div class="salutation salutation--header" id="salutation" aria-live="polite"></div>
+      </div>
+      <button class="btn btn--drawerToggle" id="navDrawerToggle" type="button" aria-expanded="true" aria-controls="adminSideNav">Hide Menu</button>
     </div>
     <div class="header__right">
-      <span class="status" id="authStatus" aria-live="polite">Checking login…</span>
+      <div class="header__adminMeta" aria-label="Admin dashboard status">
+        <div class="header__title">Admin Dashboard</div>
+        <span class="status" id="authStatus" aria-live="polite">Admin server not running</span>
+      </div>
       <button class="btn" id="logoutBtn" type="button" hidden>Log out</button>
     </div>
   </header>
@@ -152,8 +156,6 @@
     </section>
 
     <section class="card" id="dashboardCard" aria-label="Admin dashboard" hidden>
-      <div class="salutation" id="salutation" aria-live="polite"></div>
-
       <div class="financeTopBar noPrint" id="financeTopBar" aria-label="Finance totals" hidden>
         <div class="financePeriodTabs" role="tablist" aria-label="Finance period">
           <button class="miniTab miniTab--xs" id="financePeriodWeekBtn" type="button" role="tab" aria-selected="true">Wk</button>
@@ -168,14 +170,24 @@
         <span class="statusChip" id="financeNetTotal">$0.00 Net</span>
       </div>
 
+      <div class="tabs subTabs siteEditorPageTabs noPrint" id="siteEditorPageTabs" role="tablist" aria-label="Site editor pages" hidden>
+        <button class="tab tab--sub" type="button" role="tab" aria-selected="true" data-site-page="home">Home</button>
+        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="ministries">Ministries</button>
+        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="leadership">Leadership &amp; Staff</button>
+        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="church_history">Church History</button>
+        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="facility_rental">Facility Rental</button>
+        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="live_praise">Live Praise</button>
+        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="contact">Contact</button>
+      </div>
+
       <div class="adminLayout">
-        <nav class="sideNav" role="tablist" aria-label="Admin sections">
+        <nav class="sideNav" id="adminSideNav" role="tablist" aria-label="Admin sections">
           <button class="tab tab--nav" role="tab" aria-selected="true" aria-controls="tab-photos" id="tabBtn-photos">Photo Gallery</button>
           <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-events" id="tabBtn-events">Events</button>
           <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-content" id="tabBtn-content">Announcements</button>
           <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-finances" id="tabBtn-finances">Finances</button>
           <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-newsletter" id="tabBtn-newsletter">Newsletter</button>
-          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-profiles" id="tabBtn-profiles">Profiles</button>
+          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-profiles" id="tabBtn-profiles">Site Editor</button>
           <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-support" id="tabBtn-support">Support</button>
 
           <div class="photoBulkBar photoBulkBar--nav" id="photoBulkBar" hidden>
@@ -191,16 +203,16 @@
       <section class="tabPanel" role="tabpanel" id="tab-photos" aria-labelledby="tabBtn-photos">
         <div class="sectionHeader">
           <div class="sectionHeader__left">
-            <h2 class="sectionHeader__title">Photo Gallery</h2>
+            <h2 class="sectionHeader__title">Media Library</h2>
             <div class="tabs subTabs photoSubTabs" role="tablist" aria-label="Photo gallery sections">
-              <button class="tab tab--sub" role="tab" aria-selected="true" aria-controls="panel-photos-manage" id="subTabBtn-photos-manage" type="button">Upload</button>
-              <button class="tab tab--sub" role="tab" aria-selected="false" aria-controls="panel-photos-bucket" id="subTabBtn-photos-bucket" type="button">Browse Bucket</button>
+              <button class="tab tab--sub" role="tab" aria-selected="true" aria-controls="panel-photos-manage" id="subTabBtn-photos-manage" type="button">Add Photos</button>
+              <button class="tab tab--sub" role="tab" aria-selected="false" aria-controls="panel-photos-bucket" id="subTabBtn-photos-bucket" type="button">Storage View</button>
             </div>
           </div>
           <div class="iconGroup" aria-label="Photo gallery actions">
             <div class="iconGroup__row">
               <a class="iconBtn iconBtn--help" id="photoHelpBtn" href="#photoHelpDialog" aria-label="Photo upload instructions" title="Photo upload instructions">?</a>
-              <button class="btn" id="exportBtn" type="button">Sync Gallery</button>
+              <button class="btn" id="exportBtn" type="button">Refresh Website Gallery</button>
             </div>
             <div class="syncProgress" id="syncProgressWrap" aria-live="polite" hidden>
               <progress class="syncProgress__meter" id="syncProgressMeter" max="500" value="0"></progress>
@@ -213,20 +225,20 @@
           <a class="dialog__backdrop" href="#" aria-label="Close"></a>
           <div class="card dialog__inner">
             <div class="sectionHeader sectionHeader--compact">
-              <h3 class="sectionHeader__title">Photo upload instructions</h3>
+              <h3 class="sectionHeader__title">How to add photos</h3>
               <a class="btn" id="photoHelpCloseBtn" href="#" role="button">Close</a>
             </div>
 
-            <p class="muted">Use these steps when adding new albums and photos.</p>
+            <p class="muted">Use these steps when you want to add a new album or update an existing one.</p>
 
             <h4 class="photosHelp__heading">Step-by-step</h4>
             <ol class="photosHelp__list">
               <li>Enter an <strong>Album</strong> name (example: <code>Youth Ministry</code>, <code>Choir</code>, <code>2026 Revival</code>).</li>
-              <li>Add an optional <strong>Label</strong> (caption shown under the photo).</li>
-              <li>Add optional <strong>Tags</strong> (comma-separated), like <code>youth, choir, 2026</code>.</li>
-              <li>Select photos and click <strong>Upload</strong>.</li>
-              <li>(Optional) Use <strong>Arrange Album</strong> to manually order photos.</li>
-              <li>Click <strong>Sync Gallery</strong> so photos appear on the public gallery page.</li>
+              <li>Add an optional <strong>Caption</strong> that will show under the photo.</li>
+              <li>Add optional <strong>Tags</strong> (comma-separated), like <code>youth</code>, <code>choir</code>, or <code>2026</code>.</li>
+              <li>Select your photos and click <strong>Add Photos</strong>.</li>
+              <li>(Optional) Use <strong>Arrange Album</strong> to change the order.</li>
+              <li>Click <strong>Refresh Website Gallery</strong> so the public page gets the latest files.</li>
             </ol>
 
             <h4 class="photosHelp__heading">Tips</h4>
@@ -235,20 +247,20 @@
               <li>Use tags for groups (<code>ushers</code>), events (<code>revival</code>), and years (<code>2026</code>).</li>
             </ul>
 
-            <div class="photosHelp__tip">Tip: If you uploaded photos but don’t see them on the website yet, you probably need to sync.</div>
+            <div class="photosHelp__tip">Tip: If the gallery still looks stale, refresh the website gallery after your upload.</div>
           </div>
         </dialog>
 
         <div class="subTabPanel" role="tabpanel" id="panel-photos-manage" aria-labelledby="subTabBtn-photos-manage">
-          <p class="muted">Upload photos and organize them by album. Tags help sorting and searching.</p>
+          <p class="muted">Add photos, group them by album, and use tags so the library stays easy to browse.</p>
 
           <form id="photoUploadForm" class="form form--row" enctype="multipart/form-data">
             <label class="label">
-              Album (Events, Choir, Youth Ministry)
+              Album name
               <input class="input" name="album" type="text" placeholder="Events" />
             </label>
             <label class="label">
-              Label (shown as text)
+              Caption
               <input class="input" name="label" type="text" placeholder="Youth Ministry" />
             </label>
             <label class="label">
@@ -256,10 +268,10 @@
               <input class="input" name="tags" type="text" placeholder="revival, 2026, sunday" />
             </label>
             <label class="label">
-              Select photos
+              Choose photos
               <input class="input" name="images" type="file" accept="image/*" multiple required />
             </label>
-            <button class="btn btn--primary" type="submit">Upload</button>
+            <button class="btn btn--primary" type="submit">Add Photos</button>
             <div class="hint" id="photoUploadHint" aria-live="polite"></div>
           </form>
 
@@ -309,41 +321,45 @@
           <div class="card r2BrowserCard" aria-label="Bucket browser">
             <div class="sectionHeader sectionHeader--compact">
               <h3 class="sectionHeader__title">Bucket Browser</h3>
-              <button class="btn" id="r2RefreshBtn" type="button">Refresh</button>
-            </div>
-            <p class="muted">Browse and manage objects under <code>gallery/</code> in the R2 bucket.</p>
-
-            <label class="label">
-              Prefix
-              <input class="input" id="r2PrefixInput" type="text" value="gallery/" />
-            </label>
-
-            <div class="inlineRow" aria-label="Bucket actions">
-              <button class="btn" id="r2GoBtn" type="button">Go</button>
-              <button class="btn" id="r2UpBtn" type="button">Up</button>
-              <button class="btn btn--primary" id="r2SyncFolderBtn" type="button">Sync This Folder</button>
+              <div class="inlineRow" aria-label="Bucket actions">
+                <button class="btn" id="r2RefreshBtn" type="button">Refresh</button>
+                <button class="btn" id="r2UpBtn" type="button">Up</button>
+                <button class="btn" id="r2SyncFolderBtn" type="button">Sync Folder</button>
+              </div>
             </div>
 
-            <div class="hint" id="r2Status" aria-live="polite"></div>
+            <p class="muted">Browse R2 objects and folders for the gallery.</p>
+
+            <div class="formRow">
+              <label class="label">
+                Prefix
+                <div class="inlineRow">
+                  <input class="input" id="r2PrefixInput" type="text" value="gallery/" />
+                  <button class="btn" id="r2GoBtn" type="button">Go</button>
+                </div>
+              </label>
+            </div>
+
             <div class="r2Breadcrumb" id="r2Breadcrumb" aria-label="Bucket breadcrumb"></div>
-            <div class="r2Tree" id="r2Tree" aria-live="polite"></div>
+            <div class="hint" id="r2Status" aria-live="polite"></div>
+            <div class="list list--scroll5" id="r2Tree" aria-label="Bucket browser tree"></div>
           </div>
         </div>
-
       </section>
 
-      <!-- Content -->
+      <!-- Announcements -->
       <section class="tabPanel" role="tabpanel" id="tab-content" aria-labelledby="tabBtn-content" hidden>
         <div class="sectionHeader">
           <h2 class="sectionHeader__title">Announcements</h2>
-          <div class="tabs subTabs" role="tablist" aria-label="Announcements sections">
+          <div class="tabs subTabs" role="tablist" aria-label="Announcements and bulletins tabs">
             <button class="tab tab--sub" role="tab" aria-selected="true" aria-controls="panel-content-announcements" id="subTabBtn-content-announcements" type="button">Announcements</button>
             <button class="tab tab--sub" role="tab" aria-selected="false" aria-controls="panel-content-bulletins" id="subTabBtn-content-bulletins" type="button">Bulletins</button>
           </div>
         </div>
 
         <div class="subTabPanel" role="tabpanel" id="panel-content-announcements" aria-labelledby="subTabBtn-content-announcements">
-          <h3 id="announcements" class="srOnly">Announcements</h3>
+          <p class="muted">Post announcements to the website ticker.</p>
+
           <form id="announceForm" class="form">
             <label class="label">
               Title
@@ -351,33 +367,38 @@
             </label>
             <label class="label">
               Message
-              <textarea class="textarea" name="body" rows="4" maxlength="5000" required></textarea>
+              <textarea class="textarea" name="body" rows="5" maxlength="5000" required></textarea>
             </label>
-            <div class="inlineRow" aria-label="Announcement scheduling">
-              <label class="label label--inline">
-                Expires (days)
+            <div class="formRow">
+              <label class="label">
+                Expires in days
                 <input class="input" name="expiresInDays" type="number" min="1" max="365" value="30" />
               </label>
               <label class="label label--inline">
                 <input class="checkbox" name="neverExpires" type="checkbox" />
                 Never expires
               </label>
-              <button class="btn btn--primary" type="submit">Post Announcement</button>
             </div>
-            <div class="hint">Leave blank to use the default (30 days). Set "Never expires" to keep it permanently.</div>
+            <button class="btn btn--primary" type="submit">Post Announcement</button>
             <div class="hint" id="announceHint" aria-live="polite"></div>
           </form>
-          <div class="list" id="announceList"></div>
+
+          <div class="list list--scroll5" id="announceList" aria-live="polite"></div>
         </div>
 
         <div class="subTabPanel" role="tabpanel" id="panel-content-bulletins" aria-labelledby="subTabBtn-content-bulletins" hidden>
-          <h3 id="bulletins" class="srOnly">Bulletins</h3>
+          <p class="muted">Upload and schedule bulletin files.</p>
+
           <form id="bulletinForm" class="form" enctype="multipart/form-data">
+            <label class="label">
+              Bulletin title
+              <input class="input" name="title" type="text" maxlength="120" required />
+            </label>
+            <label class="label">
+              File
+              <input class="input" name="file" type="file" accept="application/pdf,image/*" required />
+            </label>
             <div class="formRow">
-              <label class="label">
-                Title
-                <input class="input" name="title" type="text" maxlength="120" placeholder="Sunday Bulletin" required />
-              </label>
               <label class="label">
                 Show from
                 <input class="input" name="startsAt" type="datetime-local" required />
@@ -387,56 +408,33 @@
                 <input class="input" name="endsAt" type="datetime-local" required />
               </label>
             </div>
-
-            <div class="formRow">
-              <label class="label">
-                File (PDF or image)
-                <input class="input" name="file" type="file" accept="application/pdf,image/*" required />
-                <div class="hint">This will display on the homepage below the announcement ticker during the scheduled window.</div>
-              </label>
-            </div>
-
             <label class="label label--inline">
-              <input class="checkbox" name="createAnnouncement" type="checkbox" />
-              Create a coordinated announcement for this bulletin
+              <input class="checkbox" name="createAnnouncement" type="checkbox" checked />
+              Create matching announcement
             </label>
-
-            <div class="formRow">
-              <label class="label">
-                Announcement title (optional)
-                <input class="input" name="announcementTitle" type="text" maxlength="120" placeholder="New Bulletin Available" />
-              </label>
-              <label class="label">
-                Announcement message (optional)
-                <input class="input" name="announcementBody" type="text" maxlength="5000" placeholder="Click the bulletin frame on the homepage to view." />
-              </label>
-            </div>
-
-            <button class="btn btn--primary" type="submit">Schedule Bulletin</button>
+            <label class="label">
+              Announcement title (optional)
+              <input class="input" name="announcementTitle" type="text" maxlength="120" placeholder="Bulletin: Sunday Service" />
+            </label>
+            <label class="label">
+              Announcement message (optional)
+              <textarea class="textarea" name="announcementBody" rows="4" maxlength="5000" placeholder="A new bulletin has been posted."></textarea>
+            </label>
+            <button class="btn btn--primary" type="submit">Upload Bulletin</button>
             <div class="hint" id="bulletinHint" aria-live="polite"></div>
           </form>
-          <div class="list" id="bulletinList"></div>
+
+          <div class="list list--scroll5" id="bulletinList" aria-live="polite"></div>
         </div>
       </section>
 
       <!-- Finances -->
       <section class="tabPanel" role="tabpanel" id="tab-finances" aria-labelledby="tabBtn-finances" hidden>
-        <div class="card financeModernNav">
-          <h3 class="card__subtitle">Financial Management Workflows</h3>
-          <p class="muted">Use these guided pages for fund controls, donor profiles, board reporting, internal controls, and housing-allowance records.</p>
-          <div class="financeModernNav__actions">
-            <a class="btn btn--primary" href="/admin/finances/funds">Open Fund Tracking Dashboard</a>
-            <a class="btn btn--primary" href="/admin/finances/donors">Open Donor Management Profiles</a>
-            <a class="btn btn--primary" href="/admin/finances/reports/board">Open Board Report Package Builder</a>
-            <a class="btn btn--primary" href="/admin/finances/controls">Open Internal Controls Dashboard</a>
-            <a class="btn btn--primary" href="/admin/finances/clergy-housing">Open Minister Housing-Allowance Records</a>
-          </div>
-        </div>
-
         <div class="sectionHeader financeHeader">
           <div class="financeHeaderLeftTop">
             <div class="financeHeaderTitleRow">
               <h2 class="sectionHeader__title">Finances</h2>
+              <a class="btn btn--primary" id="financeDashboardBtn" href="/admin/finances/dashboard">Finance Dashboard</a>
 
               <div class="iconGroup noPrint financeActionButtons" aria-label="Finance actions">
                 <details class="menu" id="financePrintMenu">
@@ -714,181 +712,283 @@
       <!-- Newsletter -->
       <section class="tabPanel" role="tabpanel" id="tab-newsletter" aria-labelledby="tabBtn-newsletter" hidden>
         <h2>Newsletter</h2>
-        <p class="muted">Manage subscriber emails and send mail blasts to selected recipients or groups.</p>
+        <p class="muted">Manage subscriber emails and send newsletters to selected recipients or groups.</p>
 
         <div class="card">
-          <h3 class="card__subtitle">Subscribers</h3>
-          <p class="muted">Add or edit subscribers, then choose recipients for newsletter sends.</p>
-
-          <div class="formRow">
-            <label class="label">
-              Current subscribers
-              <select class="select" id="subscriberList" size="8" aria-label="Subscriber list"></select>
-            </label>
+          <div class="sectionHeader sectionHeader--compact">
+            <h3 class="card__subtitle">Subscribers</h3>
+            <button class="btn" id="subscriberCollapseBtn" type="button" aria-expanded="false" aria-controls="subscriberPanel">View Subscribers</button>
           </div>
+          <p class="muted" id="subscriberSummary">No subscribers loaded yet.</p>
 
-          <form id="subscriberForm" class="form form--row" aria-label="Subscriber editor">
-            <input id="subscriberEditEmail" type="hidden" />
-            <label class="label">
-              Name (optional)
-              <input class="input" id="subscriberName" type="text" maxlength="120" placeholder="Jane Doe" />
-            </label>
-            <label class="label">
-              Email
-              <input class="input" id="subscriberEmail" type="email" maxlength="254" placeholder="jane@example.com" required />
-            </label>
-            <label class="label">
-              Group
-              <input class="input" id="subscriberGroup" type="text" maxlength="80" placeholder="members" value="general" />
-            </label>
-            <button class="btn btn--primary" id="subscriberSaveBtn" type="submit">Save Subscriber</button>
-            <button class="btn" id="subscriberDeleteBtn" type="button">Delete Selected</button>
-            <button class="btn" id="subscriberClearBtn" type="button">Clear</button>
-            <div class="hint" id="subscriberHint" aria-live="polite"></div>
-          </form>
+          <div id="subscriberPanel" hidden>
+            <p class="muted">Add or update subscribers, then choose who should receive each newsletter.</p>
+
+            <div class="formRow">
+              <label class="label">
+                Current subscribers
+                <select class="select" id="subscriberList" size="8" aria-label="Subscriber list"></select>
+              </label>
+            </div>
+
+            <form id="subscriberForm" class="form form--row" aria-label="Subscriber editor">
+              <input id="subscriberEditEmail" type="hidden" />
+              <label class="label">
+                Name (optional)
+                <input class="input" id="subscriberName" type="text" maxlength="120" placeholder="Jane Doe" />
+              </label>
+              <label class="label">
+                Email
+                <input class="input" id="subscriberEmail" type="email" maxlength="254" placeholder="jane@example.com" required />
+              </label>
+              <label class="label">
+                Group
+                <input class="input" id="subscriberGroup" type="text" maxlength="80" placeholder="members" value="general" />
+              </label>
+              <button class="btn btn--primary" id="subscriberSaveBtn" type="submit">Save Subscriber</button>
+              <button class="btn" id="subscriberDeleteBtn" type="button">Delete Selected</button>
+              <button class="btn" id="subscriberClearBtn" type="button">Clear</button>
+              <div class="hint" id="subscriberHint" aria-live="polite"></div>
+            </form>
+          </div>
         </div>
 
         <div class="card card--spacedTop">
-          <h3 class="card__subtitle">Send Newsletter Blast</h3>
+          <h3 class="card__subtitle">Send Newsletter</h3>
           <form id="newsletterForm" class="form" aria-label="Newsletter send form">
             <div class="formRow">
               <label class="label">
-                Select group
+                Filter by group
                 <select class="select" id="newsletterGroupSelect">
                   <option value="">All groups</option>
                 </select>
               </label>
-              <label class="label">
-                Recipients
-                <select class="select" id="newsletterRecipients" size="8" multiple aria-label="Recipients"></select>
-              </label>
+              <div class="label recipientPickerField">
+                <span>Recipients</span>
+                <button class="btn recipientPickerTrigger" id="newsletterRecipientTrigger" type="button" aria-expanded="false" aria-controls="newsletterRecipientPopover">0 selected - Open recipient list</button>
+                <div class="recipientPickerPopover" id="newsletterRecipientPopover" role="dialog" aria-label="Recipient list" hidden>
+                  <div class="recipientPickerTop">
+                    <label class="label label--inline"><input class="checkbox" id="newsletterSelectAll" type="checkbox" /> Select All</label>
+                    <label class="label label--inline"><input class="checkbox" id="newsletterDeselectAll" type="checkbox" /> Deselect All</label>
+                  </div>
+                  <div class="recipientPickerList" id="newsletterRecipientList" aria-label="Recipient options"></div>
+                </div>
+                <select class="select" id="newsletterRecipients" size="8" multiple aria-label="Recipients" hidden></select>
+              </div>
             </div>
             <label class="label">
-              Subject
+              Subject line
               <input class="input" id="newsletterSubject" type="text" maxlength="140" required />
             </label>
             <label class="label">
-              Message
+              Message body
               <textarea class="textarea" id="newsletterMessage" rows="8" maxlength="12000" required></textarea>
             </label>
-            <button class="btn btn--primary" type="submit">Send Newsletter</button>
+
+            <div class="card card--spacedTop">
+              <h4 class="card__subtitle">Schedule</h4>
+              <div class="formRow">
+                <label class="label">
+                  Date to send
+                  <input class="input" id="newsletterScheduleDate" type="date" />
+                </label>
+                <label class="label">
+                  Time to send
+                  <input class="input" id="newsletterScheduleTime" type="time" />
+                </label>
+                <label class="label">
+                  Time zone
+                  <select class="select" id="newsletterScheduleTimezone">
+                    <option value="America/Chicago">America/Chicago</option>
+                    <option value="America/New_York">America/New_York</option>
+                    <option value="America/Los_Angeles">America/Los_Angeles</option>
+                    <option value="UTC">UTC</option>
+                  </select>
+                  <div class="hint" id="newsletterTimezoneHint">Your browser time zone will be selected automatically.</div>
+                </label>
+              </div>
+              <label class="label">
+                Test email address(es)
+                <input class="input" id="newsletterTestRecipientsInput" type="text" maxlength="800" placeholder="name@example.com, other@example.com" />
+                <div class="hint">Use commas or Enter to add each address. Leave blank to send the test to your signed-in email.</div>
+                <div class="newsletterTestRecipients" id="newsletterTestRecipientsList" aria-live="polite"></div>
+              </label>
+              <div class="toolbar">
+                <button class="btn" id="newsletterSendTestBtn" type="button">Send Test</button>
+                <button class="btn btn--primary" id="newsletterSendNowBtn" type="button">Send Now</button>
+                <button class="btn" id="newsletterSaveDraftBtn" type="button">Save Draft</button>
+                <button class="btn btn--primary" id="newsletterScheduleBtn" type="button">Schedule Send</button>
+              </div>
+            </div>
+
             <div class="hint" id="newsletterHint" aria-live="polite"></div>
             <div class="error" id="newsletterError" role="alert" hidden></div>
           </form>
+        </div>
+
+        <div class="card card--spacedTop">
+          <div class="sectionHeader sectionHeader--compact">
+            <h3 class="card__subtitle">Newsletter Records</h3>
+            <button class="btn" id="newsletterRecordsToggle" type="button" aria-expanded="false" aria-controls="newsletterRecordsPanel">View Records</button>
+          </div>
+          <div id="newsletterRecordsPanel" hidden>
+            <div class="tabs subTabs" role="tablist" aria-label="Newsletter records tabs">
+              <button class="tab tab--sub" role="tab" aria-selected="true" id="newsletterRecordsTabDrafts" type="button">Drafts</button>
+              <button class="tab tab--sub" role="tab" aria-selected="false" id="newsletterRecordsTabScheduled" type="button">Scheduled</button>
+              <button class="tab tab--sub" role="tab" aria-selected="false" id="newsletterRecordsTabHistory" type="button">History</button>
+            </div>
+            <div class="list" id="newsletterRecordsDrafts"></div>
+            <div class="list" id="newsletterRecordsScheduled" hidden></div>
+            <div class="list" id="newsletterRecordsHistory" hidden></div>
+          </div>
         </div>
       </section>
 
       <!-- Profiles -->
       <section class="tabPanel" role="tabpanel" id="tab-profiles" aria-labelledby="tabBtn-profiles" hidden>
-        <h2>Ministries, Leadership &amp; Staff Profiles</h2>
-        <p class="muted">Header/title labels are edited separately from section profiles so it is clear what you are changing.</p>
+        <h2>Site Editor</h2>
+        <p class="muted" id="siteEditorPageHelp">Edit each website page from the tabs above. The public top navigation stays fixed here.</p>
 
-        <div class="card">
-          <h3 class="card__subtitle">Page Header &amp; Navigation Labels</h3>
-          <p class="muted">Use this area for page titles, section headings, and nav pill labels such as Ministries, Staff, and Official Team.</p>
-          <form id="profileHeaderForm" class="form" aria-label="Profile header editor">
-            <label class="label">
-              Page title
-              <input class="input" id="profileHeaderPageTitle" type="text" maxlength="120" required />
-            </label>
-            <label class="label" id="profileHeaderMinistriesIntroRow">
-              Ministries intro text
-              <textarea class="textarea" id="profileHeaderIntroText" rows="4" maxlength="700"></textarea>
-            </label>
-            <label class="label">
-              Top nav label: Ministries
-              <input class="input" id="profileHeaderNavMinistries" type="text" maxlength="80" required />
-            </label>
-            <label class="label">
-              Top nav label: Leadership &amp; Staff
-              <input class="input" id="profileHeaderNavLeadership" type="text" maxlength="80" required />
-            </label>
+        <h3 class="card__subtitle" id="siteEditorPageTitle">Home</h3>
 
-            <div id="profileHeaderLeadershipFields">
-              <label class="label">
-                Section heading: Staff
-                <input class="input" id="profileHeaderStaffHeading" type="text" maxlength="80" />
-              </label>
-              <label class="label">
-                Section heading: Deacons
-                <input class="input" id="profileHeaderDeaconsHeading" type="text" maxlength="80" />
-              </label>
-              <label class="label">
-                Section heading: Deaconesses
-                <input class="input" id="profileHeaderDeaconessesHeading" type="text" maxlength="80" />
-              </label>
-              <label class="label">
-                Section heading: Official Team &amp; Trustees
-                <input class="input" id="profileHeaderOfficialTeamHeading" type="text" maxlength="120" />
-              </label>
+        <div class="editorSplit editorSplit--siteEditor">
+          <div class="editorSplit__main">
+            <div class="card" id="siteEditorHeaderCard">
+              <h3 class="card__subtitle">Page Heading and Intro</h3>
+              <p class="muted">Keep headings short and write introductions the way you would explain the page to a visitor.</p>
+              <form id="profileHeaderForm" class="form" aria-label="Site editor heading form">
+                <label class="label">
+                  Page title shown on the website
+                  <input class="input" id="profileHeaderPageTitle" type="text" maxlength="120" required />
+                </label>
+                <label class="label" id="profileHeaderMinistriesIntroRow">
+                  Intro paragraph
+                  <textarea class="textarea" id="profileHeaderIntroText" rows="4" maxlength="2000"></textarea>
+                </label>
+                <div id="profileHeaderLeadershipFields">
+                  <label class="label">
+                    Staff section heading
+                    <input class="input" id="profileHeaderStaffHeading" type="text" maxlength="80" />
+                  </label>
+                  <label class="label">
+                    Deacons section heading
+                    <input class="input" id="profileHeaderDeaconsHeading" type="text" maxlength="80" />
+                  </label>
+                  <label class="label">
+                    Deaconesses section heading
+                    <input class="input" id="profileHeaderDeaconessesHeading" type="text" maxlength="80" />
+                  </label>
+                  <label class="label">
+                    Trustees and official team heading
+                    <input class="input" id="profileHeaderOfficialTeamHeading" type="text" maxlength="120" />
+                  </label>
+                </div>
+                <button class="btn btn--primary" type="submit">Save Page Heading</button>
+                <div class="hint" id="profileHeaderHint" aria-live="polite"></div>
+              </form>
             </div>
 
-            <button class="btn btn--primary" type="submit">Save Header Labels</button>
-            <div class="hint" id="profileHeaderHint" aria-live="polite"></div>
-          </form>
-        </div>
+            <div class="card" id="siteEditorProfilesCard">
+              <h3 class="card__subtitle">Section Profiles</h3>
+              <p class="muted">Use this panel for ministry or leadership profile cards such as Elder Jimmy Jones and Marsha Roundtree.</p>
 
-        <div class="formRow">
-          <label class="label">
-            Page
-            <select class="select" id="profilePageFilter">
-              <option value="ministries">Ministries</option>
-              <option value="leadership">Leadership &amp; Staff</option>
-            </select>
-          </label>
-          <label class="label">
-            Profile (name only)
-            <select class="select" id="profileSelect" size="8" aria-label="Profile list"></select>
-          </label>
-        </div>
+              <div class="formRow">
+                <label class="label">
+                  Profile list
+                <select class="select" id="profileSelect" size="8" aria-label="Profile list"></select>
+                </label>
+              </div>
 
-        <form id="profileForm" class="form" aria-label="Profile editor">
-          <input id="profileId" type="hidden" />
-          <input id="profilePage" type="hidden" />
-          <label class="label">
-            Section
-            <input class="input" id="profileSection" type="text" maxlength="80" placeholder="Staff" />
-          </label>
-          <label class="label">
-            Image path
-            <input class="input" id="profileImage" type="text" maxlength="400" placeholder="../ConImg/webPages/example.png" />
-          </label>
-          <label class="label">
-            Name
-            <input class="input" id="profileName" type="text" maxlength="120" required />
-          </label>
-          <label class="label">
-            Title
-            <input class="input" id="profileTitle" type="text" maxlength="120" placeholder="Ministry Leader" />
-          </label>
-          <label class="label">
-            Short bio
-            <textarea class="textarea" id="profileBio" rows="6" maxlength="700" required></textarea>
-          </label>
-          <button class="btn btn--primary" type="submit">Save Profile</button>
-          <div class="hint" id="profileHint" aria-live="polite"></div>
-        </form>
+              <form id="profileForm" class="form" aria-label="Profile editor">
+                <input id="profileId" type="hidden" />
+                <input id="profilePage" type="hidden" />
+                <label class="label">
+                  Section name
+                  <input class="input" id="profileSection" type="text" maxlength="80" placeholder="Staff" />
+                </label>
+                <label class="label">
+                  Name
+                  <input class="input" id="profileName" type="text" maxlength="120" required />
+                </label>
+                <label class="label">
+                  Title
+                  <input class="input" id="profileTitle" type="text" maxlength="120" placeholder="Ministry Leader" />
+                </label>
+                <label class="label">
+                  Short bio
+                  <textarea class="textarea" id="profileBio" rows="6" maxlength="2000" required></textarea>
+                </label>
+
+                <div class="card card--spacedTop">
+                  <h4 class="card__subtitle">Profile Image</h4>
+                  <div class="formRow">
+                    <label class="label">
+                      Current image file
+                      <input class="input" id="profileImage" type="text" maxlength="400" placeholder="/ConImg/webPages/example.png" />
+                    </label>
+                    <label class="label">
+                      Alt text
+                      <input class="input" id="profileImageAlt" type="text" maxlength="160" placeholder="Image alt text" />
+                    </label>
+                  </div>
+                  <p class="hint" id="profileImageFilenameHint">No image selected.</p>
+                  <div class="formRow">
+                    <img id="profileImagePreview" alt="Selected profile image preview" class="siteEditorImagePreview" hidden />
+                  </div>
+                  <div class="formRow">
+                    <label class="label">
+                      Replace image file
+                      <input class="input" id="profileImageFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
+                    </label>
+                  </div>
+                  <div class="toolbar">
+                    <button class="btn" id="profileUploadImageBtn" type="button">Upload Image</button>
+                    <button class="btn" id="profileRemoveImageBtn" type="button">Remove Image</button>
+                  </div>
+                </div>
+
+                <button class="btn btn--primary" type="submit">Save Profile</button>
+                <div class="hint" id="profileHint" aria-live="polite"></div>
+              </form>
+            </div>
+
+            <div class="card" id="siteEditorInfoCard" hidden>
+              <h3 class="card__subtitle">Page Layout</h3>
+              <p class="muted" id="siteEditorInfoText">This page currently uses static content and media from the website files.</p>
+            </div>
+          </div>
+
+          <aside class="editorSplit__preview">
+            <div class="card previewPane" id="siteEditorPreviewPane" aria-live="polite">
+              <div class="sectionHeader sectionHeader--compact">
+                <h3 class="card__subtitle">Live Page Preview</h3>
+                <span class="previewBadge">Updates as you type</span>
+              </div>
+              <div id="siteEditorLivePreview" class="siteEditorLivePreview"></div>
+            </div>
+          </aside>
+        </div>
       </section>
 
       <!-- Support -->
       <section class="tabPanel" role="tabpanel" id="tab-support" aria-labelledby="tabBtn-support" hidden>
-        <h2>Support</h2>
-        <p class="muted">Send a message to <strong>support@hldesignedit.com</strong>.</p>
+        <h2>Help Desk</h2>
+        <p class="muted">Send a message to <strong>support@alphazonelabs.com</strong>.</p>
 
         <form id="supportForm" class="form">
           <label class="label">
-            Subject
-            <input class="input" name="subject" type="text" maxlength="140" placeholder="Need help with the admin" required />
+            Subject line
+            <input class="input" name="subject" type="text" maxlength="140" placeholder="What do you need help with?" required />
           </label>
           <label class="label">
             Message
-            <textarea class="textarea" name="message" rows="6" maxlength="5000" placeholder="Describe what you need help with…" required></textarea>
+            <textarea class="textarea" name="message" rows="6" maxlength="5000" placeholder="Share the details and any error message you see…" required></textarea>
           </label>
           <label class="label">
-            Your email (optional)
+            Your email address (optional)
             <input class="input" name="replyTo" type="email" maxlength="254" placeholder="you@example.com" />
           </label>
-          <button class="btn btn--primary" type="submit">Send to support</button>
+          <button class="btn btn--primary" type="submit">Send Message</button>
           <div class="hint" id="supportHint" aria-live="polite"></div>
           <div class="error" id="supportError" role="alert" hidden></div>
         </form>

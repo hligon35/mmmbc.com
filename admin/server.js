@@ -73,6 +73,7 @@ const DOCS_UPLOADS_DIR = path.join(UPLOADS_DIR, 'docs');
 const BULLETINS_UPLOADS_DIR = path.join(UPLOADS_DIR, 'bulletins');
 const ROOT_BULLETINS_DIR = path.join(ROOT_DIR, 'bulletins');
 const GALLERY_DIR = path.join(ROOT_DIR, 'ConImg', 'gallery');
+const WEBPAGE_IMAGES_DIR = path.join(ROOT_DIR, 'ConImg', 'webPages');
 const PORT = Number(process.env.PORT || 8787);
 const HOST = String(process.env.HOST || '').trim();
 
@@ -252,6 +253,69 @@ function isInviteValid(user) {
 
 function normalizeTotp(code) {
   return String(code || '').replace(/\s+/g, '');
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildSupportEmailTemplate({ subject, message, actor, replyTo }) {
+  const safeSubject = escapeHtml(subject);
+  const safeMessage = escapeHtml(message).replace(/\n/g, '<br>');
+  const safeActor = escapeHtml(actor || 'Unknown');
+  const safeReplyTo = replyTo ? escapeHtml(replyTo) : 'Not provided';
+
+  return {
+    text: [
+      'MMMBC Support Message',
+      `Subject: ${subject}`,
+      `From: ${actor}`,
+      `Reply-To: ${replyTo || 'Not provided'}`,
+      '',
+      message
+    ].join('\n'),
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.5;color:#1f2937;background:#f8fafc;padding:24px">
+        <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;padding:24px">
+          <div style="font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#92400e;margin-bottom:12px">MMMBC Support</div>
+          <h1 style="margin:0 0 12px;font-size:22px;line-height:1.25;color:#111827">${safeSubject}</h1>
+          <p style="margin:0 0 8px"><strong>From:</strong> ${safeActor}</p>
+          <p style="margin:0 0 20px"><strong>Reply-to:</strong> ${safeReplyTo}</p>
+          <div style="white-space:normal;background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;color:#111827">${safeMessage}</div>
+        </div>
+      </div>
+    `
+  };
+}
+
+function buildNewsletterEmailTemplate({ subject, message }) {
+  const safeSubject = escapeHtml(subject);
+  const safeMessage = escapeHtml(message).replace(/\n/g, '<br>');
+
+  return {
+    text: `${message}\n\n---\nYou are receiving this message from MMMBC Admin.`,
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#1f2937;background:#f8fafc;padding:24px">
+        <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:20px;overflow:hidden">
+          <div style="padding:24px 28px;background:linear-gradient(135deg,#7f1d1d,#b45309);color:#ffffff">
+            <div style="font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.9">MMMBC Newsletter</div>
+            <h1 style="margin:10px 0 0;font-size:30px;line-height:1.15">${safeSubject}</h1>
+          </div>
+          <div style="padding:28px;color:#111827;font-size:16px">
+            <div style="white-space:normal">${safeMessage}</div>
+            <div style="margin-top:28px;padding-top:18px;border-top:1px solid #e5e7eb;font-size:13px;color:#6b7280">
+              Sent from the MMMBC admin newsletter editor.
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+  };
 }
 
 function mailchannelsSend(payload) {
@@ -849,6 +913,9 @@ function sendAdminFinancePage(res, fileName) {
 app.get('/admin/finances/funds', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
   return sendAdminFinancePage(res, 'finances_funds.html');
 });
+app.get('/admin/finances/dashboard', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  return sendAdminFinancePage(res, 'finances_dashboard.html');
+});
 
 app.get('/admin/finances/donors', requirePermission(PERMISSIONS.DONOR_READ), (req, res) => {
   return sendAdminFinancePage(res, 'finances_donors.html');
@@ -901,6 +968,7 @@ const LIVESTREAM_DATA_PATH = path.join(DATA_DIR, 'livestream.json');
 const SETTINGS_DATA_PATH = path.join(DATA_DIR, 'settings.json');
 const FINANCES_DATA_PATH = path.join(DATA_DIR, 'finances.json');
 const PROFILES_DATA_PATH = path.join(DATA_DIR, 'profiles.json');
+const NEWSLETTER_RECORDS_DATA_PATH = path.join(DATA_DIR, 'newsletter_records.json');
 const FUNDS_DATA_PATH = path.join(DATA_DIR, 'funds.json');
 const DONORS_DATA_PATH = path.join(DATA_DIR, 'donors.json');
 const STATEMENTS_DATA_PATH = path.join(DATA_DIR, 'contribution_statements.json');
@@ -1243,6 +1311,84 @@ function donorDisplayName(d) {
   const first = String(d?.preferredName || d?.firstName || '').trim();
   const last = String(d?.lastName || '').trim();
   return `${first} ${last}`.trim();
+}
+
+function findDonorByAnyKey(donors, donorRef) {
+  const key = String(donorRef || '').trim();
+  if (!key) return null;
+  const down = key.toLowerCase();
+  return (donors || []).find((d) => {
+    const id = String(d?.id || '').trim();
+    const envelope = String(d?.envelopeNumber || '').trim();
+    const name = donorDisplayName(d).toLowerCase();
+    return id === key
+      || (envelope && envelope.toLowerCase() === down)
+      || (name && name === down);
+  }) || null;
+}
+
+function resolveEntryDonor(donors, donorRef, type, strict = false) {
+  const donor = findDonorByAnyKey(donors, donorRef);
+  if (!donorRef) return { donorId: '', donorName: '' };
+  if (!donor) {
+    if (strict || String(type || '').toLowerCase() === 'income') {
+      return { error: 'The selected donor could not be found. Choose a valid donor profile.' };
+    }
+    return { donorId: String(donorRef).trim(), donorName: '' };
+  }
+  return {
+    donorId: String(donor.id),
+    donorName: donorDisplayName(donor)
+  };
+}
+
+function syncEntryDonorSnapshots(entries, donors) {
+  let changed = false;
+  for (const entry of (entries || [])) {
+    const donorId = String(entry?.donorId || '').trim();
+    if (!donorId) {
+      if (entry?.donorName) {
+        entry.donorName = '';
+        changed = true;
+      }
+      continue;
+    }
+    const donor = findDonorByAnyKey(donors, donorId);
+    if (!donor) continue;
+    const nextName = donorDisplayName(donor);
+    if (String(entry?.donorId || '') !== String(donor.id)) {
+      entry.donorId = String(donor.id);
+      changed = true;
+    }
+    if (String(entry?.donorName || '') !== nextName) {
+      entry.donorName = nextName;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function syncStatementDonorSnapshots(statements, donors) {
+  let changed = false;
+  for (const stmt of (statements || [])) {
+    const donor = findDonorByAnyKey(donors, stmt?.donorId || '');
+    if (!donor) continue;
+    const nextName = donorDisplayName(donor);
+    const nextAddress = String(donor?.mailingAddress || '');
+    if (String(stmt?.donorId || '') !== String(donor.id)) {
+      stmt.donorId = String(donor.id);
+      changed = true;
+    }
+    if (String(stmt?.donorName || '') !== nextName) {
+      stmt.donorName = nextName;
+      changed = true;
+    }
+    if (String(stmt?.donorMailingAddress || '') !== nextAddress) {
+      stmt.donorMailingAddress = nextAddress;
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 function findPossibleDonorDuplicates(donors, candidate) {
@@ -1786,24 +1932,27 @@ app.post('/api/support/message', (req, res, next) => {
   const message = messageRaw.slice(0, 5000);
   const replyTo = replyToRaw && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyToRaw) ? replyToRaw : '';
 
-  const toEmail = String(process.env.SUPPORT_TO_EMAIL || 'support@hldesignedit.com').trim();
+  const toEmail = String(process.env.SUPPORT_TO_EMAIL || 'support@alphazonelabs.com').trim();
   const fromEmail = String(process.env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
   const fromName = String(process.env.SUPPORT_FROM_NAME || 'MMMBC Admin Support').trim() || 'MMMBC Admin Support';
 
   const composedSubject = `[MMMBC Support] ${subject}`;
-  const textBody = [
-    `From: ${getSupportActor(req)}`,
-    replyTo ? `Reply-To: ${replyTo}` : 'Reply-To: (not provided)',
-    '',
-    message
-  ].join('\n');
+  const supportTemplate = buildSupportEmailTemplate({
+    subject: composedSubject,
+    message,
+    actor: getSupportActor(req),
+    replyTo
+  });
 
   try {
     const payload = {
       personalizations: [{ to: [{ email: toEmail }], subject: composedSubject }],
       from: { email: fromEmail, name: fromName },
       ...(replyTo ? { reply_to: { email: replyTo } } : {}),
-      content: [{ type: 'text/plain', value: textBody }]
+      content: [
+        { type: 'text/plain', value: supportTemplate.text },
+        { type: 'text/html', value: supportTemplate.html }
+      ]
     };
     const out = await mailchannelsSend(payload);
     if (out.status < 200 || out.status >= 300) {
@@ -2064,6 +2213,10 @@ const galleryUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024, files: 20 }
 });
+const siteImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024, files: 1 }
+});
 
 function proxyToWorker(req, res) {
   const base = String(process.env.WORKER_ORIGIN || '').trim().replace(/\/$/, '');
@@ -2298,6 +2451,37 @@ app.post(
   res.json({ ok: true, added });
   }
 );
+
+app.post('/api/site-editor/upload-image', requirePermission(PERMISSIONS.WEBSITE_WRITE), siteImageUpload.single('image'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image was uploaded.' });
+  const mimeType = String(req.file.mimetype || '').trim().toLowerCase();
+  if (!isAllowedImage(mimeType)) return res.status(400).json({ error: 'Only image uploads are allowed.' });
+
+  const page = sanitizeSegment(req.body?.page || 'page').toLowerCase() || 'page';
+  const profileId = sanitizeSegment(req.body?.profileId || '') || newId();
+  const ext = mime.extension(mimeType) || 'jpg';
+  const fileName = `${new Date().toISOString().slice(0, 10)}_${page}_${profileId}_${newId()}.${ext}`;
+
+  ensureDir(WEBPAGE_IMAGES_DIR);
+  const abs = path.join(WEBPAGE_IMAGES_DIR, fileName);
+  fs.writeFileSync(abs, req.file.buffer);
+
+  // Optional optimization for large images while preserving broad format support.
+  try {
+    const isLarge = Number(req.file.size || 0) > (2 * 1024 * 1024);
+    if (isLarge && ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(mimeType)) {
+      const optimized = await sharp(req.file.buffer)
+        .rotate()
+        .resize({ width: 2400, height: 2400, fit: 'inside', withoutEnlargement: true })
+        .toBuffer();
+      fs.writeFileSync(abs, optimized);
+    }
+  } catch {
+    // Keep original upload if optimization fails.
+  }
+
+  return res.json({ ok: true, path: `/ConImg/webPages/${fileName}` });
+});
 
 app.put('/api/gallery/order', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
   if (String(process.env.WORKER_ORIGIN || '').trim()) return proxyToWorker(req, res);
@@ -2789,9 +2973,13 @@ app.post('/api/finances/entries', requirePermission(PERMISSIONS.FINANCE_WRITE), 
   if (!fund && !fundIdInput) return res.status(400).json({ error: 'Please select a fund before saving this transaction.' });
 
   const { fundsData, balances } = getFundBalances();
+  const donorsData = loadDonorsData();
   const selectedFund = findFundByAnyKey(fundsData.funds, fundIdInput || fund);
   if (!selectedFund) return res.status(400).json({ error: 'The selected fund could not be found. Choose a valid fund.' });
   if (selectedFund.active === false) return res.status(400).json({ error: 'This fund is archived. Reactivate it before posting transactions.' });
+
+  const donorResolution = resolveEntryDonor(donorsData.donors, donorId, type, true);
+  if (donorResolution.error) return res.status(400).json({ error: donorResolution.error });
 
   const fundBalance = balances.get(String(selectedFund.id));
   const available = Number(fundBalance?.availableBalanceCents || 0);
@@ -2816,7 +3004,8 @@ app.post('/api/finances/entries', requirePermission(PERMISSIONS.FINANCE_WRITE), 
     method,
     party,
     memo,
-    donorId,
+    donorId: donorResolution.donorId,
+    donorName: donorResolution.donorName,
     statementReviewStatus,
     goodsServicesValueCents: Number.isFinite(goodsServicesValueCents) ? Math.max(0, goodsServicesValueCents) : 0,
     status: String(req.body?.status || 'posted').trim().toLowerCase() === 'pending' ? 'pending' : 'posted',
@@ -2869,9 +3058,13 @@ app.put('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WRITE
   if (!fund && !fundIdInput) return res.status(400).json({ error: 'Please select a fund before saving this transaction.' });
 
   const { fundsData, balances } = getFundBalances();
+  const donorsData = loadDonorsData();
   const selectedFund = findFundByAnyKey(fundsData.funds, fundIdInput || fund);
   if (!selectedFund) return res.status(400).json({ error: 'The selected fund could not be found. Choose a valid fund.' });
   if (selectedFund.active === false) return res.status(400).json({ error: 'This fund is archived. Reactivate it before posting transactions.' });
+
+  const donorResolution = resolveEntryDonor(donorsData.donors, donorId, type, true);
+  if (donorResolution.error) return res.status(400).json({ error: donorResolution.error });
 
   const fundBalance = balances.get(String(selectedFund.id));
   const available = Number(fundBalance?.availableBalanceCents || 0);
@@ -2903,7 +3096,8 @@ app.put('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WRITE
   entry.method = method;
   entry.party = party;
   entry.memo = memo;
-  entry.donorId = donorId;
+  entry.donorId = donorResolution.donorId;
+  entry.donorName = donorResolution.donorName;
   entry.statementReviewStatus = statementReviewStatus;
   entry.goodsServicesValueCents = Number.isFinite(goodsServicesValueCents) ? Math.max(0, goodsServicesValueCents) : 0;
   entry.status = String(req.body?.status || entry.status || 'posted').trim().toLowerCase() === 'pending' ? 'pending' : 'posted';
@@ -3423,6 +3617,17 @@ app.put('/api/finances/donors/:id', requirePermission(PERMISSIONS.DONOR_WRITE), 
 
   data.donors[idx] = next;
   saveDonorsData(data);
+
+  const finance = loadFinances();
+  if (syncEntryDonorSnapshots(finance.entries, data.donors)) {
+    saveFinances(finance);
+  }
+
+  const statements = loadStatementsData();
+  if (syncStatementDonorSnapshots(statements.statements, data.donors)) {
+    saveStatementsData(statements);
+  }
+
   audit('donor_edited', {
     ...auditMetaFromRequest(req),
     recordType: 'donor',
@@ -3488,10 +3693,23 @@ app.post('/api/finances/donors/merge', requirePermission(PERMISSIONS.DONOR_MERGE
   for (const e of (finance.entries || [])) {
     if (String(e?.donorId || '') === duplicateId) {
       e.donorId = primaryId;
+      e.donorName = donorDisplayName(primary);
       e.updatedAt = new Date().toISOString();
     }
   }
+  syncEntryDonorSnapshots(finance.entries, donors);
   saveFinances(finance);
+
+  const statementsData = loadStatementsData();
+  for (const stmt of (statementsData.statements || [])) {
+    if (String(stmt?.donorId || '') === duplicateId) {
+      stmt.donorId = primaryId;
+      stmt.donorName = donorDisplayName(primary);
+      stmt.donorMailingAddress = String(primary?.mailingAddress || '');
+    }
+  }
+  syncStatementDonorSnapshots(statementsData.statements, donors);
+  saveStatementsData(statementsData);
 
   const mergeEvent = {
     id: newId(),
@@ -3521,6 +3739,10 @@ app.get('/api/finances/donors/:id/history', requirePermission(PERMISSIONS.DONOR_
   const year = String(req.query.year || '').trim();
   const from = normalizeDateOnly(req.query.from);
   const to = normalizeDateOnly(req.query.to);
+  const donorsData = loadDonorsData();
+  const donor = donorsData.donors.find((d) => String(d.id) === id);
+  if (!donor) return res.status(404).json({ error: 'Donor not found.' });
+
   const entries = (loadFinances().entries || []).filter((e) => String(e?.donorId || '') === id && String(e?.type || '') === 'income');
   const filtered = entries.filter((e) => {
     const d = normalizeDateOnly(e.date);
@@ -3547,7 +3769,7 @@ app.get('/api/finances/donors/:id/history', requirePermission(PERMISSIONS.DONOR_
     const fund = String(e.fund || 'Unassigned');
     totals.byFund[fund] = Number(totals.byFund[fund] || 0) + amount;
   }
-  res.json({ entries: filtered, totals });
+  res.json({ donor: { id: donor.id, name: donorDisplayName(donor) }, entries: filtered, totals });
 });
 
 app.get('/api/finances/statements', requirePermission(PERMISSIONS.DONOR_READ), (req, res) => {
@@ -3573,11 +3795,15 @@ app.put('/api/finances/statements/templates', requirePermission(PERMISSIONS.STAT
 app.post('/api/finances/statements/generate', requirePermission(PERMISSIONS.STATEMENTS_MANAGE), (req, res) => {
   const donorsData = loadDonorsData();
   const statementsData = loadStatementsData();
+  syncStatementDonorSnapshots(statementsData.statements, donorsData.donors);
   const period = normalizeFinanceStatementPeriod(req.body?.from, req.body?.to);
   if (!period) return res.status(400).json({ error: 'Select a valid statement period.' });
 
   const donorIds = Array.isArray(req.body?.donorIds)
-    ? req.body.donorIds.map((id) => String(id || '').trim()).filter(Boolean)
+    ? req.body.donorIds.map((id) => {
+      const donor = findDonorByAnyKey(donorsData.donors, id);
+      return donor ? String(donor.id) : '';
+    }).filter(Boolean)
     : donorsData.donors.map((d) => String(d.id));
   const entries = loadFinances().entries || [];
   const created = [];
@@ -4498,6 +4724,207 @@ function saveSubscribers(subscribers) {
   return next.social.subscribers;
 }
 
+function normalizeNewsletterRecipients(list) {
+  return Array.from(new Set(
+    (Array.isArray(list) ? list : [])
+      .map((e) => String(e || '').trim().toLowerCase())
+      .filter(isValidEmail)
+  ));
+}
+
+function normalizeNewsletterRecord(raw, statusFallback) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const status = String(src.status || statusFallback || 'draft').trim().toLowerCase();
+  return {
+    id: String(src.id || newId()).trim() || newId(),
+    subject: String(src.subject || '').trim().slice(0, 140),
+    message: String(src.message || '').trim().slice(0, 12000),
+    emails: normalizeNewsletterRecipients(src.emails),
+    scheduleDate: String(src.scheduleDate || '').trim().slice(0, 10),
+    scheduleTime: String(src.scheduleTime || '').trim().slice(0, 5),
+    scheduleTimezone: String(src.scheduleTimezone || 'America/Chicago').trim().slice(0, 64) || 'America/Chicago',
+    scheduleAt: toIsoOrEmpty(src.scheduleAt),
+    status: ['draft', 'scheduled', 'retrying', 'sent', 'failed', 'deleted', 'skipped'].includes(status) ? status : 'draft',
+    retryCount: Math.max(0, Number(src.retryCount || 0) || 0),
+    createdAt: toIsoOrEmpty(src.createdAt) || new Date().toISOString(),
+    updatedAt: toIsoOrEmpty(src.updatedAt) || new Date().toISOString(),
+    sentAt: toIsoOrEmpty(src.sentAt),
+    sentCount: Math.max(0, Number(src.sentCount || 0) || 0),
+    error: String(src.error || '').trim().slice(0, 500)
+  };
+}
+
+function normalizeNewsletterRecordsData(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const drafts = (Array.isArray(src.drafts) ? src.drafts : []).map((r) => normalizeNewsletterRecord(r, 'draft'));
+  const scheduled = (Array.isArray(src.scheduled) ? src.scheduled : []).map((r) => normalizeNewsletterRecord(r, 'scheduled'));
+  const history = (Array.isArray(src.history) ? src.history : []).map((r) => normalizeNewsletterRecord(r, 'sent')).slice(0, 200);
+  return { drafts, scheduled, history };
+}
+
+function loadNewsletterRecords() {
+  const data = readJson(NEWSLETTER_RECORDS_DATA_PATH, { drafts: [], scheduled: [], history: [] });
+  return normalizeNewsletterRecordsData(data);
+}
+
+function saveNewsletterRecords(data) {
+  const normalized = normalizeNewsletterRecordsData(data);
+  writeJsonAtomic(NEWSLETTER_RECORDS_DATA_PATH, normalized);
+  return normalized;
+}
+
+function timeZoneOffsetMinutes(timeZone, instantMs) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      timeZoneName: 'shortOffset',
+      hour: '2-digit'
+    }).formatToParts(new Date(instantMs));
+    const tzName = parts.find((p) => p.type === 'timeZoneName')?.value || 'GMT+0';
+    const match = tzName.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/i);
+    if (!match) return 0;
+    const sign = match[1] === '-' ? -1 : 1;
+    const hh = Number(match[2] || 0);
+    const mm = Number(match[3] || 0);
+    return sign * ((hh * 60) + mm);
+  } catch {
+    return 0;
+  }
+}
+
+function zonedDateTimeToUtcIso(dateValue, timeValue, timeZone) {
+  const d = String(dateValue || '').trim();
+  const t = String(timeValue || '').trim();
+  const z = String(timeZone || '').trim() || 'America/Chicago';
+  const dm = d.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const tm = t.match(/^(\d{2}):(\d{2})$/);
+  if (!dm || !tm) return '';
+  const y = Number(dm[1]);
+  const mo = Number(dm[2]);
+  const day = Number(dm[3]);
+  const hh = Number(tm[1]);
+  const mm = Number(tm[2]);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(day) || !Number.isFinite(hh) || !Number.isFinite(mm)) return '';
+  if (mo < 1 || mo > 12 || day < 1 || day > 31 || hh < 0 || hh > 23 || mm < 0 || mm > 59) return '';
+
+  let utcMs = Date.UTC(y, mo - 1, day, hh, mm, 0, 0);
+  for (let i = 0; i < 3; i += 1) {
+    const offsetMin = timeZoneOffsetMinutes(z, utcMs);
+    utcMs = Date.UTC(y, mo - 1, day, hh, mm, 0, 0) - (offsetMin * 60 * 1000);
+  }
+  const iso = new Date(utcMs).toISOString();
+  return Number.isNaN(Date.parse(iso)) ? '' : iso;
+}
+
+async function sendNewsletterEmail({ subject, message, emails }) {
+  if (envBool('SUPPORT_DISABLE_SEND', false) || process.env.NODE_ENV === 'test') {
+    return { ok: true, disabled: true, sent: 0 };
+  }
+
+  const fromEmail = String(process.env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
+  const fromName = String(process.env.SUPPORT_FROM_NAME || 'MMMBC Newsletter').trim() || 'MMMBC Newsletter';
+  const template = buildNewsletterEmailTemplate({ subject, message });
+
+  const payload = {
+    personalizations: [{ to: emails.map((email) => ({ email })), subject }],
+    from: { email: fromEmail, name: fromName },
+    content: [
+      { type: 'text/plain', value: template.text },
+      { type: 'text/html', value: template.html }
+    ]
+  };
+  const out = await mailchannelsSend(payload);
+  if (out.status < 200 || out.status >= 300) {
+    logger.error('newsletter_email_failed', { status: out.status, body: String(out.body || '').slice(0, 2000) });
+    return { ok: false, error: `Newsletter send failed (${out.status}).`, sent: 0 };
+  }
+  return { ok: true, disabled: false, sent: emails.length };
+}
+
+function validateNewsletterRecipients(emails) {
+  const normalized = normalizeNewsletterRecipients(emails);
+  const allowed = new Set(loadSubscribers().map((s) => s.email));
+  const invalid = normalized.filter((e) => !allowed.has(e));
+  if (invalid.length) {
+    const err = new Error('Some selected recipients are not in subscribers.');
+    err.statusCode = 400;
+    throw err;
+  }
+  return normalized;
+}
+
+async function processScheduledNewsletters() {
+  const records = loadNewsletterRecords();
+  const nowMs = Date.now();
+  const keepScheduled = [];
+  let changed = false;
+
+  for (const rec of records.scheduled) {
+    const scheduleMs = Date.parse(rec.scheduleAt || '');
+    const dueMs = Number.isNaN(scheduleMs) ? Number.MAX_SAFE_INTEGER : scheduleMs;
+    if (dueMs > nowMs) {
+      keepScheduled.push(rec);
+      continue;
+    }
+
+    changed = true;
+    try {
+      const result = await sendNewsletterEmail({
+        subject: rec.subject,
+        message: rec.message,
+        emails: validateNewsletterRecipients(rec.emails)
+      });
+      records.history.unshift(normalizeNewsletterRecord({
+        ...rec,
+        status: result.disabled ? 'skipped' : 'sent',
+        sentAt: new Date().toISOString(),
+        sentCount: Number(result.sent || 0),
+        retryCount: rec.retryCount || 0,
+        error: ''
+      }, 'sent'));
+    } catch (err) {
+      const retryCount = Number(rec.retryCount || 0) + 1;
+      if (retryCount < 3) {
+        keepScheduled.push(normalizeNewsletterRecord({
+          ...rec,
+          status: 'retrying',
+          retryCount,
+          scheduleAt: new Date(Date.now() + (5 * 60 * 1000)).toISOString(),
+          updatedAt: new Date().toISOString(),
+          error: String(err?.message || 'Send failed').slice(0, 500)
+        }, 'retrying'));
+      } else {
+        records.history.unshift(normalizeNewsletterRecord({
+          ...rec,
+          status: 'failed',
+          retryCount,
+          sentAt: new Date().toISOString(),
+          error: String(err?.message || 'Send failed').slice(0, 500)
+        }, 'failed'));
+      }
+    }
+  }
+
+  if (changed) {
+    records.scheduled = keepScheduled;
+    saveNewsletterRecords(records);
+  }
+  return records;
+}
+
+let newsletterSchedulerStarted = false;
+function startNewsletterScheduler() {
+  if (newsletterSchedulerStarted) return;
+  if (process.env.NODE_ENV === 'test') return;
+  newsletterSchedulerStarted = true;
+  const timer = setInterval(() => {
+    processScheduledNewsletters().catch((err) => {
+      logger.error('newsletter_scheduler_error', { err });
+    });
+  }, 60 * 1000);
+  if (typeof timer.unref === 'function') timer.unref();
+}
+
 function stripTags(value) {
   return String(value || '')
     .replace(/<[^>]+>/g, ' ')
@@ -4701,39 +5128,145 @@ app.put('/api/subscribers', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE)
   res.json({ ok: true, subscribers });
 });
 
-app.post('/api/newsletter/send', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
-  if (envBool('SUPPORT_DISABLE_SEND', false) || process.env.NODE_ENV === 'test') {
-    return res.json({ ok: true, disabled: true, sent: 0 });
+app.get('/api/newsletter/records', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
+  const records = await processScheduledNewsletters();
+  res.json(records);
+});
+
+app.post('/api/newsletter/records', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
+  const action = String(req.body?.action || '').trim().toLowerCase();
+  const now = new Date().toISOString();
+  const records = await processScheduledNewsletters();
+
+  if (action === 'delete') {
+    const id = String(req.body?.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Record id is required.' });
+    records.drafts = records.drafts.filter((r) => String(r.id) !== id);
+    records.scheduled = records.scheduled.filter((r) => String(r.id) !== id);
+    records.history = records.history.filter((r) => String(r.id) !== id);
+    const saved = saveNewsletterRecords(records);
+    return res.json({ ok: true, ...saved });
   }
 
   const subject = String(req.body?.subject || '').trim().slice(0, 140);
   const message = String(req.body?.message || '').trim().slice(0, 12000);
-  const emailsRaw = Array.isArray(req.body?.emails) ? req.body.emails : [];
-  const emails = Array.from(new Set(emailsRaw.map((e) => String(e || '').trim().toLowerCase()).filter(isValidEmail)));
+  if (!subject || !message) return res.status(400).json({ error: 'Subject and message are required.' });
+
+  let emails = [];
+  try {
+    emails = validateNewsletterRecipients(req.body?.emails || []);
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({ error: err.message || 'Invalid recipients.' });
+  }
+  if (!emails.length) return res.status(400).json({ error: 'Select at least one recipient.' });
+
+  if (action === 'save_draft') {
+    const record = normalizeNewsletterRecord({
+      id: newId(),
+      subject,
+      message,
+      emails,
+      status: 'draft',
+      createdAt: now,
+      updatedAt: now
+    }, 'draft');
+    records.drafts.unshift(record);
+    const saved = saveNewsletterRecords(records);
+    return res.json({ ok: true, ...saved });
+  }
+
+  if (action === 'schedule') {
+    const scheduleDate = String(req.body?.scheduleDate || '').trim();
+    const scheduleTime = String(req.body?.scheduleTime || '').trim();
+    const scheduleTimezone = String(req.body?.scheduleTimezone || 'America/Chicago').trim() || 'America/Chicago';
+    const scheduleAt = zonedDateTimeToUtcIso(scheduleDate, scheduleTime, scheduleTimezone);
+    if (!scheduleAt) {
+      return res.status(400).json({ error: 'Schedule date, time, and time zone are required.' });
+    }
+    if (Date.parse(scheduleAt) <= Date.now()) {
+      return res.status(400).json({ error: 'Scheduled time must be in the future.' });
+    }
+    const record = normalizeNewsletterRecord({
+      id: newId(),
+      subject,
+      message,
+      emails,
+      status: 'scheduled',
+      scheduleDate,
+      scheduleTime,
+      scheduleTimezone,
+      scheduleAt,
+      retryCount: 0,
+      createdAt: now,
+      updatedAt: now
+    }, 'scheduled');
+    records.scheduled.unshift(record);
+    const saved = saveNewsletterRecords(records);
+    return res.json({ ok: true, ...saved });
+  }
+
+  return res.status(400).json({ error: 'Unsupported newsletter action.' });
+});
+
+app.post('/api/newsletter/test', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
+  const subject = String(req.body?.subject || '').trim().slice(0, 140);
+  const message = String(req.body?.message || '').trim().slice(0, 12000);
+  if (!subject || !message) return res.status(400).json({ error: 'Subject and message are required.' });
+
+  const requestedRaw = Array.isArray(req.body?.emails)
+    ? req.body.emails.map((e) => String(e || '').trim().toLowerCase()).filter(Boolean)
+    : [];
+  const invalid = requestedRaw.filter((email) => !isValidEmail(email));
+  if (invalid.length) return res.status(400).json({ error: `Invalid recipient email: ${invalid[0]}` });
+
+  const requested = normalizeNewsletterRecipients(requestedRaw);
+  let recipients = requested;
+
+  if (!recipients.length) {
+    const user = sessionUser(req);
+    const fallbackEmail = String(user?.email || '').trim().toLowerCase();
+    if (!isValidEmail(fallbackEmail)) return res.status(400).json({ error: 'Signed-in user email is invalid.' });
+    recipients = [fallbackEmail];
+  }
+
+  try {
+    const out = await sendNewsletterEmail({ subject, message, emails: recipients });
+    return res.json({ ok: true, recipients, ...out });
+  } catch (err) {
+    logger.error('newsletter_test_send_error', { err });
+    return res.status(502).json({ error: 'Test email failed.' });
+  }
+});
+
+app.post('/api/newsletter/send', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
+  const subject = String(req.body?.subject || '').trim().slice(0, 140);
+  const message = String(req.body?.message || '').trim().slice(0, 12000);
+  let emails = [];
+  try {
+    emails = validateNewsletterRecipients(req.body?.emails || []);
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({ error: err.message || 'Invalid recipients.' });
+  }
 
   if (!subject || !message) return res.status(400).json({ error: 'Subject and message are required.' });
   if (!emails.length) return res.status(400).json({ error: 'Select at least one recipient.' });
 
-  const allowed = new Set(loadSubscribers().map((s) => s.email));
-  const invalid = emails.filter((e) => !allowed.has(e));
-  if (invalid.length) return res.status(400).json({ error: 'Some selected recipients are not in subscribers.' });
-
-  const fromEmail = String(process.env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
-  const fromName = String(process.env.SUPPORT_FROM_NAME || 'MMMBC Newsletter').trim() || 'MMMBC Newsletter';
-  const body = `${message}\n\n---\nSent by MMMBC Admin Newsletter`;
-
   try {
-    const payload = {
-      personalizations: [{ to: emails.map((email) => ({ email })), subject }],
-      from: { email: fromEmail, name: fromName },
-      content: [{ type: 'text/plain', value: body }]
-    };
-    const out = await mailchannelsSend(payload);
-    if (out.status < 200 || out.status >= 300) {
-      logger.error('newsletter_email_failed', { status: out.status, body: String(out.body || '').slice(0, 2000) });
-      return res.status(502).json({ error: `Newsletter send failed (${out.status}).` });
-    }
-    res.json({ ok: true, sent: emails.length });
+    const out = await sendNewsletterEmail({ subject, message, emails });
+    const records = loadNewsletterRecords();
+    records.history.unshift(normalizeNewsletterRecord({
+      id: newId(),
+      subject,
+      message,
+      emails,
+      status: out.disabled ? 'skipped' : 'sent',
+      sentAt: new Date().toISOString(),
+      sentCount: Number(out.sent || 0),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }, out.disabled ? 'skipped' : 'sent'));
+    saveNewsletterRecords(records);
+    res.json({ ok: true, sent: Number(out.sent || 0), disabled: !!out.disabled });
   } catch (err) {
     logger.error('newsletter_email_error', { err });
     res.status(502).json({ error: 'Newsletter send failed.' });
@@ -4831,6 +5364,7 @@ async function boot({ listen = true } = {}) {
   ensureDir(BULLETINS_UPLOADS_DIR);
   ensureDir(ROOT_BULLETINS_DIR);
   ensureDir(GALLERY_DIR);
+  ensureDir(WEBPAGE_IMAGES_DIR);
 
   if (!fs.existsSync(PROFILES_DATA_PATH)) {
     const seeded = seedProfilesFromPages();
@@ -4838,6 +5372,12 @@ async function boot({ listen = true } = {}) {
     writeJsonAtomic(PROFILES_DATA_PATH, payload);
     if (ENABLE_EXPORTS) writeJsonAtomic(path.join(ROOT_DIR, 'profiles.json'), payload);
   }
+
+  if (!fs.existsSync(NEWSLETTER_RECORDS_DATA_PATH)) {
+    writeJsonAtomic(NEWSLETTER_RECORDS_DATA_PATH, { drafts: [], scheduled: [], history: [] });
+  }
+
+  startNewsletterScheduler();
 
   await ensureMasterAdmin();
 

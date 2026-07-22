@@ -1,7 +1,14 @@
 {
-  "facebook": "https://www.facebook.com/MtMoriahPaducah",
-  "youtube": "https://www.youtube.com/@MMMBC-Paducah",
-  "email": "",
-  "phone": "",
-  "address": ""
+  "subscribers": [
+    {
+      "email": "member1@example.com",
+      "name": "Member One",
+      "group": "members"
+    },
+    {
+      "email": "member2@example.com",
+      "name": "Member Two",
+      "group": "members"
+    }
+  ]
 }

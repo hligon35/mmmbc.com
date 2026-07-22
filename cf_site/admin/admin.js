@@ -80,7 +80,21 @@ async function api(path, options = {}) {
 
 function $(id) { return document.getElementById(id); }
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value).replace(/`/g, '&#96;');
+}
+
 let syncProgressHideTimer = null;
+const NAV_DRAWER_COLLAPSE_KEY = 'mmmbc_admin_nav_drawer_collapsed_v1';
 
 function updateHeaderBumper() {
   const header = document.querySelector?.('.header');
@@ -586,6 +600,19 @@ function setTab(activeId) {
 
   const financeTopBar = $('financeTopBar');
   if (financeTopBar) financeTopBar.hidden = false;
+
+  const siteEditorTabs = $('siteEditorPageTabs');
+  if (siteEditorTabs) siteEditorTabs.hidden = activeId !== 'tab-profiles';
+}
+
+function setNavDrawerCollapsed(collapsed) {
+  const isCollapsed = !!collapsed;
+  document.body.classList.toggle('navDrawerCollapsed', isCollapsed);
+  const btn = $('navDrawerToggle');
+  if (btn) {
+    btn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+    btn.textContent = isCollapsed ? 'Show Menu' : 'Hide Menu';
+  }
 }
 
 async function refreshAuthUI() {
@@ -623,6 +650,8 @@ async function refreshAuthUI() {
     if (avatarText) avatarText.textContent = getInitials(me.user);
     const financeTopBar = $('financeTopBar');
     if (financeTopBar) financeTopBar.hidden = false;
+  } else {
+    $('salutation').textContent = 'Welcome to MMMBC Admin';
   }
 
   if (loggedIn) {
@@ -2965,6 +2994,32 @@ function applyThemePreviewCard(theme) {
 
 // -------- Newsletter --------
 let subscribers = [];
+let newsletterRecords = { drafts: [], scheduled: [], history: [] };
+let newsletterRecordsTab = 'drafts';
+let newsletterSelectedRecipients = new Set();
+let newsletterPopoverOpen = false;
+
+const SUBSCRIBERS_COLLAPSE_KEY = 'mmmbc_admin_subscribers_collapsed_v1';
+const NEWSLETTER_RECORDS_COLLAPSE_KEY = 'mmmbc_admin_newsletter_records_collapsed_v1';
+
+function getStoredBoolean(key, fallback) {
+  try {
+    const v = window.localStorage.getItem(key);
+    if (v === '1') return true;
+    if (v === '0') return false;
+  } catch {
+    // ignore storage errors
+  }
+  return fallback;
+}
+
+function setStoredBoolean(key, value) {
+  try {
+    window.localStorage.setItem(key, value ? '1' : '0');
+  } catch {
+    // ignore storage errors
+  }
+}
 
 function validEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
@@ -2975,10 +3030,45 @@ function selectedValues(selectEl) {
   return Array.from(selectEl.selectedOptions || []).map((o) => String(o.value || '').trim()).filter(Boolean);
 }
 
+function setPanelCollapse(buttonId, panelId, collapsed, labels) {
+  const btn = $(buttonId);
+  const panel = $(panelId);
+  if (panel) panel.hidden = collapsed;
+  if (btn) {
+    btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    const show = String(labels?.show || 'Show');
+    const hide = String(labels?.hide || 'Hide');
+    btn.textContent = collapsed ? show : hide;
+  }
+}
+
+function updateRecipientTriggerLabel() {
+  const btn = $('newsletterRecipientTrigger');
+  if (!btn) return;
+  const count = newsletterSelectedRecipients.size;
+  btn.textContent = `${count} selected - Open Recipient List`;
+}
+
+function setNewsletterPopoverOpen(open) {
+  newsletterPopoverOpen = !!open;
+  const pop = $('newsletterRecipientPopover');
+  const btn = $('newsletterRecipientTrigger');
+  if (pop) pop.hidden = !newsletterPopoverOpen;
+  if (btn) btn.setAttribute('aria-expanded', newsletterPopoverOpen ? 'true' : 'false');
+}
+
+function recipientListFiltered() {
+  const activeGroup = String($('newsletterGroupSelect')?.value || '').trim();
+  return activeGroup
+    ? subscribers.filter((s) => String(s.group || '').trim() === activeGroup)
+    : subscribers;
+}
+
 function renderSubscribers() {
   const list = $('subscriberList');
   const groupSel = $('newsletterGroupSelect');
   const recipients = $('newsletterRecipients');
+  const summary = $('subscriberSummary');
   if (list) list.innerHTML = '';
   if (groupSel) groupSel.innerHTML = '<option value="">All groups</option>';
   if (recipients) recipients.innerHTML = '';
@@ -3003,28 +3093,222 @@ function renderSubscribers() {
     }
   }
 
+  if (summary) {
+    const count = subscribers.length;
+    summary.textContent = count === 1 ? '1 subscriber available.' : `${count} subscribers available.`;
+  }
+
+  const allowedEmails = new Set(subscribers.map((s) => String(s.email || '').trim().toLowerCase()));
+  newsletterSelectedRecipients = new Set(Array.from(newsletterSelectedRecipients).filter((email) => allowedEmails.has(email)));
+
   renderRecipientOptions();
 }
 
 function renderRecipientOptions() {
   const recipients = $('newsletterRecipients');
-  const groupSel = $('newsletterGroupSelect');
   if (!(recipients instanceof HTMLSelectElement)) return;
-  const activeGroup = String(groupSel?.value || '').trim();
-  const previous = new Set(selectedValues(recipients));
+  const previous = new Set(Array.from(newsletterSelectedRecipients));
 
   recipients.innerHTML = '';
-  const filtered = activeGroup
-    ? subscribers.filter((s) => String(s.group || '').trim() === activeGroup)
-    : subscribers;
+  const filtered = recipientListFiltered();
 
   for (const s of filtered) {
+    const email = String(s.email || '').trim().toLowerCase();
+    if (!email) continue;
     const opt = document.createElement('option');
-    opt.value = s.email;
-    opt.textContent = `${s.name ? `${s.name} - ` : ''}${s.email}`;
-    if (previous.has(s.email)) opt.selected = true;
+    opt.value = email;
+    opt.textContent = `${s.name ? `${s.name} - ` : ''}${email}`;
+    if (previous.has(email)) opt.selected = true;
     recipients.appendChild(opt);
   }
+
+  newsletterSelectedRecipients = new Set(selectedValues(recipients));
+
+  const list = $('newsletterRecipientList');
+  if (list) {
+    list.innerHTML = '';
+    for (const s of filtered) {
+      const email = String(s.email || '').trim().toLowerCase();
+      if (!email) continue;
+      const row = document.createElement('label');
+      row.className = 'recipientPickerOption';
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.className = 'checkbox';
+      check.value = email;
+      check.checked = newsletterSelectedRecipients.has(email);
+      check.addEventListener('change', () => {
+        if (check.checked) newsletterSelectedRecipients.add(email);
+        else newsletterSelectedRecipients.delete(email);
+
+        for (const opt of Array.from(recipients.options)) {
+          if (String(opt.value || '') === email) opt.selected = check.checked;
+        }
+        updateRecipientTriggerLabel();
+      });
+      const text = document.createElement('span');
+      const name = String(s.name || '').trim();
+      const group = String(s.group || 'general').trim() || 'general';
+      text.textContent = name ? `${name} - ${email} (${group})` : `${email} (${group})`;
+      row.appendChild(check);
+      row.appendChild(text);
+      list.appendChild(row);
+    }
+  }
+  updateRecipientTriggerLabel();
+  renderNewsletterPreview();
+}
+
+function buildNewsletterPayloadFromForm() {
+  return {
+    subject: String($('newsletterSubject')?.value || '').trim(),
+    message: String($('newsletterMessage')?.value || '').trim(),
+    emails: Array.from(newsletterSelectedRecipients),
+    scheduleDate: String($('newsletterScheduleDate')?.value || '').trim(),
+    scheduleTime: String($('newsletterScheduleTime')?.value || '').trim(),
+    scheduleTimezone: String($('newsletterScheduleTimezone')?.value || 'America/Chicago').trim() || 'America/Chicago'
+  };
+}
+
+function applyNewsletterPayloadToForm(record) {
+  if ($('newsletterSubject')) $('newsletterSubject').value = String(record?.subject || '');
+  if ($('newsletterMessage')) $('newsletterMessage').value = String(record?.message || '');
+  if ($('newsletterScheduleDate')) $('newsletterScheduleDate').value = String(record?.scheduleDate || '');
+  if ($('newsletterScheduleTime')) $('newsletterScheduleTime').value = String(record?.scheduleTime || '');
+  if ($('newsletterScheduleTimezone')) $('newsletterScheduleTimezone').value = String(record?.scheduleTimezone || 'America/Chicago');
+  const emails = Array.isArray(record?.emails) ? record.emails : [];
+  newsletterSelectedRecipients = new Set(emails.map((x) => String(x || '').trim().toLowerCase()).filter(Boolean));
+  renderRecipientOptions();
+  renderNewsletterPreview();
+}
+
+function detectBrowserTimeZone() {
+  try {
+    const tz = String(Intl.DateTimeFormat().resolvedOptions().timeZone || '').trim();
+    return tz;
+  } catch {
+    return '';
+  }
+}
+
+function applyDetectedNewsletterTimezone() {
+  const select = $('newsletterScheduleTimezone');
+  const hint = $('newsletterTimezoneHint');
+  if (!(select instanceof HTMLSelectElement)) return;
+
+  const detected = detectBrowserTimeZone();
+  if (!detected) {
+    if (hint) hint.textContent = 'Could not auto-detect your browser time zone.';
+    return;
+  }
+
+  const current = String(select.value || '').trim();
+  const hasOption = Array.from(select.options).some((o) => String(o.value) === detected);
+  if (!hasOption) {
+    const opt = document.createElement('option');
+    opt.value = detected;
+    opt.textContent = `${detected} (Detected)`;
+    select.appendChild(opt);
+  }
+
+  if (!current || current === 'America/Chicago') {
+    select.value = detected;
+  }
+
+  if (hint) hint.textContent = `Detected time zone: ${detected}`;
+}
+
+function setNewsletterRecordsTab(nextTab) {
+  newsletterRecordsTab = ['drafts', 'scheduled', 'history'].includes(nextTab) ? nextTab : 'drafts';
+  const tabs = {
+    drafts: $('newsletterRecordsTabDrafts'),
+    scheduled: $('newsletterRecordsTabScheduled'),
+    history: $('newsletterRecordsTabHistory')
+  };
+  const panels = {
+    drafts: $('newsletterRecordsDrafts'),
+    scheduled: $('newsletterRecordsScheduled'),
+    history: $('newsletterRecordsHistory')
+  };
+  for (const [key, btn] of Object.entries(tabs)) {
+    if (btn) btn.setAttribute('aria-selected', key === newsletterRecordsTab ? 'true' : 'false');
+  }
+  for (const [key, panel] of Object.entries(panels)) {
+    if (panel) panel.hidden = key !== newsletterRecordsTab;
+  }
+}
+
+function renderNewsletterRecordsList(container, records, { emptyLabel, includeStatus } = {}) {
+  if (!container) return;
+  if (!Array.isArray(records) || !records.length) {
+    container.innerHTML = `<div class="muted">${String(emptyLabel || 'No records found.')}</div>`;
+    return;
+  }
+  const rows = records.map((r) => {
+    const id = String(r.id || '');
+    const subject = String(r.subject || '(no subject)');
+    const modifiedAt = String(r.updatedAt || r.createdAt || '').trim();
+    const when = modifiedAt ? new Date(modifiedAt).toLocaleString() : 'Unknown date';
+    const statusText = includeStatus ? `<span class="statusChip">${String(r.status || '').trim() || 'unknown'}</span>` : '';
+    return `
+      <div class="row newsletterRecordRow" data-newsletter-record-id="${id}">
+        <div class="row__main">
+          <strong>${subject}</strong>
+          <div class="row__meta">${when}</div>
+          ${statusText}
+        </div>
+        <div class="toolbar">
+          <button class="btn" type="button" data-action="load" data-newsletter-record-id="${id}">Load</button>
+          <button class="btn" type="button" data-action="delete" data-newsletter-record-id="${id}">Delete</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  container.innerHTML = rows;
+}
+
+function renderNewsletterRecords() {
+  renderNewsletterRecordsList($('newsletterRecordsDrafts'), newsletterRecords.drafts, {
+    emptyLabel: 'No drafts saved yet.',
+    includeStatus: false
+  });
+  renderNewsletterRecordsList($('newsletterRecordsScheduled'), newsletterRecords.scheduled, {
+    emptyLabel: 'No scheduled newsletters.',
+    includeStatus: true
+  });
+  renderNewsletterRecordsList($('newsletterRecordsHistory'), newsletterRecords.history, {
+    emptyLabel: 'No send history yet.',
+    includeStatus: true
+  });
+  renderNewsletterPreview();
+}
+
+async function loadNewsletterRecords() {
+  try {
+    const data = await api('/api/newsletter/records', { method: 'GET' });
+    newsletterRecords = {
+      drafts: Array.isArray(data?.drafts) ? data.drafts : [],
+      scheduled: Array.isArray(data?.scheduled) ? data.scheduled : [],
+      history: Array.isArray(data?.history) ? data.history : []
+    };
+  } catch {
+    newsletterRecords = { drafts: [], scheduled: [], history: [] };
+  }
+  renderNewsletterRecords();
+}
+
+async function mutateNewsletterRecord(action, payload) {
+  const data = await api('/api/newsletter/records', {
+    method: 'POST',
+    body: JSON.stringify({ action, ...payload })
+  });
+  newsletterRecords = {
+    drafts: Array.isArray(data?.drafts) ? data.drafts : [],
+    scheduled: Array.isArray(data?.scheduled) ? data.scheduled : [],
+    history: Array.isArray(data?.history) ? data.history : []
+  };
+  renderNewsletterRecords();
+  return data;
 }
 
 async function loadSubscribers() {
@@ -3056,6 +3340,8 @@ function clearSubscriberEditor() {
 // -------- Profiles --------
 let profiles = [];
 let profilePageMeta = null;
+const siteEditorPages = ['home', 'ministries', 'leadership', 'church_history', 'facility_rental', 'live_praise', 'contact'];
+let siteEditorActivePage = 'home';
 
 function createDefaultProfilePageMeta() {
   return {
@@ -3104,7 +3390,183 @@ function normalizeProfilePageMeta(raw) {
 }
 
 function activeProfilePage() {
-  return String($('profilePageFilter')?.value || 'ministries').trim().toLowerCase();
+  return String(siteEditorActivePage || 'home').trim().toLowerCase();
+}
+
+function setSiteEditorPage(page) {
+  const next = String(page || '').trim().toLowerCase();
+  if (!siteEditorPages.includes(next)) return;
+  siteEditorActivePage = next;
+
+  const tabs = Array.from(document.querySelectorAll('[data-site-page]'));
+  for (const tab of tabs) {
+    const key = String(tab.getAttribute('data-site-page') || '').trim().toLowerCase();
+    tab.setAttribute('aria-selected', key === siteEditorActivePage ? 'true' : 'false');
+  }
+
+  const pageTitle = $('siteEditorPageTitle');
+  if (pageTitle) {
+    const activeTab = tabs.find((tab) => String(tab.getAttribute('data-site-page') || '').trim().toLowerCase() === siteEditorActivePage);
+    pageTitle.textContent = activeTab ? String(activeTab.textContent || '').trim() : 'Site Page';
+  }
+
+  const isProfilesPage = siteEditorActivePage === 'ministries' || siteEditorActivePage === 'leadership';
+  const headerCard = $('siteEditorHeaderCard');
+  const profilesCard = $('siteEditorProfilesCard');
+  const infoCard = $('siteEditorInfoCard');
+  const infoText = $('siteEditorInfoText');
+  const pageHelp = $('siteEditorPageHelp');
+
+  if (headerCard) headerCard.hidden = !isProfilesPage;
+  if (profilesCard) profilesCard.hidden = !isProfilesPage;
+  if (infoCard) infoCard.hidden = isProfilesPage;
+
+  if (pageHelp) {
+    pageHelp.textContent = isProfilesPage
+      ? 'Edit page heading and profile content for this page.'
+      : 'This page layout matches the public page structure and currently reads from static website files.';
+  }
+
+  if (infoText) {
+    const label = pageTitle ? String(pageTitle.textContent || 'This page') : 'This page';
+    infoText.textContent = `${label} currently uses static website sections. Use the website content files for full section-level edits.`;
+  }
+
+  fillProfileHeaderEditor();
+  renderProfileSelect();
+  renderSiteEditorPreview();
+}
+
+function clearProfileEditor() {
+  if ($('profileId')) $('profileId').value = '';
+  if ($('profilePage')) $('profilePage').value = '';
+  if ($('profileSection')) $('profileSection').value = '';
+  if ($('profileImage')) $('profileImage').value = '';
+  if ($('profileImageAlt')) $('profileImageAlt').value = '';
+  if ($('profileName')) $('profileName').value = '';
+  if ($('profileTitle')) $('profileTitle').value = '';
+  if ($('profileBio')) $('profileBio').value = '';
+  if ($('profileImageFile')) $('profileImageFile').value = '';
+  if ($('profileImageFilenameHint')) $('profileImageFilenameHint').textContent = 'No image selected.';
+}
+
+function getFilenameFromPath(path) {
+  const raw = String(path || '').trim();
+  if (!raw) return '';
+  const clean = raw.split('?')[0].split('#')[0];
+  const parts = clean.split('/').filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : clean;
+}
+
+function updateProfileImagePreview(path, altText) {
+  const img = $('profileImagePreview');
+  const filenameHint = $('profileImageFilenameHint');
+  if (!(img instanceof HTMLImageElement)) return;
+  const src = String(path || '').trim();
+  if (!src) {
+    img.hidden = true;
+    img.removeAttribute('src');
+    if (filenameHint) filenameHint.textContent = 'No image selected.';
+    return;
+  }
+  img.src = src;
+  img.alt = String(altText || 'Selected profile image preview').trim() || 'Selected profile image preview';
+  img.hidden = false;
+  if (filenameHint) {
+    const filename = getFilenameFromPath(src);
+    filenameHint.textContent = filename ? `Filename in use: ${filename}` : `Path in use: ${src}`;
+  }
+}
+
+function renderSiteEditorPreview() {
+  const preview = $('siteEditorLivePreview');
+  if (!preview) return;
+
+  const page = activeProfilePage();
+  const meta = normalizeProfilePageMeta(profilePageMeta || createDefaultProfilePageMeta());
+  const pageMeta = page === 'leadership' ? meta.leadership : meta.ministries;
+  const isProfilePage = page === 'ministries' || page === 'leadership';
+  const selectedId = String($('profileId')?.value || $('profileSelect')?.value || '').trim();
+  const profile = profiles.find((item) => String(item.id) === selectedId) || profiles.find((item) => item.page === page) || null;
+  const title = String($('profileHeaderPageTitle')?.value || pageMeta.pageTitle || page || 'Site Page').trim();
+  const intro = String($('profileHeaderIntroText')?.value || pageMeta.introText || '').trim();
+  const image = String($('profileImage')?.value || profile?.image || '').trim();
+  const imageAlt = String($('profileImageAlt')?.value || profile?.alt || profile?.name || '').trim();
+  const filename = getFilenameFromPath(image);
+  const bodyName = String($('profileName')?.value || profile?.name || '').trim();
+  const bodyTitle = String($('profileTitle')?.value || profile?.title || '').trim();
+  const bodyBio = String($('profileBio')?.value || profile?.bio || '').trim();
+  const section = String($('profileSection')?.value || profile?.section || '').trim();
+
+  preview.innerHTML = '';
+
+  const shell = document.createElement('div');
+  shell.className = 'previewShell';
+
+  const header = document.createElement('div');
+  header.className = 'previewHero';
+  header.innerHTML = `
+    <div class="previewKicker">${escapeHtml(page === 'leadership' ? 'Leadership' : page === 'ministries' ? 'Ministries' : 'Page')}</div>
+    <h4>${escapeHtml(title || 'Site Preview')}</h4>
+    <p>${escapeHtml(intro || 'Live page content will appear here as you type.')}</p>
+  `;
+  shell.appendChild(header);
+
+  if (isProfilePage) {
+    const card = document.createElement('div');
+    card.className = 'previewProfileCard';
+    card.innerHTML = `
+      ${image ? `<img class="previewProfileCard__image" src="${escapeAttr(image)}" alt="${escapeAttr(imageAlt || bodyName || 'Profile image preview')}" />` : '<div class="previewProfileCard__image previewProfileCard__image--empty">No image selected</div>'}
+      <div class="previewProfileCard__body">
+        <div class="previewMeta">${escapeHtml(section || 'Section')}</div>
+        <h5>${escapeHtml(bodyName || 'Profile Name')}</h5>
+        <div class="previewRole">${escapeHtml(bodyTitle || 'Profile title')}</div>
+        <p>${escapeHtml(bodyBio || 'Profile bio preview will appear here.')}</p>
+        <div class="previewFilename">${escapeHtml(filename ? `Image file: ${filename}` : 'Image file: not set')}</div>
+      </div>
+    `;
+    shell.appendChild(card);
+  } else {
+    const card = document.createElement('div');
+    card.className = 'previewInfoCard';
+    card.innerHTML = `
+      <div class="previewMeta">Static page note</div>
+      <p>${escapeHtml(String($('siteEditorInfoText')?.textContent || 'This page uses static site content.'))}</p>
+    `;
+    shell.appendChild(card);
+  }
+
+  preview.appendChild(shell);
+}
+
+function renderNewsletterPreview() {
+  const preview = $('newsletterLivePreview');
+  if (!preview) return;
+  const payload = buildNewsletterPayloadFromForm();
+  const subject = payload.subject || 'Newsletter subject';
+  const message = payload.message || 'Newsletter message preview will appear here.';
+  const recipients = Array.isArray(payload.emails) ? payload.emails : [];
+  const scheduleBits = [];
+  if (payload.scheduleDate) scheduleBits.push(payload.scheduleDate);
+  if (payload.scheduleTime) scheduleBits.push(payload.scheduleTime);
+  if (payload.scheduleTimezone) scheduleBits.push(payload.scheduleTimezone);
+
+  preview.innerHTML = `
+    <div class="previewEmail">
+      <div class="previewEmail__header">
+        <div class="previewKicker">Email preview</div>
+        <h4>${escapeHtml(subject)}</h4>
+      </div>
+      <div class="previewEmail__meta">
+        <span>${recipients.length ? `${recipients.length} recipient(s)` : 'No recipients selected yet'}</span>
+        <span>${scheduleBits.length ? escapeHtml(scheduleBits.join(' · ')) : 'Send now or schedule later'}</span>
+      </div>
+      <div class="previewEmail__body">${escapeHtml(message).replace(/\n/g, '<br />')}</div>
+      <div class="previewEmail__footer">
+        ${recipients.length ? recipients.map((email) => `<span class="previewPill">${escapeHtml(email)}</span>`).join('') : '<span class="previewPill previewPill--muted">Recipient list will appear here</span>'}
+      </div>
+    </div>
+  `;
 }
 
 function renderProfileSelect() {
@@ -3120,21 +3582,27 @@ function renderProfileSelect() {
     opt.textContent = String(p.name || '').trim() || '(Unnamed profile)';
     sel.appendChild(opt);
   }
+  if (!list.length) {
+    clearProfileEditor();
+    updateProfileImagePreview('', '');
+    renderSiteEditorPreview();
+    return;
+  }
   if (list.length) {
     sel.value = list.some((p) => p.id === prev) ? prev : list[0].id;
     fillProfileEditor(sel.value);
   }
+  renderSiteEditorPreview();
 }
 
 function fillProfileHeaderEditor() {
   const page = activeProfilePage();
   const meta = normalizeProfilePageMeta(profilePageMeta);
   const pageMeta = page === 'leadership' ? meta.leadership : meta.ministries;
+  const isProfilePage = page === 'ministries' || page === 'leadership';
 
-  if ($('profileHeaderPageTitle')) $('profileHeaderPageTitle').value = pageMeta.pageTitle || '';
-  if ($('profileHeaderIntroText')) $('profileHeaderIntroText').value = meta.ministries.introText || '';
-  if ($('profileHeaderNavMinistries')) $('profileHeaderNavMinistries').value = meta.nav.ministriesLabel || '';
-  if ($('profileHeaderNavLeadership')) $('profileHeaderNavLeadership').value = meta.nav.leadershipLabel || '';
+  if ($('profileHeaderPageTitle')) $('profileHeaderPageTitle').value = isProfilePage ? (pageMeta.pageTitle || '') : '';
+  if ($('profileHeaderIntroText')) $('profileHeaderIntroText').value = isProfilePage ? (meta.ministries.introText || '') : '';
   if ($('profileHeaderStaffHeading')) $('profileHeaderStaffHeading').value = meta.leadership.staffHeading || '';
   if ($('profileHeaderDeaconsHeading')) $('profileHeaderDeaconsHeading').value = meta.leadership.deaconsHeading || '';
   if ($('profileHeaderDeaconessesHeading')) $('profileHeaderDeaconessesHeading').value = meta.leadership.deaconessesHeading || '';
@@ -3144,6 +3612,8 @@ function fillProfileHeaderEditor() {
   if (leadershipOnly) leadershipOnly.hidden = page !== 'leadership';
   const ministriesIntro = $('profileHeaderMinistriesIntroRow');
   if (ministriesIntro) ministriesIntro.hidden = page !== 'ministries';
+
+  renderSiteEditorPreview();
 }
 
 function fillProfileEditor(id) {
@@ -3153,9 +3623,12 @@ function fillProfileEditor(id) {
   if ($('profilePage')) $('profilePage').value = p.page;
   if ($('profileSection')) $('profileSection').value = p.section || '';
   if ($('profileImage')) $('profileImage').value = p.image || '';
+  if ($('profileImageAlt')) $('profileImageAlt').value = p.alt || p.name || '';
   if ($('profileName')) $('profileName').value = p.name || '';
   if ($('profileTitle')) $('profileTitle').value = p.title || '';
   if ($('profileBio')) $('profileBio').value = p.bio || '';
+  updateProfileImagePreview(p.image || '', p.alt || p.name || '');
+  renderSiteEditorPreview();
 }
 
 async function loadProfiles() {
@@ -3169,6 +3642,7 @@ async function loadProfiles() {
   }
   fillProfileHeaderEditor();
   renderProfileSelect();
+  renderSiteEditorPreview();
 }
 
 async function saveProfiles(nextProfiles, nextPageMeta) {
@@ -3181,6 +3655,7 @@ async function saveProfiles(nextProfiles, nextPageMeta) {
   profilePageMeta = normalizeProfilePageMeta(data?.pageMeta);
   fillProfileHeaderEditor();
   renderProfileSelect();
+  renderSiteEditorPreview();
 }
 
 // -------- Load everything --------
@@ -3192,6 +3667,7 @@ async function loadAll() {
     loadBulletins(),
     loadFinances(),
     loadSubscribers(),
+    loadNewsletterRecords(),
     loadProfiles(),
   ]);
 
@@ -3228,6 +3704,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('afterprint', () => {
     try { setPrintMode('finance'); } catch { /* ignore */ }
   });
+
+  setNavDrawerCollapsed(getStoredBoolean(NAV_DRAWER_COLLAPSE_KEY, false));
+  if ($('navDrawerToggle')) {
+    $('navDrawerToggle').addEventListener('click', () => {
+      const collapsed = !document.body.classList.contains('navDrawerCollapsed');
+      setNavDrawerCollapsed(collapsed);
+      setStoredBoolean(NAV_DRAWER_COLLAPSE_KEY, collapsed);
+    });
+  }
 
   // Tabs
   $('tabBtn-photos').addEventListener('click', () => setTab('tab-photos'));
@@ -3266,6 +3751,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('subTabBtn-settings-theme')) {
     $('subTabBtn-settings-theme').addEventListener('click', () => setSettingsSubTab('panel-settings-theme'));
   }
+
+  applyDetectedNewsletterTimezone();
 
   // Finances
   if ($('financeEntryForm')) {
@@ -3788,6 +4275,88 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('newsletterGroupSelect').addEventListener('change', () => renderRecipientOptions());
   }
 
+  setPanelCollapse(
+    'subscriberCollapseBtn',
+    'subscriberPanel',
+    getStoredBoolean(SUBSCRIBERS_COLLAPSE_KEY, true),
+    { show: 'Show Subscribers', hide: 'Hide Subscribers' }
+  );
+  if ($('subscriberCollapseBtn')) {
+    $('subscriberCollapseBtn').addEventListener('click', () => {
+      const collapsed = !$('subscriberPanel') || !$('subscriberPanel').hidden;
+      setPanelCollapse('subscriberCollapseBtn', 'subscriberPanel', collapsed, {
+        show: 'Show Subscribers',
+        hide: 'Hide Subscribers'
+      });
+      setStoredBoolean(SUBSCRIBERS_COLLAPSE_KEY, collapsed);
+    });
+  }
+
+  setPanelCollapse(
+    'newsletterRecordsToggle',
+    'newsletterRecordsPanel',
+    getStoredBoolean(NEWSLETTER_RECORDS_COLLAPSE_KEY, true),
+    { show: 'Show Records', hide: 'Hide Records' }
+  );
+  if ($('newsletterRecordsToggle')) {
+    $('newsletterRecordsToggle').addEventListener('click', () => {
+      const collapsed = !$('newsletterRecordsPanel') || !$('newsletterRecordsPanel').hidden;
+      setPanelCollapse('newsletterRecordsToggle', 'newsletterRecordsPanel', collapsed, {
+        show: 'Show Records',
+        hide: 'Hide Records'
+      });
+      setStoredBoolean(NEWSLETTER_RECORDS_COLLAPSE_KEY, collapsed);
+    });
+  }
+
+  setNewsletterRecordsTab('drafts');
+  if ($('newsletterRecordsTabDrafts')) $('newsletterRecordsTabDrafts').addEventListener('click', () => setNewsletterRecordsTab('drafts'));
+  if ($('newsletterRecordsTabScheduled')) $('newsletterRecordsTabScheduled').addEventListener('click', () => setNewsletterRecordsTab('scheduled'));
+  if ($('newsletterRecordsTabHistory')) $('newsletterRecordsTabHistory').addEventListener('click', () => setNewsletterRecordsTab('history'));
+
+  if ($('newsletterRecipientTrigger')) {
+    $('newsletterRecipientTrigger').addEventListener('click', () => {
+      setNewsletterPopoverOpen(!newsletterPopoverOpen);
+    });
+  }
+
+  if ($('newsletterRecipientPopover')) {
+    $('newsletterRecipientPopover').addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setNewsletterPopoverOpen(false);
+      }
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    const pop = $('newsletterRecipientPopover');
+    const trigger = $('newsletterRecipientTrigger');
+    if (!newsletterPopoverOpen || !pop || !trigger) return;
+    const target = e.target;
+    if (pop.contains(target) || trigger.contains(target)) return;
+    setNewsletterPopoverOpen(false);
+  });
+
+  if ($('newsletterSelectAll')) {
+    $('newsletterSelectAll').addEventListener('change', () => {
+      if (!$('newsletterSelectAll').checked) return;
+      const filtered = recipientListFiltered().map((s) => String(s.email || '').trim().toLowerCase()).filter(Boolean);
+      for (const email of filtered) newsletterSelectedRecipients.add(email);
+      $('newsletterSelectAll').checked = false;
+      renderRecipientOptions();
+    });
+  }
+  if ($('newsletterDeselectAll')) {
+    $('newsletterDeselectAll').addEventListener('change', () => {
+      if (!$('newsletterDeselectAll').checked) return;
+      const filtered = new Set(recipientListFiltered().map((s) => String(s.email || '').trim().toLowerCase()).filter(Boolean));
+      newsletterSelectedRecipients = new Set(Array.from(newsletterSelectedRecipients).filter((email) => !filtered.has(email)));
+      $('newsletterDeselectAll').checked = false;
+      renderRecipientOptions();
+    });
+  }
+
   if ($('subscriberList')) {
     $('subscriberList').addEventListener('change', () => {
       const email = String($('subscriberList').value || '').trim().toLowerCase();
@@ -3859,68 +4428,312 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  if ($('newsletterForm')) {
-    $('newsletterForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
+  const writeNewsletterError = (text) => {
+    const errEl = $('newsletterError');
+    if (!errEl) return;
+    if (!text) {
+      errEl.hidden = true;
+      errEl.textContent = '';
+      return;
+    }
+    errEl.hidden = false;
+    errEl.textContent = String(text);
+  };
+
+  const validateNewsletterPayload = (payload, { requireSchedule = false } = {}) => {
+    if (!payload.subject || !payload.message) return 'Subject and message are required.';
+    if (!Array.isArray(payload.emails) || !payload.emails.length) return 'Select at least one recipient.';
+    if (requireSchedule && (!payload.scheduleDate || !payload.scheduleTime || !payload.scheduleTimezone)) {
+      return 'Schedule date, time, and time zone are required.';
+    }
+    return '';
+  };
+
+  let newsletterTestRecipientEmails = [];
+
+  const renderNewsletterTestRecipientChips = () => {
+    const list = $('newsletterTestRecipientsList');
+    if (!list) return;
+    list.innerHTML = '';
+    for (const email of newsletterTestRecipientEmails) {
+      const chip = document.createElement('span');
+      chip.className = 'newsletterRecipientChip';
+      chip.textContent = email;
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'newsletterRecipientChipRemove';
+      removeBtn.setAttribute('aria-label', `Remove ${email}`);
+      removeBtn.textContent = 'x';
+      removeBtn.addEventListener('click', () => {
+        newsletterTestRecipientEmails = newsletterTestRecipientEmails.filter((x) => x !== email);
+        renderNewsletterTestRecipientChips();
+      });
+
+      chip.appendChild(removeBtn);
+      list.appendChild(chip);
+    }
+  };
+
+  const commitNewsletterTestRecipients = ({ finalizeAll = false } = {}) => {
+    const input = $('newsletterTestRecipientsInput');
+    if (!(input instanceof HTMLInputElement)) return;
+    const raw = String(input.value || '');
+    const hasDelimiter = raw.includes(',');
+    if (!hasDelimiter && !finalizeAll) return;
+
+    const parts = raw.split(',');
+    const keep = (!finalizeAll && parts.length > 0) ? String(parts.pop() || '').trim() : '';
+    const candidates = parts.map((p) => String(p || '').trim().toLowerCase()).filter(Boolean);
+    const invalid = candidates.filter((email) => !validEmail(email));
+    const valid = candidates.filter((email) => validEmail(email));
+
+    if (finalizeAll) {
+      const trailing = String(keep || '').trim().toLowerCase();
+      if (trailing) {
+        if (validEmail(trailing)) valid.push(trailing);
+        else invalid.push(trailing);
+      }
+    }
+
+    if (invalid.length) {
+      writeNewsletterError(`Invalid test recipient email: ${invalid[0]}`);
+    }
+
+    newsletterTestRecipientEmails = Array.from(new Set([
+      ...newsletterTestRecipientEmails,
+      ...valid
+    ]));
+    input.value = keep;
+    renderNewsletterTestRecipientChips();
+  };
+
+  if ($('newsletterTestRecipientsInput')) {
+    $('newsletterTestRecipientsInput').addEventListener('input', () => {
+      commitNewsletterTestRecipients({ finalizeAll: false });
+    });
+    $('newsletterTestRecipientsInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        if (e.key === 'Enter') e.preventDefault();
+        commitNewsletterTestRecipients({ finalizeAll: true });
+      }
+    });
+    $('newsletterTestRecipientsInput').addEventListener('blur', () => {
+      commitNewsletterTestRecipients({ finalizeAll: true });
+    });
+  }
+
+  if ($('newsletterSendNowBtn')) {
+    $('newsletterSendNowBtn').addEventListener('click', async () => {
       const hint = $('newsletterHint');
-      const errEl = $('newsletterError');
-      if (errEl) {
-        errEl.hidden = true;
-        errEl.textContent = '';
-      }
+      const payload = buildNewsletterPayloadFromForm();
+      writeNewsletterError('');
 
-      const subject = String($('newsletterSubject')?.value || '').trim();
-      const message = String($('newsletterMessage')?.value || '').trim();
-      const emails = selectedValues($('newsletterRecipients'));
-
-      if (!subject || !message) {
-        if (errEl) {
-          errEl.hidden = false;
-          errEl.textContent = 'Subject and message are required.';
-        }
-        return;
-      }
-      if (!emails.length) {
-        if (errEl) {
-          errEl.hidden = false;
-          errEl.textContent = 'Select at least one recipient.';
-        }
+      const validationError = validateNewsletterPayload(payload);
+      if (validationError) {
+        writeNewsletterError(validationError);
         return;
       }
 
-      if (!confirmWrite(`Send newsletter to ${emails.length} recipient(s)?`)) return;
+      if (!confirmWrite(`Send newsletter to ${payload.emails.length} recipient(s)?`)) return;
       if (hint) hint.textContent = 'Sending…';
       try {
         const out = await api('/api/newsletter/send', {
           method: 'POST',
-          body: JSON.stringify({ subject, message, emails })
+          body: JSON.stringify({
+            subject: payload.subject,
+            message: payload.message,
+            emails: payload.emails
+          })
         });
         if (hint) hint.textContent = out?.disabled ? 'Sending is disabled on this server.' : `Sent to ${Number(out?.sent || 0)} recipient(s).`;
+        await loadNewsletterRecords();
       } catch (err) {
         if (hint) hint.textContent = '';
-        if (errEl) {
-          errEl.hidden = false;
-          errEl.textContent = err.message;
-        }
+        writeNewsletterError(err.message);
       }
     });
   }
 
-  // Profiles
-  if ($('profilePageFilter')) {
-    $('profilePageFilter').addEventListener('change', () => {
-      fillProfileHeaderEditor();
-      renderProfileSelect();
+  if ($('newsletterSendTestBtn')) {
+    $('newsletterSendTestBtn').addEventListener('click', async () => {
+      const hint = $('newsletterHint');
+      const payload = buildNewsletterPayloadFromForm();
+      writeNewsletterError('');
+      commitNewsletterTestRecipients({ finalizeAll: true });
+      if (!payload.subject || !payload.message) {
+        writeNewsletterError('Subject and message are required for test send.');
+        return;
+      }
+      const targetLabel = newsletterTestRecipientEmails.length
+        ? `${newsletterTestRecipientEmails.length} typed recipient(s)`
+        : 'your signed-in account';
+      if (!confirmWrite(`Send test email to ${targetLabel}?`)) return;
+      if (hint) hint.textContent = 'Sending test…';
+      try {
+        const out = await api('/api/newsletter/test', {
+          method: 'POST',
+          body: JSON.stringify({
+            subject: payload.subject,
+            message: payload.message,
+            emails: newsletterTestRecipientEmails
+          })
+        });
+        if (hint) hint.textContent = out?.disabled ? 'Sending is disabled on this server.' : 'Test email sent.';
+      } catch (err) {
+        if (hint) hint.textContent = '';
+        writeNewsletterError(err.message);
+      }
     });
   }
+
+  if ($('newsletterSaveDraftBtn')) {
+    $('newsletterSaveDraftBtn').addEventListener('click', async () => {
+      const hint = $('newsletterHint');
+      const payload = buildNewsletterPayloadFromForm();
+      writeNewsletterError('');
+
+      const validationError = validateNewsletterPayload(payload);
+      if (validationError) {
+        writeNewsletterError(validationError);
+        return;
+      }
+
+      if (!confirmWrite('Save newsletter draft?')) return;
+      if (hint) hint.textContent = 'Saving draft…';
+      try {
+        await mutateNewsletterRecord('save_draft', payload);
+        setNewsletterRecordsTab('drafts');
+        if (hint) hint.textContent = 'Draft saved.';
+      } catch (err) {
+        if (hint) hint.textContent = '';
+        writeNewsletterError(err.message);
+      }
+    });
+  }
+
+  if ($('newsletterScheduleBtn')) {
+    $('newsletterScheduleBtn').addEventListener('click', async () => {
+      const hint = $('newsletterHint');
+      const payload = buildNewsletterPayloadFromForm();
+      writeNewsletterError('');
+
+      const validationError = validateNewsletterPayload(payload, { requireSchedule: true });
+      if (validationError) {
+        writeNewsletterError(validationError);
+        return;
+      }
+
+      if (!confirmWrite('Schedule this newsletter?')) return;
+      if (hint) hint.textContent = 'Scheduling…';
+      try {
+        await mutateNewsletterRecord('schedule', payload);
+        setNewsletterRecordsTab('scheduled');
+        if (hint) hint.textContent = 'Scheduled.';
+      } catch (err) {
+        if (hint) hint.textContent = '';
+        writeNewsletterError(err.message);
+      }
+    });
+  }
+
+  for (const id of ['newsletterSubject', 'newsletterMessage', 'newsletterScheduleDate', 'newsletterScheduleTime', 'newsletterScheduleTimezone', 'newsletterGroupSelect']) {
+    const el = $(id);
+    if (!el) continue;
+    el.addEventListener('input', () => renderNewsletterPreview());
+    el.addEventListener('change', () => renderNewsletterPreview());
+  }
+
+  if ($('newsletterForm')) {
+    $('newsletterForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = $('newsletterSendNowBtn');
+      if (btn) btn.click();
+    });
+  }
+
+  const wireRecordsActions = (containerId) => {
+    const el = $(containerId);
+    if (!el) return;
+    el.addEventListener('click', async (e) => {
+      const btn = e.target?.closest?.('button[data-action]');
+      if (!btn) return;
+      const action = String(btn.getAttribute('data-action') || '').trim();
+      const id = String(btn.getAttribute('data-newsletter-record-id') || '').trim();
+      if (!id) return;
+
+      const all = [
+        ...(newsletterRecords.drafts || []),
+        ...(newsletterRecords.scheduled || []),
+        ...(newsletterRecords.history || [])
+      ];
+      const item = all.find((x) => String(x.id) === id);
+      if (action === 'load' && item) {
+        applyNewsletterPayloadToForm(item);
+        return;
+      }
+      if (action === 'delete') {
+        if (!confirmWrite('Delete this newsletter record?')) return;
+        try {
+          await mutateNewsletterRecord('delete', { id });
+        } catch (err) {
+          writeNewsletterError(err.message);
+        }
+      }
+    });
+  };
+
+  wireRecordsActions('newsletterRecordsDrafts');
+  wireRecordsActions('newsletterRecordsScheduled');
+  wireRecordsActions('newsletterRecordsHistory');
+
+  // Profiles
+  if ($('siteEditorPageTabs')) {
+    $('siteEditorPageTabs').addEventListener('click', (e) => {
+      const btn = e.target?.closest?.('[data-site-page]');
+      if (!btn) return;
+      const page = String(btn.getAttribute('data-site-page') || '').trim();
+      setSiteEditorPage(page);
+    });
+    $('siteEditorPageTabs').addEventListener('keydown', (e) => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+      const tabs = Array.from($('siteEditorPageTabs').querySelectorAll('[data-site-page]'));
+      const current = tabs.findIndex((t) => String(t.getAttribute('aria-selected') || '') === 'true');
+      if (current === -1) return;
+      let nextIndex = current;
+      if (e.key === 'ArrowRight') nextIndex = (current + 1) % tabs.length;
+      if (e.key === 'ArrowLeft') nextIndex = (current - 1 + tabs.length) % tabs.length;
+      if (e.key === 'Home') nextIndex = 0;
+      if (e.key === 'End') nextIndex = tabs.length - 1;
+      e.preventDefault();
+      const next = tabs[nextIndex];
+      if (!next) return;
+      const page = String(next.getAttribute('data-site-page') || '').trim();
+      setSiteEditorPage(page);
+      next.focus();
+    });
+  }
+
+  setSiteEditorPage('home');
+
   if ($('profileSelect')) {
     $('profileSelect').addEventListener('change', () => fillProfileEditor($('profileSelect').value));
+  }
+  for (const id of ['profileHeaderPageTitle', 'profileHeaderIntroText', 'profileHeaderStaffHeading', 'profileHeaderDeaconsHeading', 'profileHeaderDeaconessesHeading', 'profileHeaderOfficialTeamHeading', 'profileSection', 'profileName', 'profileTitle', 'profileBio', 'profileImage', 'profileImageAlt']) {
+    const el = $(id);
+    if (!el) continue;
+    el.addEventListener('input', () => renderSiteEditorPreview());
+    el.addEventListener('change', () => renderSiteEditorPreview());
   }
   if ($('profileHeaderForm')) {
     $('profileHeaderForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const hint = $('profileHeaderHint');
       const page = activeProfilePage();
+      if (!['ministries', 'leadership'].includes(page)) {
+        if (hint) hint.textContent = 'Heading edits are available for Ministries and Leadership pages.';
+        return;
+      }
       const current = normalizeProfilePageMeta(profilePageMeta || createDefaultProfilePageMeta());
       const nextMeta = {
         ministries: { ...current.ministries },
@@ -3928,8 +4741,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         nav: { ...current.nav }
       };
 
-      nextMeta.nav.ministriesLabel = String($('profileHeaderNavMinistries')?.value || '').trim();
-      nextMeta.nav.leadershipLabel = String($('profileHeaderNavLeadership')?.value || '').trim();
       if (page === 'ministries') {
         nextMeta.ministries.pageTitle = String($('profileHeaderPageTitle')?.value || '').trim();
         nextMeta.ministries.introText = String($('profileHeaderIntroText')?.value || '').trim();
@@ -3941,12 +4752,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         nextMeta.leadership.officialTeamHeading = String($('profileHeaderOfficialTeamHeading')?.value || '').trim();
       }
 
-      if (!nextMeta.nav.ministriesLabel || !nextMeta.nav.leadershipLabel || !nextMeta.ministries.pageTitle || !nextMeta.leadership.pageTitle) {
-        if (hint) hint.textContent = 'Page titles and nav labels are required.';
+      if (!nextMeta.ministries.pageTitle || !nextMeta.leadership.pageTitle) {
+        if (hint) hint.textContent = 'Ministries and leadership page titles are required.';
         return;
       }
 
-      if (!confirmWrite('Save header/title label changes?')) return;
+      if (!confirmWrite('Save page heading changes?')) return;
       if (hint) hint.textContent = 'Saving…';
       try {
         await saveProfiles(profiles, nextMeta);
@@ -3976,7 +4787,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           name: String($('profileName')?.value || '').trim(),
           title: String($('profileTitle')?.value || '').trim(),
           bio: String($('profileBio')?.value || '').trim(),
-          alt: String($('profileName')?.value || '').trim()
+          alt: String($('profileImageAlt')?.value || $('profileName')?.value || '').trim()
         };
       });
 
@@ -3986,6 +4797,100 @@ document.addEventListener('DOMContentLoaded', async () => {
         await saveProfiles(next, profilePageMeta);
         fillProfileEditor(id);
         if (hint) hint.textContent = 'Saved.';
+      } catch (err) {
+        if (hint) hint.textContent = err.message;
+      }
+    });
+  }
+
+  if ($('profileImage')) {
+    $('profileImage').addEventListener('input', () => {
+      updateProfileImagePreview(
+        String($('profileImage')?.value || '').trim(),
+        String($('profileImageAlt')?.value || $('profileName')?.value || '').trim()
+      );
+    });
+  }
+
+  if ($('profileImageAlt')) {
+    $('profileImageAlt').addEventListener('input', () => {
+      updateProfileImagePreview(
+        String($('profileImage')?.value || '').trim(),
+        String($('profileImageAlt')?.value || $('profileName')?.value || '').trim()
+      );
+    });
+  }
+
+  if ($('profileUploadImageBtn')) {
+    $('profileUploadImageBtn').addEventListener('click', async () => {
+      const hint = $('profileHint');
+      const id = String($('profileId')?.value || '').trim();
+      const fileInput = $('profileImageFile');
+      const file = fileInput?.files?.[0];
+      if (!id) {
+        if (hint) hint.textContent = 'Choose a profile first.';
+        return;
+      }
+      if (!file) {
+        if (hint) hint.textContent = 'Choose an image file first.';
+        return;
+      }
+
+      if (!confirmWrite('Upload and replace this profile image?')) return;
+      if (hint) hint.textContent = 'Uploading image…';
+      try {
+        const fd = new FormData();
+        fd.append('image', file);
+        fd.append('page', String($('profilePage')?.value || ''));
+        fd.append('profileId', id);
+        const out = await api('/api/site-editor/upload-image', {
+          method: 'POST',
+          body: fd
+        });
+        const imagePath = String(out?.path || '').trim();
+        const next = profiles.map((p) => {
+          if (String(p.id) !== id) return p;
+          return {
+            ...p,
+            image: imagePath,
+            alt: String($('profileImageAlt')?.value || p.name || '').trim()
+          };
+        });
+        await saveProfiles(next, profilePageMeta);
+        if ($('profileImage')) $('profileImage').value = imagePath;
+        if ($('profileImageFile')) $('profileImageFile').value = '';
+        updateProfileImagePreview(imagePath, String($('profileImageAlt')?.value || $('profileName')?.value || '').trim());
+        if (hint) hint.textContent = 'Image uploaded.';
+      } catch (err) {
+        if (hint) hint.textContent = err.message;
+      }
+    });
+  }
+
+  if ($('profileRemoveImageBtn')) {
+    $('profileRemoveImageBtn').addEventListener('click', async () => {
+      const hint = $('profileHint');
+      const id = String($('profileId')?.value || '').trim();
+      if (!id) {
+        if (hint) hint.textContent = 'Choose a profile first.';
+        return;
+      }
+      if (!confirmWrite('Remove this profile image path?')) return;
+      const next = profiles.map((p) => {
+        if (String(p.id) !== id) return p;
+        return {
+          ...p,
+          image: '',
+          alt: String($('profileImageAlt')?.value || p.name || '').trim()
+        };
+      });
+      if (hint) hint.textContent = 'Removing image…';
+      try {
+        await saveProfiles(next, profilePageMeta);
+        if ($('profileImage')) $('profileImage').value = '';
+        if ($('profileImageFile')) $('profileImageFile').value = '';
+        updateProfileImagePreview('', '');
+        if (hint) hint.textContent = 'Image removed.';
       } catch (err) {
         if (hint) hint.textContent = err.message;
       }
@@ -4442,30 +5347,32 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Announcements
-  $('announceForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const hint = $('announceHint');
+  if ($('announceForm')) {
+    $('announceForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const hint = $('announceHint');
 
-    if (!confirmWrite('Post this announcement?')) return;
+      if (!confirmWrite('Post this announcement?')) return;
 
-    hint.textContent = 'Posting…';
+      hint.textContent = 'Posting…';
 
-    const fd = new FormData(e.currentTarget);
-    const never = fd.get('neverExpires') === 'on';
-    const expiresInDaysRaw = never ? 0 : fd.get('expiresInDays');
-    await api('/api/announcements', {
-      method: 'POST',
-      body: JSON.stringify({
-        title: fd.get('title'),
-        body: fd.get('body'),
-        expiresInDays: expiresInDaysRaw
-      })
+      const fd = new FormData(e.currentTarget);
+      const never = fd.get('neverExpires') === 'on';
+      const expiresInDaysRaw = never ? 0 : fd.get('expiresInDays');
+      await api('/api/announcements', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: fd.get('title'),
+          body: fd.get('body'),
+          expiresInDays: expiresInDaysRaw
+        })
+      });
+
+      safeResetForm(e);
+      hint.textContent = 'Posted.';
+      await loadAnnouncements();
     });
-
-    safeResetForm(e);
-    hint.textContent = 'Posted.';
-    await loadAnnouncements();
-  });
+  }
 
   // Hash navigation (e.g. /admin/#announcements)
   window.addEventListener('hashchange', () => {
@@ -4473,76 +5380,62 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Events
-  $('eventForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const hint = $('eventHint');
-
-    if (!confirmWrite('Save this event?')) return;
-
-    hint.textContent = 'Saving…';
-
-    const fd = new FormData(e.currentTarget);
-    await api('/api/events', {
-      method: 'POST',
-      body: JSON.stringify({ title: fd.get('title'), date: fd.get('date'), time: fd.get('time') })
-    });
-
-    safeResetForm(e);
-    hint.textContent = 'Saved.';
-    await loadEvents();
-  });
-
-  // Bulletins (multipart)
-  $('bulletinForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const hint = $('bulletinHint');
-
-    if (!confirmWrite('Upload and schedule this bulletin?')) return;
-
-    hint.textContent = 'Uploading…';
-
-    const fd = new FormData(e.currentTarget);
-    const createAnnouncement = fd.get('createAnnouncement') === 'on';
-    fd.set('createAnnouncement', createAnnouncement ? 'true' : 'false');
-
-    await csrfReady;
-    const res = await fetch('/api/bulletins/upload', {
-      method: 'POST',
-      body: fd,
-      headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
-      credentials: 'same-origin'
-    });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      hint.textContent = data.error || 'Upload failed.';
-      return;
-    }
-
-    hint.textContent = 'Scheduled.';
-    safeResetForm(e);
-    await loadBulletins();
-  });
-
-  // Users (Settings/User accounts removed from UI)
-  if ($('userForm')) {
-    $('userForm').addEventListener('submit', async (e) => {
+  if ($('eventForm')) {
+    $('eventForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const hint = $('userHint');
+      const hint = $('eventHint');
 
-      if (!confirmWrite('Create an admin invite link for this email?')) return;
+      if (!confirmWrite('Save this event?')) return;
 
-      hint.textContent = 'Creating invite…';
+      hint.textContent = 'Saving…';
 
       const fd = new FormData(e.currentTarget);
-      const res = await api('/api/users/invite', {
+      await api('/api/events', {
         method: 'POST',
-        body: JSON.stringify({ email: String(fd.get('email') || '') })
+        body: JSON.stringify({
+          title: fd.get('title'),
+          date: fd.get('date'),
+          time: fd.get('time')
+        })
       });
 
       safeResetForm(e);
-      hint.textContent = `Invite link (expires ${new Date(res.expiresAt).toLocaleString()}): ${res.inviteLink}`;
-      await loadUsers();
+      hint.textContent = 'Saved.';
+      await loadEvents();
+    });
+  }
+
+  // Bulletins (multipart)
+  if ($('bulletinForm')) {
+    $('bulletinForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const hint = $('bulletinHint');
+
+      if (!confirmWrite('Upload and schedule this bulletin?')) return;
+
+      hint.textContent = 'Uploading…';
+
+      const fd = new FormData(e.currentTarget);
+      const createAnnouncement = fd.get('createAnnouncement') === 'on';
+      fd.set('createAnnouncement', createAnnouncement ? 'true' : 'false');
+
+      await csrfReady;
+      const res = await fetch('/api/bulletins/upload', {
+        method: 'POST',
+        body: fd,
+        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
+        credentials: 'same-origin'
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        hint.textContent = data.error || 'Upload failed.';
+        return;
+      }
+
+      safeResetForm(e);
+      hint.textContent = 'Uploaded.';
+      await loadBulletins();
     });
   }
 
