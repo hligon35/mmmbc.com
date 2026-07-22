@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Internal Controls Dashboard</title>
+  <link rel="stylesheet" href="/admin/finance_modern.css" />
+</head>
+<body data-page="controls">
+  <main class="wrap">
+    <div class="topBar">
+      <h1>Internal Controls Dashboard</h1>
+      <div class="navLinks">
+        <a href="/admin/finances/funds">Funds</a>
+        <a href="/admin/finances/donors">Donors</a>
+        <a href="/admin/finances/reports/board">Board Reports</a>
+        <a href="/admin/finances/controls" aria-current="page">Internal Controls</a>
+        <a href="/admin/finances/clergy-housing">Clergy Housing</a>
+        <a href="/admin/">Back to Admin Home</a>
+      </div>
+    </div>
+
+    <section class="panel">
+      <h2>Control Summary</h2>
+      <p class="help">Shows items awaiting verification, exceptions, and unsafe duty combinations.</p>
+      <pre id="controlsDash" class="card preBlock"></pre>
+    </section>
+
+    <section class="panel">
+      <h2>Record Sunday Collection</h2>
+      <p class="help">At least two counters are required when two-person verification is enabled.</p>
+      <form id="collectionForm" class="grid">
+        <label class="label">Service date<input id="collectionDate" class="input" type="date" required /></label>
+        <label class="label">Collection amount<input id="collectionAmount" class="input" type="number" step="0.01" required /></label>
+        <label class="label fullSpan">Counters (comma separated user IDs)<input id="collectionCounters" class="input" placeholder="counter_one_id, counter_two_id" required /></label>
+        <label class="label fullSpan">Count-sheet attachment path<input id="collectionAttachment" class="input" placeholder="/admin-uploads/docs/count-sheet.pdf" /></label>
+        <div class="btnRow fullSpan">
+          <button class="btn btnPrimary" type="submit">Save Collection</button>
+          <button class="btn" type="reset">Cancel</button>
+          <a class="btn" href="#controlsDash">Review</a>
+          <a class="btn" href="/admin/">Back</a>
+        </div>
+      </form>
+      <p id="controlsMsg" class="help"></p>
+    </section>
+    <p id="pageError" class="error"></p>
+  </main>
+  <script src="/admin/finance_modern.js"></script>
+</body>
+</html>

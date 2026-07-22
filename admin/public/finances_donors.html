@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Donor Management</title>
+  <link rel="stylesheet" href="/admin/finance_modern.css" />
+</head>
+<body data-page="donors">
+  <main class="wrap">
+    <div class="topBar">
+      <h1>Donor Management Profiles</h1>
+      <div class="navLinks">
+        <a href="/admin/finances/funds">Funds</a>
+        <a href="/admin/finances/donors" aria-current="page">Donors</a>
+        <a href="/admin/finances/reports/board">Board Reports</a>
+        <a href="/admin/finances/controls">Internal Controls</a>
+        <a href="/admin/finances/clergy-housing">Clergy Housing</a>
+        <a href="/admin/">Back to Admin Home</a>
+      </div>
+    </div>
+
+    <section class="panel">
+      <h2>Search and Review</h2>
+      <p class="help">Use donor name, household, envelope number, or contact details to find records.</p>
+      <div class="grid">
+        <label class="label">Search<input id="donorSearch" class="input" placeholder="Name, email, phone, household, envelope" /></label>
+      </div>
+      <div class="btnRow">
+        <button class="btn btnPrimary" id="donorSearchBtn" type="button">Review Donor List</button>
+      </div>
+      <p id="donorMsg" class="help"></p>
+      <div class="tableWrap">
+        <table>
+          <thead><tr><th>Name</th><th>Household</th><th>Envelope</th><th>Email</th><th>Phone</th><th>Status</th></tr></thead>
+          <tbody id="donorTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Create Donor Profile</h2>
+      <p class="help">Guided steps: 1) Name and contact, 2) Household details, 3) Statement preference, 4) Review and save.</p>
+      <form id="donorForm" class="grid">
+        <label class="label">First name<input id="donorFirst" class="input" required /></label>
+        <label class="label">Middle name<input id="donorMiddle" class="input" /></label>
+        <label class="label">Last name<input id="donorLast" class="input" required /></label>
+        <label class="label">Preferred name<input id="donorPreferred" class="input" /></label>
+        <label class="label">Household<input id="donorHousehold" class="input" /></label>
+        <label class="label">Envelope number<input id="donorEnvelope" class="input" /></label>
+        <label class="label">Email<input id="donorEmail" class="input" type="email" /></label>
+        <label class="label">Phone<input id="donorPhone" class="input" /></label>
+        <label class="label fullSpan">Mailing address<textarea id="donorAddress" class="textarea"></textarea></label>
+        <label class="label">Preferred statement delivery
+          <select id="donorDelivery" class="select">
+            <option value="mail">Mail</option>
+            <option value="email">Email</option>
+            <option value="pickup">Pickup</option>
+          </select>
+        </label>
+        <div class="btnRow fullSpan">
+          <button class="btn btnPrimary" type="submit">Save Donor Profile</button>
+          <button class="btn" type="reset">Cancel</button>
+          <button class="btn" type="button" id="reviewBtn" onclick="document.getElementById('donorSearchBtn').click()">Review</button>
+          <a class="btn" href="/admin/">Back</a>
+        </div>
+      </form>
+    </section>
+    <p id="pageError" class="error"></p>
+  </main>
+  <script src="/admin/finance_modern.js"></script>
+</body>
+</html>

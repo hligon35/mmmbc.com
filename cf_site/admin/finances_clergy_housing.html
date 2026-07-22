@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Clergy Housing Allowance Records</title>
+  <link rel="stylesheet" href="/admin/finance_modern.css" />
+</head>
+<body data-page="housing">
+  <main class="wrap">
+    <div class="topBar">
+      <h1>Minister Housing-Allowance Recordkeeping</h1>
+      <div class="navLinks">
+        <a href="/admin/finances/funds">Funds</a>
+        <a href="/admin/finances/donors">Donors</a>
+        <a href="/admin/finances/reports/board">Board Reports</a>
+        <a href="/admin/finances/controls">Internal Controls</a>
+        <a href="/admin/finances/clergy-housing" aria-current="page">Clergy Housing</a>
+        <a href="/admin/">Back to Admin Home</a>
+      </div>
+    </div>
+
+    <section class="panel">
+      <h2>Create Housing Profile</h2>
+      <p class="help">Use this to preserve board-approved records and supporting evidence. Do not backdate without a reason.</p>
+      <form id="housingProfileForm" class="grid">
+        <label class="label">Minister name<input id="ministerName" class="input" required /></label>
+        <label class="label">Position/title<input id="ministerTitle" class="input" /></label>
+        <label class="label">Ordained/licensed/commissioned<input id="ministerOrdination" class="input" /></label>
+        <label class="label">Compensation year<input id="ministerYear" class="input" /></label>
+        <label class="label">Total compensation<input id="ministerComp" class="input" type="number" step="0.01" /></label>
+        <label class="label">Salary amount<input id="ministerSalary" class="input" type="number" step="0.01" /></label>
+        <label class="label">Housing allowance designated amount<input id="ministerAllowance" class="input" type="number" step="0.01" /></label>
+        <label class="label">Designation effective date<input id="ministerEffective" class="input" type="date" /></label>
+        <label class="label">Date approved<input id="ministerApproved" class="input" type="date" /></label>
+        <label class="label">Approving body<input id="ministerBody" class="input" /></label>
+        <label class="label fullSpan">Resolution attachment path<input id="ministerResolution" class="input" placeholder="/admin-uploads/docs/housing-resolution.pdf" /></label>
+        <label class="label fullSpan">Notes<textarea id="ministerNotes" class="textarea"></textarea></label>
+        <div class="btnRow fullSpan">
+          <button class="btn btnPrimary" type="submit">Save Housing Profile</button>
+          <button class="btn" type="reset">Cancel</button>
+          <a class="btn" href="#housingProfiles">Review</a>
+          <a class="btn" href="/admin/">Back</a>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Annual Housing Record</h2>
+      <p class="help">Recordkeeping comparison only. Final tax treatment must be reviewed by the minister and a qualified tax professional.</p>
+      <form id="housingAnnualForm" class="grid">
+        <label class="label">Profile<select id="housingProfiles" class="select" required></select></label>
+        <label class="label">Compensation year<input id="annualYear" class="input" /></label>
+        <label class="label">Officially designated amount<input id="annualDesignated" class="input" type="number" step="0.01" /></label>
+        <label class="label">Amount paid<input id="annualPaid" class="input" type="number" step="0.01" /></label>
+        <label class="label">Actual housing expenses<input id="annualActual" class="input" type="number" step="0.01" /></label>
+        <label class="label">Fair rental value<input id="annualFairRental" class="input" type="number" step="0.01" /></label>
+        <label class="label">Utilities<input id="annualUtilities" class="input" type="number" step="0.01" /></label>
+        <label class="label fullSpan">Notes<textarea id="annualNotes" class="textarea"></textarea></label>
+        <div class="btnRow fullSpan">
+          <button class="btn btnPrimary" type="submit">Save Annual Record</button>
+          <button class="btn" type="reset">Cancel</button>
+        </div>
+      </form>
+      <p id="housingMsg" class="help"></p>
+    </section>
+    <p id="pageError" class="error"></p>
+  </main>
+  <script src="/admin/finance_modern.js"></script>
+</body>
+</html>

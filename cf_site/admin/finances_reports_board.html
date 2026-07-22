@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Board Financial Reports</title>
+  <link rel="stylesheet" href="/admin/finance_modern.css" />
+</head>
+<body data-page="reports">
+  <main class="wrap">
+    <div class="topBar">
+      <h1>Board-Ready Financial Reports</h1>
+      <div class="navLinks">
+        <a href="/admin/finances/funds">Funds</a>
+        <a href="/admin/finances/donors">Donors</a>
+        <a href="/admin/finances/reports/board" aria-current="page">Board Reports</a>
+        <a href="/admin/finances/controls">Internal Controls</a>
+        <a href="/admin/finances/clergy-housing">Clergy Housing</a>
+        <a href="/admin/">Back to Admin Home</a>
+      </div>
+    </div>
+
+    <section class="panel">
+      <h2>Generate Board Report Package</h2>
+      <p class="help">Generate Statement of Financial Position (Balance Sheet) and Statement of Activities (Income Statement) using clear totals and audit tracking.</p>
+      <form id="reportForm" class="grid">
+        <label class="label">Report date<input id="reportDate" class="input" type="date" required /></label>
+        <label class="label">Comparison date<input id="reportPriorDate" class="input" type="date" /></label>
+        <label class="label">Liabilities total<input id="reportLiabilities" class="input" type="number" step="0.01" value="0" /></label>
+        <label class="label fullSpan">Treasurer notes<textarea id="reportNotes" class="textarea"></textarea></label>
+        <div class="btnRow fullSpan">
+          <button class="btn btnPrimary" type="submit">Generate Board Report Package</button>
+          <button class="btn" type="reset">Cancel</button>
+          <a class="btn" href="#reportOutput">Review</a>
+          <a class="btn" href="/admin/">Back</a>
+        </div>
+      </form>
+      <p id="reportMsg" class="help"></p>
+    </section>
+
+    <section class="panel">
+      <h2>Screen Preview</h2>
+      <p class="help">Review before printing or delivery. Out-of-balance reports are blocked.</p>
+      <pre id="reportOutput" class="card preBlock"></pre>
+    </section>
+    <p id="pageError" class="error"></p>
+  </main>
+  <script src="/admin/finance_modern.js"></script>
+</body>
+</html>

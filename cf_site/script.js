@@ -115,6 +115,53 @@ document.addEventListener('DOMContentLoaded', () => {
     const applySiteSettings = (settings) => {
         if (!settings || typeof settings !== 'object') return;
 
+        const subscribers = Array.isArray(settings.subscribers)
+            ? settings.subscribers
+                .map((s) => {
+                    if (typeof s === 'string') return { email: s.trim(), name: '', group: 'general' };
+                    return {
+                        email: String(s?.email || '').trim(),
+                        name: String(s?.name || '').trim(),
+                        group: String(s?.group || 'general').trim() || 'general'
+                    };
+                })
+                .filter((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.email))
+            : [];
+
+        let list = document.getElementById('siteSubscriberOptions');
+        if (!list) {
+            list = document.createElement('datalist');
+            list.id = 'siteSubscriberOptions';
+            document.body.appendChild(list);
+        }
+        list.innerHTML = '';
+        for (const sub of subscribers) {
+            const opt = document.createElement('option');
+            opt.value = sub.email;
+            opt.label = sub.name ? `${sub.name} (${sub.group})` : sub.group;
+            list.appendChild(opt);
+        }
+
+        const forms = Array.from(document.querySelectorAll('[data-subscriber-form]'));
+        for (const form of forms) {
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const emailInput = form.querySelector('input[type="email"]');
+                const help = form.querySelector('[data-subscriber-help]');
+                const email = String(emailInput?.value || '').trim();
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                    if (help) help.textContent = 'Please enter a valid email address.';
+                    return;
+                }
+
+                const to = String(settings.email || 'mtmoriahmbc1201@gmail.com').trim();
+                const subject = encodeURIComponent('Newsletter Subscription Request');
+                const body = encodeURIComponent(`Please add ${email} to the church newsletter list.`);
+                window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+                if (help) help.textContent = `Preparing email subscription request for ${email}.`;
+            }, { passive: false });
+        }
+
         // Footer "Connect With Us" section
         const connect = document.getElementById('connect-us');
         if (connect) {
@@ -188,5 +235,46 @@ document.addEventListener('DOMContentLoaded', () => {
     (async () => {
         const settings = await tryFetchJson(['site-settings.json', '../site-settings.json', '/site-settings.json']);
         if (settings) applySiteSettings(settings);
+
+        const profilesData = await tryFetchJson(['profiles.json', '../profiles.json', '/profiles.json']);
+        const profiles = Array.isArray(profilesData?.profiles) ? profilesData.profiles : [];
+        if (profiles.length) {
+            const path = String(window.location.pathname || '').toLowerCase();
+            const page = path.includes('/pages/ministries') ? 'ministries'
+                : path.includes('/pages/leadership') ? 'leadership'
+                    : '';
+            if (page) {
+                const cards = Array.from(document.querySelectorAll('.leadership-profile'));
+                const pageProfiles = profiles.filter((p) => String(p.page || '').toLowerCase() === page);
+                cards.forEach((card, idx) => {
+                    const p = pageProfiles[idx];
+                    if (!p) return;
+                    const img = card.querySelector('img.profile-image');
+                    const details = card.querySelector('.profile-details');
+                    if (img && p.image) img.setAttribute('src', String(p.image));
+                    if (img && (p.alt || p.name)) img.setAttribute('alt', String(p.alt || p.name));
+                    if (details) {
+                        details.innerHTML = '';
+                        const nameEl = document.createElement('h2');
+                        nameEl.textContent = String(p.name || '');
+                        details.appendChild(nameEl);
+
+                        if (p.title) {
+                            const titleWrap = document.createElement('p');
+                            const strong = document.createElement('strong');
+                            strong.textContent = String(p.title);
+                            titleWrap.appendChild(strong);
+                            details.appendChild(titleWrap);
+                        }
+
+                        if (p.bio) {
+                            const bioEl = document.createElement('p');
+                            bioEl.textContent = String(p.bio);
+                            details.appendChild(bioEl);
+                        }
+                    }
+                });
+            }
+        }
     })();
 });

@@ -174,6 +174,8 @@
           <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-events" id="tabBtn-events">Events</button>
           <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-content" id="tabBtn-content">Announcements</button>
           <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-finances" id="tabBtn-finances">Finances</button>
+          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-newsletter" id="tabBtn-newsletter">Newsletter</button>
+          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-profiles" id="tabBtn-profiles">Profiles</button>
           <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-support" id="tabBtn-support">Support</button>
 
           <div class="photoBulkBar photoBulkBar--nav" id="photoBulkBar" hidden>
@@ -419,12 +421,24 @@
 
       <!-- Finances -->
       <section class="tabPanel" role="tabpanel" id="tab-finances" aria-labelledby="tabBtn-finances" hidden>
+        <div class="card financeModernNav">
+          <h3 class="card__subtitle">Financial Management Workflows</h3>
+          <p class="muted">Use these guided pages for fund controls, donor profiles, board reporting, internal controls, and housing-allowance records.</p>
+          <div class="financeModernNav__actions">
+            <a class="btn btn--primary" href="/admin/finances/funds">Open Fund Tracking Dashboard</a>
+            <a class="btn btn--primary" href="/admin/finances/donors">Open Donor Management Profiles</a>
+            <a class="btn btn--primary" href="/admin/finances/reports/board">Open Board Report Package Builder</a>
+            <a class="btn btn--primary" href="/admin/finances/controls">Open Internal Controls Dashboard</a>
+            <a class="btn btn--primary" href="/admin/finances/clergy-housing">Open Minister Housing-Allowance Records</a>
+          </div>
+        </div>
+
         <div class="sectionHeader financeHeader">
           <div class="financeHeaderLeftTop">
             <div class="financeHeaderTitleRow">
               <h2 class="sectionHeader__title">Finances</h2>
 
-              <div class="iconGroup noPrint" aria-label="Finance actions">
+              <div class="iconGroup noPrint financeActionButtons" aria-label="Finance actions">
                 <details class="menu" id="financePrintMenu">
                   <summary class="iconBtn" aria-label="Print" title="Print">
                     <svg class="iconBtn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -695,6 +709,120 @@
         </form>
 
         <div class="list list--scrollEvents" id="eventList"></div>
+      </section>
+
+      <!-- Newsletter -->
+      <section class="tabPanel" role="tabpanel" id="tab-newsletter" aria-labelledby="tabBtn-newsletter" hidden>
+        <h2>Newsletter</h2>
+        <p class="muted">Manage subscriber emails and send mail blasts to selected recipients or groups.</p>
+
+        <div class="card">
+          <h3 class="card__subtitle">Subscribers</h3>
+          <p class="muted">Add or edit subscribers, then choose recipients for newsletter sends.</p>
+
+          <div class="formRow">
+            <label class="label">
+              Current subscribers
+              <select class="select" id="subscriberList" size="8" aria-label="Subscriber list"></select>
+            </label>
+          </div>
+
+          <form id="subscriberForm" class="form form--row" aria-label="Subscriber editor">
+            <input id="subscriberEditEmail" type="hidden" />
+            <label class="label">
+              Name (optional)
+              <input class="input" id="subscriberName" type="text" maxlength="120" placeholder="Jane Doe" />
+            </label>
+            <label class="label">
+              Email
+              <input class="input" id="subscriberEmail" type="email" maxlength="254" placeholder="jane@example.com" required />
+            </label>
+            <label class="label">
+              Group
+              <input class="input" id="subscriberGroup" type="text" maxlength="80" placeholder="members" value="general" />
+            </label>
+            <button class="btn btn--primary" id="subscriberSaveBtn" type="submit">Save Subscriber</button>
+            <button class="btn" id="subscriberDeleteBtn" type="button">Delete Selected</button>
+            <button class="btn" id="subscriberClearBtn" type="button">Clear</button>
+            <div class="hint" id="subscriberHint" aria-live="polite"></div>
+          </form>
+        </div>
+
+        <div class="card card--spacedTop">
+          <h3 class="card__subtitle">Send Newsletter Blast</h3>
+          <form id="newsletterForm" class="form" aria-label="Newsletter send form">
+            <div class="formRow">
+              <label class="label">
+                Select group
+                <select class="select" id="newsletterGroupSelect">
+                  <option value="">All groups</option>
+                </select>
+              </label>
+              <label class="label">
+                Recipients
+                <select class="select" id="newsletterRecipients" size="8" multiple aria-label="Recipients"></select>
+              </label>
+            </div>
+            <label class="label">
+              Subject
+              <input class="input" id="newsletterSubject" type="text" maxlength="140" required />
+            </label>
+            <label class="label">
+              Message
+              <textarea class="textarea" id="newsletterMessage" rows="8" maxlength="12000" required></textarea>
+            </label>
+            <button class="btn btn--primary" type="submit">Send Newsletter</button>
+            <div class="hint" id="newsletterHint" aria-live="polite"></div>
+            <div class="error" id="newsletterError" role="alert" hidden></div>
+          </form>
+        </div>
+      </section>
+
+      <!-- Profiles -->
+      <section class="tabPanel" role="tabpanel" id="tab-profiles" aria-labelledby="tabBtn-profiles" hidden>
+        <h2>Ministries, Leadership &amp; Staff Profiles</h2>
+        <p class="muted">Edit image, name, title, and short bio for entries on the Ministries and Leadership pages.</p>
+
+        <div class="formRow">
+          <label class="label">
+            Page
+            <select class="select" id="profilePageFilter">
+              <option value="ministries">Ministries</option>
+              <option value="leadership">Leadership &amp; Staff</option>
+            </select>
+          </label>
+          <label class="label">
+            Profile
+            <select class="select" id="profileSelect" size="8" aria-label="Profile list"></select>
+          </label>
+        </div>
+
+        <form id="profileForm" class="form" aria-label="Profile editor">
+          <input id="profileId" type="hidden" />
+          <input id="profilePage" type="hidden" />
+          <label class="label">
+            Section
+            <input class="input" id="profileSection" type="text" maxlength="80" placeholder="Staff" />
+          </label>
+          <label class="label">
+            Image path
+            <input class="input" id="profileImage" type="text" maxlength="400" placeholder="../ConImg/webPages/example.png" />
+          </label>
+          <label class="label">
+            Name
+            <input class="input" id="profileName" type="text" maxlength="120" required />
+          </label>
+          <label class="label">
+            Title
+            <input class="input" id="profileTitle" type="text" maxlength="120" placeholder="Ministry Leader" />
+          </label>
+          <label class="label">
+            Short bio
+            <textarea class="textarea" id="profileBio" rows="6" maxlength="700" required></textarea>
+          </label>
+          <button class="btn btn--primary" type="submit">Save Profile</button>
+          <div class="hint" id="profileHint" aria-live="polite"></div>
+        </form>
       </section>
 
       <!-- Support -->

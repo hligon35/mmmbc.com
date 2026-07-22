@@ -1,0 +1,73 @@
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:Arial,sans-serif;
+  font-size:18px;
+  line-height:1.5;
+  background:#0f1114;
+  color:#fff;
+}
+.wrap{max-width:1200px;margin:0 auto;padding:20px;}
+.topBar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.topBar h1{margin:0;font-size:2rem;}
+.navLinks{display:flex;flex-wrap:wrap;gap:10px;}
+.navLinks a{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:44px;
+  min-width:44px;
+  padding:10px 14px;
+  border:2px solid #c46123;
+  border-radius:10px;
+  color:#fff;
+  text-decoration:none;
+  background:#1a1f26;
+  font-weight:700;
+}
+.navLinks a[aria-current='page']{background:#c46123;color:#000;}
+.panel{background:#151922;border:1px solid #3a414d;border-radius:12px;padding:16px;margin-bottom:14px;}
+.panel h2,.panel h3{margin-top:0;}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}
+.card{background:#1b212b;border:1px solid #3a414d;border-radius:10px;padding:12px;}
+.label{display:grid;gap:6px;font-weight:700;}
+.input,.select,.textarea{
+  width:100%;
+  min-height:44px;
+  border-radius:10px;
+  border:2px solid #586274;
+  background:#0f141c;
+  color:#fff;
+  padding:10px;
+  font-size:18px;
+}
+.textarea{min-height:120px;resize:vertical;}
+.btnRow{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+.btn{
+  min-height:44px;
+  min-width:44px;
+  border-radius:10px;
+  border:2px solid #8a95ab;
+  background:#1c2430;
+  color:#fff;
+  padding:10px 14px;
+  font-size:18px;
+  font-weight:700;
+  cursor:pointer;
+}
+.btn.btnPrimary{background:#c46123;border-color:#c46123;color:#000;}
+.btn.btnWarn{background:#6f1d1d;border-color:#ff8585;}
+.help{color:#d5d9e2;}
+.warn{color:#ffd7ad;font-weight:700;}
+.error{color:#ff9b9b;font-weight:700;}
+.ok{color:#9ff0a6;font-weight:700;}
+.tableWrap{overflow:auto;}
+table{width:100%;border-collapse:collapse;min-width:760px;}
+th,td{border:1px solid #455163;padding:10px;vertical-align:top;}
+th{background:#0f141c;text-align:left;}
+.fullSpan{grid-column:1/-1;}
+.preBlock{white-space:pre-wrap;max-height:480px;overflow:auto;}
+@media (max-width:700px){
+  .wrap{padding:14px;}
+  .topBar h1{font-size:1.6rem;}
+}

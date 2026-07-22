@@ -419,6 +419,16 @@ const PERMISSIONS = Object.freeze({
   FINANCE_READ: 'finance.read',
   FINANCE_WRITE: 'finance.write',
   FINANCE_META: 'finance.meta',
+  FINANCE_FUNDS_MANAGE: 'finance.funds.manage',
+  DONOR_READ: 'donor.read',
+  DONOR_WRITE: 'donor.write',
+  DONOR_MERGE: 'donor.merge',
+  STATEMENTS_MANAGE: 'statements.manage',
+  STATEMENTS_APPROVE: 'statements.approve',
+  BOARD_REPORTS_MANAGE: 'boardReports.manage',
+  CONTROLS_VERIFY: 'controls.verify',
+  CONTROLS_APPROVE_EXCEPTION: 'controls.approveException',
+  HOUSING_MANAGE: 'housing.manage',
   REPORTS_READ: 'reports.read',
   USERS_MANAGE: 'users.manage',
   SUPPORT_SEND: 'support.send',
@@ -435,12 +445,24 @@ const ROLE_PERMISSIONS = Object.freeze({
   [ROLE.FINANCE_ENTRY]: [
     PERMISSIONS.FINANCE_READ,
     PERMISSIONS.FINANCE_WRITE,
+    PERMISSIONS.DONOR_READ,
+    PERMISSIONS.DONOR_WRITE,
     PERMISSIONS.SUPPORT_SEND
   ],
   [ROLE.TREASURER]: [
     PERMISSIONS.FINANCE_READ,
     PERMISSIONS.FINANCE_WRITE,
     PERMISSIONS.FINANCE_META,
+    PERMISSIONS.FINANCE_FUNDS_MANAGE,
+    PERMISSIONS.DONOR_READ,
+    PERMISSIONS.DONOR_WRITE,
+    PERMISSIONS.DONOR_MERGE,
+    PERMISSIONS.STATEMENTS_MANAGE,
+    PERMISSIONS.STATEMENTS_APPROVE,
+    PERMISSIONS.BOARD_REPORTS_MANAGE,
+    PERMISSIONS.CONTROLS_VERIFY,
+    PERMISSIONS.CONTROLS_APPROVE_EXCEPTION,
+    PERMISSIONS.HOUSING_MANAGE,
     PERMISSIONS.REPORTS_READ,
     PERMISSIONS.EXPORTS_RUN,
     PERMISSIONS.SUPPORT_SEND
@@ -549,6 +571,49 @@ function requireAnyPermission(permissions) {
       permissions: list
     });
     return res.status(403).json({ error: 'Forbidden' });
+  };
+}
+
+function hasRole(user, roles) {
+  const wanted = new Set((Array.isArray(roles) ? roles : [roles]).map((r) => normalizeRole(r)));
+  return wanted.has(normalizeRole(user?.role));
+}
+
+function requireRole(roles) {
+  const allowed = Array.isArray(roles) ? roles : [roles];
+  return (req, res, next) => {
+    const user = sessionUser(req);
+    if (!user) {
+      audit('auth_denied', {
+        at: new Date().toISOString(),
+        ip: req.ip,
+        path: req.originalUrl,
+        reason: 'no_session'
+      });
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (hasRole(user, allowed)) return next();
+    audit('authz_denied', {
+      at: new Date().toISOString(),
+      ip: req.ip,
+      path: req.originalUrl,
+      userId: user.id,
+      userEmail: user.email,
+      role: user.role,
+      roles: allowed
+    });
+    return res.status(403).json({ error: 'Forbidden' });
+  };
+}
+
+function auditMetaFromRequest(req) {
+  const user = sessionUser(req);
+  return {
+    at: new Date().toISOString(),
+    ip: req.ip,
+    userId: user?.id || '',
+    userEmail: user?.email || '',
+    role: normalizeRole(user?.role || '')
   };
 }
 
@@ -777,6 +842,30 @@ app.get(['/admin/login', '/admin/login.html', '/admin/login.js', '/admin/login_l
   res.status(404).send('Not found');
 });
 
+function sendAdminFinancePage(res, fileName) {
+  return res.sendFile(path.join(ADMIN_DIR, 'public', fileName));
+}
+
+app.get('/admin/finances/funds', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  return sendAdminFinancePage(res, 'finances_funds.html');
+});
+
+app.get('/admin/finances/donors', requirePermission(PERMISSIONS.DONOR_READ), (req, res) => {
+  return sendAdminFinancePage(res, 'finances_donors.html');
+});
+
+app.get('/admin/finances/reports/board', requirePermission(PERMISSIONS.REPORTS_READ), (req, res) => {
+  return sendAdminFinancePage(res, 'finances_reports_board.html');
+});
+
+app.get('/admin/finances/controls', requirePermission(PERMISSIONS.CONTROLS_VERIFY), (req, res) => {
+  return sendAdminFinancePage(res, 'finances_controls.html');
+});
+
+app.get('/admin/finances/clergy-housing', requirePermission(PERMISSIONS.HOUSING_MANAGE), (req, res) => {
+  return sendAdminFinancePage(res, 'finances_clergy_housing.html');
+});
+
 app.use('/admin', express.static(path.join(ADMIN_DIR, 'public'), {
   extensions: ['html'],
   setHeaders: (res) => {
@@ -811,6 +900,18 @@ const BULLETINS_DATA_PATH = path.join(DATA_DIR, 'bulletins.json');
 const LIVESTREAM_DATA_PATH = path.join(DATA_DIR, 'livestream.json');
 const SETTINGS_DATA_PATH = path.join(DATA_DIR, 'settings.json');
 const FINANCES_DATA_PATH = path.join(DATA_DIR, 'finances.json');
+const PROFILES_DATA_PATH = path.join(DATA_DIR, 'profiles.json');
+const FUNDS_DATA_PATH = path.join(DATA_DIR, 'funds.json');
+const DONORS_DATA_PATH = path.join(DATA_DIR, 'donors.json');
+const STATEMENTS_DATA_PATH = path.join(DATA_DIR, 'contribution_statements.json');
+const CONTROLS_DATA_PATH = path.join(DATA_DIR, 'internal_controls.json');
+const HOUSING_DATA_PATH = path.join(DATA_DIR, 'housing_allowance.json');
+const FINANCE_MIGRATION_REPORT_PATH = path.join(DATA_DIR, 'finance_migration_report.json');
+const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
 
 function normalizeDateOnly(value) {
   const v = String(value || '').trim();
@@ -876,6 +977,424 @@ function sortFinanceEntries(entries) {
     const bt = String(b?.createdAt || '');
     return bt.localeCompare(at);
   });
+}
+
+const DEFAULT_FUND_TYPES = Object.freeze([
+  'General Operating',
+  'Savings',
+  'Emergency Reserve',
+  'Building',
+  'Missions',
+  'Benevolence',
+  'Youth Ministry',
+  'Scholarship',
+  'Memorial',
+  'Capital Project',
+  'Board Designated',
+  'Donor Restricted',
+  'Other'
+]);
+
+function ensureBackupsDir() {
+  ensureDir(BACKUP_DIR);
+}
+
+function writeBackupFile(baseName, payload) {
+  ensureBackupsDir();
+  const safeName = sanitizeSegment(baseName).replace(/[^a-z0-9_-]/gi, '_') || 'backup';
+  const stamp = new Date().toISOString().replace(/[.:]/g, '-');
+  const fileName = `${safeName}_${stamp}.json`;
+  const abs = path.join(BACKUP_DIR, fileName);
+  writeJsonAtomic(abs, payload);
+  return abs;
+}
+
+function parseMoneyCents(value) {
+  if (Number.isFinite(value)) return Math.round(Number(value));
+  return normalizeMoneyToCents(value);
+}
+
+function normalizeFundType(value) {
+  const v = String(value || '').trim();
+  if (!v) return 'Other';
+  const match = DEFAULT_FUND_TYPES.find((t) => t.toLowerCase() === v.toLowerCase());
+  return match || v.slice(0, 80);
+}
+
+function normalizeRestrictionStatus(value) {
+  const v = String(value || '').trim().toLowerCase();
+  if (v === 'unrestricted') return 'unrestricted';
+  if (v === 'board_designated') return 'board_designated';
+  if (v === 'temporarily_restricted') return 'temporarily_restricted';
+  if (v === 'permanently_restricted') return 'permanently_restricted';
+  if (v === 'needs_treasurer_review') return 'needs_treasurer_review';
+  return 'needs_treasurer_review';
+}
+
+function normalizeFundRecord(raw, actor) {
+  const now = new Date().toISOString();
+  const openingBalanceCents = parseMoneyCents(raw?.openingBalanceCents ?? raw?.openingBalance);
+  const minimumBalanceWarningCents = parseMoneyCents(raw?.minimumBalanceWarningCents ?? raw?.minimumBalanceWarning);
+  const budgetAmountCents = parseMoneyCents(raw?.budgetAmountCents ?? raw?.budgetAmount);
+  const active = raw?.active !== false;
+
+  return {
+    id: String(raw?.id || newId()).trim() || newId(),
+    fundName: String(raw?.fundName || raw?.name || '').trim().slice(0, 120),
+    fundCode: String(raw?.fundCode || '').trim().slice(0, 30),
+    description: String(raw?.description || '').trim().slice(0, 500),
+    fundType: normalizeFundType(raw?.fundType),
+    restrictionStatus: normalizeRestrictionStatus(raw?.restrictionStatus),
+    restrictionType: String(raw?.restrictionType || 'none').trim().toLowerCase().slice(0, 60),
+    restrictionPurpose: String(raw?.restrictionPurpose || '').trim().slice(0, 300),
+    restrictionSource: String(raw?.restrictionSource || '').trim().slice(0, 160),
+    effectiveDate: normalizeDateOnly(raw?.effectiveDate),
+    endDate: normalizeDateOnly(raw?.endDate),
+    openingBalanceCents: Number.isFinite(openingBalanceCents) ? openingBalanceCents : 0,
+    minimumBalanceWarningCents: Number.isFinite(minimumBalanceWarningCents) ? Math.max(0, minimumBalanceWarningCents) : 0,
+    budgetAmountCents: Number.isFinite(budgetAmountCents) ? Math.max(0, budgetAmountCents) : 0,
+    associatedBudget: String(raw?.associatedBudget || '').trim().slice(0, 120),
+    responsibleMinistry: String(raw?.responsibleMinistry || '').trim().slice(0, 120),
+    responsibleAdministrator: String(raw?.responsibleAdministrator || '').trim().slice(0, 120),
+    defaultIncomeCategory: String(raw?.defaultIncomeCategory || '').trim().slice(0, 80),
+    defaultExpenseCategory: String(raw?.defaultExpenseCategory || '').trim().slice(0, 80),
+    publicGivingAvailable: raw?.publicGivingAvailable === true,
+    displayOrder: Number.isFinite(Number(raw?.displayOrder)) ? Number(raw.displayOrder) : 999,
+    active,
+    archivedAt: active ? '' : String(raw?.archivedAt || now),
+    notes: String(raw?.notes || '').trim().slice(0, 3000),
+    attachments: Array.isArray(raw?.attachments) ? raw.attachments.slice(0, 50) : [],
+    bankAccounts: Array.isArray(raw?.bankAccounts) ? uniqNonEmptyStrings(raw.bankAccounts).slice(0, 20) : [],
+    createdAt: String(raw?.createdAt || now),
+    createdBy: String(raw?.createdBy || actor?.id || '').slice(0, 120),
+    updatedAt: now,
+    updatedBy: String(actor?.id || raw?.updatedBy || '').slice(0, 120)
+  };
+}
+
+function loadFundsData() {
+  const data = readJson(FUNDS_DATA_PATH, {
+    funds: [],
+    customFundTypes: [],
+    transfers: [],
+    releases: [],
+    audit: []
+  });
+  return {
+    funds: Array.isArray(data?.funds) ? data.funds : [],
+    customFundTypes: uniqNonEmptyStrings(data?.customFundTypes || []),
+    transfers: Array.isArray(data?.transfers) ? data.transfers : [],
+    releases: Array.isArray(data?.releases) ? data.releases : [],
+    audit: Array.isArray(data?.audit) ? data.audit : []
+  };
+}
+
+function saveFundsData(data) {
+  writeJsonAtomic(FUNDS_DATA_PATH, {
+    funds: Array.isArray(data?.funds) ? data.funds : [],
+    customFundTypes: uniqNonEmptyStrings(data?.customFundTypes || []),
+    transfers: Array.isArray(data?.transfers) ? data.transfers : [],
+    releases: Array.isArray(data?.releases) ? data.releases : [],
+    audit: Array.isArray(data?.audit) ? data.audit : []
+  });
+}
+
+function findFundByAnyKey(funds, key) {
+  const k = String(key || '').trim().toLowerCase();
+  if (!k) return null;
+  return (funds || []).find((f) => {
+    const id = String(f?.id || '').toLowerCase();
+    const name = String(f?.fundName || '').toLowerCase();
+    const code = String(f?.fundCode || '').toLowerCase();
+    return k === id || k === name || k === code;
+  }) || null;
+}
+
+function getApprovedTransfers(transfers) {
+  return (transfers || []).filter((t) => String(t?.status || '') === 'approved');
+}
+
+function getFundBalances() {
+  const finance = loadFinances();
+  const fundsData = loadFundsData();
+  const funds = fundsData.funds || [];
+
+  const byFund = new Map();
+  for (const f of funds) {
+    byFund.set(String(f.id), {
+      fundId: String(f.id),
+      currentBalanceCents: Number(f.openingBalanceCents || 0),
+      availableBalanceCents: Number(f.openingBalanceCents || 0),
+      pendingDepositsCents: 0,
+      pendingExpensesCents: 0,
+      ytdIncomeCents: 0,
+      ytdExpenseCents: 0,
+      lastActivityDate: '',
+      assignedCount: 0
+    });
+  }
+
+  const thisYear = new Date().getUTCFullYear();
+  const entries = Array.isArray(finance.entries) ? finance.entries : [];
+  for (const e of entries) {
+    const fund = findFundByAnyKey(funds, e.fundId || e.fund);
+    if (!fund) continue;
+    const id = String(fund.id);
+    const row = byFund.get(id);
+    if (!row) continue;
+
+    const amount = Math.abs(Number(e.amountCents || 0));
+    if (!amount) continue;
+    const type = String(e.type || '').toLowerCase();
+    const status = String(e.status || 'posted').toLowerCase();
+    const entryDate = normalizeDateOnly(e.date);
+
+    row.assignedCount += 1;
+    if (!row.lastActivityDate || entryDate > row.lastActivityDate) row.lastActivityDate = entryDate;
+
+    if (type === 'income') {
+      if (status === 'pending') row.pendingDepositsCents += amount;
+      else row.currentBalanceCents += amount;
+      if (entryDate.startsWith(`${thisYear}-`)) row.ytdIncomeCents += amount;
+    } else if (type === 'expense') {
+      if (status === 'pending') row.pendingExpensesCents += amount;
+      else row.currentBalanceCents -= amount;
+      if (entryDate.startsWith(`${thisYear}-`)) row.ytdExpenseCents += amount;
+    }
+  }
+
+  for (const t of getApprovedTransfers(fundsData.transfers)) {
+    const amount = Math.abs(Number(t?.amountCents || 0));
+    if (!amount) continue;
+    const from = byFund.get(String(t?.fromFundId || ''));
+    const to = byFund.get(String(t?.toFundId || ''));
+    if (from) {
+      from.currentBalanceCents -= amount;
+      if (!from.lastActivityDate || String(t.approvedAt || '') > from.lastActivityDate) {
+        from.lastActivityDate = normalizeDateOnly(t.approvedAt);
+      }
+    }
+    if (to) {
+      to.currentBalanceCents += amount;
+      if (!to.lastActivityDate || String(t.approvedAt || '') > to.lastActivityDate) {
+        to.lastActivityDate = normalizeDateOnly(t.approvedAt);
+      }
+    }
+  }
+
+  for (const f of funds) {
+    const row = byFund.get(String(f.id));
+    if (!row) continue;
+    row.availableBalanceCents = row.currentBalanceCents - row.pendingExpensesCents;
+    if (['temporarily_restricted', 'permanently_restricted'].includes(String(f.restrictionStatus))) {
+      row.availableBalanceCents = Math.max(0, row.availableBalanceCents);
+    }
+  }
+
+  return { fundsData, balances: byFund };
+}
+
+function normalizeDonor(raw, actor) {
+  const now = new Date().toISOString();
+  return {
+    id: String(raw?.id || newId()).trim() || newId(),
+    firstName: String(raw?.firstName || '').trim().slice(0, 80),
+    middleName: String(raw?.middleName || '').trim().slice(0, 80),
+    lastName: String(raw?.lastName || '').trim().slice(0, 80),
+    preferredName: String(raw?.preferredName || '').trim().slice(0, 80),
+    householdId: String(raw?.householdId || '').trim().slice(0, 80),
+    spouseDonorId: String(raw?.spouseDonorId || '').trim().slice(0, 80),
+    mailingAddress: String(raw?.mailingAddress || '').trim().slice(0, 300),
+    email: String(raw?.email || '').trim().toLowerCase().slice(0, 254),
+    phone: String(raw?.phone || '').trim().slice(0, 30),
+    envelopeNumber: String(raw?.envelopeNumber || '').trim().slice(0, 30),
+    preferredStatementDelivery: String(raw?.preferredStatementDelivery || 'mail').trim().toLowerCase().slice(0, 30),
+    active: raw?.active !== false,
+    anonymousGiving: raw?.anonymousGiving === true,
+    statementEligible: raw?.statementEligible !== false,
+    taxReviewStatus: String(raw?.taxReviewStatus || 'needs_review').trim().toLowerCase().slice(0, 40),
+    restrictedNotes: String(raw?.restrictedNotes || '').trim().slice(0, 4000),
+    documents: Array.isArray(raw?.documents) ? raw.documents.slice(0, 50) : [],
+    createdAt: String(raw?.createdAt || now),
+    updatedAt: now,
+    createdBy: String(raw?.createdBy || actor?.id || '').slice(0, 120),
+    updatedBy: String(actor?.id || raw?.updatedBy || '').slice(0, 120)
+  };
+}
+
+function loadDonorsData() {
+  const data = readJson(DONORS_DATA_PATH, { donors: [], households: [], merges: [] });
+  return {
+    donors: Array.isArray(data?.donors) ? data.donors : [],
+    households: Array.isArray(data?.households) ? data.households : [],
+    merges: Array.isArray(data?.merges) ? data.merges : []
+  };
+}
+
+function saveDonorsData(data) {
+  writeJsonAtomic(DONORS_DATA_PATH, {
+    donors: Array.isArray(data?.donors) ? data.donors : [],
+    households: Array.isArray(data?.households) ? data.households : [],
+    merges: Array.isArray(data?.merges) ? data.merges : []
+  });
+}
+
+function donorDisplayName(d) {
+  const first = String(d?.preferredName || d?.firstName || '').trim();
+  const last = String(d?.lastName || '').trim();
+  return `${first} ${last}`.trim();
+}
+
+function findPossibleDonorDuplicates(donors, candidate) {
+  const nameKey = donorDisplayName(candidate).toLowerCase();
+  const email = String(candidate?.email || '').toLowerCase();
+  const phone = String(candidate?.phone || '').replace(/\D/g, '');
+  const envelope = String(candidate?.envelopeNumber || '').toLowerCase();
+  const address = String(candidate?.mailingAddress || '').toLowerCase();
+  const householdId = String(candidate?.householdId || '').toLowerCase();
+
+  return (donors || []).filter((d) => {
+    if (candidate?.id && String(d.id) === String(candidate.id)) return false;
+    const dName = donorDisplayName(d).toLowerCase();
+    const dEmail = String(d?.email || '').toLowerCase();
+    const dPhone = String(d?.phone || '').replace(/\D/g, '');
+    const dEnvelope = String(d?.envelopeNumber || '').toLowerCase();
+    const dAddress = String(d?.mailingAddress || '').toLowerCase();
+    const dHousehold = String(d?.householdId || '').toLowerCase();
+    return (
+      (nameKey && dName && dName === nameKey)
+      || (email && dEmail && dEmail === email)
+      || (phone && dPhone && dPhone === phone)
+      || (envelope && dEnvelope && dEnvelope === envelope)
+      || (address && dAddress && dAddress === address)
+      || (householdId && dHousehold && dHousehold === householdId)
+    );
+  }).slice(0, 20);
+}
+
+function loadStatementsData() {
+  const data = readJson(STATEMENTS_DATA_PATH, {
+    templates: {
+      acknowledgmentLanguage: 'Thank you for your faithful giving and support.',
+      intangibleReligiousBenefitLanguage: 'No goods or services were provided in exchange for these contributions other than intangible religious benefits.'
+    },
+    statements: [],
+    deliveries: []
+  });
+  return {
+    templates: data?.templates && typeof data.templates === 'object' ? data.templates : {},
+    statements: Array.isArray(data?.statements) ? data.statements : [],
+    deliveries: Array.isArray(data?.deliveries) ? data.deliveries : []
+  };
+}
+
+function saveStatementsData(data) {
+  writeJsonAtomic(STATEMENTS_DATA_PATH, {
+    templates: data?.templates && typeof data.templates === 'object' ? data.templates : {},
+    statements: Array.isArray(data?.statements) ? data.statements : [],
+    deliveries: Array.isArray(data?.deliveries) ? data.deliveries : []
+  });
+}
+
+function loadControlsData() {
+  const data = readJson(CONTROLS_DATA_PATH, {
+    twoPersonVerificationEnabled: true,
+    collections: [],
+    exceptions: []
+  });
+  return {
+    twoPersonVerificationEnabled: data?.twoPersonVerificationEnabled !== false,
+    collections: Array.isArray(data?.collections) ? data.collections : [],
+    exceptions: Array.isArray(data?.exceptions) ? data.exceptions : []
+  };
+}
+
+function saveControlsData(data) {
+  writeJsonAtomic(CONTROLS_DATA_PATH, {
+    twoPersonVerificationEnabled: data?.twoPersonVerificationEnabled !== false,
+    collections: Array.isArray(data?.collections) ? data.collections : [],
+    exceptions: Array.isArray(data?.exceptions) ? data.exceptions : []
+  });
+}
+
+function loadHousingData() {
+  const data = readJson(HOUSING_DATA_PATH, { profiles: [], annualRecords: [] });
+  return {
+    profiles: Array.isArray(data?.profiles) ? data.profiles : [],
+    annualRecords: Array.isArray(data?.annualRecords) ? data.annualRecords : []
+  };
+}
+
+function saveHousingData(data) {
+  writeJsonAtomic(HOUSING_DATA_PATH, {
+    profiles: Array.isArray(data?.profiles) ? data.profiles : [],
+    annualRecords: Array.isArray(data?.annualRecords) ? data.annualRecords : []
+  });
+}
+
+function normalizeFinanceStatementPeriod(rawFrom, rawTo) {
+  const from = normalizeDateOnly(rawFrom);
+  const to = normalizeDateOnly(rawTo);
+  if (!from || !to || from > to) return null;
+  return { from, to };
+}
+
+function migrateLegacyFundsAndAssignments() {
+  const finance = loadFinances();
+  const fundsData = loadFundsData();
+  const entries = Array.isArray(finance.entries) ? finance.entries : [];
+  let changed = false;
+
+  if (!fundsData.funds.length) {
+    const names = uniqNonEmptyStrings([
+      ...(finance.meta?.funds || []),
+      ...entries.map((e) => String(e?.fund || '').trim())
+    ]);
+    const now = new Date().toISOString();
+    for (const name of names) {
+      fundsData.funds.push(normalizeFundRecord({
+        id: newId(),
+        fundName: name,
+        fundCode: name.replace(/\s+/g, '_').toUpperCase().slice(0, 20),
+        description: 'Migrated from existing finance records. Needs Treasurer Review.',
+        fundType: 'Other',
+        restrictionStatus: 'needs_treasurer_review',
+        restrictionType: 'none',
+        openingBalanceCents: 0,
+        active: true,
+        createdAt: now,
+        updatedAt: now
+      }, { id: 'migration' }));
+    }
+    changed = names.length > 0;
+  }
+
+  for (const entry of entries) {
+    if (entry.fundId) continue;
+    const found = findFundByAnyKey(fundsData.funds, entry.fund);
+    if (!found) continue;
+    entry.fundId = String(found.id);
+    changed = true;
+  }
+
+  if (!changed) return { changed: false, report: null };
+
+  const beforeBackup = writeBackupFile('finances_before_fund_migration', finance);
+  saveFinances(finance);
+  saveFundsData(fundsData);
+
+  const report = {
+    migratedAt: new Date().toISOString(),
+    beforeBackup,
+    fundsCreated: fundsData.funds.length,
+    entriesUpdated: entries.filter((e) => !!e.fundId).length,
+    notes: [
+      'Restriction classifications with unclear legacy values were marked as Needs Treasurer Review.',
+      'Original fund names were preserved while adding stable fund IDs.'
+    ]
+  };
+  writeJsonAtomic(FINANCE_MIGRATION_REPORT_PATH, report);
+  return { changed: true, report };
 }
 
 function loadUsers() {
@@ -2254,15 +2773,34 @@ app.post('/api/finances/entries', requirePermission(PERMISSIONS.FINANCE_WRITE), 
   const type = String(req.body?.type || '').trim().toLowerCase();
   const category = normalizeFinanceText(req.body?.category, 80);
   const fund = normalizeFinanceText(req.body?.fund, 80);
+  const fundIdInput = String(req.body?.fundId || '').trim();
   const method = normalizeFinanceText(req.body?.method, 24).toLowerCase();
   const party = normalizeFinanceText(req.body?.party, 120);
   const memo = normalizeFinanceText(req.body?.memo, 200);
   const amountCents = normalizeMoneyToCents(req.body?.amount);
+  const donorId = String(req.body?.donorId || '').trim();
+  const statementReviewStatus = String(req.body?.statementReviewStatus || 'needs_review').trim().toLowerCase();
+  const goodsServicesValueCents = parseMoneyCents(req.body?.goodsServicesValueCents ?? req.body?.goodsServicesValue);
 
   if (!date) return res.status(400).json({ error: 'Valid date required.' });
   if (type !== 'income' && type !== 'expense') return res.status(400).json({ error: 'Type must be income or expense.' });
   if (!category) return res.status(400).json({ error: 'Category required.' });
   if (!Number.isFinite(amountCents) || amountCents <= 0) return res.status(400).json({ error: 'Amount must be greater than 0.' });
+  if (!fund && !fundIdInput) return res.status(400).json({ error: 'Please select a fund before saving this transaction.' });
+
+  const { fundsData, balances } = getFundBalances();
+  const selectedFund = findFundByAnyKey(fundsData.funds, fundIdInput || fund);
+  if (!selectedFund) return res.status(400).json({ error: 'The selected fund could not be found. Choose a valid fund.' });
+  if (selectedFund.active === false) return res.status(400).json({ error: 'This fund is archived. Reactivate it before posting transactions.' });
+
+  const fundBalance = balances.get(String(selectedFund.id));
+  const available = Number(fundBalance?.availableBalanceCents || 0);
+  const isRestricted = ['temporarily_restricted', 'permanently_restricted'].includes(String(selectedFund.restrictionStatus));
+  if (type === 'expense' && amountCents > available) {
+    const base = 'The selected fund does not have enough available money.';
+    if (isRestricted) return res.status(400).json({ error: `${base} This expense would use money from a restricted fund.` });
+    return res.status(400).json({ error: base });
+  }
 
   const data = loadFinances();
   const entries = Array.isArray(data.entries) ? data.entries : [];
@@ -2273,10 +2811,15 @@ app.post('/api/finances/entries', requirePermission(PERMISSIONS.FINANCE_WRITE), 
     date,
     type,
     category,
-    fund,
+    fund: selectedFund.fundName,
+    fundId: selectedFund.id,
     method,
     party,
     memo,
+    donorId,
+    statementReviewStatus,
+    goodsServicesValueCents: Number.isFinite(goodsServicesValueCents) ? Math.max(0, goodsServicesValueCents) : 0,
+    status: String(req.body?.status || 'posted').trim().toLowerCase() === 'pending' ? 'pending' : 'posted',
     amountCents,
     createdAt: new Date().toISOString()
   };
@@ -2286,10 +2829,21 @@ app.post('/api/finances/entries', requirePermission(PERMISSIONS.FINANCE_WRITE), 
 
   const nextMeta = {
     categories: uniqNonEmptyStrings([...(meta.categories || []), category]),
-    funds: uniqNonEmptyStrings([...(meta.funds || []), fund])
+    funds: uniqNonEmptyStrings([...(meta.funds || []), selectedFund.fundName])
   };
   const next = { entries, meta: nextMeta };
   saveFinances(next);
+  audit('finance_entry_created', {
+    ...auditMetaFromRequest(req),
+    recordType: 'finance_entry',
+    recordId: entry.id,
+    newValues: {
+      date: entry.date,
+      type: entry.type,
+      fundId: entry.fundId,
+      amountCents: entry.amountCents
+    }
+  });
   res.json({ ok: true, entry, data: next });
 });
 
@@ -2299,28 +2853,60 @@ app.put('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WRITE
   const type = String(req.body?.type || '').trim().toLowerCase();
   const category = normalizeFinanceText(req.body?.category, 80);
   const fund = normalizeFinanceText(req.body?.fund, 80);
+  const fundIdInput = String(req.body?.fundId || '').trim();
   const method = normalizeFinanceText(req.body?.method, 24).toLowerCase();
   const party = normalizeFinanceText(req.body?.party, 120);
   const memo = normalizeFinanceText(req.body?.memo, 200);
   const amountCents = normalizeMoneyToCents(req.body?.amount);
+  const donorId = String(req.body?.donorId || '').trim();
+  const statementReviewStatus = String(req.body?.statementReviewStatus || 'needs_review').trim().toLowerCase();
+  const goodsServicesValueCents = parseMoneyCents(req.body?.goodsServicesValueCents ?? req.body?.goodsServicesValue);
 
   if (!date) return res.status(400).json({ error: 'Valid date required.' });
   if (type !== 'income' && type !== 'expense') return res.status(400).json({ error: 'Type must be income or expense.' });
   if (!category) return res.status(400).json({ error: 'Category required.' });
   if (!Number.isFinite(amountCents) || amountCents <= 0) return res.status(400).json({ error: 'Amount must be greater than 0.' });
+  if (!fund && !fundIdInput) return res.status(400).json({ error: 'Please select a fund before saving this transaction.' });
+
+  const { fundsData, balances } = getFundBalances();
+  const selectedFund = findFundByAnyKey(fundsData.funds, fundIdInput || fund);
+  if (!selectedFund) return res.status(400).json({ error: 'The selected fund could not be found. Choose a valid fund.' });
+  if (selectedFund.active === false) return res.status(400).json({ error: 'This fund is archived. Reactivate it before posting transactions.' });
+
+  const fundBalance = balances.get(String(selectedFund.id));
+  const available = Number(fundBalance?.availableBalanceCents || 0);
+  const isRestricted = ['temporarily_restricted', 'permanently_restricted'].includes(String(selectedFund.restrictionStatus));
+  if (type === 'expense' && amountCents > available) {
+    const base = 'The selected fund does not have enough available money.';
+    if (isRestricted) return res.status(400).json({ error: `${base} This expense would use money from a restricted fund.` });
+    return res.status(400).json({ error: base });
+  }
 
   const data = loadFinances();
   const entries = Array.isArray(data.entries) ? data.entries : [];
   const entry = entries.find((e) => e.id === id);
   if (!entry) return res.status(404).json({ error: 'Not found' });
 
+  const prev = {
+    date: entry.date,
+    type: entry.type,
+    category: entry.category,
+    fundId: entry.fundId || '',
+    amountCents: entry.amountCents
+  };
+
   entry.date = date;
   entry.type = type;
   entry.category = category;
-  entry.fund = fund;
+  entry.fund = selectedFund.fundName;
+  entry.fundId = selectedFund.id;
   entry.method = method;
   entry.party = party;
   entry.memo = memo;
+  entry.donorId = donorId;
+  entry.statementReviewStatus = statementReviewStatus;
+  entry.goodsServicesValueCents = Number.isFinite(goodsServicesValueCents) ? Math.max(0, goodsServicesValueCents) : 0;
+  entry.status = String(req.body?.status || entry.status || 'posted').trim().toLowerCase() === 'pending' ? 'pending' : 'posted';
   entry.amountCents = amountCents;
   entry.updatedAt = new Date().toISOString();
 
@@ -2328,10 +2914,23 @@ app.put('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WRITE
   const meta = data.meta && typeof data.meta === 'object' ? data.meta : { categories: [], funds: [] };
   const nextMeta = {
     categories: uniqNonEmptyStrings([...(meta.categories || []), category]),
-    funds: uniqNonEmptyStrings([...(meta.funds || []), fund])
+    funds: uniqNonEmptyStrings([...(meta.funds || []), selectedFund.fundName])
   };
   const next = { entries, meta: nextMeta };
   saveFinances(next);
+  audit('finance_entry_edited', {
+    ...auditMetaFromRequest(req),
+    recordType: 'finance_entry',
+    recordId: entry.id,
+    previousValues: prev,
+    newValues: {
+      date: entry.date,
+      type: entry.type,
+      category: entry.category,
+      fundId: entry.fundId,
+      amountCents: entry.amountCents
+    }
+  });
   res.json({ ok: true, entry, data: next });
 });
 
@@ -2342,7 +2941,1131 @@ app.delete('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WR
   const nextEntries = entries.filter((e) => e.id !== id);
   const next = { entries: nextEntries, meta: data.meta || { categories: [], funds: [] } };
   saveFinances(next);
+  audit('finance_entry_deleted', {
+    ...auditMetaFromRequest(req),
+    recordType: 'finance_entry',
+    recordId: id
+  });
   res.json({ ok: true, data: next });
+});
+
+app.get('/api/finances/migration-report', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  res.json(readJson(FINANCE_MIGRATION_REPORT_PATH, { migratedAt: '', notes: [] }));
+});
+
+app.get('/api/finances/funds/types', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  const data = loadFundsData();
+  res.json({
+    defaultFundTypes: DEFAULT_FUND_TYPES,
+    customFundTypes: data.customFundTypes || []
+  });
+});
+
+app.post('/api/finances/funds/types', requirePermission(PERMISSIONS.FINANCE_FUNDS_MANAGE), (req, res) => {
+  const user = sessionUser(req);
+  if (!hasRole(user, [ROLE.ADMINISTRATOR, ROLE.TREASURER])) {
+    return res.status(403).json({ error: 'Only an Administrator or Treasurer can add custom fund types.' });
+  }
+
+  const type = String(req.body?.type || '').trim().slice(0, 80);
+  if (!type) return res.status(400).json({ error: 'Fund type name is required.' });
+  const data = loadFundsData();
+  data.customFundTypes = uniqNonEmptyStrings([...(data.customFundTypes || []), type]);
+  saveFundsData(data);
+  audit('fund_type_added', {
+    ...auditMetaFromRequest(req),
+    action: 'fund_type_added',
+    newValues: { type }
+  });
+  res.json({ ok: true, customFundTypes: data.customFundTypes });
+});
+
+app.get('/api/finances/funds', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  const data = loadFundsData();
+  const { balances } = getFundBalances();
+  const funds = data.funds.map((f) => {
+    const b = balances.get(String(f.id)) || {
+      currentBalanceCents: Number(f.openingBalanceCents || 0),
+      availableBalanceCents: Number(f.openingBalanceCents || 0),
+      pendingDepositsCents: 0,
+      pendingExpensesCents: 0,
+      ytdIncomeCents: 0,
+      ytdExpenseCents: 0,
+      lastActivityDate: ''
+    };
+    return { ...f, ...b, remainingBudgetCents: Number(f.budgetAmountCents || 0) - Number(b.ytdExpenseCents || 0) };
+  });
+  res.json({
+    funds: funds.sort((a, b) => Number(a.displayOrder || 999) - Number(b.displayOrder || 999) || String(a.fundName).localeCompare(String(b.fundName))),
+    customFundTypes: data.customFundTypes || []
+  });
+});
+
+app.get('/api/finances/funds/dashboard', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  const finance = loadFinances();
+  const { fundsData, balances } = getFundBalances();
+  const funds = fundsData.funds || [];
+  const summary = {
+    totalUnrestrictedFundsCents: 0,
+    totalRestrictedFundsCents: 0,
+    generalOperatingBalanceCents: 0,
+    savingsAndReservesCents: 0,
+    undepositedRestrictedContributionsCents: 0,
+    lowBalanceFundIds: [],
+    overspendingFundIds: [],
+    transactionsRequiringFundAssignment: 0
+  };
+
+  const rows = funds.map((f) => {
+    const b = balances.get(String(f.id)) || {
+      currentBalanceCents: Number(f.openingBalanceCents || 0),
+      availableBalanceCents: Number(f.openingBalanceCents || 0),
+      pendingDepositsCents: 0,
+      pendingExpensesCents: 0,
+      ytdIncomeCents: 0,
+      ytdExpenseCents: 0,
+      lastActivityDate: ''
+    };
+
+    const isRestricted = ['temporarily_restricted', 'permanently_restricted'].includes(String(f.restrictionStatus));
+    const isUnrestricted = ['unrestricted', 'board_designated', 'needs_treasurer_review'].includes(String(f.restrictionStatus));
+    if (isRestricted) summary.totalRestrictedFundsCents += Number(b.currentBalanceCents || 0);
+    if (isUnrestricted) summary.totalUnrestrictedFundsCents += Number(b.currentBalanceCents || 0);
+    if (String(f.fundType).toLowerCase() === 'general operating') summary.generalOperatingBalanceCents += Number(b.currentBalanceCents || 0);
+    if (['savings', 'emergency reserve'].includes(String(f.fundType).toLowerCase())) {
+      summary.savingsAndReservesCents += Number(b.currentBalanceCents || 0);
+    }
+    if (isRestricted) summary.undepositedRestrictedContributionsCents += Number(b.pendingDepositsCents || 0);
+    if (Number(f.minimumBalanceWarningCents || 0) > 0 && Number(b.availableBalanceCents || 0) <= Number(f.minimumBalanceWarningCents || 0)) {
+      summary.lowBalanceFundIds.push(String(f.id));
+    }
+    if (Number(f.budgetAmountCents || 0) > 0 && Number(b.ytdExpenseCents || 0) > Number(f.budgetAmountCents || 0)) {
+      summary.overspendingFundIds.push(String(f.id));
+    }
+
+    return {
+      ...f,
+      ...b,
+      remainingBudgetCents: Number(f.budgetAmountCents || 0) - Number(b.ytdExpenseCents || 0)
+    };
+  });
+
+  summary.transactionsRequiringFundAssignment = (Array.isArray(finance.entries) ? finance.entries : [])
+    .filter((e) => !String(e?.fundId || '').trim() && !String(e?.fund || '').trim()).length;
+
+  const warnings = [
+    'This expense would use money from a restricted fund.',
+    'The selected fund does not have enough available money.',
+    'This contribution is restricted to the Building Fund.',
+    'General operating money cannot be substituted without authorization.'
+  ];
+
+  res.json({ summary, funds: rows, warnings });
+});
+
+app.post('/api/finances/funds', requirePermission(PERMISSIONS.FINANCE_FUNDS_MANAGE), (req, res) => {
+  const user = sessionUser(req);
+  const data = loadFundsData();
+  const fund = normalizeFundRecord(req.body || {}, user);
+  if (!fund.fundName) return res.status(400).json({ error: 'Fund name is required.' });
+  if (data.funds.some((f) => String(f.fundName).toLowerCase() === fund.fundName.toLowerCase())) {
+    return res.status(409).json({ error: 'A fund with that name already exists.' });
+  }
+  if (fund.fundCode && data.funds.some((f) => String(f.fundCode || '').toLowerCase() === fund.fundCode.toLowerCase())) {
+    return res.status(409).json({ error: 'A fund with that code already exists.' });
+  }
+  data.funds.push(fund);
+  saveFundsData(data);
+  audit('fund_created', {
+    ...auditMetaFromRequest(req),
+    recordType: 'fund',
+    recordId: fund.id,
+    newValues: fund
+  });
+  res.json({ ok: true, fund });
+});
+
+app.put('/api/finances/funds/:id', requirePermission(PERMISSIONS.FINANCE_FUNDS_MANAGE), (req, res) => {
+  const user = sessionUser(req);
+  const id = String(req.params.id);
+  const data = loadFundsData();
+  const idx = data.funds.findIndex((f) => String(f.id) === id);
+  if (idx < 0) return res.status(404).json({ error: 'Fund not found.' });
+
+  const prev = data.funds[idx];
+  const next = normalizeFundRecord({ ...prev, ...(req.body || {}), id: prev.id, createdAt: prev.createdAt, createdBy: prev.createdBy }, user);
+  data.funds[idx] = next;
+  saveFundsData(data);
+  audit('fund_edited', {
+    ...auditMetaFromRequest(req),
+    recordType: 'fund',
+    recordId: next.id,
+    previousValues: prev,
+    newValues: next,
+    reason: String(req.body?.reason || '').trim().slice(0, 400)
+  });
+  res.json({ ok: true, fund: next });
+});
+
+app.post('/api/finances/funds/:id/archive', requirePermission(PERMISSIONS.FINANCE_FUNDS_MANAGE), (req, res) => {
+  const id = String(req.params.id);
+  const data = loadFundsData();
+  const fund = data.funds.find((f) => String(f.id) === id);
+  if (!fund) return res.status(404).json({ error: 'Fund not found.' });
+
+  const finance = loadFinances();
+  const entries = Array.isArray(finance.entries) ? finance.entries : [];
+  const pendingDeposits = entries.some((e) => String(e?.fundId || '') === id && String(e?.type || '') === 'income' && String(e?.status || 'posted') === 'pending');
+  const pendingExpenses = entries.some((e) => String(e?.fundId || '') === id && String(e?.type || '') === 'expense' && String(e?.status || 'posted') === 'pending');
+  const hasRecurring = entries.some((e) => String(e?.fundId || '') === id && e?.isRecurring === true);
+  const hasGivingLink = fund.publicGivingAvailable === true;
+  const { balances } = getFundBalances();
+  const bal = balances.get(id);
+  const nonZero = Math.abs(Number(bal?.currentBalanceCents || 0)) > 0;
+  if (nonZero || pendingDeposits || pendingExpenses || hasRecurring || hasGivingLink) {
+    return res.status(400).json({
+      error: 'This fund cannot be archived yet.',
+      resolution: {
+        nonZeroBalance: nonZero,
+        pendingDeposits,
+        pendingExpenses,
+        recurringTransactions: hasRecurring,
+        activeGivingLinks: hasGivingLink,
+        message: 'Resolve nonzero balances, pending items, recurring entries, and active giving links before archiving.'
+      }
+    });
+  }
+
+  const prev = { ...fund };
+  fund.active = false;
+  fund.archivedAt = new Date().toISOString();
+  fund.updatedAt = new Date().toISOString();
+  fund.updatedBy = sessionUser(req)?.id || '';
+  saveFundsData(data);
+  audit('fund_archived', {
+    ...auditMetaFromRequest(req),
+    recordType: 'fund',
+    recordId: fund.id,
+    previousValues: prev,
+    newValues: fund
+  });
+  res.json({ ok: true, fund });
+});
+
+app.post('/api/finances/funds/:id/reactivate', requirePermission(PERMISSIONS.FINANCE_FUNDS_MANAGE), (req, res) => {
+  const id = String(req.params.id);
+  const data = loadFundsData();
+  const fund = data.funds.find((f) => String(f.id) === id);
+  if (!fund) return res.status(404).json({ error: 'Fund not found.' });
+  const prev = { ...fund };
+  fund.active = true;
+  fund.archivedAt = '';
+  fund.updatedAt = new Date().toISOString();
+  fund.updatedBy = sessionUser(req)?.id || '';
+  saveFundsData(data);
+  audit('fund_reactivated', {
+    ...auditMetaFromRequest(req),
+    recordType: 'fund',
+    recordId: fund.id,
+    previousValues: prev,
+    newValues: fund
+  });
+  res.json({ ok: true, fund });
+});
+
+app.get('/api/finances/funds/:id/activity', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  const id = String(req.params.id);
+  const finance = loadFinances();
+  const fundData = loadFundsData();
+  const entries = (finance.entries || []).filter((e) => String(e?.fundId || '') === id);
+  const transfers = (fundData.transfers || []).filter((t) => String(t?.fromFundId || '') === id || String(t?.toFundId || '') === id);
+  const releases = (fundData.releases || []).filter((r) => String(r?.fundId || '') === id);
+  res.json({ entries, transfers, releases });
+});
+
+app.post('/api/finances/funds/transfers', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
+  const user = sessionUser(req);
+  const fromFundId = String(req.body?.fromFundId || '').trim();
+  const toFundId = String(req.body?.toFundId || '').trim();
+  const amountCents = parseMoneyCents(req.body?.amountCents ?? req.body?.amount);
+  const reason = String(req.body?.reason || '').trim().slice(0, 400);
+  if (!fromFundId || !toFundId || fromFundId === toFundId) return res.status(400).json({ error: 'Choose two different funds for this transfer.' });
+  if (!Number.isFinite(amountCents) || amountCents <= 0) return res.status(400).json({ error: 'Enter a transfer amount greater than 0.' });
+
+  const data = loadFundsData();
+  const fromFund = findFundByAnyKey(data.funds, fromFundId);
+  const toFund = findFundByAnyKey(data.funds, toFundId);
+  if (!fromFund || !toFund) return res.status(400).json({ error: 'One or both selected funds were not found.' });
+
+  const { balances } = getFundBalances();
+  const fromBalance = balances.get(String(fromFund.id));
+  if (Number(fromBalance?.availableBalanceCents || 0) < amountCents) {
+    return res.status(400).json({ error: 'The selected fund does not have enough available money.' });
+  }
+
+  const touchesRestricted = ['temporarily_restricted', 'permanently_restricted'].includes(String(fromFund.restrictionStatus))
+    || ['temporarily_restricted', 'permanently_restricted'].includes(String(toFund.restrictionStatus));
+
+  const transfer = {
+    id: newId(),
+    fromFundId: String(fromFund.id),
+    toFundId: String(toFund.id),
+    amountCents,
+    reason,
+    requestedBy: user?.id || '',
+    requestedAt: new Date().toISOString(),
+    status: touchesRestricted ? 'pending_approval' : 'approved',
+    approvedBy: '',
+    approvedAt: ''
+  };
+
+  if (touchesRestricted && !hasRole(user, [ROLE.ADMINISTRATOR, ROLE.TREASURER])) {
+    transfer.status = 'pending_approval';
+  }
+  if (!touchesRestricted && hasRole(user, [ROLE.ADMINISTRATOR, ROLE.TREASURER])) {
+    transfer.approvedBy = user.id;
+    transfer.approvedAt = new Date().toISOString();
+  }
+
+  data.transfers.unshift(transfer);
+  saveFundsData(data);
+  audit('fund_transfer_created', {
+    ...auditMetaFromRequest(req),
+    recordType: 'fund_transfer',
+    recordId: transfer.id,
+    newValues: transfer
+  });
+
+  if (touchesRestricted) {
+    return res.json({
+      ok: true,
+      transfer,
+      warning: 'General operating money cannot be substituted without authorization.'
+    });
+  }
+  return res.json({ ok: true, transfer });
+});
+
+app.post('/api/finances/funds/transfers/:id/approve', requirePermission(PERMISSIONS.FINANCE_FUNDS_MANAGE), (req, res) => {
+  const user = sessionUser(req);
+  if (!hasRole(user, [ROLE.ADMINISTRATOR, ROLE.TREASURER])) {
+    return res.status(403).json({ error: 'Only an Administrator or Treasurer can approve this transfer.' });
+  }
+  const id = String(req.params.id);
+  const data = loadFundsData();
+  const t = data.transfers.find((x) => String(x.id) === id);
+  if (!t) return res.status(404).json({ error: 'Transfer not found.' });
+  if (String(t.requestedBy || '') === String(user?.id || '')) {
+    return res.status(400).json({ error: 'A user cannot approve their own transfer override.' });
+  }
+  if (String(t.status) === 'approved') return res.json({ ok: true, transfer: t });
+  t.status = 'approved';
+  t.approvedBy = user?.id || '';
+  t.approvedAt = new Date().toISOString();
+  saveFundsData(data);
+  audit('fund_transfer_approved', {
+    ...auditMetaFromRequest(req),
+    recordType: 'fund_transfer',
+    recordId: t.id,
+    newValues: { status: t.status, approvedBy: t.approvedBy, approvedAt: t.approvedAt }
+  });
+  res.json({ ok: true, transfer: t });
+});
+
+app.post('/api/finances/funds/releases', requirePermission(PERMISSIONS.FINANCE_FUNDS_MANAGE), (req, res) => {
+  const fundId = String(req.body?.fundId || '').trim();
+  const amountCents = parseMoneyCents(req.body?.amountCents ?? req.body?.amount);
+  const reason = String(req.body?.reason || '').trim().slice(0, 400);
+  if (!fundId) return res.status(400).json({ error: 'Fund is required for release from restriction.' });
+  if (!Number.isFinite(amountCents) || amountCents <= 0) return res.status(400).json({ error: 'Release amount must be greater than 0.' });
+
+  const data = loadFundsData();
+  const fund = findFundByAnyKey(data.funds, fundId);
+  if (!fund) return res.status(404).json({ error: 'Fund not found.' });
+  if (!['temporarily_restricted', 'permanently_restricted'].includes(String(fund.restrictionStatus))) {
+    return res.status(400).json({ error: 'Only restricted funds can be released from restriction.' });
+  }
+
+  const release = {
+    id: newId(),
+    fundId: String(fund.id),
+    amountCents,
+    reason,
+    requestedBy: sessionUser(req)?.id || '',
+    requestedAt: new Date().toISOString(),
+    status: 'pending_approval',
+    approvedBy: '',
+    approvedAt: ''
+  };
+  data.releases.unshift(release);
+  saveFundsData(data);
+  audit('fund_release_requested', {
+    ...auditMetaFromRequest(req),
+    recordType: 'fund_release',
+    recordId: release.id,
+    newValues: release
+  });
+  res.json({ ok: true, release });
+});
+
+app.post('/api/finances/funds/releases/:id/approve', requirePermission(PERMISSIONS.FINANCE_FUNDS_MANAGE), (req, res) => {
+  const user = sessionUser(req);
+  if (!hasRole(user, [ROLE.ADMINISTRATOR, ROLE.TREASURER])) {
+    return res.status(403).json({ error: 'Only an Administrator or Treasurer can approve releases from restriction.' });
+  }
+  const id = String(req.params.id);
+  const data = loadFundsData();
+  const rel = data.releases.find((r) => String(r.id) === id);
+  if (!rel) return res.status(404).json({ error: 'Release request not found.' });
+  if (String(rel.requestedBy || '') === String(user?.id || '')) {
+    return res.status(400).json({ error: 'A user cannot approve their own release request.' });
+  }
+  rel.status = 'approved';
+  rel.approvedBy = user?.id || '';
+  rel.approvedAt = new Date().toISOString();
+  saveFundsData(data);
+  audit('fund_release_approved', {
+    ...auditMetaFromRequest(req),
+    recordType: 'fund_release',
+    recordId: rel.id,
+    newValues: { status: rel.status, approvedBy: rel.approvedBy, approvedAt: rel.approvedAt }
+  });
+  res.json({ ok: true, release: rel });
+});
+
+app.get('/api/finances/donors', requirePermission(PERMISSIONS.DONOR_READ), (req, res) => {
+  const data = loadDonorsData();
+  const q = String(req.query.q || '').trim().toLowerCase();
+  const household = String(req.query.household || '').trim().toLowerCase();
+  const envelope = String(req.query.envelope || '').trim().toLowerCase();
+  const active = String(req.query.active || '').trim().toLowerCase();
+  const statement = String(req.query.statementDelivery || '').trim().toLowerCase();
+
+  let donors = data.donors || [];
+  if (q) {
+    donors = donors.filter((d) => {
+      const hay = [
+        donorDisplayName(d),
+        d.email,
+        d.phone,
+        d.mailingAddress,
+        d.envelopeNumber
+      ].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }
+  if (household) donors = donors.filter((d) => String(d.householdId || '').toLowerCase().includes(household));
+  if (envelope) donors = donors.filter((d) => String(d.envelopeNumber || '').toLowerCase().includes(envelope));
+  if (active === 'active') donors = donors.filter((d) => d.active !== false);
+  if (active === 'inactive') donors = donors.filter((d) => d.active === false);
+  if (statement) donors = donors.filter((d) => String(d.preferredStatementDelivery || '').toLowerCase() === statement);
+
+  const possibleDuplicates = donors
+    .flatMap((d) => findPossibleDonorDuplicates(data.donors, d).map((x) => ({ donorId: d.id, duplicateId: x.id })))
+    .slice(0, 40);
+
+  const missingAddressCount = donors.filter((d) => !String(d.mailingAddress || '').trim()).length;
+  res.json({
+    donors,
+    totalDonors: donors.length,
+    missingAddressCount,
+    possibleDuplicates
+  });
+});
+
+app.post('/api/finances/donors', requirePermission(PERMISSIONS.DONOR_WRITE), (req, res) => {
+  const data = loadDonorsData();
+  const user = sessionUser(req);
+  const donor = normalizeDonor(req.body || {}, user);
+  if (!donor.firstName || !donor.lastName) return res.status(400).json({ error: 'First and last name are required.' });
+  const duplicates = findPossibleDonorDuplicates(data.donors, donor);
+  if (duplicates.length && req.body?.forceCreate !== true) {
+    return res.status(409).json({
+      error: 'Possible duplicate donor found. Review before creating a new profile.',
+      duplicates: duplicates.map((d) => ({ id: d.id, name: donorDisplayName(d), email: d.email, phone: d.phone }))
+    });
+  }
+  data.donors.push(donor);
+  saveDonorsData(data);
+  audit('donor_created', {
+    ...auditMetaFromRequest(req),
+    recordType: 'donor',
+    recordId: donor.id,
+    newValues: donor
+  });
+  res.json({ ok: true, donor });
+});
+
+app.put('/api/finances/donors/:id', requirePermission(PERMISSIONS.DONOR_WRITE), (req, res) => {
+  const id = String(req.params.id);
+  const data = loadDonorsData();
+  const idx = data.donors.findIndex((d) => String(d.id) === id);
+  if (idx < 0) return res.status(404).json({ error: 'Donor not found.' });
+  const user = sessionUser(req);
+  const prev = data.donors[idx];
+
+  // Finance entry can update basic contact details but not sensitive statement controls.
+  const safePatch = { ...(req.body || {}) };
+  if (hasRole(user, ROLE.FINANCE_ENTRY)) {
+    delete safePatch.statementEligible;
+    delete safePatch.taxReviewStatus;
+    delete safePatch.restrictedNotes;
+  }
+
+  const next = normalizeDonor({ ...prev, ...safePatch, id: prev.id, createdAt: prev.createdAt, createdBy: prev.createdBy }, user);
+  const duplicates = findPossibleDonorDuplicates(data.donors, next);
+  if (duplicates.length && req.body?.forceSave !== true) {
+    return res.status(409).json({
+      error: 'Possible duplicate donor found. Review before saving.',
+      duplicates: duplicates.map((d) => ({ id: d.id, name: donorDisplayName(d), email: d.email, phone: d.phone }))
+    });
+  }
+
+  data.donors[idx] = next;
+  saveDonorsData(data);
+  audit('donor_edited', {
+    ...auditMetaFromRequest(req),
+    recordType: 'donor',
+    recordId: next.id,
+    previousValues: prev,
+    newValues: next
+  });
+  res.json({ ok: true, donor: next });
+});
+
+app.post('/api/finances/donors/:id/deactivate', requirePermission(PERMISSIONS.DONOR_WRITE), (req, res) => {
+  const id = String(req.params.id);
+  const data = loadDonorsData();
+  const donor = data.donors.find((d) => String(d.id) === id);
+  if (!donor) return res.status(404).json({ error: 'Donor not found.' });
+  donor.active = false;
+  donor.updatedAt = new Date().toISOString();
+  donor.updatedBy = sessionUser(req)?.id || '';
+  saveDonorsData(data);
+  audit('donor_deactivated', {
+    ...auditMetaFromRequest(req),
+    recordType: 'donor',
+    recordId: donor.id
+  });
+  res.json({ ok: true, donor });
+});
+
+app.post('/api/finances/donors/:id/reactivate', requirePermission(PERMISSIONS.DONOR_WRITE), (req, res) => {
+  const id = String(req.params.id);
+  const data = loadDonorsData();
+  const donor = data.donors.find((d) => String(d.id) === id);
+  if (!donor) return res.status(404).json({ error: 'Donor not found.' });
+  donor.active = true;
+  donor.updatedAt = new Date().toISOString();
+  donor.updatedBy = sessionUser(req)?.id || '';
+  saveDonorsData(data);
+  audit('donor_reactivated', {
+    ...auditMetaFromRequest(req),
+    recordType: 'donor',
+    recordId: donor.id
+  });
+  res.json({ ok: true, donor });
+});
+
+app.post('/api/finances/donors/merge', requirePermission(PERMISSIONS.DONOR_MERGE), (req, res) => {
+  const user = sessionUser(req);
+  if (!hasRole(user, [ROLE.ADMINISTRATOR, ROLE.TREASURER])) {
+    return res.status(403).json({ error: 'Only an Administrator or Treasurer can merge donors.' });
+  }
+
+  const primaryId = String(req.body?.primaryId || '').trim();
+  const duplicateId = String(req.body?.duplicateId || '').trim();
+  const reason = String(req.body?.reason || '').trim().slice(0, 400);
+  if (!primaryId || !duplicateId || primaryId === duplicateId) return res.status(400).json({ error: 'Select a valid primary and duplicate donor.' });
+
+  const donorsData = loadDonorsData();
+  const donors = donorsData.donors || [];
+  const primary = donors.find((d) => String(d.id) === primaryId);
+  const duplicate = donors.find((d) => String(d.id) === duplicateId);
+  if (!primary || !duplicate) return res.status(404).json({ error: 'One or both donor profiles were not found.' });
+
+  const finance = loadFinances();
+  for (const e of (finance.entries || [])) {
+    if (String(e?.donorId || '') === duplicateId) {
+      e.donorId = primaryId;
+      e.updatedAt = new Date().toISOString();
+    }
+  }
+  saveFinances(finance);
+
+  const mergeEvent = {
+    id: newId(),
+    at: new Date().toISOString(),
+    primaryId,
+    duplicateId,
+    reason,
+    by: user?.id || ''
+  };
+  donorsData.merges.unshift(mergeEvent);
+  donorsData.donors = donors.filter((d) => String(d.id) !== duplicateId);
+  saveDonorsData(donorsData);
+  audit('donor_merged', {
+    ...auditMetaFromRequest(req),
+    recordType: 'donor_merge',
+    recordId: mergeEvent.id,
+    previousValues: { primary, duplicate },
+    newValues: { primaryId, duplicateArchived: true },
+    reason
+  });
+
+  res.json({ ok: true, mergeEvent });
+});
+
+app.get('/api/finances/donors/:id/history', requirePermission(PERMISSIONS.DONOR_READ), (req, res) => {
+  const id = String(req.params.id);
+  const year = String(req.query.year || '').trim();
+  const from = normalizeDateOnly(req.query.from);
+  const to = normalizeDateOnly(req.query.to);
+  const entries = (loadFinances().entries || []).filter((e) => String(e?.donorId || '') === id && String(e?.type || '') === 'income');
+  const filtered = entries.filter((e) => {
+    const d = normalizeDateOnly(e.date);
+    if (year && !d.startsWith(`${year}-`)) return false;
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
+  });
+
+  const totals = {
+    selectedPeriodCents: 0,
+    deductibleCents: 0,
+    nondeductibleCents: 0,
+    pendingReviewCount: 0,
+    byFund: {}
+  };
+  for (const e of filtered) {
+    const amount = Math.abs(Number(e.amountCents || 0));
+    totals.selectedPeriodCents += amount;
+    const status = String(e.statementReviewStatus || 'needs_review');
+    if (status === 'nondeductible') totals.nondeductibleCents += amount;
+    else if (status === 'needs_review') totals.pendingReviewCount += 1;
+    else totals.deductibleCents += amount;
+    const fund = String(e.fund || 'Unassigned');
+    totals.byFund[fund] = Number(totals.byFund[fund] || 0) + amount;
+  }
+  res.json({ entries: filtered, totals });
+});
+
+app.get('/api/finances/statements', requirePermission(PERMISSIONS.DONOR_READ), (req, res) => {
+  res.json(loadStatementsData());
+});
+
+app.put('/api/finances/statements/templates', requirePermission(PERMISSIONS.STATEMENTS_MANAGE), (req, res) => {
+  const data = loadStatementsData();
+  data.templates = {
+    ...data.templates,
+    ...(req.body?.templates || {})
+  };
+  saveStatementsData(data);
+  audit('statement_templates_updated', {
+    ...auditMetaFromRequest(req),
+    recordType: 'statement_template',
+    recordId: 'default',
+    newValues: data.templates
+  });
+  res.json({ ok: true, templates: data.templates });
+});
+
+app.post('/api/finances/statements/generate', requirePermission(PERMISSIONS.STATEMENTS_MANAGE), (req, res) => {
+  const donorsData = loadDonorsData();
+  const statementsData = loadStatementsData();
+  const period = normalizeFinanceStatementPeriod(req.body?.from, req.body?.to);
+  if (!period) return res.status(400).json({ error: 'Select a valid statement period.' });
+
+  const donorIds = Array.isArray(req.body?.donorIds)
+    ? req.body.donorIds.map((id) => String(id || '').trim()).filter(Boolean)
+    : donorsData.donors.map((d) => String(d.id));
+  const entries = loadFinances().entries || [];
+  const created = [];
+
+  for (const donorId of donorIds) {
+    const donor = donorsData.donors.find((d) => String(d.id) === donorId);
+    if (!donor || donor.statementEligible === false) continue;
+    const lines = entries.filter((e) => {
+      if (String(e?.type || '') !== 'income') return false;
+      if (String(e?.donorId || '') !== donorId) return false;
+      const d = normalizeDateOnly(e.date);
+      return d >= period.from && d <= period.to;
+    });
+    if (!lines.length) continue;
+
+    let deductibleTotalCents = 0;
+    let nondeductibleTotalCents = 0;
+    for (const line of lines) {
+      const amount = Math.abs(Number(line.amountCents || 0));
+      if (String(line.statementReviewStatus || 'needs_review') === 'nondeductible') nondeductibleTotalCents += amount;
+      else deductibleTotalCents += amount;
+    }
+
+    const statement = {
+      id: newId(),
+      statementIdentifier: `STM-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+      donorId,
+      donorName: donorDisplayName(donor),
+      donorMailingAddress: donor.mailingAddress,
+      period,
+      lines,
+      deductibleTotalCents,
+      nondeductibleTotalCents,
+      status: 'generated',
+      issuedAt: '',
+      generatedAt: new Date().toISOString(),
+      generatedBy: sessionUser(req)?.id || '',
+      correctionStatus: 'original'
+    };
+    created.push(statement);
+    statementsData.statements.unshift(statement);
+  }
+
+  saveStatementsData(statementsData);
+  audit('statement_generated', {
+    ...auditMetaFromRequest(req),
+    recordType: 'statement_batch',
+    recordId: newId(),
+    newValues: {
+      generatedCount: created.length,
+      from: period.from,
+      to: period.to
+    }
+  });
+  res.json({ ok: true, generated: created.length, statements: created });
+});
+
+app.post('/api/finances/statements/:id/approve', requirePermission(PERMISSIONS.STATEMENTS_APPROVE), (req, res) => {
+  const id = String(req.params.id);
+  const data = loadStatementsData();
+  const stmt = data.statements.find((s) => String(s.id) === id);
+  if (!stmt) return res.status(404).json({ error: 'Statement not found.' });
+  stmt.status = 'approved';
+  stmt.issuedAt = new Date().toISOString();
+  stmt.approvedBy = sessionUser(req)?.id || '';
+  saveStatementsData(data);
+  audit('statement_approved', {
+    ...auditMetaFromRequest(req),
+    recordType: 'statement',
+    recordId: stmt.id,
+    newValues: { status: stmt.status, issuedAt: stmt.issuedAt }
+  });
+  res.json({ ok: true, statement: stmt });
+});
+
+app.post('/api/finances/statements/:id/deliver', requirePermission(PERMISSIONS.STATEMENTS_MANAGE), (req, res) => {
+  const id = String(req.params.id);
+  const method = String(req.body?.method || '').trim().toLowerCase();
+  if (!['mail', 'email', 'pickup', 'other'].includes(method)) {
+    return res.status(400).json({ error: 'Delivery method must be mail, email, pickup, or other.' });
+  }
+  const data = loadStatementsData();
+  const stmt = data.statements.find((s) => String(s.id) === id);
+  if (!stmt) return res.status(404).json({ error: 'Statement not found.' });
+  const delivery = {
+    id: newId(),
+    statementId: stmt.id,
+    method,
+    deliveredAt: new Date().toISOString(),
+    deliveredBy: sessionUser(req)?.id || ''
+  };
+  data.deliveries.unshift(delivery);
+  stmt.status = 'delivered';
+  saveStatementsData(data);
+  audit('statement_delivered', {
+    ...auditMetaFromRequest(req),
+    recordType: 'statement_delivery',
+    recordId: delivery.id,
+    newValues: delivery
+  });
+  res.json({ ok: true, delivery, statement: stmt });
+});
+
+app.post('/api/finances/reports/board/generate', requirePermission(PERMISSIONS.BOARD_REPORTS_MANAGE), (req, res) => {
+  const reportDate = normalizeDateOnly(req.body?.reportDate) || normalizeDateOnly(new Date().toISOString());
+  const priorDate = normalizeDateOnly(req.body?.priorDate);
+  const liabilitiesCents = parseMoneyCents(req.body?.liabilitiesCents ?? 0);
+
+  const { fundsData, balances } = getFundBalances();
+  const rows = (fundsData.funds || []).map((f) => {
+    const b = balances.get(String(f.id));
+    return {
+      fundId: f.id,
+      fundName: f.fundName,
+      restrictionStatus: f.restrictionStatus,
+      currentBalanceCents: Number(b?.currentBalanceCents || 0)
+    };
+  });
+
+  const assetsCents = rows.reduce((sum, r) => sum + Number(r.currentBalanceCents || 0), 0);
+  const netWithoutRestrictionCents = rows
+    .filter((r) => ['unrestricted', 'board_designated', 'needs_treasurer_review'].includes(String(r.restrictionStatus)))
+    .reduce((sum, r) => sum + Number(r.currentBalanceCents || 0), 0);
+  const netWithRestrictionCents = rows
+    .filter((r) => ['temporarily_restricted', 'permanently_restricted'].includes(String(r.restrictionStatus)))
+    .reduce((sum, r) => sum + Number(r.currentBalanceCents || 0), 0);
+
+  const netAssetsCents = netWithoutRestrictionCents + netWithRestrictionCents;
+  const balanceCheck = assetsCents === (Number.isFinite(liabilitiesCents) ? liabilitiesCents : 0) + netAssetsCents;
+  if (!balanceCheck) {
+    return res.status(400).json({
+      error: 'Cannot publish this report because the accounting equation is out of balance. Assets must equal Liabilities plus Net Assets.'
+    });
+  }
+
+  const financeEntries = loadFinances().entries || [];
+  const monthKey = reportDate.slice(0, 7);
+  const thisYear = reportDate.slice(0, 4);
+
+  const activities = {
+    currentMonthRevenueCents: 0,
+    currentMonthExpenseCents: 0,
+    ytdRevenueCents: 0,
+    ytdExpenseCents: 0
+  };
+  for (const e of financeEntries) {
+    const d = normalizeDateOnly(e.date);
+    const amount = Math.abs(Number(e.amountCents || 0));
+    if (!amount) continue;
+    const type = String(e.type || '').toLowerCase();
+    if (d.startsWith(monthKey)) {
+      if (type === 'income') activities.currentMonthRevenueCents += amount;
+      if (type === 'expense') activities.currentMonthExpenseCents += amount;
+    }
+    if (d.startsWith(`${thisYear}-`)) {
+      if (type === 'income') activities.ytdRevenueCents += amount;
+      if (type === 'expense') activities.ytdExpenseCents += amount;
+    }
+  }
+
+  const packageRecord = {
+    id: newId(),
+    generatedAt: new Date().toISOString(),
+    generatedBy: sessionUser(req)?.id || '',
+    reportDate,
+    priorDate,
+    statementOfFinancialPosition: {
+      assetsCents,
+      liabilitiesCents: Number.isFinite(liabilitiesCents) ? liabilitiesCents : 0,
+      netWithoutRestrictionCents,
+      netWithRestrictionCents,
+      netAssetsCents,
+      funds: rows
+    },
+    statementOfActivities: {
+      ...activities,
+      totalChangeInNetAssetsCents: activities.ytdRevenueCents - activities.ytdExpenseCents
+    },
+    boardNotes: String(req.body?.boardNotes || '').trim().slice(0, 5000)
+  };
+  const file = path.join(DATA_DIR, 'board_report_packages.json');
+  const existing = readJson(file, { packages: [] });
+  const packages = Array.isArray(existing?.packages) ? existing.packages : [];
+  packages.unshift(packageRecord);
+  writeJsonAtomic(file, { packages });
+  audit('board_report_generated', {
+    ...auditMetaFromRequest(req),
+    recordType: 'board_report_package',
+    recordId: packageRecord.id,
+    newValues: {
+      reportDate,
+      priorDate,
+      packageId: packageRecord.id
+    }
+  });
+  res.json({ ok: true, package: packageRecord });
+});
+
+app.get('/api/finances/controls/dashboard', requirePermission(PERMISSIONS.CONTROLS_VERIFY), (req, res) => {
+  const data = loadControlsData();
+  const collections = data.collections || [];
+  const dashboard = {
+    awaitingSecondVerification: collections.filter((c) => c.verificationStatus === 'awaiting_second_counter').length,
+    enteredByOnlyCounter: collections.filter((c) => c.enteredBy && c.counters?.length === 1 && String(c.counters[0]) === String(c.enteredBy)).length,
+    modifiedAfterVerification: collections.filter((c) => c.modifiedAfterVerification === true).length,
+    undepositedCollections: collections.filter((c) => c.depositedAt ? false : true).length,
+    depositsAwaitingVerification: collections.filter((c) => c.depositedAt && c.depositVerifiedAt ? false : true).length,
+    overridesAndExceptions: (data.exceptions || []).length,
+    recentVoidsAndReversals: collections.filter((c) => c.status === 'voided' || c.status === 'reversed').slice(0, 20)
+  };
+  res.json({ dashboard, collections, exceptions: data.exceptions || [] });
+});
+
+app.post('/api/finances/controls/collections', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
+  const user = sessionUser(req);
+  const data = loadControlsData();
+  const amountCents = parseMoneyCents(req.body?.amountCents ?? req.body?.amount);
+  if (!Number.isFinite(amountCents) || amountCents <= 0) return res.status(400).json({ error: 'Collection amount must be greater than 0.' });
+
+  const counters = Array.isArray(req.body?.counters) ? req.body.counters.map((x) => String(x || '').trim()).filter(Boolean) : [];
+  if (data.twoPersonVerificationEnabled && counters.length < 2) {
+    return res.status(400).json({ error: 'A second counter must verify this collection.' });
+  }
+  if (!counters.length) return res.status(400).json({ error: 'At least one counter is required.' });
+  if (counters.length === 1 && String(counters[0]) === String(user?.id || '')) {
+    return res.status(400).json({ error: 'The person entering this collection cannot be its only verifier.' });
+  }
+
+  const collection = {
+    id: newId(),
+    serviceDate: normalizeDateOnly(req.body?.serviceDate) || normalizeDateOnly(new Date().toISOString()),
+    amountCents,
+    counters,
+    enteredBy: user?.id || '',
+    enteredAt: new Date().toISOString(),
+    verificationStatus: data.twoPersonVerificationEnabled ? 'awaiting_second_counter' : 'verified',
+    verificationHistory: [],
+    depositId: String(req.body?.depositId || '').trim(),
+    depositedAt: '',
+    depositVerifiedAt: '',
+    modifiedAfterVerification: false,
+    status: 'draft',
+    attachment: String(req.body?.attachment || '').trim().slice(0, 400)
+  };
+  data.collections.unshift(collection);
+  saveControlsData(data);
+  audit('collection_created', {
+    ...auditMetaFromRequest(req),
+    recordType: 'collection',
+    recordId: collection.id,
+    newValues: collection
+  });
+  res.json({ ok: true, collection });
+});
+
+app.post('/api/finances/controls/collections/:id/verify', requirePermission(PERMISSIONS.CONTROLS_VERIFY), (req, res) => {
+  const user = sessionUser(req);
+  const id = String(req.params.id);
+  const data = loadControlsData();
+  const collection = data.collections.find((c) => String(c.id) === id);
+  if (!collection) return res.status(404).json({ error: 'Collection not found.' });
+  if (String(collection.enteredBy || '') === String(user?.id || '') && (collection.counters || []).length <= 1) {
+    return res.status(400).json({ error: 'The person entering this collection cannot be its only verifier.' });
+  }
+  const verifier = String(req.body?.verifierId || user?.id || '').trim();
+  if (!verifier) return res.status(400).json({ error: 'Verifier is required.' });
+
+  collection.verificationHistory = Array.isArray(collection.verificationHistory) ? collection.verificationHistory : [];
+  collection.verificationHistory.push({ verifier, at: new Date().toISOString(), amountCents: collection.amountCents });
+  const uniqueVerifiers = Array.from(new Set(collection.verificationHistory.map((v) => String(v.verifier || ''))));
+
+  if (data.twoPersonVerificationEnabled && uniqueVerifiers.length < 2) {
+    collection.verificationStatus = 'awaiting_second_counter';
+    saveControlsData(data);
+    return res.json({ ok: true, collection, warning: 'A second counter must verify this collection.' });
+  }
+
+  collection.verificationStatus = 'verified';
+  collection.verifiedAt = new Date().toISOString();
+  saveControlsData(data);
+  audit('collection_verified', {
+    ...auditMetaFromRequest(req),
+    recordType: 'collection',
+    recordId: collection.id,
+    newValues: {
+      verificationStatus: collection.verificationStatus,
+      verificationCount: uniqueVerifiers.length
+    }
+  });
+  res.json({ ok: true, collection });
+});
+
+app.post('/api/finances/controls/collections/:id/post', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
+  const id = String(req.params.id);
+  const data = loadControlsData();
+  const collection = data.collections.find((c) => String(c.id) === id);
+  if (!collection) return res.status(404).json({ error: 'Collection not found.' });
+  if (String(collection.verificationStatus) !== 'verified') {
+    return res.status(400).json({ error: 'Final posting is blocked until required verification is complete.' });
+  }
+  collection.status = 'posted';
+  collection.postedAt = new Date().toISOString();
+  saveControlsData(data);
+  audit('collection_posted', {
+    ...auditMetaFromRequest(req),
+    recordType: 'collection',
+    recordId: collection.id,
+    newValues: { status: 'posted' }
+  });
+  res.json({ ok: true, collection });
+});
+
+app.post('/api/finances/controls/exceptions', requirePermission(PERMISSIONS.CONTROLS_APPROVE_EXCEPTION), (req, res) => {
+  const user = sessionUser(req);
+  const requestorId = String(req.body?.requestorId || '').trim();
+  const approverId = String(req.body?.approverId || user?.id || '').trim();
+  if (!requestorId) return res.status(400).json({ error: 'Exception requestor is required.' });
+  if (!approverId) return res.status(400).json({ error: 'Authorized approver is required.' });
+  if (requestorId === approverId) return res.status(400).json({ error: 'The same user cannot request and approve an exception.' });
+
+  const reason = String(req.body?.reason || '').trim().slice(0, 500);
+  if (!reason) return res.status(400).json({ error: 'Exception reason is required.' });
+  const note = String(req.body?.note || '').trim().slice(0, 3000);
+
+  const data = loadControlsData();
+  const ex = {
+    id: newId(),
+    requestorId,
+    approverId,
+    reason,
+    note,
+    createdAt: new Date().toISOString()
+  };
+  data.exceptions.unshift(ex);
+  saveControlsData(data);
+  audit('internal_control_exception_recorded', {
+    ...auditMetaFromRequest(req),
+    recordType: 'internal_control_exception',
+    recordId: ex.id,
+    newValues: ex
+  });
+  res.json({ ok: true, exception: ex });
+});
+
+app.get('/api/finances/clergy-housing', requirePermission(PERMISSIONS.HOUSING_MANAGE), (req, res) => {
+  res.json(loadHousingData());
+});
+
+app.post('/api/finances/clergy-housing/profiles', requirePermission(PERMISSIONS.HOUSING_MANAGE), (req, res) => {
+  const data = loadHousingData();
+  const user = sessionUser(req);
+  const now = new Date().toISOString();
+  const p = {
+    id: newId(),
+    ministerName: String(req.body?.ministerName || '').trim().slice(0, 120),
+    positionTitle: String(req.body?.positionTitle || '').trim().slice(0, 120),
+    ordinationStatus: String(req.body?.ordinationStatus || '').trim().slice(0, 40),
+    employmentStartDate: normalizeDateOnly(req.body?.employmentStartDate),
+    employmentEndDate: normalizeDateOnly(req.body?.employmentEndDate),
+    compensationYear: String(req.body?.compensationYear || '').trim().slice(0, 4),
+    totalCompensationCents: parseMoneyCents(req.body?.totalCompensationCents ?? req.body?.totalCompensation),
+    salaryAmountCents: parseMoneyCents(req.body?.salaryAmountCents ?? req.body?.salaryAmount),
+    housingAllowanceDesignatedCents: parseMoneyCents(req.body?.housingAllowanceDesignatedCents ?? req.body?.housingAllowanceDesignatedAmount),
+    designationEffectiveDate: normalizeDateOnly(req.body?.designationEffectiveDate),
+    dateApproved: normalizeDateOnly(req.body?.dateApproved),
+    approvingBody: String(req.body?.approvingBody || '').trim().slice(0, 160),
+    resolutionReference: String(req.body?.resolutionReference || '').trim().slice(0, 160),
+    resolutionAttachment: String(req.body?.resolutionAttachment || '').trim().slice(0, 400),
+    paymentFrequency: String(req.body?.paymentFrequency || '').trim().slice(0, 60),
+    parsonageProvided: req.body?.parsonageProvided === true,
+    utilitiesAllowanceCents: parseMoneyCents(req.body?.utilitiesAllowanceCents ?? req.body?.utilitiesAllowance),
+    notes: String(req.body?.notes || '').trim().slice(0, 3000),
+    status: String(req.body?.status || 'active').trim().toLowerCase().slice(0, 40),
+    createdBy: user?.id || '',
+    lastUpdatedBy: user?.id || '',
+    createdAt: now,
+    updatedAt: now
+  };
+  if (!p.ministerName) return res.status(400).json({ error: 'Minister name is required.' });
+
+  const warnings = [];
+  if (!p.resolutionAttachment) warnings.push('No resolution is attached.');
+  if (p.dateApproved && p.designationEffectiveDate && p.dateApproved > p.designationEffectiveDate) {
+    warnings.push('Approval date is after the effective payment date.');
+  }
+  if (Number.isFinite(p.totalCompensationCents) && Number.isFinite(p.housingAllowanceDesignatedCents)
+    && p.housingAllowanceDesignatedCents > p.totalCompensationCents) {
+    warnings.push('The allowance exceeds configured compensation.');
+  }
+
+  data.profiles.unshift(p);
+  saveHousingData(data);
+  audit('housing_allowance_created', {
+    ...auditMetaFromRequest(req),
+    recordType: 'housing_profile',
+    recordId: p.id,
+    newValues: p
+  });
+  res.json({ ok: true, profile: p, warnings });
+});
+
+app.put('/api/finances/clergy-housing/profiles/:id', requirePermission(PERMISSIONS.HOUSING_MANAGE), (req, res) => {
+  const data = loadHousingData();
+  const user = sessionUser(req);
+  const id = String(req.params.id);
+  const profile = data.profiles.find((x) => String(x.id) === id);
+  if (!profile) return res.status(404).json({ error: 'Housing profile not found.' });
+  const prev = { ...profile };
+
+  const incomingEffectiveDate = normalizeDateOnly(req.body?.designationEffectiveDate || profile.designationEffectiveDate);
+  const incomingApprovedDate = normalizeDateOnly(req.body?.dateApproved || profile.dateApproved);
+  const backdated = req.body?.designationEffectiveDate && incomingEffectiveDate < normalizeDateOnly(new Date().toISOString());
+  if (backdated && !String(req.body?.backdatedReason || '').trim()) {
+    return res.status(400).json({ error: 'Backdated changes require a reason.' });
+  }
+
+  Object.assign(profile, {
+    ministerName: String(req.body?.ministerName ?? profile.ministerName).trim().slice(0, 120),
+    positionTitle: String(req.body?.positionTitle ?? profile.positionTitle).trim().slice(0, 120),
+    ordinationStatus: String(req.body?.ordinationStatus ?? profile.ordinationStatus).trim().slice(0, 40),
+    employmentStartDate: normalizeDateOnly(req.body?.employmentStartDate ?? profile.employmentStartDate),
+    employmentEndDate: normalizeDateOnly(req.body?.employmentEndDate ?? profile.employmentEndDate),
+    compensationYear: String(req.body?.compensationYear ?? profile.compensationYear).trim().slice(0, 4),
+    totalCompensationCents: parseMoneyCents(req.body?.totalCompensationCents ?? req.body?.totalCompensation ?? profile.totalCompensationCents),
+    salaryAmountCents: parseMoneyCents(req.body?.salaryAmountCents ?? req.body?.salaryAmount ?? profile.salaryAmountCents),
+    housingAllowanceDesignatedCents: parseMoneyCents(req.body?.housingAllowanceDesignatedCents ?? req.body?.housingAllowanceDesignatedAmount ?? profile.housingAllowanceDesignatedCents),
+    designationEffectiveDate: incomingEffectiveDate,
+    dateApproved: incomingApprovedDate,
+    approvingBody: String(req.body?.approvingBody ?? profile.approvingBody).trim().slice(0, 160),
+    resolutionReference: String(req.body?.resolutionReference ?? profile.resolutionReference).trim().slice(0, 160),
+    resolutionAttachment: String(req.body?.resolutionAttachment ?? profile.resolutionAttachment).trim().slice(0, 400),
+    paymentFrequency: String(req.body?.paymentFrequency ?? profile.paymentFrequency).trim().slice(0, 60),
+    parsonageProvided: req.body?.parsonageProvided === undefined ? profile.parsonageProvided : req.body.parsonageProvided === true,
+    utilitiesAllowanceCents: parseMoneyCents(req.body?.utilitiesAllowanceCents ?? req.body?.utilitiesAllowance ?? profile.utilitiesAllowanceCents),
+    notes: String(req.body?.notes ?? profile.notes).trim().slice(0, 3000),
+    status: String(req.body?.status ?? profile.status).trim().toLowerCase().slice(0, 40),
+    lastUpdatedBy: user?.id || '',
+    updatedAt: new Date().toISOString()
+  });
+  saveHousingData(data);
+  audit('housing_allowance_edited', {
+    ...auditMetaFromRequest(req),
+    recordType: 'housing_profile',
+    recordId: profile.id,
+    previousValues: prev,
+    newValues: profile,
+    reason: String(req.body?.backdatedReason || req.body?.reason || '').trim().slice(0, 400)
+  });
+  res.json({ ok: true, profile });
+});
+
+app.post('/api/finances/clergy-housing/annual-records', requirePermission(PERMISSIONS.HOUSING_MANAGE), (req, res) => {
+  const data = loadHousingData();
+  const profileId = String(req.body?.profileId || '').trim();
+  if (!profileId) return res.status(400).json({ error: 'Housing profile is required.' });
+  const profile = data.profiles.find((p) => String(p.id) === profileId);
+  if (!profile) return res.status(404).json({ error: 'Housing profile not found.' });
+
+  const record = {
+    id: newId(),
+    profileId,
+    compensationYear: String(req.body?.compensationYear || profile.compensationYear || '').trim().slice(0, 4),
+    designatedAmountCents: parseMoneyCents(req.body?.designatedAmountCents ?? req.body?.designatedAmount),
+    amountPaidCents: parseMoneyCents(req.body?.amountPaidCents ?? req.body?.amountPaid),
+    actualHousingExpensesCents: parseMoneyCents(req.body?.actualHousingExpensesCents ?? req.body?.actualHousingExpenses),
+    fairRentalValueCents: parseMoneyCents(req.body?.fairRentalValueCents ?? req.body?.fairRentalValue),
+    utilitiesCents: parseMoneyCents(req.body?.utilitiesCents ?? req.body?.utilities),
+    parsonageValueCents: parseMoneyCents(req.body?.parsonageValueCents ?? req.body?.parsonageValue),
+    accountantReviewStatus: String(req.body?.accountantReviewStatus || 'needs_review').trim().toLowerCase().slice(0, 60),
+    supportingDocuments: Array.isArray(req.body?.supportingDocuments) ? req.body.supportingDocuments.slice(0, 50) : [],
+    notes: String(req.body?.notes || '').trim().slice(0, 3000),
+    createdAt: new Date().toISOString(),
+    createdBy: sessionUser(req)?.id || ''
+  };
+  const comparisonBase = [record.designatedAmountCents, record.actualHousingExpensesCents, record.fairRentalValueCents + record.utilitiesCents]
+    .filter((v) => Number.isFinite(v) && v >= 0);
+  record.recordkeepingComparisonCents = comparisonBase.length ? Math.min(...comparisonBase) : 0;
+  record.recordkeepingNotice = 'Recordkeeping comparison — final tax treatment must be reviewed by the minister and a qualified tax professional.';
+
+  data.annualRecords.unshift(record);
+  saveHousingData(data);
+  audit('housing_allowance_annual_record_created', {
+    ...auditMetaFromRequest(req),
+    recordType: 'housing_annual_record',
+    recordId: record.id,
+    newValues: record
+  });
+  res.json({ ok: true, record });
 });
 
 // ----------------- DOCUMENTS -----------------
@@ -2729,12 +4452,158 @@ app.put('/api/livestream', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE),
 // ----------------- SETTINGS / THEME EXPORT -----------------
 function loadSettings() {
   return readJson(SETTINGS_DATA_PATH, {
-    social: {},
+    social: { subscribers: [] },
     theme: { accent: '#c46123', text: '#ffffff', background: '#000000', logoPath: '' }
   });
 }
 function saveSettings(data) {
   writeJsonAtomic(SETTINGS_DATA_PATH, data);
+}
+
+function normalizeSubscribers(list) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of (Array.isArray(list) ? list : [])) {
+    const email = String(raw?.email || '').trim().toLowerCase();
+    if (!isValidEmail(email)) continue;
+    if (seen.has(email)) continue;
+    seen.add(email);
+    out.push({
+      email,
+      name: String(raw?.name || '').trim().slice(0, 120),
+      group: String(raw?.group || 'general').trim().slice(0, 80) || 'general'
+    });
+  }
+  return out;
+}
+
+function loadSubscribers() {
+  const settings = loadSettings();
+  return normalizeSubscribers(settings?.social?.subscribers || []);
+}
+
+function saveSubscribers(subscribers) {
+  const current = loadSettings();
+  const next = {
+    social: {
+      ...(current.social || {}),
+      subscribers: normalizeSubscribers(subscribers)
+    },
+    theme: {
+      ...(current.theme || {})
+    }
+  };
+  saveSettings(next);
+  if (ENABLE_EXPORTS) writeJsonAtomic(path.join(ROOT_DIR, 'site-settings.json'), next.social);
+  return next.social.subscribers;
+}
+
+function stripTags(value) {
+  return String(value || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function decodeEntityLite(value) {
+  return String(value || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function extractProfilesFromPage(filePath, pageKey) {
+  if (!fs.existsSync(filePath)) return [];
+  const html = fs.readFileSync(filePath, 'utf8');
+  const out = [];
+  const blockRe = /<div class="leadership-profile">([\s\S]*?)<\/div>\s*<\/div>/gi;
+  let m;
+  while ((m = blockRe.exec(html))) {
+    const whole = m[0] || '';
+    const before = html.slice(0, m.index);
+    const headingMatches = Array.from(before.matchAll(/<h2(?:\s+id="([^"]+)")?[^>]*>([\s\S]*?)<\/h2>/gi));
+    const lastHeading = headingMatches.length ? headingMatches[headingMatches.length - 1] : null;
+    const section = lastHeading
+      ? (stripTags(decodeEntityLite(lastHeading[2] || '')).slice(0, 80) || pageKey)
+      : pageKey;
+
+    const imgMatch = whole.match(/<img[^>]*src="([^"]+)"[^>]*alt="([^"]*)"[^>]*>/i)
+      || whole.match(/<img[^>]*alt="([^"]*)"[^>]*src="([^"]+)"[^>]*>/i);
+    const titleMatch = whole.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+    const strongMatch = whole.match(/<p[^>]*>\s*<strong>([\s\S]*?)<\/strong>\s*<\/p>/i);
+    const paraMatches = Array.from(whole.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi));
+    const bioSource = paraMatches.find((p) => !/<strong>/i.test(String(p[1] || '')))?.[1] || '';
+
+    const src = imgMatch
+      ? String(imgMatch[1] || imgMatch[2] || '').trim()
+      : '';
+    const alt = imgMatch
+      ? String(imgMatch[2] || imgMatch[1] || '').trim()
+      : '';
+
+    out.push({
+      id: `${pageKey}-${out.length + 1}`,
+      page: pageKey,
+      section,
+      image: src,
+      name: stripTags(decodeEntityLite(titleMatch?.[1] || '')).slice(0, 120),
+      title: stripTags(decodeEntityLite(strongMatch?.[1] || '')).slice(0, 120),
+      bio: stripTags(decodeEntityLite(bioSource)).slice(0, 700),
+      alt: stripTags(decodeEntityLite(alt)).slice(0, 120)
+    });
+  }
+  return out;
+}
+
+function normalizeProfiles(list) {
+  const out = [];
+  const source = Array.isArray(list) ? list : [];
+  for (const raw of source) {
+    const page = String(raw?.page || '').trim().toLowerCase();
+    if (!['ministries', 'leadership'].includes(page)) continue;
+    out.push({
+      id: String(raw?.id || newId()).trim() || newId(),
+      page,
+      section: String(raw?.section || page).trim().slice(0, 80),
+      image: String(raw?.image || '').trim().slice(0, 400),
+      name: String(raw?.name || '').trim().slice(0, 120),
+      title: String(raw?.title || '').trim().slice(0, 120),
+      bio: String(raw?.bio || '').trim().slice(0, 700),
+      alt: String(raw?.alt || raw?.name || '').trim().slice(0, 120)
+    });
+  }
+  return out;
+}
+
+function seedProfilesFromPages() {
+  const ministriesPath = path.join(ROOT_DIR, 'Pages', 'ministries.html');
+  const leadershipPath = path.join(ROOT_DIR, 'Pages', 'leadership.html');
+  const seeded = [
+    ...extractProfilesFromPage(ministriesPath, 'ministries'),
+    ...extractProfilesFromPage(leadershipPath, 'leadership')
+  ];
+  return normalizeProfiles(seeded);
+}
+
+function loadProfiles() {
+  const data = readJson(PROFILES_DATA_PATH, { profiles: [] });
+  const current = normalizeProfiles(data?.profiles || []);
+  if (current.length) return { profiles: current };
+
+  const seeded = seedProfilesFromPages();
+  if (seeded.length) {
+    writeJsonAtomic(PROFILES_DATA_PATH, { profiles: seeded });
+  }
+  return { profiles: seeded };
+}
+
+function saveProfiles(profiles) {
+  const normalized = normalizeProfiles(profiles);
+  writeJsonAtomic(PROFILES_DATA_PATH, { profiles: normalized });
+  if (ENABLE_EXPORTS) writeJsonAtomic(path.join(ROOT_DIR, 'profiles.json'), { profiles: normalized });
+  return { profiles: normalized };
 }
 
 function buildThemeCss(theme) {
@@ -2793,6 +4662,65 @@ app.put('/api/settings', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res
   res.json({ ok: true, data: next });
 });
 
+app.get('/api/subscribers', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), (req, res) => {
+  res.json({ subscribers: loadSubscribers() });
+});
+
+app.put('/api/subscribers', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), (req, res) => {
+  const list = Array.isArray(req.body?.subscribers) ? req.body.subscribers : [];
+  const subscribers = saveSubscribers(list);
+  res.json({ ok: true, subscribers });
+});
+
+app.post('/api/newsletter/send', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
+  if (envBool('SUPPORT_DISABLE_SEND', false) || process.env.NODE_ENV === 'test') {
+    return res.json({ ok: true, disabled: true, sent: 0 });
+  }
+
+  const subject = String(req.body?.subject || '').trim().slice(0, 140);
+  const message = String(req.body?.message || '').trim().slice(0, 12000);
+  const emailsRaw = Array.isArray(req.body?.emails) ? req.body.emails : [];
+  const emails = Array.from(new Set(emailsRaw.map((e) => String(e || '').trim().toLowerCase()).filter(isValidEmail)));
+
+  if (!subject || !message) return res.status(400).json({ error: 'Subject and message are required.' });
+  if (!emails.length) return res.status(400).json({ error: 'Select at least one recipient.' });
+
+  const allowed = new Set(loadSubscribers().map((s) => s.email));
+  const invalid = emails.filter((e) => !allowed.has(e));
+  if (invalid.length) return res.status(400).json({ error: 'Some selected recipients are not in subscribers.' });
+
+  const fromEmail = String(process.env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
+  const fromName = String(process.env.SUPPORT_FROM_NAME || 'MMMBC Newsletter').trim() || 'MMMBC Newsletter';
+  const body = `${message}\n\n---\nSent by MMMBC Admin Newsletter`;
+
+  try {
+    const payload = {
+      personalizations: [{ to: emails.map((email) => ({ email })), subject }],
+      from: { email: fromEmail, name: fromName },
+      content: [{ type: 'text/plain', value: body }]
+    };
+    const out = await mailchannelsSend(payload);
+    if (out.status < 200 || out.status >= 300) {
+      logger.error('newsletter_email_failed', { status: out.status, body: String(out.body || '').slice(0, 2000) });
+      return res.status(502).json({ error: `Newsletter send failed (${out.status}).` });
+    }
+    res.json({ ok: true, sent: emails.length });
+  } catch (err) {
+    logger.error('newsletter_email_error', { err });
+    res.status(502).json({ error: 'Newsletter send failed.' });
+  }
+});
+
+app.get('/api/profiles', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
+  res.json(loadProfiles());
+});
+
+app.put('/api/profiles', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
+  const list = Array.isArray(req.body?.profiles) ? req.body.profiles : [];
+  const data = saveProfiles(list);
+  res.json({ ok: true, ...data });
+});
+
 // ----------------- EXPORT ALL -----------------
 app.post('/api/export', requirePermission(PERMISSIONS.EXPORTS_RUN), async (req, res) => {
   try {
@@ -2820,6 +4748,9 @@ app.post('/api/export', requirePermission(PERMISSIONS.EXPORTS_RUN), async (req, 
     const settings = loadSettings();
     writeJsonAtomic(path.join(ROOT_DIR, 'site-settings.json'), settings.social);
     fs.writeFileSync(path.join(ROOT_DIR, 'theme.css'), buildThemeCss(settings.theme), 'utf8');
+
+    const profiles = loadProfiles();
+    writeJsonAtomic(path.join(ROOT_DIR, 'profiles.json'), profiles);
 
     const events = loadEvents();
     exportScheduleJson(events.events || []);
@@ -2870,6 +4801,12 @@ async function boot({ listen = true } = {}) {
   ensureDir(BULLETINS_UPLOADS_DIR);
   ensureDir(ROOT_BULLETINS_DIR);
   ensureDir(GALLERY_DIR);
+
+  if (!fs.existsSync(PROFILES_DATA_PATH)) {
+    const seeded = seedProfilesFromPages();
+    writeJsonAtomic(PROFILES_DATA_PATH, { profiles: seeded });
+    if (ENABLE_EXPORTS) writeJsonAtomic(path.join(ROOT_DIR, 'profiles.json'), { profiles: seeded });
+  }
 
   await ensureMasterAdmin();
 

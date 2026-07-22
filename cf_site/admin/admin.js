@@ -548,6 +548,8 @@ function setTab(activeId) {
     $('tabBtn-events'),
     $('tabBtn-content'),
     $('tabBtn-finances'),
+    $('tabBtn-newsletter'),
+    $('tabBtn-profiles'),
     $('tabBtn-support')
   ];
   const panels = [
@@ -555,14 +557,18 @@ function setTab(activeId) {
     $('tab-events'),
     $('tab-content'),
     $('tab-finances'),
+    $('tab-newsletter'),
+    $('tab-profiles'),
     $('tab-support')
   ];
 
   tabButtons.forEach((b) => {
+    if (!b) return;
     const isActive = b.getAttribute('aria-controls') === activeId;
     b.setAttribute('aria-selected', isActive ? 'true' : 'false');
   });
   panels.forEach((p) => {
+    if (!p) return;
     p.hidden = p.id !== activeId;
   });
 
@@ -678,6 +684,8 @@ function applyHashNavigation() {
     setContentSubTab('panel-content-announcements');
   }
   if (h === 'finances' || h === 'finance') setTab('tab-finances');
+  if (h === 'newsletter') setTab('tab-newsletter');
+  if (h === 'profiles' || h === 'staff') setTab('tab-profiles');
   if (h === 'support') setTab('tab-support');
 
   if (h === 'announcements') {
@@ -2955,6 +2963,153 @@ function applyThemePreviewCard(theme) {
   card.style.setProperty('--mmmbc-bg', theme.background);
 }
 
+// -------- Newsletter --------
+let subscribers = [];
+
+function validEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
+
+function selectedValues(selectEl) {
+  if (!(selectEl instanceof HTMLSelectElement)) return [];
+  return Array.from(selectEl.selectedOptions || []).map((o) => String(o.value || '').trim()).filter(Boolean);
+}
+
+function renderSubscribers() {
+  const list = $('subscriberList');
+  const groupSel = $('newsletterGroupSelect');
+  const recipients = $('newsletterRecipients');
+  if (list) list.innerHTML = '';
+  if (groupSel) groupSel.innerHTML = '<option value="">All groups</option>';
+  if (recipients) recipients.innerHTML = '';
+
+  const groups = Array.from(new Set(subscribers.map((s) => String(s.group || 'general').trim() || 'general'))).sort((a, b) => a.localeCompare(b));
+
+  for (const s of subscribers) {
+    if (list) {
+      const opt = document.createElement('option');
+      opt.value = s.email;
+      opt.textContent = `${s.name ? `${s.name} - ` : ''}${s.email} (${s.group || 'general'})`;
+      list.appendChild(opt);
+    }
+  }
+
+  if (groupSel) {
+    for (const g of groups) {
+      const opt = document.createElement('option');
+      opt.value = g;
+      opt.textContent = g;
+      groupSel.appendChild(opt);
+    }
+  }
+
+  renderRecipientOptions();
+}
+
+function renderRecipientOptions() {
+  const recipients = $('newsletterRecipients');
+  const groupSel = $('newsletterGroupSelect');
+  if (!(recipients instanceof HTMLSelectElement)) return;
+  const activeGroup = String(groupSel?.value || '').trim();
+  const previous = new Set(selectedValues(recipients));
+
+  recipients.innerHTML = '';
+  const filtered = activeGroup
+    ? subscribers.filter((s) => String(s.group || '').trim() === activeGroup)
+    : subscribers;
+
+  for (const s of filtered) {
+    const opt = document.createElement('option');
+    opt.value = s.email;
+    opt.textContent = `${s.name ? `${s.name} - ` : ''}${s.email}`;
+    if (previous.has(s.email)) opt.selected = true;
+    recipients.appendChild(opt);
+  }
+}
+
+async function loadSubscribers() {
+  try {
+    const data = await api('/api/subscribers', { method: 'GET' });
+    subscribers = Array.isArray(data?.subscribers) ? data.subscribers : [];
+  } catch {
+    subscribers = [];
+  }
+  renderSubscribers();
+}
+
+async function saveSubscribers(all) {
+  const data = await api('/api/subscribers', {
+    method: 'PUT',
+    body: JSON.stringify({ subscribers: all })
+  });
+  subscribers = Array.isArray(data?.subscribers) ? data.subscribers : [];
+  renderSubscribers();
+}
+
+function clearSubscriberEditor() {
+  if ($('subscriberEditEmail')) $('subscriberEditEmail').value = '';
+  if ($('subscriberName')) $('subscriberName').value = '';
+  if ($('subscriberEmail')) $('subscriberEmail').value = '';
+  if ($('subscriberGroup')) $('subscriberGroup').value = 'general';
+}
+
+// -------- Profiles --------
+let profiles = [];
+
+function activeProfilePage() {
+  return String($('profilePageFilter')?.value || 'ministries').trim().toLowerCase();
+}
+
+function renderProfileSelect() {
+  const sel = $('profileSelect');
+  if (!(sel instanceof HTMLSelectElement)) return;
+  const page = activeProfilePage();
+  const list = profiles.filter((p) => p.page === page);
+  const prev = String(sel.value || '').trim();
+  sel.innerHTML = '';
+  for (const p of list) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = `${p.section || page}: ${p.name}`;
+    sel.appendChild(opt);
+  }
+  if (list.length) {
+    sel.value = list.some((p) => p.id === prev) ? prev : list[0].id;
+    fillProfileEditor(sel.value);
+  }
+}
+
+function fillProfileEditor(id) {
+  const p = profiles.find((x) => String(x.id) === String(id));
+  if (!p) return;
+  if ($('profileId')) $('profileId').value = p.id;
+  if ($('profilePage')) $('profilePage').value = p.page;
+  if ($('profileSection')) $('profileSection').value = p.section || '';
+  if ($('profileImage')) $('profileImage').value = p.image || '';
+  if ($('profileName')) $('profileName').value = p.name || '';
+  if ($('profileTitle')) $('profileTitle').value = p.title || '';
+  if ($('profileBio')) $('profileBio').value = p.bio || '';
+}
+
+async function loadProfiles() {
+  try {
+    const data = await api('/api/profiles', { method: 'GET' });
+    profiles = Array.isArray(data?.profiles) ? data.profiles : [];
+  } catch {
+    profiles = [];
+  }
+  renderProfileSelect();
+}
+
+async function saveProfiles(nextProfiles) {
+  const data = await api('/api/profiles', {
+    method: 'PUT',
+    body: JSON.stringify({ profiles: nextProfiles })
+  });
+  profiles = Array.isArray(data?.profiles) ? data.profiles : [];
+  renderProfileSelect();
+}
+
 // -------- Load everything --------
 async function loadAll() {
   const results = await Promise.allSettled([
@@ -2963,6 +3118,8 @@ async function loadAll() {
     loadEvents(),
     loadBulletins(),
     loadFinances(),
+    loadSubscribers(),
+    loadProfiles(),
   ]);
 
   // Keep bucket browsing non-blocking so a missing endpoint can't break login.
@@ -3007,6 +3164,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     setContentSubTab('panel-content-announcements');
   });
   $('tabBtn-finances').addEventListener('click', () => setTab('tab-finances'));
+  if ($('tabBtn-newsletter')) $('tabBtn-newsletter').addEventListener('click', () => setTab('tab-newsletter'));
+  if ($('tabBtn-profiles')) $('tabBtn-profiles').addEventListener('click', () => setTab('tab-profiles'));
   if ($('tabBtn-support')) $('tabBtn-support').addEventListener('click', () => setTab('tab-support'));
 
   // Sub-tabs
@@ -3547,6 +3706,172 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (hint) hint.textContent = '';
         showToast(`Email failed: ${String(err?.message || 'Unable to send email.')}`, { variant: 'danger' });
+      }
+    });
+  }
+
+  // Newsletter subscribers
+  if ($('newsletterGroupSelect')) {
+    $('newsletterGroupSelect').addEventListener('change', () => renderRecipientOptions());
+  }
+
+  if ($('subscriberList')) {
+    $('subscriberList').addEventListener('change', () => {
+      const email = String($('subscriberList').value || '').trim().toLowerCase();
+      const item = subscribers.find((s) => String(s.email).toLowerCase() === email);
+      if (!item) return;
+      if ($('subscriberEditEmail')) $('subscriberEditEmail').value = item.email;
+      if ($('subscriberName')) $('subscriberName').value = item.name || '';
+      if ($('subscriberEmail')) $('subscriberEmail').value = item.email || '';
+      if ($('subscriberGroup')) $('subscriberGroup').value = item.group || 'general';
+    });
+  }
+
+  if ($('subscriberClearBtn')) {
+    $('subscriberClearBtn').addEventListener('click', () => {
+      clearSubscriberEditor();
+      if ($('subscriberHint')) $('subscriberHint').textContent = '';
+    });
+  }
+
+  if ($('subscriberDeleteBtn')) {
+    $('subscriberDeleteBtn').addEventListener('click', async () => {
+      const selected = String($('subscriberList')?.value || '').trim().toLowerCase();
+      const hint = $('subscriberHint');
+      if (!selected) {
+        if (hint) hint.textContent = 'Select a subscriber to delete.';
+        return;
+      }
+      if (!confirmWrite(`Delete subscriber ${selected}?`)) return;
+      const next = subscribers.filter((s) => String(s.email).toLowerCase() !== selected);
+      if (hint) hint.textContent = 'Deleting…';
+      try {
+        await saveSubscribers(next);
+        clearSubscriberEditor();
+        if (hint) hint.textContent = 'Deleted.';
+      } catch (err) {
+        if (hint) hint.textContent = err.message;
+      }
+    });
+  }
+
+  if ($('subscriberForm')) {
+    $('subscriberForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const hint = $('subscriberHint');
+      const editEmail = String($('subscriberEditEmail')?.value || '').trim().toLowerCase();
+      const email = String($('subscriberEmail')?.value || '').trim().toLowerCase();
+      const name = String($('subscriberName')?.value || '').trim();
+      const group = String($('subscriberGroup')?.value || 'general').trim() || 'general';
+
+      if (!validEmail(email)) {
+        if (hint) hint.textContent = 'Enter a valid email address.';
+        return;
+      }
+
+      const next = subscribers
+        .filter((s) => String(s.email).toLowerCase() !== editEmail && String(s.email).toLowerCase() !== email)
+        .concat([{ email, name, group }])
+        .sort((a, b) => String(a.email).localeCompare(String(b.email)));
+
+      if (!confirmWrite('Save subscriber changes?')) return;
+      if (hint) hint.textContent = 'Saving…';
+      try {
+        await saveSubscribers(next);
+        clearSubscriberEditor();
+        if (hint) hint.textContent = 'Saved.';
+      } catch (err) {
+        if (hint) hint.textContent = err.message;
+      }
+    });
+  }
+
+  if ($('newsletterForm')) {
+    $('newsletterForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const hint = $('newsletterHint');
+      const errEl = $('newsletterError');
+      if (errEl) {
+        errEl.hidden = true;
+        errEl.textContent = '';
+      }
+
+      const subject = String($('newsletterSubject')?.value || '').trim();
+      const message = String($('newsletterMessage')?.value || '').trim();
+      const emails = selectedValues($('newsletterRecipients'));
+
+      if (!subject || !message) {
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent = 'Subject and message are required.';
+        }
+        return;
+      }
+      if (!emails.length) {
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent = 'Select at least one recipient.';
+        }
+        return;
+      }
+
+      if (!confirmWrite(`Send newsletter to ${emails.length} recipient(s)?`)) return;
+      if (hint) hint.textContent = 'Sending…';
+      try {
+        const out = await api('/api/newsletter/send', {
+          method: 'POST',
+          body: JSON.stringify({ subject, message, emails })
+        });
+        if (hint) hint.textContent = out?.disabled ? 'Sending is disabled on this server.' : `Sent to ${Number(out?.sent || 0)} recipient(s).`;
+      } catch (err) {
+        if (hint) hint.textContent = '';
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent = err.message;
+        }
+      }
+    });
+  }
+
+  // Profiles
+  if ($('profilePageFilter')) {
+    $('profilePageFilter').addEventListener('change', () => renderProfileSelect());
+  }
+  if ($('profileSelect')) {
+    $('profileSelect').addEventListener('change', () => fillProfileEditor($('profileSelect').value));
+  }
+  if ($('profileForm')) {
+    $('profileForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const hint = $('profileHint');
+      const id = String($('profileId')?.value || '').trim();
+      if (!id) {
+        if (hint) hint.textContent = 'Choose a profile first.';
+        return;
+      }
+
+      const next = profiles.map((p) => {
+        if (String(p.id) !== id) return p;
+        return {
+          ...p,
+          page: String($('profilePage')?.value || p.page || '').trim().toLowerCase(),
+          section: String($('profileSection')?.value || '').trim(),
+          image: String($('profileImage')?.value || '').trim(),
+          name: String($('profileName')?.value || '').trim(),
+          title: String($('profileTitle')?.value || '').trim(),
+          bio: String($('profileBio')?.value || '').trim(),
+          alt: String($('profileName')?.value || '').trim()
+        };
+      });
+
+      if (!confirmWrite('Save profile changes?')) return;
+      if (hint) hint.textContent = 'Saving…';
+      try {
+        await saveProfiles(next);
+        fillProfileEditor(id);
+        if (hint) hint.textContent = 'Saved.';
+      } catch (err) {
+        if (hint) hint.textContent = err.message;
       }
     });
   }

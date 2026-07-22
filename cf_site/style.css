@@ -857,6 +857,23 @@ section div p {
     padding: 10px;
     padding-bottom: 120px; /* space for the overlapping thumbnail */
     overflow: visible;
+.contact-form--spaced {
+    margin-top: 18px;
+}
+.footer-subscribe-form {
+    display: grid;
+    gap: 8px;
+}
+.footer-subscribe-form .input {
+    width: 100%;
+}
+.btn-contact--spaced {
+    margin-top: 6px;
+}
+.muted {
+    color: #4f4f4f;
+    font-size: 0.9rem;
+}
 }
 
 .faq-image-collage .faq-collage-main {

@@ -537,6 +537,39 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 .iconGroup{display:grid;gap:8px;justify-items:end;}
 .iconGroup__row{display:flex;gap:8px;align-items:center;justify-content:flex-end;}
 
+.financeModernNav{
+  margin-bottom:14px;
+}
+
+.financeModernNav__actions{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:10px;
+}
+
+.financeModernNav__actions .btn{
+  min-height:44px;
+  text-align:center;
+  font-size:1.05rem;
+}
+
+.financeActionButtons{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.financeActionButtons > .menu,
+.financeActionButtons > .iconBtn{
+  margin:0;
+}
+
+#subscriberList,
+#newsletterRecipients,
+#profileSelect{
+  min-height:220px;
+}
+
 .iconBtn{
   width:42px;
   height:42px;
@@ -984,6 +1017,10 @@ summary{
   border:1px solid var(--border);
   border-radius:16px;
   padding:10px;
+}
+
+.card--spacedTop{
+  margin-top:12px;
 }
 
 .tab,

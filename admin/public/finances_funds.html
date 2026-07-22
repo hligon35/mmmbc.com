@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Fund Tracking Dashboard</title>
+  <link rel="stylesheet" href="/admin/finance_modern.css" />
+</head>
+<body data-page="funds">
+  <main class="wrap">
+    <div class="topBar">
+      <h1>Fund Tracking Dashboard</h1>
+      <div class="navLinks">
+        <a href="/admin/finances/funds" aria-current="page">Funds</a>
+        <a href="/admin/finances/donors">Donors</a>
+        <a href="/admin/finances/reports/board">Board Reports</a>
+        <a href="/admin/finances/controls">Internal Controls</a>
+        <a href="/admin/finances/clergy-housing">Clergy Housing</a>
+        <a href="/admin/">Back to Admin Home</a>
+      </div>
+    </div>
+
+    <section class="panel">
+      <h2>Summary</h2>
+      <p class="help">This dashboard keeps restricted and unrestricted balances separate and warns before unsafe spending.</p>
+      <div class="grid" id="fundSummary"></div>
+      <p class="warn">General operating money cannot be substituted without authorization.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Create New Fund</h2>
+      <p class="help">Step 1: Enter plain-language profile details. Step 2: Review restriction fields. Step 3: Save.</p>
+      <form id="fundForm" class="grid">
+        <label class="label">Fund name<input id="fundName" class="input" required /></label>
+        <label class="label">Fund code<input id="fundCode" class="input" /></label>
+        <label class="label">Fund type
+          <select id="fundType" class="select">
+            <option>General Operating</option><option>Savings</option><option>Emergency Reserve</option><option>Building</option>
+            <option>Missions</option><option>Benevolence</option><option>Youth Ministry</option><option>Scholarship</option>
+            <option>Memorial</option><option>Capital Project</option><option>Board Designated</option><option>Donor Restricted</option><option>Other</option>
+          </select>
+        </label>
+        <label class="label">Restriction status
+          <select id="fundRestriction" class="select">
+            <option value="unrestricted">Unrestricted</option>
+            <option value="board_designated">Board-designated</option>
+            <option value="temporarily_restricted">Temporarily restricted</option>
+            <option value="permanently_restricted">Permanently restricted</option>
+            <option value="needs_treasurer_review">Needs Treasurer Review</option>
+          </select>
+        </label>
+        <label class="label">Opening balance<input id="fundOpening" class="input" type="number" step="0.01" /></label>
+        <label class="label">Minimum-balance warning<input id="fundMin" class="input" type="number" step="0.01" /></label>
+        <label class="label">Budget amount<input id="fundBudget" class="input" type="number" step="0.01" /></label>
+        <label class="label">Responsible ministry<input id="fundMinistry" class="input" /></label>
+        <label class="label">Responsible administrator<input id="fundAdmin" class="input" /></label>
+        <label class="label fullSpan">Description<textarea id="fundDescription" class="textarea"></textarea></label>
+        <label class="label fullSpan">Notes<textarea id="fundNotes" class="textarea"></textarea></label>
+        <div class="btnRow fullSpan">
+          <button class="btn btnPrimary" type="submit">Save Fund</button>
+          <button class="btn" type="reset">Cancel</button>
+          <a class="btn" href="#fundSummary">Review</a>
+          <a class="btn" href="/admin/">Back</a>
+        </div>
+      </form>
+      <p id="fundMsg" class="help"></p>
+    </section>
+
+    <section class="panel">
+      <h2>Transfer Between Funds</h2>
+      <p class="help">Transfers involving restricted funds require approval and are fully audited.</p>
+      <form id="transferForm" class="grid">
+        <label class="label">From fund<select id="transferFrom" class="select" required></select></label>
+        <label class="label">To fund<select id="transferTo" class="select" required></select></label>
+        <label class="label">Amount<input id="transferAmount" class="input" type="number" step="0.01" required /></label>
+        <label class="label fullSpan">Reason<textarea id="transferReason" class="textarea" required></textarea></label>
+        <div class="btnRow fullSpan">
+          <button class="btn btnPrimary" type="submit">Save Transfer Request</button>
+          <button class="btn" type="reset">Cancel</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Funds Table</h2>
+      <div class="tableWrap">
+        <table>
+          <thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Current</th><th>Available</th><th>Pending Deposits</th><th>Pending Expenses</th><th>Active</th></tr></thead>
+          <tbody id="fundTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+    <p id="pageError" class="error"></p>
+  </main>
+  <script src="/admin/finance_modern.js"></script>
+</body>
+</html>
