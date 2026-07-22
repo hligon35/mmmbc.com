@@ -41,9 +41,9 @@ body{
 }
 .header__left{display:flex;align-items:center;justify-content:flex-start;min-width:0;}
 .header__center{display:grid;gap:6px;justify-items:center;text-align:center;}
-.header__right{display:flex;align-items:center;justify-content:flex-end;}
+.header__right{display:flex;align-items:center;justify-content:flex-start;}
 
-.header__logo{width:min(100%, 570px);max-height:288px;display:block;object-fit:contain;}
+.header__logo{width:min(100%, 900px);max-height:450px;display:block;object-fit:contain;}
 .headerGreeting{font-size:1.5rem;font-weight:1000;line-height:1.15;}
 .headerSignedIn{font-size:1rem;font-weight:900;line-height:1.2;color:rgba(0,0,0,.84);}
 .headerActions{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;}
@@ -55,6 +55,14 @@ body{
   color:#000;
 }
 .header .btn:hover{border-color:rgba(0,0,0,.4);}
+
+.headerActions .btn,
+.headerActions .btn--drawerToggle,
+.headerActions #logoutBtn{
+  min-height:42px;
+  min-width:118px;
+  padding:8px 14px;
+}
 
 .avatarBtn{
   width:50px;
@@ -441,7 +449,7 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 
 .editorSplit{
   display:grid;
-  grid-template-columns:minmax(0, 1.25fr) minmax(320px, .85fr);
+  grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
   gap:18px;
   align-items:start;
 }
@@ -450,8 +458,14 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 .editorSplit__preview{min-width:0;}
 
 .previewPane{
-  position:sticky;
-  top:104px;
+  position:static;
+  display:grid;
+  gap:14px;
+}
+
+.editorSplit--siteEditor .editorSplit__preview{
+  display:grid;
+  gap:14px;
 }
 
 .previewBadge{
@@ -1833,7 +1847,7 @@ body.adminDrawerOpen{overflow:hidden;}
   bottom:0;
   width:min(var(--admin-drawer-width), calc(100vw - 28px));
   z-index:205;
-  transform:translateX(calc(-1 * var(--admin-drawer-width) - 20px));
+  transform:translateX(calc(-1 * var(--admin-drawer-width) - 45px));
   transition:transform .24s ease;
   overflow:auto;
   background:#141414;
@@ -1870,6 +1884,7 @@ body.adminDrawerOpen{overflow:hidden;}
 .sitePreviewToolbar__titles{display:grid;gap:2px;}
 .sitePreviewToolbar__actions{display:flex;gap:8px;flex-wrap:wrap;}
 .sitePagePreviewFrame{width:100%;height:min(72vh, 820px);border:1px solid var(--border);border-radius:12px;background:#fff;}
+.sitePagePreviewFrame{display:block;overflow:hidden;}
 .previewDraftHeader{margin-top:12px;}
 
 body.navDrawerCollapsed .adminLayout{grid-template-columns:unset;}
@@ -1880,6 +1895,91 @@ body.navDrawerCollapsed .sideNav{display:flex;}
   .header__left,.header__center,.header__right{justify-content:flex-start;text-align:left;justify-items:start;}
   .headerActions{justify-content:flex-start;}
   .header__logo{width:min(100%, 360px);max-height:180px;}
+}
+
+/* Site editor workbench: keep the preview at half width and on the same page scroll as the edit fields. */
+.editorSplit--siteEditor{
+  grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
+  align-items:start;
+}
+
+.editorSplit--siteEditor .card,
+.editorSplit--siteEditor .previewPane{
+  min-width:0;
+}
+
+.editorSplit--siteEditor .siteEditorLivePreview{
+  max-width:100%;
+}
+
+.editorSplit--siteEditor .siteEditorLivePreview .previewShell,
+.editorSplit--siteEditor .siteEditorLivePreview .previewProfileCard,
+.editorSplit--siteEditor .siteEditorLivePreview .previewInfoCard{
+  width:100%;
+}
+
+.editorSplit--siteEditor .sitePagePreviewFrame{
+  height:auto;
+  min-height:520px;
+}
+
+.editorSplit--siteEditor .previewPane{
+  overflow:visible;
+}
+
+.editorSplit--siteEditor .form{
+  gap:14px;
+}
+
+.editorSplit--siteEditor .label{
+  grid-template-columns:minmax(0, 220px) minmax(0, 1fr);
+  align-items:center;
+  gap:14px;
+}
+
+.editorSplit--siteEditor .label > .input,
+.editorSplit--siteEditor .label > .textarea,
+.editorSplit--siteEditor .label > .select,
+.editorSplit--siteEditor .label > .inputGroup,
+.editorSplit--siteEditor .label > .timePicker,
+.editorSplit--siteEditor .label > .hint{
+  grid-column:2;
+}
+
+.editorSplit--siteEditor .label > .hint{
+  margin-top:-2px;
+}
+
+.editorSplit--siteEditor #profileHeaderLeadershipFields,
+.editorSplit--siteEditor #profileHeaderMinistriesIntroRow,
+.editorSplit--siteEditor #profileHeaderForm,
+.editorSplit--siteEditor #profileForm{
+  display:grid;
+  gap:14px;
+}
+
+.editorSplit--siteEditor #profileHeaderLeadershipFields,
+.editorSplit--siteEditor #profileForm .card,
+.editorSplit--siteEditor #siteEditorHeaderCard,
+.editorSplit--siteEditor #siteEditorProfilesCard,
+.editorSplit--siteEditor #siteEditorInfoCard{
+  width:100%;
+}
+
+.editorSplit--siteEditor #profileSelect{
+  min-height:240px;
+}
+
+.editorSplit--siteEditor .formRow{
+  align-items:start;
+}
+
+.editorSplit--siteEditor .siteEditorImagePreview{
+  max-width:100%;
+}
+
+.adminDrawer{
+  top:calc(var(--admin-header-height) - 12px);
 }
 
 @media (max-width:900px){

@@ -3706,6 +3706,26 @@ function updateSitePreviewFrame(pageKey, { forceReload = false } = {}) {
   }
 }
 
+function syncSitePreviewFrameHeight() {
+  const frame = $('sitePagePreviewFrame');
+  if (!frame) return;
+
+  try {
+    const doc = frame.contentDocument || frame.contentWindow?.document;
+    if (!doc || !doc.body) return;
+    const bodyHeight = Math.max(
+      doc.body.scrollHeight || 0,
+      doc.documentElement?.scrollHeight || 0,
+      doc.body.offsetHeight || 0,
+      doc.documentElement?.offsetHeight || 0
+    );
+    frame.style.height = `${Math.max(bodyHeight, 520)}px`;
+    frame.style.overflow = 'hidden';
+  } catch {
+    // ignore cross-frame sizing issues
+  }
+}
+
 function refreshPublishedSitePreview() {
   updateSitePreviewFrame(activeProfilePage(), { forceReload: true });
   announceLive('Published page preview refreshed.');
@@ -4102,12 +4122,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       const status = $('sitePreviewStatus');
       const cfg = getSitePreviewConfig(activeProfilePage());
       if (status) status.textContent = `Preview loaded: ${cfg.label}`;
+      requestAnimationFrame(() => syncSitePreviewFrameHeight());
     });
     $('sitePagePreviewFrame').addEventListener('error', () => {
       const status = $('sitePreviewStatus');
       if (status) status.textContent = 'Preview could not be loaded for this page.';
     });
   }
+
+  window.addEventListener('resize', () => {
+    try { syncSitePreviewFrameHeight(); } catch { /* ignore */ }
+  });
 
   // Sub-tabs
   if ($('subTabBtn-content-announcements')) {
@@ -5132,6 +5157,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   setSiteEditorPage('home');
+  syncSitePreviewFrameHeight();
 
   if ($('profileSelect')) {
     $('profileSelect').addEventListener('change', () => fillProfileEditor($('profileSelect').value));
