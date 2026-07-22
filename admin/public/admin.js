@@ -94,11 +94,24 @@ function escapeAttr(value) {
 }
 
 let syncProgressHideTimer = null;
+const NAV_DRAWER_OPEN_KEY = 'mmmbc_admin_drawer_open_v1';
 const NAV_DRAWER_COLLAPSE_KEY = 'mmmbc_admin_nav_drawer_collapsed_v1';
 const APPEARANCE_PREF_KEY = 'mmmbc_admin_appearance_v1';
 const UNSAVED_WARNING_TEXT = 'You have unsaved changes. Leave this page without saving them?';
 const unsavedSnapshots = new Map();
 const unsavedDirtyForms = new Set();
+let adminDrawerOpen = false;
+let adminDrawerRestoreFocus = null;
+
+const sitePreviewPageMap = {
+  home: { label: 'Home', url: '/' },
+  ministries: { label: 'Ministries', url: '/Pages/ministries.html' },
+  leadership: { label: 'Leadership & Staff', url: '/Pages/leadership.html' },
+  church_history: { label: 'Church History', url: '/Pages/church_history.html' },
+  facility_rental: { label: 'Facility Rental', url: '/Pages/facility_rental.html' },
+  live_praise: { label: 'Live Praise', url: '/Pages/live_praise.html' },
+  contact: { label: 'Contact', url: '/Pages/contact.html' }
+};
 
 function updateHeaderBumper() {
   const header = document.querySelector?.('.header');
@@ -106,9 +119,114 @@ function updateHeaderBumper() {
   try {
     const h = Math.max(0, Math.round(header.getBoundingClientRect().height || 0));
     document.documentElement.style.setProperty('--header-bumper', `${h}px`);
+    document.documentElement.style.setProperty('--admin-header-height', `${h}px`);
   } catch {
     // ignore
   }
+}
+
+function updateLayoutMetrics() {
+  updateHeaderBumper();
+  const extension = $('adminSectionExtension');
+  const hasVisibleExtension = extension && !extension.hidden;
+  const extensionHeight = hasVisibleExtension
+    ? Math.max(0, Math.round(extension.getBoundingClientRect().height || 0))
+    : 0;
+  document.documentElement.style.setProperty('--admin-section-extension-height', `${extensionHeight}px`);
+}
+
+function setAuthenticatedHeaderVisible(isAuthenticated) {
+  const header = $('adminHeader');
+  if (!header) return;
+  header.hidden = !isAuthenticated;
+  if (!isAuthenticated) {
+    setAdminDrawerOpen(false, { restoreFocus: false });
+  }
+  updateLayoutMetrics();
+}
+
+function getStoredDrawerPreference() {
+  try {
+    const openPref = window.localStorage.getItem(NAV_DRAWER_OPEN_KEY);
+    if (openPref === '1') return true;
+    if (openPref === '0') return false;
+
+    const legacyCollapsed = window.localStorage.getItem(NAV_DRAWER_COLLAPSE_KEY);
+    if (legacyCollapsed === '0') return true;
+    if (legacyCollapsed === '1') return false;
+  } catch {
+    // ignore storage issues
+  }
+  return false;
+}
+
+function setStoredDrawerPreference(isOpen) {
+  try {
+    window.localStorage.setItem(NAV_DRAWER_OPEN_KEY, isOpen ? '1' : '0');
+    // Keep legacy key aligned so old clients and tests behave consistently.
+    window.localStorage.setItem(NAV_DRAWER_COLLAPSE_KEY, isOpen ? '0' : '1');
+  } catch {
+    // ignore storage issues
+  }
+}
+
+function trapDrawerFocus(ev) {
+  if (!adminDrawerOpen || ev.key !== 'Tab') return;
+  const drawer = $('adminSideNav');
+  if (!drawer) return;
+  const nodes = Array.from(drawer.querySelectorAll('button, a[href], [tabindex]:not([tabindex="-1"])'))
+    .filter((el) => !el.hasAttribute('disabled'));
+  if (!nodes.length) return;
+  const first = nodes[0];
+  const last = nodes[nodes.length - 1];
+  const active = document.activeElement;
+
+  if (ev.shiftKey && active === first) {
+    ev.preventDefault();
+    last.focus();
+  } else if (!ev.shiftKey && active === last) {
+    ev.preventDefault();
+    first.focus();
+  }
+}
+
+function setAdminDrawerOpen(isOpen, { restoreFocus = true } = {}) {
+  const drawer = $('adminSideNav');
+  const backdrop = $('adminDrawerBackdrop');
+  const btn = $('navDrawerToggle');
+  if (!drawer || !backdrop || !btn) return;
+
+  const next = !!isOpen;
+  adminDrawerOpen = next;
+
+  if (next) {
+    adminDrawerRestoreFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
+
+  document.body.classList.toggle('adminDrawerOpen', next);
+  drawer.classList.toggle('adminDrawer--open', next);
+  drawer.setAttribute('aria-hidden', next ? 'false' : 'true');
+  drawer.setAttribute('tabindex', next ? '0' : '-1');
+  backdrop.hidden = !next;
+
+  btn.setAttribute('aria-expanded', next ? 'true' : 'false');
+  btn.setAttribute('aria-label', next ? 'Close Menu' : 'Open Menu');
+  btn.textContent = next ? 'Close Menu' : 'Open Menu';
+
+  setStoredDrawerPreference(next);
+
+  if (next) {
+    const first = drawer.querySelector('button, a[href], [tabindex]:not([tabindex="-1"])');
+    if (first instanceof HTMLElement) first.focus();
+  } else if (restoreFocus) {
+    const focusTarget = adminDrawerRestoreFocus instanceof HTMLElement ? adminDrawerRestoreFocus : btn;
+    focusTarget.focus();
+  }
+}
+
+function closeDrawerAfterNavigation() {
+  if (!adminDrawerOpen) return;
+  setAdminDrawerOpen(false, { restoreFocus: true });
 }
 
 function getAppearancePreference() {
@@ -693,11 +811,20 @@ function setTab(activeId) {
     } catch { /* ignore */ }
   }
 
-  const financeTopBar = $('financeTopBar');
-  if (financeTopBar) financeTopBar.hidden = false;
+  updateActiveSectionExtensions(activeId);
+  updateLayoutMetrics();
+}
 
+function updateActiveSectionExtensions(activeTabId) {
+  const extension = $('adminSectionExtension');
+  const financeTopBar = $('financeTopBar');
   const siteEditorTabs = $('siteEditorPageTabs');
-  if (siteEditorTabs) siteEditorTabs.hidden = activeId !== 'tab-profiles';
+  const showFinance = activeTabId === 'tab-finances';
+  const showSiteTabs = activeTabId === 'tab-profiles';
+
+  if (financeTopBar) financeTopBar.hidden = !showFinance;
+  if (siteEditorTabs) siteEditorTabs.hidden = !showSiteTabs;
+  if (extension) extension.hidden = !(showFinance || showSiteTabs);
 }
 
 function activateMainSection(sectionId, { subTabId = '' } = {}) {
@@ -708,6 +835,7 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
   }
 
   setTab(sectionId);
+  closeDrawerAfterNavigation();
 
   if (sectionId === 'tab-content' && subTabId) {
     setContentSubTab(subTabId);
@@ -732,16 +860,6 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
   }
 }
 
-function setNavDrawerCollapsed(collapsed) {
-  const isCollapsed = !!collapsed;
-  document.body.classList.toggle('navDrawerCollapsed', isCollapsed);
-  const btn = $('navDrawerToggle');
-  if (btn) {
-    btn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
-    btn.textContent = isCollapsed ? 'Show Menu' : 'Collapse Menu';
-  }
-}
-
 async function refreshAuthUI() {
   let me = { user: null };
   try {
@@ -754,8 +872,12 @@ async function refreshAuthUI() {
   const inviteToken = getInviteTokenFromHash();
   const inInviteFlow = !!inviteToken;
 
+  setAuthenticatedHeaderVisible(loggedIn && !inInviteFlow);
+
   $('inviteCard').hidden = !inInviteFlow;
   $('loginCard').hidden = loggedIn || inInviteFlow;
+  const authShell = $('authShell');
+  if (authShell) authShell.hidden = loggedIn;
   $('dashboardCard').hidden = !loggedIn || inInviteFlow;
   $('logoutBtn').hidden = !loggedIn;
 
@@ -769,12 +891,14 @@ async function refreshAuthUI() {
     initGoogleSignInButton();
   }
 
-  $('authStatus').textContent = loggedIn ? `Signed in as ${me.user.email}` : 'Sign in required';
+  const nameOrEmail = String(me?.user?.name || me?.user?.email || '').trim();
+  $('authStatus').textContent = loggedIn
+    ? `Signed in as ${nameOrEmail || String(me.user.email || '').trim()}`
+    : '';
 
   if (loggedIn) {
     const nowHour = new Date().getHours();
     const greeting = nowHour < 12 ? 'Good morning' : (nowHour < 18 ? 'Good afternoon' : 'Good evening');
-    const nameOrEmail = String(me.user.name || me.user.email || '').trim();
     $('salutation').textContent = nameOrEmail ? `${greeting}, ${nameOrEmail}` : 'Welcome';
     const homeWelcome = $('homeWelcomeLine');
     if (homeWelcome) homeWelcome.textContent = nameOrEmail ? `${greeting}, ${nameOrEmail}` : 'Welcome';
@@ -783,9 +907,10 @@ async function refreshAuthUI() {
     const financeTopBar = $('financeTopBar');
     if (financeTopBar) financeTopBar.hidden = false;
   } else {
-    $('salutation').textContent = 'Welcome';
+    $('salutation').textContent = '';
     const homeWelcome = $('homeWelcomeLine');
     if (homeWelcome) homeWelcome.textContent = 'Welcome';
+    updateActiveSectionExtensions('');
   }
 
   if (loggedIn) {
@@ -793,12 +918,17 @@ async function refreshAuthUI() {
     await csrfReady;
     await loadAll();
     applyHashNavigation();
+    setAdminDrawerOpen(getStoredDrawerPreference(), { restoreFocus: false });
     resetAllUnsavedBaselines();
+  } else {
+    setAdminDrawerOpen(false, { restoreFocus: false });
   }
 
   if (inInviteFlow) {
     await loadInvite(inviteToken);
   }
+
+  updateLayoutMetrics();
 }
 
 async function login(email, password) {
@@ -3547,6 +3677,40 @@ function activeProfilePage() {
   return String(siteEditorActivePage || 'home').trim().toLowerCase();
 }
 
+function getSitePreviewConfig(pageKey) {
+  const key = String(pageKey || '').trim().toLowerCase();
+  return sitePreviewPageMap[key] || sitePreviewPageMap.home;
+}
+
+function updateSitePreviewFrame(pageKey, { forceReload = false } = {}) {
+  const frame = $('sitePagePreviewFrame');
+  const pageName = $('sitePreviewPageName');
+  const openBtn = $('sitePreviewOpenBtn');
+  const status = $('sitePreviewStatus');
+  if (!frame || !pageName || !openBtn) return;
+
+  const cfg = getSitePreviewConfig(pageKey);
+  const targetUrl = cfg.url;
+  pageName.textContent = cfg.label;
+  openBtn.href = targetUrl;
+
+  let frameUrl = targetUrl;
+  if (forceReload) {
+    const stamp = Date.now();
+    frameUrl = targetUrl.includes('?') ? `${targetUrl}&_preview=${stamp}` : `${targetUrl}?_preview=${stamp}`;
+  }
+
+  if (forceReload || String(frame.getAttribute('src') || '') !== frameUrl) {
+    frame.setAttribute('src', frameUrl);
+    if (status) status.textContent = `Loaded published preview: ${cfg.label}`;
+  }
+}
+
+function refreshPublishedSitePreview() {
+  updateSitePreviewFrame(activeProfilePage(), { forceReload: true });
+  announceLive('Published page preview refreshed.');
+}
+
 function setSiteEditorPage(page) {
   const next = String(page || '').trim().toLowerCase();
   if (!siteEditorPages.includes(next)) return;
@@ -3589,6 +3753,8 @@ function setSiteEditorPage(page) {
   fillProfileHeaderEditor();
   renderProfileSelect();
   renderSiteEditorPreview();
+  updateSitePreviewFrame(siteEditorActivePage);
+  updateLayoutMetrics();
 }
 
 function clearProfileEditor() {
@@ -3811,6 +3977,7 @@ async function saveProfiles(nextProfiles, nextPageMeta) {
   fillProfileHeaderEditor();
   renderProfileSelect();
   renderSiteEditorPreview();
+  refreshPublishedSitePreview();
 }
 
 // -------- Load everything --------
@@ -3834,8 +4001,9 @@ async function loadAll() {
 // -------- Wire UI --------
 document.addEventListener('DOMContentLoaded', async () => {
   updateHeaderBumper();
+  updateLayoutMetrics();
   window.addEventListener('resize', () => {
-    try { updateHeaderBumper(); } catch { /* ignore */ }
+    try { updateLayoutMetrics(); } catch { /* ignore */ }
   });
 
   resetTransientUiState();
@@ -3876,14 +4044,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { setPrintMode('finance'); } catch { /* ignore */ }
   });
 
-  setNavDrawerCollapsed(getStoredBoolean(NAV_DRAWER_COLLAPSE_KEY, false));
+  setAdminDrawerOpen(false, { restoreFocus: false });
   if ($('navDrawerToggle')) {
     $('navDrawerToggle').addEventListener('click', () => {
-      const collapsed = !document.body.classList.contains('navDrawerCollapsed');
-      setNavDrawerCollapsed(collapsed);
-      setStoredBoolean(NAV_DRAWER_COLLAPSE_KEY, collapsed);
+      setAdminDrawerOpen(!adminDrawerOpen, { restoreFocus: false });
     });
   }
+  if ($('adminDrawerBackdrop')) {
+    $('adminDrawerBackdrop').addEventListener('click', () => {
+      setAdminDrawerOpen(false, { restoreFocus: true });
+    });
+  }
+  if ($('adminSideNav')) {
+    $('adminSideNav').addEventListener('click', (e) => {
+      const trigger = e.target?.closest?.('.tab--nav,[data-section-target]');
+      if (!trigger) return;
+      setAdminDrawerOpen(false, { restoreFocus: true });
+    });
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && adminDrawerOpen) {
+      e.preventDefault();
+      setAdminDrawerOpen(false, { restoreFocus: true });
+      return;
+    }
+    trapDrawerFocus(e);
+  });
 
   // Tabs
   if ($('tabBtn-home')) $('tabBtn-home').addEventListener('click', () => activateMainSection('tab-home'));
@@ -3902,6 +4088,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!target) return;
       e.preventDefault();
       activateMainSection(target, { subTabId: subTab });
+    });
+  }
+
+  if ($('sitePreviewRefreshBtn')) {
+    $('sitePreviewRefreshBtn').addEventListener('click', () => {
+      refreshPublishedSitePreview();
+    });
+  }
+
+  if ($('sitePagePreviewFrame')) {
+    $('sitePagePreviewFrame').addEventListener('load', () => {
+      const status = $('sitePreviewStatus');
+      const cfg = getSitePreviewConfig(activeProfilePage());
+      if (status) status.textContent = `Preview loaded: ${cfg.label}`;
+    });
+    $('sitePagePreviewFrame').addEventListener('error', () => {
+      const status = $('sitePreviewStatus');
+      if (status) status.textContent = 'Preview could not be loaded for this page.';
     });
   }
 
