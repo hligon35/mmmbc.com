@@ -3945,6 +3945,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       e.preventDefault();
       closeDlg();
     });
+
+    if (!window.__mmmbcPhotoHelpEscBound) {
+      window.__mmmbcPhotoHelpEscBound = true;
+      document.addEventListener('keydown', (e) => {
+        const k = String(e.key || '').toLowerCase();
+        if (k !== 'escape') return;
+        if (!dlg.hasAttribute('open')) return;
+        e.preventDefault();
+        closeDlg();
+      }, true);
+    }
   }
 
   if ($('r2GoBtn')) {
