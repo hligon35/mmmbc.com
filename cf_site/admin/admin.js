@@ -1,6 +1,10 @@
 let csrfToken = '';
 let csrfReady = Promise.resolve();
 let authProviders = { google: { enabled: false, clientId: '' } };
+let googleInitializedClientId = '';
+let googleRenderedClientId = '';
+let googleInitRetryCount = 0;
+let googleInitRetryTimer = null;
 
 async function fetchCsrfToken() {
   try {
@@ -206,8 +210,22 @@ async function loadAuthProviders() {
 }
 
 function hideGoogleButton() {
+  const g = window.google;
+  try {
+    if (g && g.accounts && g.accounts.id && typeof g.accounts.id.cancel === 'function') {
+      g.accounts.id.cancel();
+    }
+  } catch {
+    // ignore
+  }
   const btnWrap = $('googleSignInBtn');
   if (btnWrap) btnWrap.innerHTML = '';
+  googleRenderedClientId = '';
+  googleInitRetryCount = 0;
+  if (googleInitRetryTimer) {
+    try { window.clearTimeout(googleInitRetryTimer); } catch { /* ignore */ }
+    googleInitRetryTimer = null;
+  }
 }
 
 async function loginWithGoogle(idToken) {
@@ -235,34 +253,56 @@ function initGoogleSignInButton() {
 
   const g = window.google;
   if (!g || !g.accounts || !g.accounts.id) {
+    if (googleInitRetryCount < 15) {
+      googleInitRetryCount += 1;
+      hint.textContent = 'Loading Google sign-in…';
+      googleInitRetryTimer = window.setTimeout(() => {
+        googleInitRetryTimer = null;
+        initGoogleSignInButton();
+      }, 250);
+      return;
+    }
     hint.textContent = 'Google sign-in failed to load. Refresh and try again.';
-    hideGoogleButton();
     return;
   }
 
-  hint.textContent = 'Use your approved Google account.';
-  wrap.innerHTML = '';
+  googleInitRetryCount = 0;
+  if (googleInitRetryTimer) {
+    try { window.clearTimeout(googleInitRetryTimer); } catch { /* ignore */ }
+    googleInitRetryTimer = null;
+  }
 
-  g.accounts.id.initialize({
-    client_id: authProviders.google.clientId,
-    callback: async (response) => {
-      const token = String(response?.credential || '').trim();
-      if (!token) {
-        showToast('Google sign-in did not return a credential.', { variant: 'danger' });
-        return;
-      }
-      try {
-        await loginWithGoogle(token);
-        await refreshAuthUI();
-      } catch (err) {
-        const el = $('loginError');
-        if (el) {
-          el.textContent = String(err?.message || 'Google sign-in failed.');
-          el.hidden = false;
+  hint.textContent = 'Use your approved Google account.';
+
+  if (googleInitializedClientId !== authProviders.google.clientId) {
+    g.accounts.id.initialize({
+      client_id: authProviders.google.clientId,
+      callback: async (response) => {
+        const token = String(response?.credential || '').trim();
+        if (!token) {
+          showToast('Google sign-in did not return a credential.', { variant: 'danger' });
+          return;
+        }
+        try {
+          await loginWithGoogle(token);
+          await refreshAuthUI();
+        } catch (err) {
+          const el = $('loginError');
+          if (el) {
+            el.textContent = String(err?.message || 'Google sign-in failed.');
+            el.hidden = false;
+          }
         }
       }
-    }
-  });
+    });
+    googleInitializedClientId = authProviders.google.clientId;
+  }
+
+  if (googleRenderedClientId === authProviders.google.clientId && wrap.childElementCount > 0) {
+    return;
+  }
+
+  wrap.innerHTML = '';
 
   g.accounts.id.renderButton(wrap, {
     type: 'standard',
@@ -272,6 +312,7 @@ function initGoogleSignInButton() {
     theme: 'outline',
     logo_alignment: 'left'
   });
+  googleRenderedClientId = authProviders.google.clientId;
 }
 
 function uniqStringsLower(list) {

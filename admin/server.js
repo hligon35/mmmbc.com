@@ -630,6 +630,7 @@ app.use(helmet({
       ...(ENFORCE_HTTPS ? { "upgrade-insecure-requests": [] } : {})
     }
   } : false,
+  crossOriginOpenerPolicy: false,
   crossOriginEmbedderPolicy: false,
   // YouTube embeds can fail with "Error 153" if the browser does not send a referrer.
   // Helmet's default can be very strict; use a modern policy that still sends origin.
