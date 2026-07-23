@@ -92,9 +92,31 @@ const TRUST_PROXY = envBool('TRUST_PROXY', process.env.NODE_ENV === 'production'
 // Allow ENFORCE_HTTPS=false to override production defaults (useful for LAN-only Pi setups).
 const ENFORCE_HTTPS = envBool('ENFORCE_HTTPS', process.env.NODE_ENV === 'production');
 const ENABLE_CSP = String(process.env.ENABLE_CSP || '').toLowerCase() === 'true';
-const SESSIONS_DIR = process.env.SESSIONS_DIR
-  ? path.resolve(process.env.SESSIONS_DIR)
-  : path.join(os.tmpdir(), 'mmmbc-admin-sessions');
+function isPathInside(parentPath, childPath) {
+  const parent = path.resolve(parentPath);
+  const child = path.resolve(childPath);
+  const rel = path.relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+function resolveSessionsDir() {
+  const defaultDir = path.join(os.tmpdir(), 'mmmbc-admin-sessions');
+  const configured = String(process.env.SESSIONS_DIR || '').trim();
+  if (!configured) return defaultDir;
+
+  const resolved = path.resolve(configured);
+  const unsafeWindowsRepoPath = process.platform === 'win32'
+    && (isPathInside(ROOT_DIR, resolved) || isPathInside(ADMIN_DIR, resolved));
+
+  if (unsafeWindowsRepoPath) {
+    console.warn(`[MMMBC Admin] Ignoring SESSIONS_DIR=${configured} on Windows; using ${defaultDir} to avoid EPERM rename failures.`);
+    return defaultDir;
+  }
+
+  return resolved;
+}
+
+const SESSIONS_DIR = resolveSessionsDir();
 
 function listenWithPortFallback(appInstance, startPort, { maxTries = 25, host } = {}) {
   return new Promise((resolve, reject) => {
@@ -311,6 +333,53 @@ function buildNewsletterEmailTemplate({ subject, message }) {
             <div style="margin-top:28px;padding-top:18px;border-top:1px solid #e5e7eb;font-size:13px;color:#6b7280">
               Sent from the MMMBC admin newsletter editor.
             </div>
+          </div>
+        </div>
+      </div>
+    `
+  };
+}
+
+function roleDisplayName(role) {
+  const normalized = normalizeRole(role);
+  if (normalized === ROLE.ADMINISTRATOR) return 'Administrator';
+  if (normalized === ROLE.FINANCE_ENTRY) return 'Finance Entry';
+  if (normalized === ROLE.TREASURER) return 'Treasurer';
+  if (normalized === ROLE.AUDITOR) return 'Auditor';
+  return 'Website Editor';
+}
+
+function buildAdminInviteEmailTemplate({ inviteLink, expiresAt, role }) {
+  const roleLabel = roleDisplayName(role);
+  const safeRoleLabel = escapeHtml(roleLabel);
+  const safeInviteLink = escapeHtml(inviteLink);
+  const expiresText = Number.isNaN(Date.parse(expiresAt))
+    ? 'in 7 days'
+    : new Date(expiresAt).toLocaleString();
+  const safeExpiresText = escapeHtml(expiresText);
+
+  return {
+    text: [
+      'Mt. Moriah Missionary Baptist Church Admin Invite',
+      `Role: ${roleLabel}`,
+      `Invite link: ${inviteLink}`,
+      `Expires: ${expiresText}`,
+      '',
+      'Open the link to complete your account setup.'
+    ].join('\n'),
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#1f2937;background:#f8fafc;padding:24px">
+        <div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden">
+          <div style="padding:24px 28px;background:linear-gradient(135deg,#7a2f16,#c46123);color:#ffffff">
+            <div style="font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.92">Mt. Moriah MBC</div>
+            <h1 style="margin:10px 0 0;font-size:28px;line-height:1.15">You are invited to Admin</h1>
+          </div>
+          <div style="padding:24px 28px;color:#111827;font-size:16px">
+            <p style="margin:0 0 10px">You have been invited to join the church admin system.</p>
+            <p style="margin:0 0 10px"><strong>Role:</strong> ${safeRoleLabel}</p>
+            <p style="margin:0 0 18px"><strong>Expires:</strong> ${safeExpiresText}</p>
+            <a href="${safeInviteLink}" style="display:inline-block;padding:12px 18px;border-radius:12px;background:#8b3f1f;color:#ffffff;text-decoration:none;font-weight:700">Complete Setup</a>
+            <p style="margin:18px 0 0;font-size:13px;color:#6b7280;word-break:break-word">If the button does not work, copy this link:<br>${safeInviteLink}</p>
           </div>
         </div>
       </div>
@@ -2014,6 +2083,7 @@ app.post('/api/users', requirePermission(PERMISSIONS.USERS_MANAGE), async (req, 
 // Create an invite link for a new admin (recommended flow)
 app.post('/api/users/invite', requirePermission(PERMISSIONS.USERS_MANAGE), async (req, res) => {
   const email = String(req.body.email || '').toLowerCase().trim();
+  const role = normalizeRole(req.body.role || ROLE.WEBSITE_EDITOR);
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
   const usersData = loadUsers();
@@ -2031,7 +2101,7 @@ app.post('/api/users/invite', requirePermission(PERMISSIONS.USERS_MANAGE), async
     id: newId(),
     email,
     passwordHash: await bcrypt.hash(placeholderPassword, 12),
-    role: ROLE.WEBSITE_EDITOR,
+    role,
     createdAt: new Date().toISOString(),
     isMaster: false,
     name: '',
@@ -2048,7 +2118,37 @@ app.post('/api/users/invite', requirePermission(PERMISSIONS.USERS_MANAGE), async
 
   const base = getBaseUrl(req);
   const inviteLink = `${base}/admin/#invite=${token}`;
-  res.json({ ok: true, inviteLink, expiresAt });
+
+  if (envBool('SUPPORT_DISABLE_SEND', false) || process.env.NODE_ENV === 'test') {
+    return res.json({ ok: true, inviteLink, expiresAt, emailSent: false, disabled: true });
+  }
+
+  const fromEmail = String(process.env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
+  const fromName = String(process.env.SUPPORT_FROM_NAME || 'MMMBC Admin').trim() || 'MMMBC Admin';
+  const subject = `MMMBC Admin Invite (${roleDisplayName(role)})`;
+  const template = buildAdminInviteEmailTemplate({ inviteLink, expiresAt, role });
+
+  try {
+    const payload = {
+      personalizations: [{ to: [{ email }], subject }],
+      from: { email: fromEmail, name: fromName },
+      content: [
+        { type: 'text/plain', value: template.text },
+        { type: 'text/html', value: template.html }
+      ]
+    };
+
+    const out = await mailchannelsSend(payload);
+    if (out.status < 200 || out.status >= 300) {
+      logger.error('admin_invite_email_failed', { status: out.status, body: String(out.body || '').slice(0, 2000), email, role });
+      return res.json({ ok: true, inviteLink, expiresAt, emailSent: false });
+    }
+
+    return res.json({ ok: true, inviteLink, expiresAt, emailSent: true });
+  } catch (e) {
+    logger.error('admin_invite_email_error', { err: e, email, role });
+    return res.json({ ok: true, inviteLink, expiresAt, emailSent: false });
+  }
 });
 
 // Invite details
