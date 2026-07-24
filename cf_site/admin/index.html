@@ -12,6 +12,7 @@
 
   <header class="header" id="adminHeader" hidden>
     <div class="header__left">
+      <img class="header__logo" src="/ConImg/MtMoriahLogo-1.png" alt="Mt. Moriah Missionary Baptist Church" />
     </div>
     <div class="header__center">
       <div class="headerGreeting salutation salutation--header" id="salutation" aria-live="polite"></div>
@@ -22,10 +23,69 @@
       </div>
     </div>
     <div class="header__right">
-      <img class="header__logo" src="/ConImg/MtMoriahLogo-1.png" alt="Mt. Moriah Missionary Baptist Church" />
+      <button class="iconBtn headerInviteBtn noPrint" id="inviteAdminBtn" type="button" aria-label="Invite admin" title="Invite admin" hidden>
+        <img class="iconBtn__icon headerInviteBtn__icon" src="/Icons/mailus.png" alt="" aria-hidden="true" />
+      </button>
+    </div>
+    <div class="adminSectionExtension noPrint" id="adminSectionExtension" hidden>
+      <div class="financeTopBar noPrint" id="financeTopBar" aria-label="Finance totals" hidden>
+        <div class="financePeriodTabs" role="tablist" aria-label="Finance period">
+          <button class="miniTab miniTab--xs" id="financePeriodWeekBtn" type="button" role="tab" aria-selected="true">This Week</button>
+          <button class="miniTab miniTab--xs" id="financePeriodMonthBtn" type="button" role="tab" aria-selected="false">This Month</button>
+        </div>
+        <div class="financeTopBar__label">Finance Totals</div>
+        <span class="statusChip" id="financeIncomeTotal">$0.00 Income</span>
+        <span class="statusChip" id="financeExpenseTotal">$0.00 Expense</span>
+        <span class="statusChip" id="financeTithesTotal">$0.00 Tithes</span>
+        <span class="statusChip" id="financeOfferingsTotal">$0.00 Offerings</span>
+        <span class="statusChip" id="financeGivingTotal">$0.00 Total</span>
+        <span class="statusChip" id="financeNetTotal">$0.00 Net</span>
+      </div>
+
+      <div class="tabs subTabs siteEditorPageTabs noPrint" id="siteEditorPageTabs" role="tablist" aria-label="Site editor pages" hidden>
+        <button class="tab tab--sub" type="button" role="tab" aria-selected="true" data-site-page="home">Home</button>
+        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="ministries">Ministries</button>
+        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="leadership">Leadership &amp; Staff</button>
+        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="church_history">Church History</button>
+        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="facility_rental">Facility Rental</button>
+        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="live_praise">Live Praise</button>
+        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="contact">Contact</button>
+      </div>
     </div>
   </header>
   <button class="adminDrawerBackdrop" id="adminDrawerBackdrop" type="button" aria-label="Close menu" hidden></button>
+
+  <dialog class="dialog" id="inviteAdminDialog" aria-label="Invite admin user">
+    <a class="dialog__backdrop" href="#" aria-label="Close"></a>
+    <div class="card dialog__inner">
+      <div class="sectionHeader sectionHeader--compact">
+        <h3 class="sectionHeader__title">Invite an Admin</h3>
+        <button class="btn" id="inviteAdminCloseBtn" type="button">Close</button>
+      </div>
+      <p class="muted">Send a branded invite email with a secure onboarding link.</p>
+      <form id="inviteAdminForm" class="form">
+        <label class="label">
+          Email
+          <input class="input" id="inviteAdminEmail" name="email" type="email" autocomplete="email" required />
+        </label>
+        <label class="label">
+          Role
+          <select class="select" id="inviteAdminRole" name="role" required>
+            <option value="website_editor">Website Editor</option>
+            <option value="administrator">Administrator</option>
+            <option value="finance_entry">Finance Entry</option>
+            <option value="treasurer">Treasurer</option>
+            <option value="auditor">Auditor</option>
+          </select>
+        </label>
+        <div class="toolbar">
+          <button class="btn btn--primary" id="inviteAdminSendBtn" type="submit">Send Invite</button>
+        </div>
+        <div class="hint" id="inviteAdminHint" aria-live="polite"></div>
+        <div class="error" id="inviteAdminError" role="alert" hidden></div>
+      </form>
+    </div>
+  </dialog>
 
   <main id="app" class="app" role="main">
     <div class="srOnly" id="adminLiveRegion" aria-live="polite" aria-atomic="true"></div>
@@ -165,32 +225,6 @@
     </section>
 
     <section class="card" id="dashboardCard" aria-label="Admin dashboard" hidden>
-      <div class="adminSectionExtension noPrint" id="adminSectionExtension" hidden>
-      <div class="financeTopBar noPrint" id="financeTopBar" aria-label="Finance totals" hidden>
-        <div class="financePeriodTabs" role="tablist" aria-label="Finance period">
-          <button class="miniTab miniTab--xs" id="financePeriodWeekBtn" type="button" role="tab" aria-selected="true">This Week</button>
-          <button class="miniTab miniTab--xs" id="financePeriodMonthBtn" type="button" role="tab" aria-selected="false">This Month</button>
-        </div>
-        <div class="financeTopBar__label">Finance Totals</div>
-        <span class="statusChip" id="financeIncomeTotal">$0.00 Income</span>
-        <span class="statusChip" id="financeExpenseTotal">$0.00 Expense</span>
-        <span class="statusChip" id="financeTithesTotal">$0.00 Tithes</span>
-        <span class="statusChip" id="financeOfferingsTotal">$0.00 Offerings</span>
-        <span class="statusChip" id="financeGivingTotal">$0.00 Total</span>
-        <span class="statusChip" id="financeNetTotal">$0.00 Net</span>
-      </div>
-
-      <div class="tabs subTabs siteEditorPageTabs noPrint" id="siteEditorPageTabs" role="tablist" aria-label="Site editor pages" hidden>
-        <button class="tab tab--sub" type="button" role="tab" aria-selected="true" data-site-page="home">Home</button>
-        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="ministries">Ministries</button>
-        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="leadership">Leadership &amp; Staff</button>
-        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="church_history">Church History</button>
-        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="facility_rental">Facility Rental</button>
-        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="live_praise">Live Praise</button>
-        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="contact">Contact</button>
-      </div>
-      </div>
-
       <div class="adminLayout">
         <nav class="sideNav adminDrawer" id="adminSideNav" role="tablist" aria-label="Admin sections" aria-hidden="true" tabindex="-1">
           <button class="tab tab--nav" role="tab" aria-selected="true" aria-controls="tab-home" id="tabBtn-home">Home</button>
@@ -220,26 +254,32 @@
         </div>
         <div class="homeTaskGrid" aria-label="Quick tasks">
           <button class="homeTaskCard" type="button" data-section-target="tab-content" data-subtab-target="panel-content-announcements">
+            <span class="homeTaskCard__icon" aria-hidden="true"><img class="homeTaskCard__iconImage" src="/Icons/announcement.png" alt="" /></span>
             <span class="homeTaskCard__title">Post an Announcement</span>
             <span class="homeTaskCard__desc">Share an important message on the church website.</span>
           </button>
           <button class="homeTaskCard" type="button" data-section-target="tab-events">
+            <span class="homeTaskCard__icon" aria-hidden="true"><img class="homeTaskCard__iconImage" src="/Icons/event.png" alt="" /></span>
             <span class="homeTaskCard__title">Add or Update an Event</span>
             <span class="homeTaskCard__desc">Add service times, meetings, programs, or special events.</span>
           </button>
           <button class="homeTaskCard" type="button" data-section-target="tab-profiles">
+            <span class="homeTaskCard__icon" aria-hidden="true"><img class="homeTaskCard__iconImage" src="/Icons/edit.png" alt="" /></span>
             <span class="homeTaskCard__title">Edit Website Pages</span>
             <span class="homeTaskCard__desc">Update ministries, leadership, church history, contact information, and other website pages.</span>
           </button>
           <button class="homeTaskCard" type="button" data-section-target="tab-newsletter">
+            <span class="homeTaskCard__icon" aria-hidden="true"><img class="homeTaskCard__iconImage" src="/Icons/newsletter.png" alt="" /></span>
             <span class="homeTaskCard__title">Send a Newsletter</span>
             <span class="homeTaskCard__desc">Email church members and subscriber groups.</span>
           </button>
           <button class="homeTaskCard" type="button" data-section-target="tab-photos" data-subtab-target="panel-photos-manage">
+            <span class="homeTaskCard__icon" aria-hidden="true"><img class="homeTaskCard__iconImage" src="/Icons/photos.png" alt="" /></span>
             <span class="homeTaskCard__title">Add Photos</span>
             <span class="homeTaskCard__desc">Upload church photos and organize them into albums.</span>
           </button>
           <button class="homeTaskCard" type="button" data-section-target="tab-finances">
+            <span class="homeTaskCard__icon" aria-hidden="true"><img class="homeTaskCard__iconImage" src="/Icons/finances.png" alt="" /></span>
             <span class="homeTaskCard__title">Manage Church Finances</span>
             <span class="homeTaskCard__desc">Record income and expenses or prepare church financial reports.</span>
           </button>
@@ -510,9 +550,7 @@
               <div class="iconGroup noPrint financeActionButtons" aria-label="Finance actions">
                 <details class="menu" id="financePrintMenu">
                   <summary class="iconBtn" aria-label="Print" title="Print">
-                    <svg class="iconBtn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                      <path fill="currentColor" d="M6 7V3h12v4H6zm12 2h1a3 3 0 0 1 3 3v5h-4v4H6v-4H2v-5a3 3 0 0 1 3-3h1V9h12v0zm-2 12v-6H8v6h8zm2-10a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
-                    </svg>
+                    <img class="iconBtn__icon" src="/Icons/fprint.png" alt="" aria-hidden="true" />
                     <span class="srOnly">Print</span>
                   </summary>
                   <div class="menu__panel" role="menu" aria-label="Print reports">
@@ -546,9 +584,7 @@
                   </div>
                 </details>
                 <button class="iconBtn" id="financeExportCsvBtn" type="button" aria-label="Export CSV" title="Export CSV">
-                  <svg class="iconBtn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path fill="currentColor" d="M5 20a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7l2 2h5a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5zm7-11v6.17l1.59-1.58L15 15l-3 3-3-3 1.41-1.41L12 15.17V9h0z"/>
-                  </svg>
+                  <img class="iconBtn__icon" src="/Icons/fexport.png" alt="" aria-hidden="true" />
                   <span class="srOnly">Export CSV</span>
                 </button>
               </div>
@@ -568,9 +604,7 @@
             <div class="inputGroup">
               <input class="input" id="financeSearch" type="search" placeholder="Search ledger…" autocomplete="off" />
               <button class="inputIconBtn" type="submit" aria-label="Search" title="Search">
-                <svg class="inputIconBtn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path fill="currentColor" d="M10 2a8 8 0 1 1 5.3 13.9l4.4 4.4-1.4 1.4-4.4-4.4A8 8 0 0 1 10 2zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12z"/>
-                </svg>
+                <img class="inputIconBtn__icon" src="/Icons/fsearch.png" alt="" aria-hidden="true" />
               </button>
             </div>
           </form>
@@ -578,9 +612,7 @@
           <div class="financeHeaderRight noPrint">
             <details class="menu" id="financeFilterMenu">
               <summary class="iconBtn" aria-label="Filters" title="Filters">
-                <svg class="iconBtn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path fill="currentColor" d="M3 5h18v2l-7 8v5l-4-2v-3L3 7V5z"/>
-                </svg>
+                <img class="iconBtn__icon" src="/Icons/ffilter.png" alt="" aria-hidden="true" />
                 <span class="srOnly">Filters</span>
               </summary>
               <div class="menu__panel" role="menu" aria-label="Filters">
@@ -832,81 +864,140 @@
           </div>
         </div>
 
-        <div class="card card--spacedTop">
-          <h3 class="card__subtitle">Step 1: Choose Recipients</h3>
-          <p class="muted" id="newsletterRecipientSummary">This newsletter will be sent to 0 people.</p>
-          <form id="newsletterForm" class="form" aria-label="Newsletter send form">
-            <div class="formRow">
-              <label class="label">
-                Filter by group
-                <select class="select" id="newsletterGroupSelect">
-                  <option value="">All groups</option>
-                </select>
-              </label>
-              <div class="label recipientPickerField">
-                <span>Recipients</span>
-                <button class="btn recipientPickerTrigger" id="newsletterRecipientTrigger" type="button" aria-expanded="false" aria-controls="newsletterRecipientPopover">0 selected - Open recipient list</button>
-                <div class="recipientPickerPopover" id="newsletterRecipientPopover" role="dialog" aria-label="Recipient list" hidden>
-                  <div class="recipientPickerTop">
-                    <label class="label label--inline"><input class="checkbox" id="newsletterSelectAll" type="checkbox" /> Select All</label>
-                    <label class="label label--inline"><input class="checkbox" id="newsletterDeselectAll" type="checkbox" /> Deselect All</label>
-                  </div>
-                  <div class="recipientPickerList" id="newsletterRecipientList" aria-label="Recipient options"></div>
-                </div>
-                <select class="select" id="newsletterRecipients" size="8" multiple aria-label="Recipients" hidden></select>
-              </div>
-            </div>
-            <h3 class="card__subtitle">Step 2: Write Newsletter</h3>
-
-            <label class="label">
-              Subject line
-              <input class="input" id="newsletterSubject" type="text" maxlength="140" required />
-            </label>
-            <label class="label">
-              Message body
-              <textarea class="textarea" id="newsletterMessage" rows="8" maxlength="12000" required></textarea>
-            </label>
-
-            <div class="card card--spacedTop">
-              <h4 class="card__subtitle">Step 3: Review and Send</h4>
-              <p class="muted" id="newsletterReviewSummary">Review recipients, subject, and delivery details before sending.</p>
+        <div class="newsletterBuilder card--spacedTop">
+          <div class="card newsletterBuilder__compose">
+            <h3 class="card__subtitle">Step 1: Choose Recipients</h3>
+            <p class="muted" id="newsletterRecipientSummary">This newsletter will be sent to 0 people.</p>
+            <form id="newsletterForm" class="form" aria-label="Newsletter send form">
               <div class="formRow">
                 <label class="label">
-                  Date to send
-                  <input class="input" id="newsletterScheduleDate" type="date" />
-                </label>
-                <label class="label">
-                  Time to send
-                  <input class="input" id="newsletterScheduleTime" type="time" />
-                </label>
-                <label class="label">
-                  Time zone
-                  <select class="select" id="newsletterScheduleTimezone">
-                    <option value="America/Chicago">America/Chicago</option>
-                    <option value="America/New_York">America/New_York</option>
-                    <option value="America/Los_Angeles">America/Los_Angeles</option>
-                    <option value="UTC">UTC</option>
+                  Filter by group
+                  <select class="select" id="newsletterGroupSelect">
+                    <option value="">All groups</option>
                   </select>
-                  <div class="hint" id="newsletterTimezoneHint">Your browser time zone will be selected automatically.</div>
+                </label>
+                <div class="label recipientPickerField">
+                  <span>Recipients</span>
+                  <button class="btn recipientPickerTrigger" id="newsletterRecipientTrigger" type="button" aria-expanded="false" aria-controls="newsletterRecipientPopover">0 selected - Open recipient list</button>
+                  <div class="recipientPickerPopover" id="newsletterRecipientPopover" role="dialog" aria-label="Recipient list" hidden>
+                    <div class="recipientPickerTop">
+                      <label class="label label--inline"><input class="checkbox" id="newsletterSelectAll" type="checkbox" /> Select All</label>
+                      <label class="label label--inline"><input class="checkbox" id="newsletterDeselectAll" type="checkbox" /> Deselect All</label>
+                    </div>
+                    <div class="recipientPickerList" id="newsletterRecipientList" aria-label="Recipient options"></div>
+                  </div>
+                  <select class="select" id="newsletterRecipients" size="8" multiple aria-label="Recipients" hidden></select>
+                </div>
+              </div>
+              <h3 class="card__subtitle">Step 2: Write Newsletter</h3>
+
+              <label class="label">
+                Subject line
+                <input class="input" id="newsletterSubject" type="text" maxlength="140" required />
+              </label>
+              <label class="label">
+                Week of date
+                <input class="input" id="newsletterWeekOfDate" type="date" />
+              </label>
+              <div class="newsletterSectionEditor" id="newsletterSectionEditor" aria-label="Newsletter section editor">
+                <p class="muted">Write each part in the matching section below so the preview and final email stay in the right order.</p>
+
+                <label class="label newsletterSectionEditor__item">
+                  01. Header (centered)
+                  <textarea class="textarea" id="newsletterSectionHeader" rows="3" maxlength="400" placeholder="Newsletter body heading shown at the top center."></textarea>
+                </label>
+
+                <label class="label newsletterSectionEditor__item">
+                  02. Welcome (left-aligned body)
+                  <textarea class="textarea" id="newsletterSectionWelcome" rows="5" maxlength="2500" placeholder="Opening welcome paragraph shown below the centered header."></textarea>
+                </label>
+
+                <label class="label newsletterSectionEditor__item">
+                  03. Announcements
+                  <textarea class="textarea" id="newsletterSectionAnnouncements" rows="4" maxlength="2500" placeholder="General announcements for the congregation."></textarea>
+                </label>
+
+                <label class="label newsletterSectionEditor__item">
+                  04. Events
+                  <textarea class="textarea" id="newsletterSectionEvents" rows="4" maxlength="2500" placeholder="Event details, dates, times, and reminders."></textarea>
+                </label>
+
+                <label class="label newsletterSectionEditor__item">
+                  05. Ministry updates
+                  <textarea class="textarea" id="newsletterSectionMinistryUpdates" rows="4" maxlength="2500" placeholder="Ministry highlights and updates."></textarea>
+                </label>
+
+                <label class="label newsletterSectionEditor__item">
+                  06. Pastor message
+                  <textarea class="textarea" id="newsletterSectionPastorMessage" rows="4" maxlength="2500" placeholder="Pastoral encouragement or weekly message."></textarea>
+                </label>
+
+                <label class="label newsletterSectionEditor__item">
+                  07. Contact line (footer left)
+                  <input class="input" id="newsletterSectionContactLine" type="text" maxlength="200" placeholder="www.mmbc.church" />
+                </label>
+
+                <label class="label newsletterSectionEditor__item">
+                  08. Footer line (footer right)
+                  <input class="input" id="newsletterSectionFooterLine" type="text" maxlength="200" placeholder="Mt. Moriah Newsletter" />
                 </label>
               </div>
-              <label class="label">
-                Test email address(es)
-                <input class="input" id="newsletterTestRecipientsInput" type="text" maxlength="800" placeholder="name@example.com, other@example.com" />
-                <div class="hint">Use commas or Enter to add each address. Leave blank to send the test to your signed-in email.</div>
-                <div class="newsletterTestRecipients" id="newsletterTestRecipientsList" aria-live="polite"></div>
-              </label>
-              <div class="toolbar">
-                <button class="btn" id="newsletterSendTestBtn" type="button">Send Test</button>
-                <button class="btn btn--primary" id="newsletterSendNowBtn" type="button">Send Now</button>
-                <button class="btn" id="newsletterSaveDraftBtn" type="button">Save Draft</button>
-                <button class="btn" id="newsletterScheduleBtn" type="button">Schedule for Later</button>
-              </div>
-            </div>
 
-            <div class="hint" id="newsletterHint" aria-live="polite"></div>
-            <div class="error" id="newsletterError" role="alert" hidden></div>
-          </form>
+              <details class="newsletterAdvancedBody">
+                <summary>Advanced: raw message body</summary>
+                <label class="label">
+                  Message body template
+                  <textarea class="textarea" id="newsletterMessage" rows="8" maxlength="12000" required></textarea>
+                </label>
+              </details>
+
+              <div class="card card--spacedTop">
+                <h4 class="card__subtitle">Step 3: Review and Send</h4>
+                <p class="muted" id="newsletterReviewSummary">Review recipients, subject, and delivery details before sending.</p>
+                <div class="formRow">
+                  <label class="label">
+                    Date to send
+                    <input class="input" id="newsletterScheduleDate" type="date" />
+                  </label>
+                  <label class="label">
+                    Time to send
+                    <input class="input" id="newsletterScheduleTime" type="time" />
+                  </label>
+                  <label class="label">
+                    Time zone
+                    <select class="select" id="newsletterScheduleTimezone">
+                      <option value="America/Chicago">America/Chicago</option>
+                      <option value="America/New_York">America/New_York</option>
+                      <option value="America/Los_Angeles">America/Los_Angeles</option>
+                      <option value="UTC">UTC</option>
+                    </select>
+                    <div class="hint" id="newsletterTimezoneHint">Your browser time zone will be selected automatically.</div>
+                  </label>
+                </div>
+                <label class="label">
+                  Test email address(es)
+                  <input class="input" id="newsletterTestRecipientsInput" type="text" maxlength="800" placeholder="name@example.com, other@example.com" />
+                  <div class="hint">Use commas or Enter to add each address. Leave blank to send the test to your signed-in email.</div>
+                  <div class="newsletterTestRecipients" id="newsletterTestRecipientsList" aria-live="polite"></div>
+                </label>
+                <div class="toolbar">
+                  <button class="btn" id="newsletterSendTestBtn" type="button">Send Test</button>
+                  <button class="btn btn--primary" id="newsletterSendNowBtn" type="button">Send Now</button>
+                  <button class="btn" id="newsletterSaveDraftBtn" type="button">Save Draft</button>
+                  <button class="btn" id="newsletterScheduleBtn" type="button">Schedule for Later</button>
+                </div>
+              </div>
+
+              <div class="hint" id="newsletterHint" aria-live="polite"></div>
+              <div class="error" id="newsletterError" role="alert" hidden></div>
+            </form>
+          </div>
+
+          <aside class="card newsletterBuilder__preview" aria-live="polite">
+            <h3 class="card__subtitle">Live Email Template Preview</h3>
+            <p class="muted">Styled preview updates as you type.</p>
+            <div id="newsletterLivePreview" class="newsletterLivePreview"></div>
+          </aside>
         </div>
 
         <div class="card card--spacedTop">
