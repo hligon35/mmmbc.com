@@ -48,10 +48,6 @@ if(Test-Path $adminUi){
   if(Test-Path $adminIndex){
     $html = Get-Content -Raw -Path $adminIndex
 
-    # Normalize breadcrumb separator mojibake.
-    $html = $html.Replace(' â€º ', ' &rsaquo; ')
-    $html = $html.Replace(' › ', ' &rsaquo; ')
-
     # Capture and remove the original bulk bar.
     $bulkPattern = '(?s)\s*<div class="photoBulkBar" id="photoBulkBar" hidden>.*?</div>'
     $bulkMatch = [regex]::Match($html, $bulkPattern)
@@ -63,6 +59,7 @@ if(Test-Path $adminUi){
     }
 
     # Replace the duplicate Photos section heading with one consolidated pageContext header.
+    # The replacement uses the ASCII-only HTML entity &rsaquo; for the breadcrumb separator.
     $photoHeaderPattern = '(?s)<div class="pageContext" id="pageContext-photos">.*?</div>\s*<div class="sectionHeader">.*?</div>\s*<dialog class="dialog" id="photoHelpDialog"'
     $photoHeaderReplacement = @"
 <div class="pageContext pageContext--photos" id="pageContext-photos">
