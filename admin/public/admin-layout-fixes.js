@@ -1,4 +1,13 @@
 (() => {
+  function loadStructureOverrides() {
+    if (document.querySelector('script[data-admin-structure-overrides]')) return;
+    const script = document.createElement('script');
+    script.src = '/admin/admin-structure-overrides.js?v=20260724-1';
+    script.defer = true;
+    script.dataset.adminStructureOverrides = 'true';
+    document.head.appendChild(script);
+  }
+
   function applyGalleryLayoutFixes() {
     const bulkBar = document.getElementById('photoBulkBar');
     const photoHeader = document.querySelector('#tab-photos > .sectionHeader');
@@ -19,6 +28,7 @@
   }
 
   function run() {
+    loadStructureOverrides();
     enforcePhotoPageSize();
     applyGalleryLayoutFixes();
 
