@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -30,11 +30,11 @@
     </div>
     <div class="adminSectionExtension noPrint" id="adminSectionExtension" hidden>
       <div class="financeTopBar noPrint" id="financeTopBar" aria-label="Finance totals" hidden>
+        <div class="financeTopBar__label">Finance Totals</div>
         <div class="financePeriodTabs" role="tablist" aria-label="Finance period">
           <button class="miniTab miniTab--xs" id="financePeriodWeekBtn" type="button" role="tab" aria-selected="true">This Week</button>
           <button class="miniTab miniTab--xs" id="financePeriodMonthBtn" type="button" role="tab" aria-selected="false">This Month</button>
         </div>
-        <div class="financeTopBar__label">Finance Totals</div>
         <span class="statusChip" id="financeIncomeTotal">$0.00 Income</span>
         <span class="statusChip" id="financeExpenseTotal">$0.00 Expense</span>
         <span class="statusChip" id="financeTithesTotal">$0.00 Tithes</span>
@@ -102,7 +102,7 @@
 
       <div class="card" id="googleLoginPanel">
         <div class="card__subtitle">Google sign-in</div>
-        <p class="muted" id="googleLoginHint">Loading Google sign-inâ€¦</p>
+        <p class="muted" id="googleLoginHint">Loading Google sign-in…</p>
         <div id="googleSignInBtn" aria-label="Google sign-in button"></div>
       </div>
 
@@ -178,7 +178,7 @@
 
     <section class="card loginCard" id="inviteCard" aria-label="Account setup" hidden>
       <h1 class="card__title">Finish account setup</h1>
-      <p class="muted" id="inviteEmail">Loading inviteâ€¦</p>
+      <p class="muted" id="inviteEmail">Loading invite…</p>
 
       <form id="inviteForm" class="form">
         <label class="label">
@@ -378,8 +378,8 @@
               <select class="select" id="photoSort">
                 <option value="date-desc">Date (newest)</option>
                 <option value="date-asc">Date (oldest)</option>
-                <option value="name-asc">Name (Aâ€“Z)</option>
-                <option value="name-desc">Name (Zâ€“A)</option>
+                <option value="name-asc">Name (A–Z)</option>
+                <option value="name-desc">Name (Z–A)</option>
                 <option value="manual">Manual (arranged)</option>
               </select>
             </label>
@@ -451,7 +451,7 @@
       <!-- Announcements -->
       <section class="tabPanel" role="tabpanel" id="tab-content" aria-labelledby="tabBtn-content" hidden>
         <div class="pageContext" id="pageContext-content">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Announcements</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Announcements</p>
           <h2 class="pageContext__title">Announcements</h2>
           <p class="pageContext__description">Share updates and publish bulletins for the church website.</p>
         </div>
@@ -537,9 +537,78 @@
       <!-- Finances -->
       <section class="tabPanel" role="tabpanel" id="tab-finances" aria-labelledby="tabBtn-finances" hidden>
         <div class="pageContext" id="pageContext-finances">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Church Finances</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Church Finances</p>
           <h2 class="pageContext__title">Church Finances</h2>
           <p class="pageContext__description">Record giving and expenses, then review and print reports.</p>
+
+          <div class="financeContextActions noPrint">
+            <form class="financeHeaderSearch" id="financeSearchForm" role="search" aria-label="Search finances">
+              <div class="inputGroup">
+                <input class="input" id="financeSearch" type="search" placeholder="Search ledger…" autocomplete="off" />
+                <button class="inputIconBtn" type="submit" aria-label="Search" title="Search">
+                  <img class="inputIconBtn__icon" src="/Icons/fsearch.png" alt="" aria-hidden="true" />
+                </button>
+              </div>
+            </form>
+
+            <div class="financeHeaderRight">
+              <details class="menu" id="financeFilterMenu">
+                <summary class="iconBtn" aria-label="Filters" title="Filters">
+                  <img class="iconBtn__icon" src="/Icons/ffilter.png" alt="" aria-hidden="true" />
+                  <span class="srOnly">Filters</span>
+                </summary>
+                <div class="menu__panel" role="menu" aria-label="Filters">
+                  <div class="menu__title">Date range</div>
+
+                  <label class="menu__checkItem" role="menuitemcheckbox">
+                    <input class="menu__check" type="checkbox" data-fin-range="7" />
+                    <span>Last 7 days</span>
+                  </label>
+                  <label class="menu__checkItem" role="menuitemcheckbox">
+                    <input class="menu__check" type="checkbox" data-fin-range="30" />
+                    <span>Last 30 days</span>
+                  </label>
+                  <label class="menu__checkItem" role="menuitemcheckbox">
+                    <input class="menu__check" type="checkbox" data-fin-range="90" />
+                    <span>Last 90 days</span>
+                  </label>
+                  <label class="menu__checkItem" role="menuitemcheckbox">
+                    <input class="menu__check" type="checkbox" data-fin-range="custom" id="financeCustomToggle" />
+                    <span>Custom</span>
+                  </label>
+
+                  <div class="menu__custom" id="financeCustomRange" hidden>
+                    <div class="formRow">
+                      <label class="label">
+                        From
+                        <input class="input" id="financeFrom" type="date" />
+                      </label>
+                      <label class="label">
+                        To
+                        <input class="input" id="financeTo" type="date" />
+                      </label>
+                    </div>
+                    <div class="toolbar toolbar--tightTop">
+                      <button class="btn btn--primary" id="financeApplyCustomRangeBtn" type="button">Apply</button>
+                      <button class="btn" id="financeClearRangeBtn" type="button">Clear</button>
+                    </div>
+                  </div>
+
+                  <div class="menu__divider" role="separator" aria-hidden="true"></div>
+
+                  <div class="menu__title menu__title--spaced">Type</div>
+                  <label class="menu__checkItem" role="menuitemcheckbox">
+                    <input class="menu__check" type="checkbox" id="financeTypeIncome" checked />
+                    <span>Income</span>
+                  </label>
+                  <label class="menu__checkItem" role="menuitemcheckbox">
+                    <input class="menu__check" type="checkbox" id="financeTypeExpense" checked />
+                    <span>Expense</span>
+                  </label>
+                </div>
+              </details>
+            </div>
+          </div>
         </div>
         <div class="sectionHeader financeHeader">
           <div class="financeHeaderLeftTop">
@@ -600,78 +669,12 @@
             </div>
           </div>
 
-          <form class="financeHeaderSearch noPrint" id="financeSearchForm" role="search" aria-label="Search finances">
-            <div class="inputGroup">
-              <input class="input" id="financeSearch" type="search" placeholder="Search ledgerâ€¦" autocomplete="off" />
-              <button class="inputIconBtn" type="submit" aria-label="Search" title="Search">
-                <img class="inputIconBtn__icon" src="/Icons/fsearch.png" alt="" aria-hidden="true" />
-              </button>
-            </div>
-          </form>
-
-          <div class="financeHeaderRight noPrint">
-            <details class="menu" id="financeFilterMenu">
-              <summary class="iconBtn" aria-label="Filters" title="Filters">
-                <img class="iconBtn__icon" src="/Icons/ffilter.png" alt="" aria-hidden="true" />
-                <span class="srOnly">Filters</span>
-              </summary>
-              <div class="menu__panel" role="menu" aria-label="Filters">
-                <div class="menu__title">Date range</div>
-
-                <label class="menu__checkItem" role="menuitemcheckbox">
-                  <input class="menu__check" type="checkbox" data-fin-range="7" />
-                  <span>Last 7 days</span>
-                </label>
-                <label class="menu__checkItem" role="menuitemcheckbox">
-                  <input class="menu__check" type="checkbox" data-fin-range="30" />
-                  <span>Last 30 days</span>
-                </label>
-                <label class="menu__checkItem" role="menuitemcheckbox">
-                  <input class="menu__check" type="checkbox" data-fin-range="90" />
-                  <span>Last 90 days</span>
-                </label>
-                <label class="menu__checkItem" role="menuitemcheckbox">
-                  <input class="menu__check" type="checkbox" data-fin-range="custom" id="financeCustomToggle" />
-                  <span>Custom</span>
-                </label>
-
-                <div class="menu__custom" id="financeCustomRange" hidden>
-                  <div class="formRow">
-                    <label class="label">
-                      From
-                      <input class="input" id="financeFrom" type="date" />
-                    </label>
-                    <label class="label">
-                      To
-                      <input class="input" id="financeTo" type="date" />
-                    </label>
-                  </div>
-                  <div class="toolbar toolbar--tightTop">
-                    <button class="btn btn--primary" id="financeApplyCustomRangeBtn" type="button">Apply</button>
-                    <button class="btn" id="financeClearRangeBtn" type="button">Clear</button>
-                  </div>
-                </div>
-
-                <div class="menu__divider" role="separator" aria-hidden="true"></div>
-
-                <div class="menu__title menu__title--spaced">Type</div>
-                <label class="menu__checkItem" role="menuitemcheckbox">
-                  <input class="menu__check" type="checkbox" id="financeTypeIncome" checked />
-                  <span>Income</span>
-                </label>
-                <label class="menu__checkItem" role="menuitemcheckbox">
-                  <input class="menu__check" type="checkbox" id="financeTypeExpense" checked />
-                  <span>Expense</span>
-                </label>
-              </div>
-            </details>
-          </div>
         </div>
 
         <p class="muted noPrint">Add income and expenses, filter the ledger, export to CSV, and print cleanly.</p>
 
         <div class="financePrintHeader printOnly" aria-label="Print header">
-          <div class="financePrintHeader__title" id="financePrintTitle">Mt. Moriah Missionary Baptist Church â€” Finance</div>
+          <div class="financePrintHeader__title" id="financePrintTitle">Mt. Moriah Missionary Baptist Church — Finance</div>
           <div class="financePrintHeader__meta" id="financePrintMeta"></div>
         </div>
 
@@ -686,8 +689,8 @@
 
             <div class="toolbarGroup">
               <div class="inputGroup financeReceiptsSearchGroup">
-                <input class="input" id="financeReceiptsSearch" type="search" placeholder="Search entriesâ€¦" autocomplete="off" />
-                <button class="inputIconBtn" id="financeReceiptsSearchClear" type="button" aria-label="Clear search" title="Clear">Ã—</button>
+                <input class="input" id="financeReceiptsSearch" type="search" placeholder="Search entries…" autocomplete="off" />
+                <button class="inputIconBtn" id="financeReceiptsSearchClear" type="button" aria-label="Clear search" title="Clear">×</button>
               </div>
               <button class="btn" id="financeReceiptsSelectAllBtn" type="button">Select all</button>
               <button class="btn" id="financeReceiptsClearBtn" type="button">Clear</button>
@@ -790,7 +793,7 @@
       <!-- Events -->
       <section class="tabPanel" role="tabpanel" id="tab-events" aria-labelledby="tabBtn-events" hidden>
         <div class="pageContext" id="pageContext-events">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Events</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Events</p>
           <h2 class="pageContext__title">Events</h2>
           <p class="pageContext__description">Add service times, meetings, and church programs.</p>
         </div>
@@ -819,49 +822,9 @@
       <!-- Newsletter -->
       <section class="tabPanel" role="tabpanel" id="tab-newsletter" aria-labelledby="tabBtn-newsletter" hidden>
         <div class="pageContext" id="pageContext-newsletter">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Newsletter</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Newsletter</p>
           <h2 class="pageContext__title">Newsletter</h2>
           <p class="pageContext__description">Write and send church newsletters in three clear steps.</p>
-        </div>
-
-        <div class="card">
-          <h3 class="card__subtitle">Manage Subscribers</h3>
-          <div class="sectionHeader sectionHeader--compact">
-            <h4 class="card__subtitle">Subscriber List</h4>
-            <button class="btn" id="subscriberCollapseBtn" type="button" aria-expanded="false" aria-controls="subscriberPanel">View Subscribers</button>
-          </div>
-          <p class="muted" id="subscriberSummary">No subscribers loaded yet.</p>
-
-          <div id="subscriberPanel" hidden>
-            <p class="muted">Add or update subscribers, then choose who should receive each newsletter.</p>
-
-            <div class="formRow">
-              <label class="label">
-                Current subscribers
-                <select class="select" id="subscriberList" size="8" aria-label="Subscriber list"></select>
-              </label>
-            </div>
-
-            <form id="subscriberForm" class="form form--row" aria-label="Subscriber editor">
-              <input id="subscriberEditEmail" type="hidden" />
-              <label class="label">
-                Name (optional)
-                <input class="input" id="subscriberName" type="text" maxlength="120" placeholder="Jane Doe" />
-              </label>
-              <label class="label">
-                Email
-                <input class="input" id="subscriberEmail" type="email" maxlength="254" placeholder="jane@example.com" required />
-              </label>
-              <label class="label">
-                Group
-                <input class="input" id="subscriberGroup" type="text" maxlength="80" placeholder="members" value="general" />
-              </label>
-              <button class="btn btn--primary" id="subscriberSaveBtn" type="submit">Save Subscriber</button>
-              <button class="btn" id="subscriberDeleteBtn" type="button">Delete Selected</button>
-              <button class="btn" id="subscriberClearBtn" type="button">Clear</button>
-              <div class="hint" id="subscriberHint" aria-live="polite"></div>
-            </form>
-          </div>
         </div>
 
         <div class="newsletterBuilder card--spacedTop">
@@ -876,18 +839,12 @@
                     <option value="">All groups</option>
                   </select>
                 </label>
-                <div class="label recipientPickerField">
-                  <span>Recipients</span>
-                  <button class="btn recipientPickerTrigger" id="newsletterRecipientTrigger" type="button" aria-expanded="false" aria-controls="newsletterRecipientPopover">0 selected - Open recipient list</button>
-                  <div class="recipientPickerPopover" id="newsletterRecipientPopover" role="dialog" aria-label="Recipient list" hidden>
-                    <div class="recipientPickerTop">
-                      <label class="label label--inline"><input class="checkbox" id="newsletterSelectAll" type="checkbox" /> Select All</label>
-                      <label class="label label--inline"><input class="checkbox" id="newsletterDeselectAll" type="checkbox" /> Deselect All</label>
-                    </div>
-                    <div class="recipientPickerList" id="newsletterRecipientList" aria-label="Recipient options"></div>
-                  </div>
-                  <select class="select" id="newsletterRecipients" size="8" multiple aria-label="Recipients" hidden></select>
-                </div>
+                <label class="label">
+                  Subscriber list
+                  <select class="select" id="newsletterRecipients" aria-label="Subscriber list">
+                    <option value="__all__">All subscribers in selected group</option>
+                  </select>
+                </label>
               </div>
               <h3 class="card__subtitle">Step 2: Write Newsletter</h3>
 
@@ -1021,7 +978,7 @@
       <!-- Profiles -->
       <section class="tabPanel" role="tabpanel" id="tab-profiles" aria-labelledby="tabBtn-profiles" hidden>
         <div class="pageContext" id="pageContext-profiles">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Edit Website Pages</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Edit Website Pages</p>
           <h2 class="pageContext__title">Edit Website Pages</h2>
           <p class="pageContext__description">Update ministries, leadership, church history, contact details, and more.</p>
         </div>
@@ -1170,7 +1127,7 @@
       <!-- Support -->
       <section class="tabPanel" role="tabpanel" id="tab-support" aria-labelledby="tabBtn-support" hidden>
         <div class="pageContext" id="pageContext-support">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Help &amp; Support</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Help &amp; Support</p>
           <h2 class="pageContext__title">Help &amp; Support</h2>
           <p class="pageContext__description">Send a support request if you need help with the website manager.</p>
         </div>
@@ -1183,7 +1140,7 @@
           </label>
           <label class="label">
             Message
-            <textarea class="textarea" name="message" rows="6" maxlength="5000" placeholder="Share the details and any error message you seeâ€¦" required></textarea>
+            <textarea class="textarea" name="message" rows="6" maxlength="5000" placeholder="Share the details and any error message you see…" required></textarea>
           </label>
           <label class="label">
             Your email address (optional)

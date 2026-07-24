@@ -3313,9 +3313,8 @@ let subscribers = [];
 let newsletterRecords = { drafts: [], scheduled: [], history: [] };
 let newsletterRecordsTab = 'drafts';
 let newsletterSelectedRecipients = new Set();
-let newsletterPopoverOpen = false;
+let newsletterRecipientSelection = '__all__';
 
-const SUBSCRIBERS_COLLAPSE_KEY = 'mmmbc_admin_subscribers_collapsed_v1';
 const NEWSLETTER_RECORDS_COLLAPSE_KEY = 'mmmbc_admin_newsletter_records_collapsed_v1';
 
 function getStoredBoolean(key, fallback) {
@@ -3341,11 +3340,6 @@ function validEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 }
 
-function selectedValues(selectEl) {
-  if (!(selectEl instanceof HTMLSelectElement)) return [];
-  return Array.from(selectEl.selectedOptions || []).map((o) => String(o.value || '').trim()).filter(Boolean);
-}
-
 function setPanelCollapse(buttonId, panelId, collapsed, labels) {
   const btn = $(buttonId);
   const panel = $(panelId);
@@ -3356,13 +3350,6 @@ function setPanelCollapse(buttonId, panelId, collapsed, labels) {
     const hide = String(labels?.hide || 'Hide');
     btn.textContent = collapsed ? show : hide;
   }
-}
-
-function updateRecipientTriggerLabel() {
-  const btn = $('newsletterRecipientTrigger');
-  if (!btn) return;
-  const count = newsletterSelectedRecipients.size;
-  btn.textContent = `${count} selected - Open Recipient List`;
 }
 
 function updateNewsletterStepSummaries() {
@@ -3383,14 +3370,6 @@ function updateNewsletterStepSummaries() {
   }
 }
 
-function setNewsletterPopoverOpen(open) {
-  newsletterPopoverOpen = !!open;
-  const pop = $('newsletterRecipientPopover');
-  const btn = $('newsletterRecipientTrigger');
-  if (pop) pop.hidden = !newsletterPopoverOpen;
-  if (btn) btn.setAttribute('aria-expanded', newsletterPopoverOpen ? 'true' : 'false');
-}
-
 function recipientListFiltered() {
   const activeGroup = String($('newsletterGroupSelect')?.value || '').trim();
   return activeGroup
@@ -3399,24 +3378,12 @@ function recipientListFiltered() {
 }
 
 function renderSubscribers() {
-  const list = $('subscriberList');
   const groupSel = $('newsletterGroupSelect');
   const recipients = $('newsletterRecipients');
-  const summary = $('subscriberSummary');
-  if (list) list.innerHTML = '';
   if (groupSel) groupSel.innerHTML = '<option value="">All groups</option>';
   if (recipients) recipients.innerHTML = '';
 
   const groups = Array.from(new Set(subscribers.map((s) => String(s.group || 'general').trim() || 'general'))).sort((a, b) => a.localeCompare(b));
-
-  for (const s of subscribers) {
-    if (list) {
-      const opt = document.createElement('option');
-      opt.value = s.email;
-      opt.textContent = `${s.name ? `${s.name} - ` : ''}${s.email} (${s.group || 'general'})`;
-      list.appendChild(opt);
-    }
-  }
 
   if (groupSel) {
     for (const g of groups) {
@@ -3425,11 +3392,6 @@ function renderSubscribers() {
       opt.textContent = g;
       groupSel.appendChild(opt);
     }
-  }
-
-  if (summary) {
-    const count = subscribers.length;
-    summary.textContent = count === 1 ? '1 subscriber available.' : `${count} subscribers available.`;
   }
 
   const allowedEmails = new Set(subscribers.map((s) => String(s.email || '').trim().toLowerCase()));
@@ -3441,55 +3403,41 @@ function renderSubscribers() {
 function renderRecipientOptions() {
   const recipients = $('newsletterRecipients');
   if (!(recipients instanceof HTMLSelectElement)) return;
-  const previous = new Set(Array.from(newsletterSelectedRecipients));
+  const previousSelection = String(newsletterRecipientSelection || recipients.value || '__all__').trim() || '__all__';
 
   recipients.innerHTML = '';
   const filtered = recipientListFiltered();
+  const filteredEmails = filtered
+    .map((s) => String(s.email || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  const allOpt = document.createElement('option');
+  allOpt.value = '__all__';
+  allOpt.textContent = `All subscribers in selected group (${filteredEmails.length})`;
+  recipients.appendChild(allOpt);
 
   for (const s of filtered) {
     const email = String(s.email || '').trim().toLowerCase();
     if (!email) continue;
     const opt = document.createElement('option');
     opt.value = email;
-    opt.textContent = `${s.name ? `${s.name} - ` : ''}${email}`;
-    if (previous.has(email)) opt.selected = true;
+    const group = String(s.group || 'general').trim() || 'general';
+    opt.textContent = s.name ? `${s.name} - ${email} (${group})` : `${email} (${group})`;
     recipients.appendChild(opt);
   }
 
-  newsletterSelectedRecipients = new Set(selectedValues(recipients));
-
-  const list = $('newsletterRecipientList');
-  if (list) {
-    list.innerHTML = '';
-    for (const s of filtered) {
-      const email = String(s.email || '').trim().toLowerCase();
-      if (!email) continue;
-      const row = document.createElement('label');
-      row.className = 'recipientPickerOption';
-      const check = document.createElement('input');
-      check.type = 'checkbox';
-      check.className = 'checkbox';
-      check.value = email;
-      check.checked = newsletterSelectedRecipients.has(email);
-      check.addEventListener('change', () => {
-        if (check.checked) newsletterSelectedRecipients.add(email);
-        else newsletterSelectedRecipients.delete(email);
-
-        for (const opt of Array.from(recipients.options)) {
-          if (String(opt.value || '') === email) opt.selected = check.checked;
-        }
-        updateRecipientTriggerLabel();
-      });
-      const text = document.createElement('span');
-      const name = String(s.name || '').trim();
-      const group = String(s.group || 'general').trim() || 'general';
-      text.textContent = name ? `${name} - ${email} (${group})` : `${email} (${group})`;
-      row.appendChild(check);
-      row.appendChild(text);
-      list.appendChild(row);
-    }
+  newsletterRecipientSelection = previousSelection;
+  if (!Array.from(recipients.options).some((opt) => String(opt.value) === newsletterRecipientSelection)) {
+    newsletterRecipientSelection = '__all__';
   }
-  updateRecipientTriggerLabel();
+  recipients.value = newsletterRecipientSelection;
+
+  if (newsletterRecipientSelection === '__all__') {
+    newsletterSelectedRecipients = new Set(filteredEmails);
+  } else {
+    newsletterSelectedRecipients = new Set([newsletterRecipientSelection]);
+  }
+
   renderNewsletterPreview();
   updateNewsletterStepSummaries();
 }
@@ -3512,7 +3460,9 @@ function applyNewsletterPayloadToForm(record) {
   if ($('newsletterScheduleTime')) $('newsletterScheduleTime').value = String(record?.scheduleTime || '');
   if ($('newsletterScheduleTimezone')) $('newsletterScheduleTimezone').value = String(record?.scheduleTimezone || 'America/Chicago');
   const emails = Array.isArray(record?.emails) ? record.emails : [];
-  newsletterSelectedRecipients = new Set(emails.map((x) => String(x || '').trim().toLowerCase()).filter(Boolean));
+  const normalized = emails.map((x) => String(x || '').trim().toLowerCase()).filter(Boolean);
+  newsletterSelectedRecipients = new Set(normalized);
+  newsletterRecipientSelection = normalized.length === 1 ? normalized[0] : '__all__';
   renderRecipientOptions();
   renderNewsletterPreview();
 }
@@ -3762,22 +3712,6 @@ async function loadSubscribers() {
     subscribers = [];
   }
   renderSubscribers();
-}
-
-async function saveSubscribers(all) {
-  const data = await api('/api/subscribers', {
-    method: 'PUT',
-    body: JSON.stringify({ subscribers: all })
-  });
-  subscribers = Array.isArray(data?.subscribers) ? data.subscribers : [];
-  renderSubscribers();
-}
-
-function clearSubscriberEditor() {
-  if ($('subscriberEditEmail')) $('subscriberEditEmail').value = '';
-  if ($('subscriberName')) $('subscriberName').value = '';
-  if ($('subscriberEmail')) $('subscriberEmail').value = '';
-  if ($('subscriberGroup')) $('subscriberGroup').value = 'general';
 }
 
 // -------- Profiles --------
@@ -4299,10 +4233,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Tabs
   if ($('tabBtn-home')) $('tabBtn-home').addEventListener('click', () => activateMainSection('tab-home'));
-  $('tabBtn-photos').addEventListener('click', () => activateMainSection('tab-photos', { subTabId: 'panel-photos-manage' }));
-  $('tabBtn-events').addEventListener('click', () => activateMainSection('tab-events'));
-  $('tabBtn-content').addEventListener('click', () => activateMainSection('tab-content', { subTabId: 'panel-content-announcements' }));
-  $('tabBtn-finances').addEventListener('click', () => activateMainSection('tab-finances'));
+  if ($('tabBtn-photos')) $('tabBtn-photos').addEventListener('click', () => activateMainSection('tab-photos', { subTabId: 'panel-photos-manage' }));
+  if ($('tabBtn-events')) $('tabBtn-events').addEventListener('click', () => activateMainSection('tab-events'));
+  if ($('tabBtn-content')) $('tabBtn-content').addEventListener('click', () => activateMainSection('tab-content', { subTabId: 'panel-content-announcements' }));
+  if ($('tabBtn-finances')) $('tabBtn-finances').addEventListener('click', () => activateMainSection('tab-finances'));
   if ($('tabBtn-newsletter')) $('tabBtn-newsletter').addEventListener('click', () => activateMainSection('tab-newsletter'));
   if ($('tabBtn-profiles')) $('tabBtn-profiles').addEventListener('click', () => activateMainSection('tab-profiles'));
   if ($('tabBtn-support')) $('tabBtn-support').addEventListener('click', () => activateMainSection('tab-support'));
@@ -5013,21 +4947,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('newsletterGroupSelect')) {
     $('newsletterGroupSelect').addEventListener('change', () => renderRecipientOptions());
   }
-
-  setPanelCollapse(
-    'subscriberCollapseBtn',
-    'subscriberPanel',
-    getStoredBoolean(SUBSCRIBERS_COLLAPSE_KEY, true),
-    { show: 'Show Subscribers', hide: 'Hide Subscribers' }
-  );
-  if ($('subscriberCollapseBtn')) {
-    $('subscriberCollapseBtn').addEventListener('click', () => {
-      const collapsed = !$('subscriberPanel') || !$('subscriberPanel').hidden;
-      setPanelCollapse('subscriberCollapseBtn', 'subscriberPanel', collapsed, {
-        show: 'Show Subscribers',
-        hide: 'Hide Subscribers'
-      });
-      setStoredBoolean(SUBSCRIBERS_COLLAPSE_KEY, collapsed);
+  if ($('newsletterRecipients')) {
+    $('newsletterRecipients').addEventListener('change', () => {
+      const value = String($('newsletterRecipients').value || '__all__').trim() || '__all__';
+      newsletterRecipientSelection = value;
+      const filteredEmails = recipientListFiltered()
+        .map((s) => String(s.email || '').trim().toLowerCase())
+        .filter(Boolean);
+      newsletterSelectedRecipients = value === '__all__'
+        ? new Set(filteredEmails)
+        : new Set([value]);
+      renderNewsletterPreview();
+      updateNewsletterStepSummaries();
     });
   }
 
@@ -5052,120 +4983,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('newsletterRecordsTabDrafts')) $('newsletterRecordsTabDrafts').addEventListener('click', () => setNewsletterRecordsTab('drafts'));
   if ($('newsletterRecordsTabScheduled')) $('newsletterRecordsTabScheduled').addEventListener('click', () => setNewsletterRecordsTab('scheduled'));
   if ($('newsletterRecordsTabHistory')) $('newsletterRecordsTabHistory').addEventListener('click', () => setNewsletterRecordsTab('history'));
-
-  if ($('newsletterRecipientTrigger')) {
-    $('newsletterRecipientTrigger').addEventListener('click', () => {
-      setNewsletterPopoverOpen(!newsletterPopoverOpen);
-    });
-  }
-
-  if ($('newsletterRecipientPopover')) {
-    $('newsletterRecipientPopover').addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        setNewsletterPopoverOpen(false);
-      }
-    });
-  }
-
-  document.addEventListener('click', (e) => {
-    const pop = $('newsletterRecipientPopover');
-    const trigger = $('newsletterRecipientTrigger');
-    if (!newsletterPopoverOpen || !pop || !trigger) return;
-    const target = e.target;
-    if (pop.contains(target) || trigger.contains(target)) return;
-    setNewsletterPopoverOpen(false);
-  });
-
-  if ($('newsletterSelectAll')) {
-    $('newsletterSelectAll').addEventListener('change', () => {
-      if (!$('newsletterSelectAll').checked) return;
-      const filtered = recipientListFiltered().map((s) => String(s.email || '').trim().toLowerCase()).filter(Boolean);
-      for (const email of filtered) newsletterSelectedRecipients.add(email);
-      $('newsletterSelectAll').checked = false;
-      renderRecipientOptions();
-    });
-  }
-  if ($('newsletterDeselectAll')) {
-    $('newsletterDeselectAll').addEventListener('change', () => {
-      if (!$('newsletterDeselectAll').checked) return;
-      const filtered = new Set(recipientListFiltered().map((s) => String(s.email || '').trim().toLowerCase()).filter(Boolean));
-      newsletterSelectedRecipients = new Set(Array.from(newsletterSelectedRecipients).filter((email) => !filtered.has(email)));
-      $('newsletterDeselectAll').checked = false;
-      renderRecipientOptions();
-    });
-  }
-
-  if ($('subscriberList')) {
-    $('subscriberList').addEventListener('change', () => {
-      const email = String($('subscriberList').value || '').trim().toLowerCase();
-      const item = subscribers.find((s) => String(s.email).toLowerCase() === email);
-      if (!item) return;
-      if ($('subscriberEditEmail')) $('subscriberEditEmail').value = item.email;
-      if ($('subscriberName')) $('subscriberName').value = item.name || '';
-      if ($('subscriberEmail')) $('subscriberEmail').value = item.email || '';
-      if ($('subscriberGroup')) $('subscriberGroup').value = item.group || 'general';
-    });
-  }
-
-  if ($('subscriberClearBtn')) {
-    $('subscriberClearBtn').addEventListener('click', () => {
-      clearSubscriberEditor();
-      if ($('subscriberHint')) $('subscriberHint').textContent = '';
-    });
-  }
-
-  if ($('subscriberDeleteBtn')) {
-    $('subscriberDeleteBtn').addEventListener('click', async () => {
-      const selected = String($('subscriberList')?.value || '').trim().toLowerCase();
-      const hint = $('subscriberHint');
-      if (!selected) {
-        if (hint) hint.textContent = 'Select a subscriber to delete.';
-        return;
-      }
-      if (!confirmWrite(`Delete subscriber ${selected}?`)) return;
-      const next = subscribers.filter((s) => String(s.email).toLowerCase() !== selected);
-      if (hint) hint.textContent = 'Deleting…';
-      try {
-        await saveSubscribers(next);
-        clearSubscriberEditor();
-        if (hint) hint.textContent = 'Deleted.';
-      } catch (err) {
-        if (hint) hint.textContent = err.message;
-      }
-    });
-  }
-
-  if ($('subscriberForm')) {
-    $('subscriberForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const hint = $('subscriberHint');
-      const editEmail = String($('subscriberEditEmail')?.value || '').trim().toLowerCase();
-      const email = String($('subscriberEmail')?.value || '').trim().toLowerCase();
-      const name = String($('subscriberName')?.value || '').trim();
-      const group = String($('subscriberGroup')?.value || 'general').trim() || 'general';
-
-      if (!validEmail(email)) {
-        if (hint) hint.textContent = 'Enter a valid email address.';
-        return;
-      }
-
-      const next = subscribers
-        .filter((s) => String(s.email).toLowerCase() !== editEmail && String(s.email).toLowerCase() !== email)
-        .concat([{ email, name, group }])
-        .sort((a, b) => String(a.email).localeCompare(String(b.email)));
-
-      if (!confirmWrite('Save subscriber changes?')) return;
-      if (hint) hint.textContent = 'Saving…';
-      try {
-        await saveSubscribers(next);
-        clearSubscriberEditor();
-        if (hint) hint.textContent = 'Saved.';
-      } catch (err) {
-        if (hint) hint.textContent = err.message;
-      }
-    });
-  }
 
   const writeNewsletterError = (text) => {
     const errEl = $('newsletterError');
