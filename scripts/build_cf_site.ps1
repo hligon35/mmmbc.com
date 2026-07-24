@@ -89,31 +89,47 @@ if(Test-Path $adminUi){
 }
 
 #photoPager:not([hidden]) {
-  margin-top: 26px !important;
-  margin-bottom: 22px !important;
+  margin-top: 28px !important;
+  margin-bottom: 24px !important;
 }
 
 #photoPagerBottom:not([hidden]) {
-  margin-top: 24px !important;
-  margin-bottom: 10px !important;
+  margin-top: 26px !important;
+  margin-bottom: 12px !important;
 }
 
 #tab-photos > .sectionHeader {
-  align-items: flex-start;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 340px);
+  align-items: center !important;
+  gap: 24px;
+}
+
+#tab-photos > .sectionHeader > .sectionHeader__left {
+  min-width: 0;
 }
 
 #tab-photos > .sectionHeader > .iconGroup {
-  margin-left: auto;
-  align-items: flex-end;
-  min-width: min(100%, 620px);
+  width: 100%;
+  min-width: 0;
+  margin-left: 0;
+  display: grid;
+  justify-items: stretch;
+  align-self: center;
+  gap: 10px;
+}
+
+#tab-photos > .sectionHeader > .iconGroup > .iconGroup__row {
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 #tab-photos .photoBulkBar--header {
   position: static !important;
   inset: auto !important;
-  width: auto !important;
+  width: 100% !important;
   max-width: 100%;
-  margin: 8px 0 0 auto !important;
+  margin: 0 !important;
   padding: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -121,10 +137,8 @@ if(Test-Path $adminUi){
   box-shadow: none !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 8px;
 }
 
@@ -132,29 +146,113 @@ if(Test-Path $adminUi){
   display: none !important;
 }
 
-#tab-photos .photoBulkBar--header #photoBulkCount {
+#tab-photos .photoBulkBar--header .btn {
   width: 100%;
-  text-align: right;
+  min-height: 42px;
+  justify-content: center;
+  text-align: center;
 }
 
-@media (max-width: 900px) {
-  #tab-photos > .sectionHeader {
-    flex-wrap: wrap;
+#tab-photos .photoBulkBar--header #photoBulkCount {
+  width: 100%;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+#panel-photos-manage > .muted:first-child {
+  margin-bottom: 18px;
+}
+
+#photoUploadForm.form--row {
+  display: grid !important;
+  grid-template-columns: minmax(150px, 1fr) minmax(170px, 1fr) minmax(190px, 1.1fr) minmax(220px, 1.25fr) auto;
+  align-items: end;
+  gap: 14px;
+  width: 100%;
+  margin-bottom: 18px;
+}
+
+#photoUploadForm > .label {
+  min-width: 0;
+  display: grid;
+  align-content: end;
+  gap: 7px;
+}
+
+#photoUploadForm .input {
+  width: 100%;
+  min-width: 0;
+  height: 54px;
+}
+
+#photoUploadForm > .btn[type="submit"] {
+  height: 54px;
+  min-width: 128px;
+  align-self: end;
+  white-space: nowrap;
+}
+
+#photoUploadHint {
+  grid-column: 1 / -1;
+  margin-top: -4px;
+}
+
+#photoToolbar.toolbar--nowrap {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(170px, 1fr));
+  align-items: end;
+  gap: 14px;
+  width: 100%;
+  overflow: visible;
+  margin-top: 0;
+}
+
+#photoToolbar > .label {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: end;
+  gap: 7px;
+}
+
+#photoToolbar .input,
+#photoToolbar .select {
+  width: 100%;
+  min-width: 0;
+  height: 54px;
+}
+
+@media (max-width: 1180px) {
+  #photoUploadForm.form--row {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
   }
 
-  #tab-photos > .sectionHeader > .iconGroup {
+  #photoUploadForm > .btn[type="submit"] {
     width: 100%;
-    min-width: 0;
-    align-items: stretch;
   }
 
-  #tab-photos .photoBulkBar--header {
-    margin-left: 0 !important;
+  #photoToolbar.toolbar--nowrap {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  #tab-photos > .sectionHeader {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  #tab-photos > .sectionHeader > .iconGroup > .iconGroup__row {
     justify-content: flex-start;
   }
 
-  #tab-photos .photoBulkBar--header #photoBulkCount {
-    text-align: left;
+  #photoUploadForm.form--row,
+  #photoToolbar.toolbar--nowrap {
+    grid-template-columns: 1fr;
+  }
+
+  #photoUploadForm > .btn[type="submit"] {
+    min-width: 0;
   }
 }
 '@
