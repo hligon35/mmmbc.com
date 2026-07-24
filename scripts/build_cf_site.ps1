@@ -6,14 +6,11 @@ $ErrorActionPreference = "Stop"
 
 $dest = Join-Path $Root "cf_site"
 
-# Ensure the output is an exact mirror of the canonical source files.
-# This also removes any stale/duplicate folders (ex: cf_site/Pages/Pages) from prior builds.
 if (Test-Path $dest) {
   Remove-Item -Recurse -Force $dest
 }
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
 
-# Copy top-level public files
 $files=@(
   "index.html","robots.txt","sitemap.xml",
   "style.css","theme.css","schedule_app.css","schedule_app.js","script.js",
@@ -25,7 +22,6 @@ foreach($f in $files){
   if(Test-Path $src){ Copy-Item -Force $src (Join-Path $dest $f) }
 }
 
-# Copy required directories
 $dirs=@("Pages","Icons","ConImg","bulletins","rental")
 foreach($d in $dirs){
   $src=Join-Path $Root $d
@@ -34,41 +30,70 @@ foreach($d in $dirs){
   }
 }
 
-# Copy admin UI (static only) under /admin/
 $adminUi = Join-Path $Root "admin\public"
 if(Test-Path $adminUi){
   $adminDest = Join-Path $dest "admin"
   New-Item -ItemType Directory -Force -Path $adminDest | Out-Null
   Copy-Item -Recurse -Force (Join-Path $adminUi "*") $adminDest
 
-  # Remove custom login pages from the deployed static admin.
   $remove=@("login.html","login.js","login_legacy.html")
   foreach($f in $remove){
     $p = Join-Path $adminDest $f
     if(Test-Path $p){ Remove-Item -Force $p }
   }
 
-  # Make the gallery layout part of the generated assets instead of relying
-  # on Worker HTML injection or browser-side DOM movement.
   $adminIndex = Join-Path $adminDest "index.html"
   $adminCss = Join-Path $adminDest "admin.css"
 
   if(Test-Path $adminIndex){
     $html = Get-Content -Raw -Path $adminIndex
 
+    # Normalize breadcrumb separator mojibake.
+    $html = $html.Replace(' â€º ', ' &rsaquo; ')
+    $html = $html.Replace(' › ', ' &rsaquo; ')
+
+    # Capture and remove the original bulk bar.
     $bulkPattern = '(?s)\s*<div class="photoBulkBar" id="photoBulkBar" hidden>.*?</div>'
     $bulkMatch = [regex]::Match($html, $bulkPattern)
+    $bulkHtml = ''
     if($bulkMatch.Success){
       $bulkHtml = $bulkMatch.Value.Trim()
-      $bulkHtml = $bulkHtml.Replace('class="photoBulkBar"', 'class="photoBulkBar photoBulkBar--header"')
+      $bulkHtml = $bulkHtml.Replace('class="photoBulkBar"', 'class="photoBulkBar photoBulkBar--pageContext"')
       $html = [regex]::Replace($html, $bulkPattern, '', 1)
-
-      $headerMarker = '<div class="syncProgress" id="syncProgressWrap" aria-live="polite" hidden>'
-      if($html.Contains($headerMarker)){
-        $html = $html.Replace($headerMarker, "$bulkHtml`r`n            $headerMarker")
-      }
     }
 
+    # Replace the duplicate Photos section heading with one consolidated pageContext header.
+    $photoHeaderPattern = '(?s)<div class="pageContext" id="pageContext-photos">.*?</div>\s*<div class="sectionHeader">.*?</div>\s*<dialog class="dialog" id="photoHelpDialog"'
+    $photoHeaderReplacement = @"
+<div class="pageContext pageContext--photos" id="pageContext-photos">
+  <div class="pageContext__main">
+    <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> &rsaquo; Photos</p>
+    <h2 class="pageContext__title">Photos</h2>
+    <p class="pageContext__description">Upload, organize, and refresh website photo galleries.</p>
+  </div>
+  <div class="pageContext__actions pageContext__actions--photos">
+    <div class="pageContext__primaryActions">
+      <a class="iconBtn iconBtn--help" id="photoHelpBtn" href="#photoHelpDialog" aria-label="Photo upload instructions" title="Photo upload instructions">
+        <svg class="pageContextHelpIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2" />
+          <path d="M9.8 9a2.45 2.45 0 0 1 4.7.9c0 1.7-1.25 2.2-2.05 2.9-.5.42-.7.8-.7 1.45" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          <circle cx="12" cy="17.4" r="1" fill="currentColor" />
+        </svg>
+      </a>
+      <button class="btn" id="exportBtn" type="button">Refresh Website Gallery</button>
+    </div>
+    $bulkHtml
+    <div class="syncProgress" id="syncProgressWrap" aria-live="polite" hidden>
+      <progress class="syncProgress__meter" id="syncProgressMeter" max="500" value="0"></progress>
+      <div class="syncProgress__text" id="syncProgressText">Ready.</div>
+    </div>
+  </div>
+</div>
+
+<dialog class="dialog" id="photoHelpDialog"
+"@
+
+    $html = [regex]::Replace($html, $photoHeaderPattern, $photoHeaderReplacement, 1)
     Set-Content -Path $adminIndex -Value $html -Encoding UTF8
   }
 
@@ -98,33 +123,53 @@ if(Test-Path $adminUi){
   margin-bottom: 12px !important;
 }
 
-#tab-photos > .sectionHeader {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 340px);
-  align-items: center !important;
-  gap: 24px;
-}
-
-#tab-photos > .sectionHeader > .sectionHeader__left {
-  min-width: 0;
-}
-
-#tab-photos > .sectionHeader > .iconGroup {
-  width: 100%;
-  min-width: 0;
-  margin-left: 0;
+.pageContext--photos {
   display: grid;
-  justify-items: stretch;
-  align-self: center;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  gap: 28px;
+  align-items: start;
+}
+
+.pageContext--photos .pageContext__main {
+  min-width: 0;
+}
+
+.pageContext__actions--photos {
+  display: grid;
   gap: 10px;
+  justify-items: stretch;
+  align-self: start;
 }
 
-#tab-photos > .sectionHeader > .iconGroup > .iconGroup__row {
-  justify-content: flex-end;
-  flex-wrap: wrap;
+.pageContext__primaryActions {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
 }
 
-#tab-photos .photoBulkBar--header {
+.pageContext__primaryActions .iconBtn,
+.pageContext__primaryActions .btn {
+  min-height: 46px;
+}
+
+.pageContext__primaryActions .iconBtn {
+  width: 46px;
+  display: grid;
+  place-items: center;
+}
+
+.pageContextHelpIcon {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+#tab-photos > .sectionHeader {
+  display: none !important;
+}
+
+#tab-photos .photoBulkBar--pageContext {
   position: static !important;
   inset: auto !important;
   width: 100% !important;
@@ -142,24 +187,25 @@ if(Test-Path $adminUi){
   gap: 8px;
 }
 
-#tab-photos .photoBulkBar--header[hidden] {
+#tab-photos .photoBulkBar--pageContext[hidden] {
   display: none !important;
 }
 
-#tab-photos .photoBulkBar--header .btn {
+#tab-photos .photoBulkBar--pageContext .btn {
   width: 100%;
   min-height: 42px;
   justify-content: center;
   text-align: center;
 }
 
-#tab-photos .photoBulkBar--header #photoBulkCount {
+#tab-photos .photoBulkBar--pageContext #photoBulkCount {
   width: 100%;
   text-align: center;
   font-size: 0.9rem;
 }
 
 #panel-photos-manage > .muted:first-child {
+  margin-top: 0;
   margin-bottom: 18px;
 }
 
@@ -175,8 +221,10 @@ if(Test-Path $adminUi){
 #photoUploadForm > .label {
   min-width: 0;
   display: grid;
+  grid-template-rows: 1.5rem 54px;
   align-content: end;
   gap: 7px;
+  line-height: 1.2;
 }
 
 #photoUploadForm .input {
@@ -210,9 +258,10 @@ if(Test-Path $adminUi){
 #photoToolbar > .label {
   min-width: 0;
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-rows: 2.75rem 54px;
   align-content: end;
   gap: 7px;
+  line-height: 1.2;
 }
 
 #photoToolbar .input,
@@ -236,14 +285,14 @@ if(Test-Path $adminUi){
   }
 }
 
-@media (max-width: 760px) {
-  #tab-photos > .sectionHeader {
+@media (max-width: 820px) {
+  .pageContext--photos {
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 18px;
   }
 
-  #tab-photos > .sectionHeader > .iconGroup > .iconGroup__row {
-    justify-content: flex-start;
+  .pageContext__actions--photos {
+    width: 100%;
   }
 
   #photoUploadForm.form--row,
@@ -260,7 +309,6 @@ if(Test-Path $adminUi){
   }
 }
 
-# Never publish server code or data
 $maybeAdminServer = Join-Path $dest "admin\server.js"
 if(Test-Path $maybeAdminServer){ Remove-Item -Force $maybeAdminServer }
 $maybeAdminData = Join-Path $dest "admin\data"
