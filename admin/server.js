@@ -970,9 +970,9 @@ app.get('/admin', (req, res, next) => {
 });
 
 // Cloudflare Access is expected to gate /admin/* in deployments that use it.
-// Remove the custom login page from all served versions by returning 404.
+// Keep legacy login URLs working by redirecting users to the current admin entry point.
 app.get(['/admin/login', '/admin/login.html', '/admin/login.js', '/admin/login_legacy.html'], (req, res) => {
-  res.status(404).send('Not found');
+  return res.redirect(302, '/admin/');
 });
 
 function sendAdminFinancePage(res, fileName) {

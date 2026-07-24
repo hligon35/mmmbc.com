@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -6,6 +6,7 @@
   <title>Church Website Manager</title>
   <meta name="description" content="Admin dashboard for Mt. Moriah Missionary Baptist Church website." />
   <link rel="stylesheet" href="/admin/admin.css?v=20260124" />
+  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260724-2" />
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
@@ -101,7 +102,7 @@
 
       <div class="card" id="googleLoginPanel">
         <div class="card__subtitle">Google sign-in</div>
-        <p class="muted" id="googleLoginHint">Loading Google sign-in…</p>
+        <p class="muted" id="googleLoginHint">Loading Google sign-inâ€¦</p>
         <div id="googleSignInBtn" aria-label="Google sign-in button"></div>
       </div>
 
@@ -177,7 +178,7 @@
 
     <section class="card loginCard" id="inviteCard" aria-label="Account setup" hidden>
       <h1 class="card__title">Finish account setup</h1>
-      <p class="muted" id="inviteEmail">Loading invite…</p>
+      <p class="muted" id="inviteEmail">Loading inviteâ€¦</p>
 
       <form id="inviteForm" class="form">
         <label class="label">
@@ -288,31 +289,36 @@
 
       <!-- Photos -->
       <section class="tabPanel" role="tabpanel" id="tab-photos" aria-labelledby="tabBtn-photos" hidden>
-        <div class="pageContext" id="pageContext-photos">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Photos</p>
-          <h2 class="pageContext__title">Photos</h2>
-          <p class="pageContext__description">Upload, organize, and refresh website photo galleries.</p>
-        </div>
-        <div class="sectionHeader">
-          <div class="sectionHeader__left">
-            <h2 class="sectionHeader__title">Photos</h2>
-            <div class="tabs subTabs photoSubTabs" role="tablist" aria-label="Photo gallery sections">
-              <button class="tab tab--sub" role="tab" aria-selected="true" aria-controls="panel-photos-manage" id="subTabBtn-photos-manage" type="button">Add Photos</button>
-            </div>
+        <div class="pageContext pageContext--photos" id="pageContext-photos">
+  <div class="pageContext__main">
+    <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> &rsaquo; Photos</p>
+    <h2 class="pageContext__title">Photos</h2>
+    <p class="pageContext__description">Upload, organize, and refresh website photo galleries.</p>
+  </div>
+  <div class="pageContext__actions pageContext__actions--photos">
+    <div class="pageContext__primaryActions">
+      <a class="iconBtn iconBtn--help" id="photoHelpBtn" href="#photoHelpDialog" aria-label="Photo upload instructions" title="Photo upload instructions">
+        <svg class="pageContextHelpIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2" />
+          <path d="M9.8 9a2.45 2.45 0 0 1 4.7.9c0 1.7-1.25 2.2-2.05 2.9-.5.42-.7.8-.7 1.45" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          <circle cx="12" cy="17.4" r="1" fill="currentColor" />
+        </svg>
+      </a>
+      <button class="btn" id="exportBtn" type="button">Refresh Website Gallery</button>
+    </div>
+    <div class="photoBulkBar photoBulkBar--pageContext" id="photoBulkBar" hidden>
+            <button class="btn" id="photoBulkEditBtn" type="button">Edit selected photos</button>
+            <button class="btn btn--danger" id="photoBulkDeleteBtn" type="button">Delete selected photos</button>
+            <span class="muted" id="photoBulkCount" aria-live="polite"></span>
           </div>
-          <div class="iconGroup" aria-label="Photo gallery actions">
-            <div class="iconGroup__row">
-              <a class="iconBtn iconBtn--help" id="photoHelpBtn" href="#photoHelpDialog" aria-label="Photo upload instructions" title="Photo upload instructions">?</a>
-              <button class="btn" id="exportBtn" type="button">Refresh Website Gallery</button>
-            </div>
-            <div class="syncProgress" id="syncProgressWrap" aria-live="polite" hidden>
-              <progress class="syncProgress__meter" id="syncProgressMeter" max="500" value="0"></progress>
-              <div class="syncProgress__text" id="syncProgressText">Ready.</div>
-            </div>
-          </div>
-        </div>
+    <div class="syncProgress" id="syncProgressWrap" aria-live="polite" hidden>
+      <progress class="syncProgress__meter" id="syncProgressMeter" max="500" value="0"></progress>
+      <div class="syncProgress__text" id="syncProgressText">Ready.</div>
+    </div>
+  </div>
+</div>
 
-        <dialog class="dialog" id="photoHelpDialog" aria-label="Photo upload instructions">
+<dialog class="dialog" id="photoHelpDialog" aria-label="Photo upload instructions">
           <a class="dialog__backdrop" href="#" aria-label="Close"></a>
           <div class="card dialog__inner">
             <div class="sectionHeader sectionHeader--compact">
@@ -345,12 +351,6 @@
         <div class="subTabPanel" role="tabpanel" id="panel-photos-manage" aria-labelledby="subTabBtn-photos-manage">
           <p class="muted">Add photos, group them by album, and use tags so the library stays easy to browse.</p>
 
-          <div class="photoBulkBar" id="photoBulkBar" hidden>
-            <button class="btn" id="photoBulkEditBtn" type="button">Edit selected photos</button>
-            <button class="btn btn--danger" id="photoBulkDeleteBtn" type="button">Delete selected photos</button>
-            <span class="muted" id="photoBulkCount" aria-live="polite"></span>
-          </div>
-
           <form id="photoUploadForm" class="form form--row" enctype="multipart/form-data">
             <label class="label">
               Album name
@@ -378,8 +378,8 @@
               <select class="select" id="photoSort">
                 <option value="date-desc">Date (newest)</option>
                 <option value="date-asc">Date (oldest)</option>
-                <option value="name-asc">Name (A–Z)</option>
-                <option value="name-desc">Name (Z–A)</option>
+                <option value="name-asc">Name (Aâ€“Z)</option>
+                <option value="name-desc">Name (Zâ€“A)</option>
                 <option value="manual">Manual (arranged)</option>
               </select>
             </label>
@@ -451,7 +451,7 @@
       <!-- Announcements -->
       <section class="tabPanel" role="tabpanel" id="tab-content" aria-labelledby="tabBtn-content" hidden>
         <div class="pageContext" id="pageContext-content">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Announcements</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Announcements</p>
           <h2 class="pageContext__title">Announcements</h2>
           <p class="pageContext__description">Share updates and publish bulletins for the church website.</p>
         </div>
@@ -537,7 +537,7 @@
       <!-- Finances -->
       <section class="tabPanel" role="tabpanel" id="tab-finances" aria-labelledby="tabBtn-finances" hidden>
         <div class="pageContext" id="pageContext-finances">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Church Finances</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Church Finances</p>
           <h2 class="pageContext__title">Church Finances</h2>
           <p class="pageContext__description">Record giving and expenses, then review and print reports.</p>
         </div>
@@ -602,7 +602,7 @@
 
           <form class="financeHeaderSearch noPrint" id="financeSearchForm" role="search" aria-label="Search finances">
             <div class="inputGroup">
-              <input class="input" id="financeSearch" type="search" placeholder="Search ledger…" autocomplete="off" />
+              <input class="input" id="financeSearch" type="search" placeholder="Search ledgerâ€¦" autocomplete="off" />
               <button class="inputIconBtn" type="submit" aria-label="Search" title="Search">
                 <img class="inputIconBtn__icon" src="/Icons/fsearch.png" alt="" aria-hidden="true" />
               </button>
@@ -671,7 +671,7 @@
         <p class="muted noPrint">Add income and expenses, filter the ledger, export to CSV, and print cleanly.</p>
 
         <div class="financePrintHeader printOnly" aria-label="Print header">
-          <div class="financePrintHeader__title" id="financePrintTitle">Mt. Moriah Missionary Baptist Church — Finance</div>
+          <div class="financePrintHeader__title" id="financePrintTitle">Mt. Moriah Missionary Baptist Church â€” Finance</div>
           <div class="financePrintHeader__meta" id="financePrintMeta"></div>
         </div>
 
@@ -686,8 +686,8 @@
 
             <div class="toolbarGroup">
               <div class="inputGroup financeReceiptsSearchGroup">
-                <input class="input" id="financeReceiptsSearch" type="search" placeholder="Search entries…" autocomplete="off" />
-                <button class="inputIconBtn" id="financeReceiptsSearchClear" type="button" aria-label="Clear search" title="Clear">×</button>
+                <input class="input" id="financeReceiptsSearch" type="search" placeholder="Search entriesâ€¦" autocomplete="off" />
+                <button class="inputIconBtn" id="financeReceiptsSearchClear" type="button" aria-label="Clear search" title="Clear">Ã—</button>
               </div>
               <button class="btn" id="financeReceiptsSelectAllBtn" type="button">Select all</button>
               <button class="btn" id="financeReceiptsClearBtn" type="button">Clear</button>
@@ -790,7 +790,7 @@
       <!-- Events -->
       <section class="tabPanel" role="tabpanel" id="tab-events" aria-labelledby="tabBtn-events" hidden>
         <div class="pageContext" id="pageContext-events">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Events</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Events</p>
           <h2 class="pageContext__title">Events</h2>
           <p class="pageContext__description">Add service times, meetings, and church programs.</p>
         </div>
@@ -819,7 +819,7 @@
       <!-- Newsletter -->
       <section class="tabPanel" role="tabpanel" id="tab-newsletter" aria-labelledby="tabBtn-newsletter" hidden>
         <div class="pageContext" id="pageContext-newsletter">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Newsletter</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Newsletter</p>
           <h2 class="pageContext__title">Newsletter</h2>
           <p class="pageContext__description">Write and send church newsletters in three clear steps.</p>
         </div>
@@ -1021,7 +1021,7 @@
       <!-- Profiles -->
       <section class="tabPanel" role="tabpanel" id="tab-profiles" aria-labelledby="tabBtn-profiles" hidden>
         <div class="pageContext" id="pageContext-profiles">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Edit Website Pages</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Edit Website Pages</p>
           <h2 class="pageContext__title">Edit Website Pages</h2>
           <p class="pageContext__description">Update ministries, leadership, church history, contact details, and more.</p>
         </div>
@@ -1170,7 +1170,7 @@
       <!-- Support -->
       <section class="tabPanel" role="tabpanel" id="tab-support" aria-labelledby="tabBtn-support" hidden>
         <div class="pageContext" id="pageContext-support">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Help &amp; Support</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Help &amp; Support</p>
           <h2 class="pageContext__title">Help &amp; Support</h2>
           <p class="pageContext__description">Send a support request if you need help with the website manager.</p>
         </div>
@@ -1183,7 +1183,7 @@
           </label>
           <label class="label">
             Message
-            <textarea class="textarea" name="message" rows="6" maxlength="5000" placeholder="Share the details and any error message you see…" required></textarea>
+            <textarea class="textarea" name="message" rows="6" maxlength="5000" placeholder="Share the details and any error message you seeâ€¦" required></textarea>
           </label>
           <label class="label">
             Your email address (optional)
@@ -1218,5 +1218,7 @@
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="/admin/admin.js?v=20260124"></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260724-2" defer></script>
 </body>
 </html>
+

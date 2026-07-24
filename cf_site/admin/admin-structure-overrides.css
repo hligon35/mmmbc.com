@@ -1,0 +1,153 @@
+/* Global page-context breadcrumb cleanup */
+.pageContext__crumb {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.pageContext__homeLink {
+  white-space: nowrap;
+}
+
+/* Announcements and events share one screen. */
+.contentEventsSplit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.contentEventsSplit__pane {
+  min-width: 0;
+}
+
+.contentEventsSplit__pane--announcements {
+  padding-right: 24px;
+  border-right: 1px solid var(--border, rgba(255,255,255,0.14));
+}
+
+.contentEventsSplit__pane--events {
+  padding-left: 0;
+}
+
+.contentEventsSplit__eventHeader {
+  margin-bottom: 16px;
+}
+
+.contentEventsSplit .sectionHeader {
+  align-items: flex-start;
+}
+
+.contentEventsSplit .form,
+.contentEventsSplit .list {
+  width: 100%;
+}
+
+/* Newsletter subscriber dropdown in the page context right column. */
+#pageContext-newsletter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 340px);
+  column-gap: 28px;
+  align-items: center;
+}
+
+#pageContext-newsletter > .pageContext__crumb,
+#pageContext-newsletter > .pageContext__title,
+#pageContext-newsletter > .pageContext__description {
+  grid-column: 1;
+}
+
+.newsletterSubscriberContext {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  align-self: center;
+  width: 100%;
+}
+
+.newsletterSubscriberContext__label {
+  width: 100%;
+}
+
+.newsletterSubscriberContext .select {
+  width: 100%;
+  min-height: 46px;
+}
+
+/* Finance actions sit next to the page-context title. */
+.financePageContextTitleRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.financePageContextTitleRow .pageContext__title {
+  margin: 0;
+}
+
+.financePageContextActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.financePageContextActions .financeActionButtons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+/* Remove finance chip-strip and icon-button backgrounds. */
+#tab-finances .financeQuickTabs,
+#tab-finances .financePeriodTabs,
+#tab-finances .financeTopBar,
+#tab-finances .statusChip {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#tab-finances .financeQuickTabs,
+#tab-finances .financePeriodTabs,
+#tab-finances .financeTopBar {
+  border-color: transparent !important;
+}
+
+#tab-finances .iconBtn,
+#tab-finances .inputIconBtn,
+.financePageContextActions .iconBtn {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#tab-finances .iconBtn:hover,
+#tab-finances .iconBtn:focus-visible,
+#tab-finances .inputIconBtn:hover,
+#tab-finances .inputIconBtn:focus-visible {
+  background: rgba(255,255,255,0.07) !important;
+}
+
+@media (max-width: 1080px) {
+  .contentEventsSplit {
+    grid-template-columns: 1fr;
+  }
+
+  .contentEventsSplit__pane--announcements {
+    padding-right: 0;
+    padding-bottom: 24px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border, rgba(255,255,255,0.14));
+  }
+
+  #pageContext-newsletter {
+    grid-template-columns: 1fr;
+    row-gap: 16px;
+  }
+
+  .newsletterSubscriberContext {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}

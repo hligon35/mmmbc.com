@@ -1112,6 +1112,23 @@ export default {
       return handleSupportMessage(request, env);
     }
 
+    // Legacy login entry points are removed from static assets.
+    // Redirect old bookmarks to the active admin app entry.
+    if (
+      (url.pathname === '/admin/login'
+        || url.pathname === '/admin/login.html'
+        || url.pathname === '/admin/login.js'
+        || url.pathname === '/admin/login_legacy.html')
+      && (request.method === 'GET' || request.method === 'HEAD')
+    ) {
+      const headers = new Headers({
+        Location: '/admin/',
+        'Cache-Control': 'no-store'
+      });
+      applySecurityHeaders(headers, { isHttps });
+      return new Response(null, { status: 302, headers });
+    }
+
     // Static assets (public site + admin UI) from ./cf_site
     if (!env.ASSETS || typeof env.ASSETS.fetch !== 'function') {
       return text('Assets binding missing. Check wrangler.jsonc assets config.', { status: 500 });
