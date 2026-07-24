@@ -139,6 +139,25 @@ if(Test-Path $adminUi){
   background: #111;
 }
 
+#photoGrid .row__actions {
+  display: flex !important;
+  flex-wrap: wrap;
+  justify-content: center !important;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#photoGrid .row__actions .btn {
+  width: auto !important;
+  min-width: 68px;
+  flex: 0 1 auto;
+  justify-content: center;
+  text-align: center;
+}
+
 .pageContext--photos {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
