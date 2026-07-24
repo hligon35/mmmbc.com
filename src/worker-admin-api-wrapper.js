@@ -157,6 +157,9 @@ const FINAL_GALLERY_STYLE = `
   }
 </style>`;
 
+const STRUCTURE_STYLESHEET = '<link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260724-1" />';
+const STRUCTURE_SCRIPT = '<script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260724-1" defer></script>';
+
 async function transformAdminHtml(response) {
   const type = String(response.headers.get('Content-Type') || '').toLowerCase();
   if (!type.includes('text/html')) return response;
@@ -177,6 +180,14 @@ async function transformAdminHtml(response) {
 
   if (!html.includes('id="mmmbc-gallery-layout-final"')) {
     html = html.replace('</head>', `${FINAL_GALLERY_STYLE}\n</head>`);
+  }
+
+  if (!html.includes('id="mmmbc-admin-structure-css"')) {
+    html = html.replace('</head>', `${STRUCTURE_STYLESHEET}\n</head>`);
+  }
+
+  if (!html.includes('id="mmmbc-admin-structure-js"')) {
+    html = html.replace('</body>', `${STRUCTURE_SCRIPT}\n</body>`);
   }
 
   const headers = new Headers(response.headers);
