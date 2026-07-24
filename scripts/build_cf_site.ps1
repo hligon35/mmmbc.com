@@ -48,7 +48,6 @@ if(Test-Path $adminUi){
   if(Test-Path $adminIndex){
     $html = Get-Content -Raw -Path $adminIndex
 
-    # Capture and remove the original bulk bar.
     $bulkPattern = '(?s)\s*<div class="photoBulkBar" id="photoBulkBar" hidden>.*?</div>'
     $bulkMatch = [regex]::Match($html, $bulkPattern)
     $bulkHtml = ''
@@ -58,8 +57,6 @@ if(Test-Path $adminUi){
       $html = [regex]::Replace($html, $bulkPattern, '', 1)
     }
 
-    # Replace the duplicate Photos section heading with one consolidated pageContext header.
-    # The replacement uses the ASCII-only HTML entity &rsaquo; for the breadcrumb separator.
     $photoHeaderPattern = '(?s)<div class="pageContext" id="pageContext-photos">.*?</div>\s*<div class="sectionHeader">.*?</div>\s*<dialog class="dialog" id="photoHelpDialog"'
     $photoHeaderReplacement = @"
 <div class="pageContext pageContext--photos" id="pageContext-photos">
@@ -118,6 +115,28 @@ if(Test-Path $adminUi){
 #photoPagerBottom:not([hidden]) {
   margin-top: 26px !important;
   margin-bottom: 12px !important;
+}
+
+/* Six columns by three rows on wide desktop screens. */
+#photoGrid.grid {
+  display: grid !important;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  align-items: stretch;
+}
+
+#photoGrid .thumb {
+  min-width: 0;
+  overflow: hidden;
+}
+
+#photoGrid .thumb__img {
+  display: block;
+  width: 100%;
+  height: 190px;
+  object-fit: contain !important;
+  object-position: center center !important;
+  background: #111;
 }
 
 .pageContext--photos {
@@ -268,6 +287,12 @@ if(Test-Path $adminUi){
   height: 54px;
 }
 
+@media (max-width: 1400px) {
+  #photoGrid.grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+
 @media (max-width: 1180px) {
   #photoUploadForm.form--row {
     grid-template-columns: repeat(2, minmax(220px, 1fr));
@@ -279,6 +304,12 @@ if(Test-Path $adminUi){
 
   #photoToolbar.toolbar--nowrap {
     grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  #photoGrid.grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 }
 
@@ -299,6 +330,23 @@ if(Test-Path $adminUi){
 
   #photoUploadForm > .btn[type="submit"] {
     min-width: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  #photoGrid.grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  #photoGrid .thumb__img {
+    height: 170px;
+  }
+}
+
+@media (max-width: 520px) {
+  #photoGrid.grid {
+    grid-template-columns: 1fr !important;
   }
 }
 '@
