@@ -67,27 +67,6 @@ function emptyFinances() {
   };
 }
 
-async function injectAdminLayoutAssets(response) {
-  const type = String(response.headers.get('Content-Type') || '').toLowerCase();
-  if (!type.includes('text/html')) return response;
-
-  let html = await response.text();
-  const styleTag = '<link rel="stylesheet" href="/admin/admin-layout-fixes.css?v=20260724-3" />';
-  const scriptTag = '<script src="/admin/admin-layout-fixes.js?v=20260724-3" defer></script>';
-
-  if (!html.includes('/admin/admin-layout-fixes.css')) {
-    html = html.replace('</head>', `${styleTag}\n</head>`);
-  }
-  if (!html.includes('/admin/admin-layout-fixes.js')) {
-    html = html.replace('</body>', `${scriptTag}\n</body>`);
-  }
-
-  const headers = new Headers(response.headers);
-  headers.delete('Content-Length');
-  headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
-  return new Response(html, { status: response.status, headers });
-}
-
 const READ_ENDPOINTS = new Set([
   '/api/events',
   '/api/announcements',
@@ -97,6 +76,115 @@ const READ_ENDPOINTS = new Set([
   '/api/profiles',
   '/api/newsletter/records'
 ]);
+
+const HEADER_BULK_BAR = `
+            <div class="photoBulkBar photoBulkBar--header" id="photoBulkBar" hidden>
+              <button class="btn" id="photoBulkEditBtn" type="button">Edit selected photos</button>
+              <button class="btn btn--danger" id="photoBulkDeleteBtn" type="button">Delete selected photos</button>
+              <span class="muted" id="photoBulkCount" aria-live="polite"></span>
+            </div>`;
+
+const FINAL_GALLERY_STYLE = `
+<style id="mmmbc-gallery-layout-final">
+  #photoPager:not([hidden]),
+  #photoPagerBottom:not([hidden]) {
+    display: flex !important;
+    width: fit-content !important;
+    max-width: 100%;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 14px !important;
+  }
+  #photoPager:not([hidden]) {
+    margin-top: 26px !important;
+    margin-bottom: 22px !important;
+  }
+  #photoPagerBottom:not([hidden]) {
+    margin-top: 24px !important;
+    margin-bottom: 10px !important;
+  }
+  #tab-photos > .sectionHeader {
+    align-items: flex-start;
+  }
+  #tab-photos > .sectionHeader > .iconGroup {
+    margin-left: auto;
+    align-items: flex-end;
+    min-width: min(100%, 620px);
+  }
+  #tab-photos .photoBulkBar--header {
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    max-width: 100%;
+    margin: 8px 0 0 auto !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+  }
+  #tab-photos .photoBulkBar--header[hidden] {
+    display: none !important;
+  }
+  #tab-photos .photoBulkBar--header #photoBulkCount {
+    width: 100%;
+    text-align: right;
+  }
+  @media (max-width: 900px) {
+    #tab-photos > .sectionHeader {
+      flex-wrap: wrap;
+    }
+    #tab-photos > .sectionHeader > .iconGroup {
+      width: 100%;
+      min-width: 0;
+      align-items: stretch;
+    }
+    #tab-photos .photoBulkBar--header {
+      margin-left: 0 !important;
+      justify-content: flex-start;
+    }
+    #tab-photos .photoBulkBar--header #photoBulkCount {
+      text-align: left;
+    }
+  }
+</style>`;
+
+async function transformAdminHtml(response) {
+  const type = String(response.headers.get('Content-Type') || '').toLowerCase();
+  if (!type.includes('text/html')) return response;
+
+  let html = await response.text();
+
+  html = html.replace(
+    /\s*<div class="photoBulkBar" id="photoBulkBar" hidden>[\s\S]*?<\/div>/,
+    ''
+  );
+
+  if (!html.includes('photoBulkBar--header')) {
+    html = html.replace(
+      '<div class="syncProgress" id="syncProgressWrap" aria-live="polite" hidden>',
+      `${HEADER_BULK_BAR}\n            <div class="syncProgress" id="syncProgressWrap" aria-live="polite" hidden>`
+    );
+  }
+
+  if (!html.includes('id="mmmbc-gallery-layout-final"')) {
+    html = html.replace('</head>', `${FINAL_GALLERY_STYLE}\n</head>`);
+  }
+
+  const headers = new Headers(response.headers);
+  headers.delete('Content-Length');
+  headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  headers.set('Pragma', 'no-cache');
+  return new Response(html, { status: response.status, headers });
+}
 
 export default {
   async fetch(request, env, ctx) {
@@ -121,27 +209,20 @@ export default {
         return json(normalizeBulletins(data));
       }
 
-      if (url.pathname === '/api/subscribers') {
-        return json({ subscribers: [] });
-      }
-
-      if (url.pathname === '/api/finances') {
-        return json(emptyFinances());
-      }
+      if (url.pathname === '/api/subscribers') return json({ subscribers: [] });
+      if (url.pathname === '/api/finances') return json(emptyFinances());
 
       if (url.pathname === '/api/profiles') {
         const data = await readAssetJson(request, env, '/profiles.json', { profiles: [], metadata: {} });
         return json(data && typeof data === 'object' ? data : { profiles: [], metadata: {} });
       }
 
-      if (url.pathname === '/api/newsletter/records') {
-        return json({ records: [] });
-      }
+      if (url.pathname === '/api/newsletter/records') return json({ records: [] });
     }
 
     const response = await worker.fetch(request, env, ctx);
     if (url.pathname === '/admin' || url.pathname === '/admin/' || url.pathname.startsWith('/admin/')) {
-      return injectAdminLayoutAssets(response);
+      return transformAdminHtml(response);
     }
     return response;
   }
