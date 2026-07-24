@@ -33,8 +33,8 @@
 	// GOOGLE_CLIENT_ID, GOOGLE_ALLOWED_EMAILS, and SESSION_SECRET must be configured
 	// as Cloudflare Worker secrets/variables before Google sign-in will be enabled.
 	"vars": {
-		"ADMIN_ALLOW_EMAILS": "",
-		"CANONICAL_HOST": "",
+		"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+		"CANONICAL_HOST": "mmmbc.alphazonelabs.com",
 		"ALLOW_SERVICE_TOKEN_ADMIN": "false",
 		"DEV_BYPASS_AUTH": "false",
 		"SUPPORT_TO_EMAIL": "support@hldesignedit.com",
@@ -72,8 +72,8 @@
 				}
 			],
 			"vars": {
-				"ADMIN_ALLOW_EMAILS": "",
-				"CANONICAL_HOST": "mmmbc.com",
+				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+				"CANONICAL_HOST": "mmmbc.alphazonelabs.com",
 				"ALLOW_SERVICE_TOKEN_ADMIN": "false",
 				"DEV_BYPASS_AUTH": "false",
 				"SUPPORT_TO_EMAIL": "support@hldesignedit.com",
@@ -106,8 +106,8 @@
 				}
 			],
 			"vars": {
-				"ADMIN_ALLOW_EMAILS": "",
-				"CANONICAL_HOST": "",
+				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+				"CANONICAL_HOST": "mmmbc-preview.alphazonelabs.com",
 				"ALLOW_SERVICE_TOKEN_ADMIN": "true",
 				"DEV_BYPASS_AUTH": "false",
 				"SUPPORT_TO_EMAIL": "support@hldesignedit.com",
@@ -148,8 +148,8 @@
 				}
 			],
 			"vars": {
-				"ADMIN_ALLOW_EMAILS": "",
-				"CANONICAL_HOST": "",
+				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+				"CANONICAL_HOST": "mmmbc.alphazonelabs.com",
 				"ALLOW_SERVICE_TOKEN_ADMIN": "true",
 				"DEV_BYPASS_AUTH": "false",
 				"SUPPORT_TO_EMAIL": "support@hldesignedit.com",
