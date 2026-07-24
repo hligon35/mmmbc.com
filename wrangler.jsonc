@@ -1,8 +1,8 @@
 {
 	"name": "mmmbc",
 	"compatibility_date": "2026-01-21",
-	// Worker entrypoint (Option B)
-	"main": "./src/worker.js",
+	// Worker entrypoint with branded Google authentication wrapper.
+	"main": "./src/worker-auth-wrapper.js",
 	// Assets-only Worker deployment (static site)
 	// This intentionally deploys ONLY the curated public-site files in ./cf_site
 	// so that the admin server code and admin data are never published.
@@ -30,24 +30,14 @@
 		}
 	],
 	// Cloudflare-side Worker vars.
-	// These belong in Wrangler/Cloudflare, not in the Node admin .env file used by local dev or Cloud Run.
-	// For local admin -> Worker proxying, set WORKER_ORIGIN plus matching CF_ACCESS_CLIENT_ID /
-	// CF_ACCESS_CLIENT_SECRET in the admin environment, and store the same token pair as Worker secrets.
+	// GOOGLE_CLIENT_ID, GOOGLE_ALLOWED_EMAILS, and SESSION_SECRET must be configured
+	// as Cloudflare Worker secrets/variables before Google sign-in will be enabled.
 	"vars": {
-		// Comma-separated emails allowed for Worker admin API access (when Cloudflare Access is enabled).
-		// Example: "you@example.com,other@example.com"
 		"ADMIN_ALLOW_EMAILS": "",
-		// Optional: set this when you move the Worker to a custom domain (e.g. mmmbc.com).
-		// When set, /admin* and /api* requests to *.workers.dev will redirect to the canonical host.
 		"CANONICAL_HOST": "",
-		// When true, allow Cloudflare Access Service Tokens to call admin APIs (e.g. for migrations).
 		"ALLOW_SERVICE_TOKEN_ADMIN": "false",
-		// Set to true only for local development/testing.
-		"DEV_BYPASS_AUTH": "false"
-		,
-		// Visible support mailbox settings for Worker-sent support emails.
+		"DEV_BYPASS_AUTH": "false",
 		"SUPPORT_TO_EMAIL": "support@hldesignedit.com",
-		// Must be a verified destination for the SUPPORT_EMAIL binding in Cloudflare Email Routing.
 		"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com"
 	},
 	// Optional parallel environment:
@@ -58,7 +48,7 @@
 			// Deploy with: npx wrangler deploy --env production
 			// Intended for the live custom domain (mmmbc.com).
 			"name": "mmmbc",
-			"main": "./src/worker.js",
+			"main": "./src/worker-auth-wrapper.js",
 			"assets": {
 				"directory": "./cf_site"
 			},
@@ -92,7 +82,7 @@
 		},
 		"preview": {
 			"name": "mmmbc-preview",
-			"main": "./src/worker.js",
+			"main": "./src/worker-auth-wrapper.js",
 			"assets": {
 				"directory": "./cf_site"
 			},
