@@ -88,6 +88,17 @@ if(Test-Path $adminUi){
 "@
 
     $html = [regex]::Replace($html, $photoHeaderPattern, $photoHeaderReplacement, 1)
+
+    $structureCssTag = '  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260724-2" />'
+    if(-not $html.Contains('id="mmmbc-admin-structure-css"')){
+      $html = $html.Replace('</head>', "$structureCssTag`r`n</head>")
+    }
+
+    $structureScriptTag = '  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260724-2" defer></script>'
+    if(-not $html.Contains('id="mmmbc-admin-structure-js"')){
+      $html = $html.Replace('</body>', "$structureScriptTag`r`n</body>")
+    }
+
     Set-Content -Path $adminIndex -Value $html -Encoding UTF8
   }
 
