@@ -111,11 +111,58 @@ const LOGIN_STYLE = `
   #authShell .peekBtn:hover { border: 0 !important; background: rgba(255,255,255,.08) !important; }
   #googleLoginPanel { width: 100%; }
   #googleSignInBtn { min-height: 44px; display: flex; align-items: center; }
+
+  /* Admin gallery: preserve the full image and keep every action inside its card. */
+  #photoGrid.grid {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    align-items: stretch;
+  }
+  #photoGrid .thumb {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #photoGrid .thumb__img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    height: auto;
+    object-fit: contain;
+    object-position: center;
+    background: #111;
+    display: block;
+  }
+  #photoGrid .thumb__meta {
+    min-width: 0;
+    flex: 1;
+  }
+  #photoGrid .thumb__label,
+  #photoGrid .thumb__small {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  #photoGrid .row__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+  }
+  #photoGrid .row__actions .btn {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 8px;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
   @media (max-width: 760px) {
     #authShell.loginShell { min-height: calc(100dvh - 20px); grid-template-columns: 1fr; gap: 18px; padding: 24px 0; }
     #authShell .loginBrand { min-height: auto; padding: 0 16px; }
     #authShell .loginBrand__logo { width: min(100%, 300px); max-height: 220px; }
     #authShell .loginStage { justify-content: center; }
+    #photoGrid.grid { grid-template-columns: 1fr; }
   }
 </style>`;
 
