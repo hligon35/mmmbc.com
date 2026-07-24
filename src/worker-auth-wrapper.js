@@ -112,7 +112,6 @@ const LOGIN_STYLE = `
   #googleLoginPanel { width: 100%; }
   #googleSignInBtn { min-height: 44px; display: flex; align-items: center; }
 
-  /* Admin gallery: preserve the full image and keep every action inside its card. */
   #photoGrid.grid {
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     align-items: stretch;
@@ -132,15 +131,9 @@ const LOGIN_STYLE = `
     background: #111;
     display: block;
   }
-  #photoGrid .thumb__meta {
-    min-width: 0;
-    flex: 1;
-  }
+  #photoGrid .thumb__meta { min-width: 0; flex: 1; }
   #photoGrid .thumb__label,
-  #photoGrid .thumb__small {
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
+  #photoGrid .thumb__small { overflow-wrap: anywhere; word-break: break-word; }
   #photoGrid .row__actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -157,20 +150,77 @@ const LOGIN_STYLE = `
     overflow-wrap: anywhere;
   }
 
+  #photoPager,
+  #photoPagerBottom {
+    width: 100%;
+    justify-content: center !important;
+    align-items: center;
+    gap: 14px;
+  }
+  #photoPager { margin: 24px 0 18px !important; }
+  #photoPagerBottom { margin: 22px 0 8px !important; }
+
+  #photoBulkBar { display: none !important; }
+  .photoHeaderBulkActions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+  }
+  .photoHeaderBulkActions .btn { min-height: 42px; }
+  .photoHeaderBulkActions #photoBulkCount { width: 100%; text-align: right; }
+
   @media (max-width: 760px) {
     #authShell.loginShell { min-height: calc(100dvh - 20px); grid-template-columns: 1fr; gap: 18px; padding: 24px 0; }
     #authShell .loginBrand { min-height: auto; padding: 0 16px; }
     #authShell .loginBrand__logo { width: min(100%, 300px); max-height: 220px; }
     #authShell .loginStage { justify-content: center; }
     #photoGrid.grid { grid-template-columns: 1fr; }
+    .photoHeaderBulkActions { width: 100%; justify-content: stretch; }
+    .photoHeaderBulkActions .btn { flex: 1 1 180px; }
+    .photoHeaderBulkActions #photoBulkCount { text-align: left; }
   }
 </style>`;
+
+const ADMIN_LAYOUT_SCRIPT = `
+<script id="mmmbc-admin-layout-fixes">
+(() => {
+  const moveBulkActions = () => {
+    const bar = document.getElementById('photoBulkBar');
+    const headerRow = document.querySelector('#tab-photos .sectionHeader .iconGroup__row');
+    if (!bar || !headerRow || document.querySelector('.photoHeaderBulkActions')) return;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'photoHeaderBulkActions';
+    wrap.setAttribute('aria-label', 'Bulk photo actions');
+
+    const edit = document.getElementById('photoBulkEditBtn');
+    const del = document.getElementById('photoBulkDeleteBtn');
+    const count = document.getElementById('photoBulkCount');
+    if (edit) wrap.appendChild(edit);
+    if (del) wrap.appendChild(del);
+    if (count) wrap.appendChild(count);
+
+    headerRow.appendChild(wrap);
+    bar.remove();
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', moveBulkActions, { once: true });
+  } else {
+    moveBulkActions();
+  }
+})();
+</script>`;
 
 async function injectLoginStyle(response) {
   const type = String(response.headers.get('Content-Type') || '').toLowerCase();
   if (!type.includes('text/html')) return response;
   const html = await response.text();
-  const next = html.includes('id="mmmbc-login-fixes"') ? html : html.replace('</head>', `${LOGIN_STYLE}\n</head>`);
+  let next = html;
+  if (!next.includes('id="mmmbc-login-fixes"')) next = next.replace('</head>', `${LOGIN_STYLE}\n</head>`);
+  if (!next.includes('id="mmmbc-admin-layout-fixes"')) next = next.replace('</body>', `${ADMIN_LAYOUT_SCRIPT}\n</body>`);
   const headers = new Headers(response.headers);
   headers.delete('Content-Length');
   headers.set('Cache-Control', 'no-store');
