@@ -1,8 +1,8 @@
 {
 	"name": "mmmbc",
 	"compatibility_date": "2026-01-21",
-	// Worker entrypoint with branded Google authentication wrapper.
-	"main": "./src/worker-auth-wrapper.js",
+	// Worker entrypoint with branded Google authentication and admin API fallbacks.
+	"main": "./src/worker-admin-api-wrapper.js",
 	// Assets-only Worker deployment (static site)
 	// This intentionally deploys ONLY the curated public-site files in ./cf_site
 	// so that the admin server code and admin data are never published.
@@ -46,9 +46,9 @@
 	"env": {
 		"production": {
 			// Deploy with: npx wrangler deploy --env production
-			// Intended for the live custom domain (mmmbc.com).
+			// Intended for the live custom domain.
 			"name": "mmmbc",
-			"main": "./src/worker-auth-wrapper.js",
+			"main": "./src/worker-admin-api-wrapper.js",
 			"assets": {
 				"directory": "./cf_site"
 			},
@@ -82,7 +82,7 @@
 		},
 		"preview": {
 			"name": "mmmbc-preview",
-			"main": "./src/worker-auth-wrapper.js",
+			"main": "./src/worker-admin-api-wrapper.js",
 			"assets": {
 				"directory": "./cf_site"
 			},
