@@ -67,6 +67,27 @@ function emptyFinances() {
   };
 }
 
+async function injectAdminLayoutAssets(response) {
+  const type = String(response.headers.get('Content-Type') || '').toLowerCase();
+  if (!type.includes('text/html')) return response;
+
+  let html = await response.text();
+  const styleTag = '<link rel="stylesheet" href="/admin/admin-layout-fixes.css?v=20260724-3" />';
+  const scriptTag = '<script src="/admin/admin-layout-fixes.js?v=20260724-3" defer></script>';
+
+  if (!html.includes('/admin/admin-layout-fixes.css')) {
+    html = html.replace('</head>', `${styleTag}\n</head>`);
+  }
+  if (!html.includes('/admin/admin-layout-fixes.js')) {
+    html = html.replace('</body>', `${scriptTag}\n</body>`);
+  }
+
+  const headers = new Headers(response.headers);
+  headers.delete('Content-Length');
+  headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  return new Response(html, { status: response.status, headers });
+}
+
 const READ_ENDPOINTS = new Set([
   '/api/events',
   '/api/announcements',
@@ -118,6 +139,10 @@ export default {
       }
     }
 
-    return worker.fetch(request, env, ctx);
+    const response = await worker.fetch(request, env, ctx);
+    if (url.pathname === '/admin' || url.pathname === '/admin/' || url.pathname.startsWith('/admin/')) {
+      return injectAdminLayoutAssets(response);
+    }
+    return response;
   }
 };
