@@ -1,3 +1,5 @@
+@import url('/admin/admin-structure-overrides.css?v=20260724-1');
+
 #photoPager,
 #photoPagerBottom {
   display: flex !important;
