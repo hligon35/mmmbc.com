@@ -1,5 +1,6 @@
 import worker from './worker-auth-wrapper.js';
 import { handleGivingRequest } from './worker-giving.js';
+import { handleGivingPageRequest } from './worker-giving-pages.js';
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -203,7 +204,7 @@ async function transformPublicHtml(response, pathname) {
   if (!type.includes('text/html')) return response;
 
   let html = await response.text();
-  const pageHref = pathname.startsWith('/Pages/') ? 'giving.html' : 'Pages/giving.html';
+  const pageHref = '/giving.html';
 
   if (!html.includes('data-mmmbc-give-link')) {
     const giveLink = `<a href="${pageHref}" class="nav-give-link" data-mmmbc-give-link>Give</a>`;
@@ -225,7 +226,7 @@ async function transformPublicHtml(response, pathname) {
   if ((pathname === '/' || pathname === '/index.html') && !html.includes('data-mmmbc-hero-give')) {
     html = html.replace(
       /(<a\s+href=["']Pages\/contact\.html#contact-form-section["'][^>]*class=["']btn-contact["'][^>]*>Contact Us<\/a>)/i,
-      `<div class="hero-giving-actions" data-mmmbc-hero-give>$1<a href="Pages/giving.html" class="btn-give">Give Online</a></div>`
+      `<div class="hero-giving-actions" data-mmmbc-hero-give>$1<a href="/giving.html" class="btn-give">Give Online</a></div>`
     );
   }
 
@@ -239,6 +240,9 @@ async function transformPublicHtml(response, pathname) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    const givingPageResponse = await handleGivingPageRequest(request, env);
+    if (givingPageResponse) return givingPageResponse;
 
     const givingResponse = await handleGivingRequest(request, env);
     if (givingResponse) return givingResponse;
