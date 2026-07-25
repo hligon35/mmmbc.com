@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Thank you for giving to Mt. Moriah Missionary Baptist Church." />
+  <link rel="icon" type="image/png" href="../Icons/favicon.png" />
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="giving.css?v=20260725" />
+  <title>Thank You | Mt. Moriah Missionary Baptist Church</title>
+</head>
+<body class="givingPage">
+  <nav class="top-nav">
+    <div class="nav-left">
+      <a href="../index.html" aria-label="Mt. Moriah home">
+        <img src="../ConImg/MtMoriahLogo-1.png" alt="Mt. Moriah Logo" class="nav-logo" />
+      </a>
+    </div>
+    <div class="nav-links" id="navLinks">
+      <a href="../index.html">Home</a>
+      <a href="giving.html">Give Again</a>
+      <a href="contact.html">Contact Us</a>
+    </div>
+    <button aria-label="Toggle navigation menu" aria-controls="navLinks" aria-expanded="false" class="menu-button" id="menuButton" title="Menu" type="button">
+      <span></span><span></span><span></span><span></span>
+    </button>
+  </nav>
+
+  <main class="givingMain">
+    <section class="givingCard" style="max-width:760px;margin:40px auto;text-align:center;">
+      <p class="givingEyebrow">Thank You</p>
+      <h1>Your generosity makes a difference.</h1>
+      <p id="givingSuccessMessage">We are confirming your contribution.</p>
+      <div class="givingStatus" id="givingSuccessStatus" role="status" aria-live="polite"></div>
+      <p><a class="givingSubmit" style="display:inline-flex;width:auto;padding:0 28px;text-decoration:none;align-items:center;" href="../index.html">Return Home</a></p>
+    </section>
+  </main>
+
+  <script src="../script.js"></script>
+  <script>
+    (() => {
+      const message = document.getElementById('givingSuccessMessage');
+      const status = document.getElementById('givingSuccessStatus');
+      const sessionId = new URLSearchParams(window.location.search).get('session_id');
+      if (!sessionId) {
+        status.textContent = 'Your checkout was completed. Check your email for the Stripe receipt.';
+        return;
+      }
+      fetch('/api/giving/session?session_id=' + encodeURIComponent(sessionId))
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.status === 'paid') {
+            const amount = new Intl.NumberFormat('en-US', { style: 'currency', currency: String(data.currency || 'usd').toUpperCase() }).format(Number(data.amountTotal || 0) / 100);
+            message.textContent = `Your ${data.fund || 'contribution'} of ${amount} was received.`;
+            status.textContent = data.donorEmail ? `A receipt will be sent to ${data.donorEmail}.` : 'A receipt will be sent by Stripe.';
+          } else {
+            status.textContent = 'Your payment is still processing. Stripe will email you when it is complete.';
+          }
+        })
+        .catch(() => {
+          status.textContent = 'Your checkout was completed. Check your email for the Stripe receipt.';
+        });
+    })();
+  </script>
+</body>
+</html>

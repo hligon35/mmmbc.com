@@ -359,7 +359,7 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 #pageContext-finances{
   display:grid;
   grid-template-columns:minmax(0, 1fr) auto;
-  column-gap:16px;
+  column-gap:2px;
   row-gap:8px;
   align-items:center;
 }
@@ -383,6 +383,7 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
   gap:12px;
   justify-self:end;
   align-self:center;
+  transform:translate(-100px, -25px);
 }
 
 #pageContext-finances .financeHeaderSearch{
@@ -1065,6 +1066,7 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
     flex-direction:column;
     align-items:stretch;
     justify-self:stretch;
+    transform:none;
   }
 
   #pageContext-finances .financeHeaderRight{
@@ -1083,7 +1085,7 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 }
 
 .iconGroup{display:grid;gap:8px;justify-items:end;}
-.iconGroup__row{display:flex;gap:8px;align-items:center;justify-content:flex-end;}
+.iconGroup__row{display:flex;gap:8px;align-items:center;justify-content:flex-end;transform: translate(-40px, 25px);}
 
 .financeModernNav{
   margin-bottom:14px;
@@ -1121,8 +1123,8 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 }
 
 .iconBtn{
-  width:42px;
-  height:42px;
+  width:56px;
+  height:56px;
   border-radius:12px;
   border:2px solid rgba(255,255,255,.25);
   background:#0f0f0f;
@@ -1993,6 +1995,10 @@ body.navDrawerCollapsed .sideNav{
   color:var(--muted);
 }
 
+.pageContext__primaryActions{
+  transform:translate(-25px,25px);
+}
+
 
 .homeTaskGrid{
   display:grid;
@@ -2636,8 +2642,8 @@ body.navDrawerCollapsed .sideNav{display:flex;}
 
 #tab-finances .financeActionButtons .iconBtn__icon,
 #tab-finances .financeHeaderRight .iconBtn__icon{
-  width:34px;
-  height:34px;
+  width:64px;
+  height:64px;
   object-fit:contain;
   display:block;
   background:var(--bg);

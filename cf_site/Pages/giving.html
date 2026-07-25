@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Give securely to Mt. Moriah Missionary Baptist Church." />
+  <link rel="icon" type="image/png" href="../Icons/favicon.png" />
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="giving.css?v=20260725" />
+  <title>Give | Mt. Moriah Missionary Baptist Church</title>
+</head>
+<body class="givingPage">
+  <nav class="top-nav">
+    <div class="nav-left">
+      <a href="../index.html" aria-label="Mt. Moriah home">
+        <img src="../ConImg/MtMoriahLogo-1.png" alt="Mt. Moriah Logo" class="nav-logo" />
+      </a>
+    </div>
+    <div class="nav-links" id="navLinks">
+      <a href="../index.html">Home</a>
+      <a href="ministries.html">Ministries</a>
+      <a href="leadership.html">Leadership &amp; Staff</a>
+      <a href="church_history.html">Church History</a>
+      <a href="facility_rental.html">Facility Rental</a>
+      <a href="photo_gallery.html">Photo Gallery</a>
+      <a href="live_praise.html">Live Praise</a>
+      <a href="contact.html">Contact Us</a>
+      <a href="giving.html" aria-current="page">Give</a>
+    </div>
+    <button aria-label="Toggle navigation menu" aria-controls="navLinks" aria-expanded="false" class="menu-button" id="menuButton" title="Menu" type="button">
+      <span></span><span></span><span></span><span></span>
+    </button>
+  </nav>
+
+  <main class="givingMain">
+    <section class="givingIntro">
+      <p class="givingEyebrow">Secure Online Giving</p>
+      <h1>Give with purpose.</h1>
+      <p>Your generosity supports the ministry, mission, and community work of Mt. Moriah Missionary Baptist Church.</p>
+    </section>
+
+    <section class="givingLayout" aria-label="Online giving form">
+      <form class="givingCard" id="givingForm" novalidate>
+        <div class="givingSection">
+          <h2>Choose a fund</h2>
+          <div class="givingFundGrid" role="radiogroup" aria-label="Giving fund">
+            <label class="givingChoice"><input type="radio" name="fund" value="tithe" checked /><span>Tithe</span></label>
+            <label class="givingChoice"><input type="radio" name="fund" value="offering" /><span>Offering</span></label>
+            <label class="givingChoice"><input type="radio" name="fund" value="general" /><span>General Donation</span></label>
+            <label class="givingChoice"><input type="radio" name="fund" value="building" /><span>Building Fund</span></label>
+            <label class="givingChoice"><input type="radio" name="fund" value="missions" /><span>Missions</span></label>
+            <label class="givingChoice"><input type="radio" name="fund" value="other" /><span>Other</span></label>
+          </div>
+        </div>
+
+        <div class="givingSection">
+          <h2>Enter your gift</h2>
+          <div class="givingAmountGrid" aria-label="Suggested amounts">
+            <button type="button" class="givingAmountBtn" data-amount="25">$25</button>
+            <button type="button" class="givingAmountBtn" data-amount="50">$50</button>
+            <button type="button" class="givingAmountBtn" data-amount="100">$100</button>
+            <button type="button" class="givingAmountBtn" data-amount="250">$250</button>
+          </div>
+          <label class="givingField givingAmountField">
+            <span>Custom amount</span>
+            <span class="givingMoneyInput"><span aria-hidden="true">$</span><input id="givingAmount" name="amount" type="number" min="1" max="100000" step="0.01" inputmode="decimal" placeholder="0.00" required /></span>
+          </label>
+        </div>
+
+        <div class="givingSection">
+          <h2>Frequency</h2>
+          <div class="givingFrequency" role="radiogroup" aria-label="Giving frequency">
+            <label class="givingChoice"><input type="radio" name="frequency" value="one_time" checked /><span>One time</span></label>
+            <label class="givingChoice"><input type="radio" name="frequency" value="monthly" /><span>Monthly</span></label>
+          </div>
+        </div>
+
+        <div class="givingSection givingDetailsGrid">
+          <label class="givingField">
+            <span>Name</span>
+            <input id="givingName" name="donorName" type="text" maxlength="120" autocomplete="name" />
+          </label>
+          <label class="givingField">
+            <span>Email</span>
+            <input id="givingEmail" name="donorEmail" type="email" maxlength="254" autocomplete="email" required />
+          </label>
+          <label class="givingField givingField--full">
+            <span>Note or dedication <small>(optional)</small></span>
+            <textarea id="givingNote" name="note" rows="3" maxlength="300"></textarea>
+          </label>
+        </div>
+
+        <div class="givingDisclosure">
+          <p>Your payment is processed securely by Stripe for Mt. Moriah Missionary Baptist Church. A 2.5% platform service fee is paid by the church to support this giving system.</p>
+        </div>
+
+        <button class="givingSubmit" id="givingSubmit" type="submit">Continue to secure checkout</button>
+        <div class="givingStatus" id="givingStatus" role="status" aria-live="polite"></div>
+      </form>
+
+      <aside class="givingTrustCard">
+        <img src="../ConImg/MtMoriahLogo-1.png" alt="" />
+        <h2>Secure and accountable</h2>
+        <p>Your contribution is processed on the church's connected Stripe account and deposited to the church's bank account.</p>
+        <ul>
+          <li>Card and eligible wallet payments</li>
+          <li>Cash App Pay when available</li>
+          <li>Email receipt from the church's payment account</li>
+          <li>One-time or monthly giving</li>
+        </ul>
+        <p class="givingTrustFinePrint">No goods or services are provided in exchange for a contribution unless otherwise stated.</p>
+      </aside>
+    </section>
+  </main>
+
+  <script src="../script.js"></script>
+  <script src="giving.js?v=20260725"></script>
+</body>
+</html>

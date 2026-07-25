@@ -1,0 +1,9 @@
+{
+  "name": "mmmbc",
+  "private": true,
+  "scripts": {
+    "build:cf": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build_cf_site.ps1",
+    "deploy:prod": "npx wrangler deploy --env production",
+    "deploy": "npm run build:cf && npm run deploy:prod"
+  }
+}
