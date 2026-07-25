@@ -1,4 +1,5 @@
 import worker from './worker-auth-wrapper.js';
+import { handleGivingRequest } from './worker-giving.js';
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -200,6 +201,9 @@ async function transformAdminHtml(response) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    const givingResponse = await handleGivingRequest(request, env);
+    if (givingResponse) return givingResponse;
 
     if (request.method === 'GET' && READ_ENDPOINTS.has(url.pathname)) {
       const user = await requireSession(request, env, ctx);
