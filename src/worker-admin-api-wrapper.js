@@ -198,6 +198,44 @@ async function transformAdminHtml(response) {
   return new Response(html, { status: response.status, headers });
 }
 
+async function transformPublicHtml(response, pathname) {
+  const type = String(response.headers.get('Content-Type') || '').toLowerCase();
+  if (!type.includes('text/html')) return response;
+
+  let html = await response.text();
+  const pageHref = pathname.startsWith('/Pages/') ? 'giving.html' : 'Pages/giving.html';
+
+  if (!html.includes('data-mmmbc-give-link')) {
+    const giveLink = `<a href="${pageHref}" class="nav-give-link" data-mmmbc-give-link>Give</a>`;
+    html = html.replace(
+      /(<a\s+href=["'][^"']*contact\.html[^"']*["'][^>]*>Contact Us<\/a>)/i,
+      `${giveLink}\n            $1`
+    );
+  }
+
+  if (!html.includes('id="mmmbc-giving-public-style"')) {
+    html = html.replace('</head>', `<style id="mmmbc-giving-public-style">
+      .nav-give-link{font-weight:700!important;border:1px solid currentColor;border-radius:999px;padding:.45rem .9rem!important}
+      .hero-giving-actions{display:flex;gap:.75rem;justify-content:center;align-items:center;flex-wrap:wrap}
+      .btn-give{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;border-radius:999px;padding:.8rem 1.2rem;font-weight:700;background:#d5af45;color:#111;border:2px solid #d5af45}
+      .btn-give:hover,.btn-give:focus-visible{filter:brightness(1.08)}
+    </style>\n</head>`);
+  }
+
+  if ((pathname === '/' || pathname === '/index.html') && !html.includes('data-mmmbc-hero-give')) {
+    html = html.replace(
+      /(<a\s+href=["']Pages\/contact\.html#contact-form-section["'][^>]*class=["']btn-contact["'][^>]*>Contact Us<\/a>)/i,
+      `<div class="hero-giving-actions" data-mmmbc-hero-give>$1<a href="Pages/giving.html" class="btn-give">Give Online</a></div>`
+    );
+  }
+
+  const headers = new Headers(response.headers);
+  headers.delete('Content-Length');
+  headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  headers.set('Pragma', 'no-cache');
+  return new Response(html, { status: response.status, headers });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -239,6 +277,6 @@ export default {
     if (url.pathname === '/admin' || url.pathname === '/admin/' || url.pathname.startsWith('/admin/')) {
       return transformAdminHtml(response);
     }
-    return response;
+    return transformPublicHtml(response, url.pathname);
   }
 };
