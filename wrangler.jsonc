@@ -78,7 +78,8 @@
 				"ALLOW_SERVICE_TOKEN_ADMIN": "false",
 				"DEV_BYPASS_AUTH": "false",
 				"SUPPORT_TO_EMAIL": "support@hldesignedit.com",
-				"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com"
+				"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
+				"PUBLIC_SITE_URL": "https://mmmbc.alphazonelabs.com"
 			}
 		},
 		"preview": {

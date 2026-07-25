@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "build:cf": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build_cf_site.ps1",
-    "deploy:prod": "npx wrangler deploy --env production",
-    "deploy": "npm run build:cf && npm run deploy:prod"
+    "wrangler:deploy:prod": "npx wrangler deploy --env production",
+    "deploy:prod": "npm run build:cf && npm run wrangler:deploy:prod",
+    "deploy": "npm run deploy:prod"
   }
 }

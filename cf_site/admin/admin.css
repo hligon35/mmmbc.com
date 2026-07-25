@@ -380,14 +380,14 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
   display:flex;
   align-items:center;
   justify-content:flex-start;
-  gap:12px;
+  gap:4px;
   justify-self:end;
   align-self:center;
   transform:translate(-100px, -25px);
 }
 
 #pageContext-finances .financeHeaderSearch{
-  width:min(440px, 100%);
+  width:min(620px, 100%);
   margin:0;
   flex:0 0 auto;
 }
@@ -2646,7 +2646,7 @@ body.navDrawerCollapsed .sideNav{display:flex;}
   height:64px;
   object-fit:contain;
   display:block;
-  background:var(--bg);
+  /* background:var(--bg); */
   border-radius:10px;
   padding:5px;
   box-shadow:0 8px 18px rgba(0,0,0,.16);
@@ -2657,7 +2657,7 @@ body.navDrawerCollapsed .sideNav{display:flex;}
   height:32px;
   object-fit:contain;
   display:block;
-  background:var(--bg);
+  /* background:var(--bg); */
   border-radius:10px;
   padding:5px;
   box-shadow:0 8px 18px rgba(0,0,0,.16);

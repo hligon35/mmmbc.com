@@ -3,6 +3,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$assetVersion = Get-Date -Format "yyyyMMddHHmmss"
 
 $dest = Join-Path $Root "cf_site"
 
@@ -89,12 +90,12 @@ if(Test-Path $adminUi){
 
     $html = [regex]::Replace($html, $photoHeaderPattern, $photoHeaderReplacement, 1)
 
-    $structureCssTag = '  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260724-2" />'
+    $structureCssTag = "  <link id=`"mmmbc-admin-structure-css`" rel=`"stylesheet`" href=`"/admin/admin-structure-overrides.css?v=$assetVersion`" />"
     if(-not $html.Contains('id="mmmbc-admin-structure-css"')){
       $html = $html.Replace('</head>', "$structureCssTag`r`n</head>")
     }
 
-    $structureScriptTag = '  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260724-2" defer></script>'
+    $structureScriptTag = "  <script id=`"mmmbc-admin-structure-js`" src=`"/admin/admin-structure-overrides.js?v=$assetVersion`" defer></script>"
     if(-not $html.Contains('id="mmmbc-admin-structure-js"')){
       $html = $html.Replace('</body>', "$structureScriptTag`r`n</body>")
     }

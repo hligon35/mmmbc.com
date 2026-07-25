@@ -90,14 +90,66 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px;
 }
 
 .financePageContextActions .financeActionButtons {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   margin: 0;
+}
+
+#tab-finances .financeActionButtons {
+  gap: 4px !important;
+}
+
+#pageContext-finances .financeContextActions,
+#pageContext-finances .financePageContextActions {
+  transform: none !important;
+  justify-self: end !important;
+  align-self: center !important;
+  margin-top: 0 !important;
+}
+
+#pageContext-finances .financeHeaderSearch {
+  transform: translate(-100px, -25px) !important;
+}
+
+#pageContext-finances .financeHeaderSearch .inputIconBtn {
+  right: 0 !important;
+}
+
+#pageContext-finances .financeHeaderRight {
+  transform: translate(-150px, -25px) !important;
+}
+
+#pageContext-finances #financeFilterMenu > summary.iconBtn {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  transform: none !important;
+  margin-left: 75px !important;
+  width: 46px !important;
+  height: 46px !important;
+  padding: 0 !important;
+  display: grid !important;
+  place-items: center !important;
+}
+
+#pageContext-finances #financeFilterMenu > summary.iconBtn:hover,
+#pageContext-finances #financeFilterMenu > summary.iconBtn:focus-visible {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#pageContext-finances #financeFilterMenu > summary.iconBtn .iconBtn__icon {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  width: 32px !important;
+  height: 32px !important;
 }
 
 /* Remove finance chip-strip and icon-button backgrounds. */
@@ -116,10 +168,76 @@
 }
 
 #tab-finances .iconBtn,
-#tab-finances .inputIconBtn,
 .financePageContextActions .iconBtn {
   background: transparent !important;
   box-shadow: none !important;
+  width: 90px !important;
+  height: 90px !important;
+}
+
+#tab-finances .financeHeaderSearch .inputIconBtn {
+  width: 42px !important;
+  height: 42px !important;
+  right: 0 !important;
+  z-index: 2 !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  display: grid !important;
+  place-items: center !important;
+  color: #111 !important;
+}
+
+#tab-finances .financeHeaderSearch .inputGroup {
+  position: relative !important;
+}
+
+#tab-finances .financeHeaderSearch .inputIconBtn::before {
+  content: "\1F50D";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  line-height: 1;
+  color: #111;
+}
+
+#tab-finances .financeActionButtons .iconBtn__icon,
+#tab-finances .financeHeaderRight .iconBtn__icon,
+.financePageContextActions .iconBtn__icon {
+  width: 45px !important;
+  height: 45px !important;
+}
+
+#tab-finances .financeHeaderSearch .inputIconBtn__icon {
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  opacity: 0 !important;
+}
+
+#tab-finances .financeHeaderSearch #financeSearch {
+  padding-right: 52px !important;
+}
+
+#tab-finances .financeHeaderSearch #financeSearch::-webkit-search-decoration,
+#tab-finances .financeHeaderSearch #financeSearch::-webkit-search-cancel-button,
+#tab-finances .financeHeaderSearch #financeSearch::-webkit-search-results-button,
+#tab-finances .financeHeaderSearch #financeSearch::-webkit-search-results-decoration {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 #tab-finances .iconBtn:hover,

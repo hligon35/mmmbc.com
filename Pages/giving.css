@@ -1,6 +1,10 @@
 body.givingPage {
-  background: #f4f1ea;
-  color: #1f1f1f;
+  background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.56)), url('../ConImg/Church.jpg');
+  background-attachment: fixed;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  color: #f6f1ea;
 }
 
 .givingMain {
@@ -12,6 +16,17 @@ body.givingPage {
 .givingIntro {
   max-width: 760px;
   margin-bottom: 36px;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, .45);
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.givingIntroLogo {
+  display: block;
+  width: clamp(110px, 18vw, 150px);
+  height: auto;
+  margin: 0 auto 14px;
 }
 
 .givingEyebrow {
@@ -19,6 +34,7 @@ body.givingPage {
   font-weight: 700;
   letter-spacing: .12em;
   text-transform: uppercase;
+  color: #ffe2bf;
 }
 
 .givingIntro h1 {
@@ -42,10 +58,11 @@ body.givingPage {
 
 .givingCard,
 .givingTrustCard {
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, .12);
+  background: rgba(255, 249, 239, .98);
+  border: 1px solid rgba(196, 97, 35, .35);
   border-radius: 22px;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, .08);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .24);
+  color: #000;
 }
 
 .givingCard {
@@ -62,12 +79,17 @@ body.givingPage {
   display: block;
   width: 110px;
   height: auto;
-  margin-bottom: 20px;
+  margin: 0 auto 20px;
+}
+
+.givingTrustCard {
+  text-align: center;
 }
 
 .givingTrustCard h2,
 .givingSection h2 {
   margin: 0 0 16px;
+  color: #000;
 }
 
 .givingTrustCard p,
@@ -78,6 +100,7 @@ body.givingPage {
 
 .givingTrustCard ul {
   padding-left: 20px;
+  text-align: left;
 }
 
 .givingTrustFinePrint {
@@ -143,8 +166,8 @@ body.givingPage {
 .givingChoice input:focus-visible + span,
 .givingAmountBtn.is-selected,
 .givingAmountBtn:focus-visible {
-  border-color: #1f1f1f;
-  box-shadow: 0 0 0 2px #1f1f1f;
+  border-color: #c46123;
+  box-shadow: 0 0 0 2px #c46123;
 }
 
 .givingDetailsGrid {
@@ -212,11 +235,16 @@ body.givingPage {
   min-height: 58px;
   border: 0;
   border-radius: 14px;
-  background: #1f1f1f;
+  background: linear-gradient(180deg, #cb6a29, #9d4718);
   color: #fff;
   font: inherit;
   font-weight: 800;
   cursor: pointer;
+}
+
+.givingSubmit:hover,
+.givingSubmit:focus-visible {
+  background: linear-gradient(180deg, #d97939, #a85223);
 }
 
 .givingSubmit:disabled {
