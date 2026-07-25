@@ -1,0 +1,264 @@
+body.givingPage {
+  background: #f4f1ea;
+  color: #1f1f1f;
+}
+
+.givingMain {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 72px 24px 96px;
+}
+
+.givingIntro {
+  max-width: 760px;
+  margin-bottom: 36px;
+}
+
+.givingEyebrow {
+  margin: 0 0 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.givingIntro h1 {
+  margin: 0 0 14px;
+  font-size: clamp(2.4rem, 6vw, 4.8rem);
+  line-height: .96;
+}
+
+.givingIntro p:last-child {
+  max-width: 680px;
+  font-size: 1.08rem;
+  line-height: 1.7;
+}
+
+.givingLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(280px, .75fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.givingCard,
+.givingTrustCard {
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, .12);
+  border-radius: 22px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .08);
+}
+
+.givingCard {
+  padding: clamp(24px, 4vw, 42px);
+}
+
+.givingTrustCard {
+  position: sticky;
+  top: 110px;
+  padding: 30px;
+}
+
+.givingTrustCard img {
+  display: block;
+  width: 110px;
+  height: auto;
+  margin-bottom: 20px;
+}
+
+.givingTrustCard h2,
+.givingSection h2 {
+  margin: 0 0 16px;
+}
+
+.givingTrustCard p,
+.givingTrustCard li,
+.givingDisclosure p {
+  line-height: 1.6;
+}
+
+.givingTrustCard ul {
+  padding-left: 20px;
+}
+
+.givingTrustFinePrint {
+  margin-top: 22px;
+  font-size: .86rem;
+  opacity: .72;
+}
+
+.givingSection + .givingSection {
+  margin-top: 32px;
+  padding-top: 30px;
+  border-top: 1px solid rgba(0, 0, 0, .1);
+}
+
+.givingFundGrid,
+.givingAmountGrid,
+.givingFrequency {
+  display: grid;
+  gap: 12px;
+}
+
+.givingFundGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.givingAmountGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 16px;
+}
+
+.givingFrequency {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.givingChoice {
+  position: relative;
+  cursor: pointer;
+}
+
+.givingChoice input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.givingChoice span,
+.givingAmountBtn {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 0, 0, .18);
+  border-radius: 12px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+}
+
+.givingChoice input:checked + span,
+.givingChoice input:focus-visible + span,
+.givingAmountBtn.is-selected,
+.givingAmountBtn:focus-visible {
+  border-color: #1f1f1f;
+  box-shadow: 0 0 0 2px #1f1f1f;
+}
+
+.givingDetailsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.givingField {
+  display: grid;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.givingField--full {
+  grid-column: 1 / -1;
+}
+
+.givingField input,
+.givingField textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(0, 0, 0, .2);
+  border-radius: 12px;
+  background: #fff;
+  padding: 14px 16px;
+  color: inherit;
+  font: inherit;
+}
+
+.givingField textarea {
+  resize: vertical;
+}
+
+.givingMoneyInput {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  border: 1px solid rgba(0, 0, 0, .2);
+  border-radius: 12px;
+  background: #fff;
+  padding-left: 16px;
+}
+
+.givingMoneyInput input {
+  border: 0;
+  border-radius: 0 12px 12px 0;
+  outline: none;
+}
+
+.givingDisclosure {
+  margin: 28px 0 18px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, .045);
+  font-size: .9rem;
+}
+
+.givingDisclosure p {
+  margin: 0;
+}
+
+.givingSubmit {
+  width: 100%;
+  min-height: 58px;
+  border: 0;
+  border-radius: 14px;
+  background: #1f1f1f;
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.givingSubmit:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
+.givingStatus {
+  min-height: 1.4em;
+  margin-top: 12px;
+  font-weight: 700;
+}
+
+.givingStatus.is-error {
+  color: #9f1f1f;
+}
+
+@media (max-width: 900px) {
+  .givingLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .givingTrustCard {
+    position: static;
+  }
+}
+
+@media (max-width: 680px) {
+  .givingMain {
+    padding: 42px 16px 72px;
+  }
+
+  .givingFundGrid,
+  .givingAmountGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .givingDetailsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .givingField--full {
+    grid-column: auto;
+  }
+}
