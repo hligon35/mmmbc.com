@@ -36,6 +36,11 @@ function normalizeFund(value) {
   return Object.prototype.hasOwnProperty.call(FUNDS, fund) ? fund : '';
 }
 
+function unixToIso(value) {
+  const seconds = Number(value || 0);
+  return Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000).toISOString() : null;
+}
+
 function getBaseUrl(request, env) {
   const configured = normalizeText(env.PUBLIC_SITE_URL, 300).replace(/\/$/, '');
   if (configured) return configured;
@@ -90,6 +95,48 @@ async function ensureGivingTables(env) {
       paid_at TEXT,
       updated_at TEXT NOT NULL
     )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS giving_subscription_payments (
+      id TEXT PRIMARY KEY,
+      stripe_event_id TEXT,
+      stripe_invoice_id TEXT UNIQUE NOT NULL,
+      stripe_subscription_id TEXT,
+      stripe_payment_intent_id TEXT,
+      stripe_connected_account_id TEXT,
+      donor_name TEXT,
+      donor_email TEXT,
+      fund_code TEXT NOT NULL,
+      amount_due_cents INTEGER NOT NULL DEFAULT 0,
+      amount_paid_cents INTEGER NOT NULL DEFAULT 0,
+      platform_fee_cents INTEGER NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'usd',
+      payment_status TEXT NOT NULL,
+      billing_reason TEXT,
+      period_start TEXT,
+      period_end TEXT,
+      paid_at TEXT,
+      failed_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS giving_subscriptions (
+      stripe_subscription_id TEXT PRIMARY KEY,
+      stripe_connected_account_id TEXT,
+      stripe_customer_id TEXT,
+      donor_name TEXT,
+      donor_email TEXT,
+      fund_code TEXT NOT NULL,
+      amount_cents INTEGER NOT NULL DEFAULT 0,
+      platform_fee_percent REAL NOT NULL DEFAULT 2.5,
+      currency TEXT NOT NULL DEFAULT 'usd',
+      status TEXT NOT NULL,
+      cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
+      current_period_start TEXT,
+      current_period_end TEXT,
+      canceled_at TEXT,
+      ended_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS stripe_webhook_events (
       stripe_event_id TEXT PRIMARY KEY,
       event_type TEXT NOT NULL,
@@ -98,7 +145,12 @@ async function ensureGivingTables(env) {
     )`),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_giving_paid_at ON giving_donations(paid_at)'),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_giving_fund ON giving_donations(fund_code)'),
-    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_giving_email ON giving_donations(donor_email)')
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_giving_email ON giving_donations(donor_email)'),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_subscription_payments_paid_at ON giving_subscription_payments(paid_at)'),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_subscription_payments_subscription ON giving_subscription_payments(stripe_subscription_id)'),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_subscription_payments_fund ON giving_subscription_payments(fund_code)'),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON giving_subscriptions(status)'),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_subscriptions_email ON giving_subscriptions(donor_email)')
   ]);
 }
 
@@ -154,6 +206,8 @@ async function createCheckoutSession(request, env) {
     params.set('subscription_data[metadata][fund]', fund);
     params.set('subscription_data[metadata][fund_label]', FUNDS[fund]);
     params.set('subscription_data[metadata][donor_name]', donorName);
+    params.set('subscription_data[metadata][donor_email]', donorEmail);
+    params.set('subscription_data[metadata][amount_cents]', String(amountCents));
     params.set('subscription_data[metadata][source]', 'mmmbc_website');
   } else {
     params.set('payment_intent_data[application_fee_amount]', String(applicationFeeCents));
@@ -164,12 +218,7 @@ async function createCheckoutSession(request, env) {
   }
 
   try {
-    const session = await stripeRequest(
-      env,
-      '/checkout/sessions',
-      params,
-      env.STRIPE_CONNECTED_ACCOUNT_ID
-    );
+    const session = await stripeRequest(env, '/checkout/sessions', params, env.STRIPE_CONNECTED_ACCOUNT_ID);
 
     await ensureGivingTables(env);
     if (env.DB) {
@@ -178,21 +227,20 @@ async function createCheckoutSession(request, env) {
         id, stripe_checkout_session_id, stripe_connected_account_id,
         donor_name, donor_email, fund_code, frequency, amount_cents,
         platform_fee_cents, currency, payment_status, note, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'usd', 'checkout_created', ?, ?, ?)`)
-        .bind(
-          crypto.randomUUID(),
-          session.id,
-          env.STRIPE_CONNECTED_ACCOUNT_ID,
-          donorName,
-          donorEmail,
-          fund,
-          frequency,
-          amountCents,
-          frequency === 'monthly' ? 0 : applicationFeeCents,
-          note,
-          now,
-          now
-        ).run();
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'usd', 'checkout_created', ?, ?, ?)`).bind(
+        crypto.randomUUID(),
+        session.id,
+        env.STRIPE_CONNECTED_ACCOUNT_ID,
+        donorName,
+        donorEmail,
+        fund,
+        frequency,
+        amountCents,
+        frequency === 'monthly' ? 0 : applicationFeeCents,
+        note,
+        now,
+        now
+      ).run();
     }
 
     return json({ checkoutUrl: session.url, sessionId: session.id });
@@ -246,7 +294,7 @@ async function processCheckoutEvent(event, env) {
   const fund = normalizeFund(metadata.fund) || 'general';
   const frequency = metadata.frequency === 'monthly' || session.mode === 'subscription' ? 'monthly' : 'one_time';
   const amountCents = getSessionAmount(session);
-  const platformFeeCents = frequency === 'monthly' ? Math.round(amountCents * PLATFORM_FEE_RATE) : Math.round(amountCents * PLATFORM_FEE_RATE);
+  const platformFeeCents = Math.round(amountCents * PLATFORM_FEE_RATE);
   const now = new Date().toISOString();
   const paid = session.payment_status === 'paid' || event.type === 'checkout.session.async_payment_succeeded';
 
@@ -264,8 +312,7 @@ async function processCheckoutEvent(event, env) {
     donor_email = excluded.donor_email,
     payment_status = excluded.payment_status,
     paid_at = excluded.paid_at,
-    updated_at = excluded.updated_at`)
-    .bind(
+    updated_at = excluded.updated_at`).bind(
       crypto.randomUUID(),
       event.id,
       session.id,
@@ -283,6 +330,160 @@ async function processCheckoutEvent(event, env) {
       normalizeText(metadata.note, 300),
       now,
       paid ? now : null,
+      now
+    ).run();
+}
+
+function getInvoiceSubscriptionId(invoice) {
+  return normalizeText(
+    invoice?.subscription ||
+    invoice?.parent?.subscription_details?.subscription ||
+    invoice?.subscription_details?.subscription,
+    200
+  );
+}
+
+function getInvoiceMetadata(invoice) {
+  return invoice?.subscription_details?.metadata || invoice?.parent?.subscription_details?.metadata || invoice?.metadata || {};
+}
+
+function getInvoicePeriod(invoice) {
+  const firstLine = Array.isArray(invoice?.lines?.data) ? invoice.lines.data[0] : null;
+  return {
+    start: unixToIso(firstLine?.period?.start || invoice?.period_start),
+    end: unixToIso(firstLine?.period?.end || invoice?.period_end)
+  };
+}
+
+async function processInvoiceEvent(event, env) {
+  const invoice = event?.data?.object || {};
+  const metadata = getInvoiceMetadata(invoice);
+  const subscriptionId = getInvoiceSubscriptionId(invoice);
+  const fund = normalizeFund(metadata.fund) || 'general';
+  const amountDue = Number(invoice.amount_due || 0);
+  const amountPaid = Number(invoice.amount_paid || 0);
+  const paid = event.type === 'invoice.paid' || invoice.status === 'paid';
+  const period = getInvoicePeriod(invoice);
+  const now = new Date().toISOString();
+
+  await env.DB.prepare(`INSERT INTO giving_subscription_payments (
+    id, stripe_event_id, stripe_invoice_id, stripe_subscription_id,
+    stripe_payment_intent_id, stripe_connected_account_id, donor_name,
+    donor_email, fund_code, amount_due_cents, amount_paid_cents,
+    platform_fee_cents, currency, payment_status, billing_reason,
+    period_start, period_end, paid_at, failed_at, created_at, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(stripe_invoice_id) DO UPDATE SET
+    stripe_event_id = excluded.stripe_event_id,
+    stripe_payment_intent_id = excluded.stripe_payment_intent_id,
+    donor_name = excluded.donor_name,
+    donor_email = excluded.donor_email,
+    amount_due_cents = excluded.amount_due_cents,
+    amount_paid_cents = excluded.amount_paid_cents,
+    platform_fee_cents = excluded.platform_fee_cents,
+    payment_status = excluded.payment_status,
+    paid_at = excluded.paid_at,
+    failed_at = excluded.failed_at,
+    updated_at = excluded.updated_at`).bind(
+      crypto.randomUUID(),
+      event.id,
+      invoice.id,
+      subscriptionId || null,
+      invoice.payment_intent || null,
+      event.account || env.STRIPE_CONNECTED_ACCOUNT_ID || null,
+      normalizeText(metadata.donor_name || invoice.customer_name, 120),
+      normalizeEmail(metadata.donor_email || invoice.customer_email),
+      fund,
+      amountDue,
+      amountPaid,
+      Math.round((paid ? amountPaid : amountDue) * PLATFORM_FEE_RATE),
+      normalizeText(invoice.currency || 'usd', 10),
+      paid ? 'paid' : 'failed',
+      normalizeText(invoice.billing_reason, 80),
+      period.start,
+      period.end,
+      paid ? now : null,
+      paid ? null : now,
+      unixToIso(invoice.created) || now,
+      now
+    ).run();
+
+  if (subscriptionId) {
+    await env.DB.prepare(`UPDATE giving_subscriptions SET
+      donor_name = COALESCE(NULLIF(?, ''), donor_name),
+      donor_email = COALESCE(NULLIF(?, ''), donor_email),
+      fund_code = ?,
+      amount_cents = CASE WHEN ? > 0 THEN ? ELSE amount_cents END,
+      currency = ?,
+      status = CASE WHEN ? = 1 THEN 'active' ELSE 'past_due' END,
+      current_period_start = COALESCE(?, current_period_start),
+      current_period_end = COALESCE(?, current_period_end),
+      updated_at = ?
+      WHERE stripe_subscription_id = ?`).bind(
+        normalizeText(metadata.donor_name || invoice.customer_name, 120),
+        normalizeEmail(metadata.donor_email || invoice.customer_email),
+        fund,
+        amountDue,
+        amountDue,
+        normalizeText(invoice.currency || 'usd', 10),
+        paid ? 1 : 0,
+        period.start,
+        period.end,
+        now,
+        subscriptionId
+      ).run();
+  }
+}
+
+function getSubscriptionAmount(subscription) {
+  const item = Array.isArray(subscription?.items?.data) ? subscription.items.data[0] : null;
+  return Number(item?.price?.unit_amount || item?.plan?.amount || subscription?.metadata?.amount_cents || 0);
+}
+
+async function processSubscriptionEvent(event, env) {
+  const subscription = event?.data?.object || {};
+  const metadata = subscription.metadata || {};
+  const fund = normalizeFund(metadata.fund) || 'general';
+  const now = new Date().toISOString();
+  const status = event.type === 'customer.subscription.deleted'
+    ? 'canceled'
+    : normalizeText(subscription.status || 'unknown', 40);
+
+  await env.DB.prepare(`INSERT INTO giving_subscriptions (
+    stripe_subscription_id, stripe_connected_account_id, stripe_customer_id,
+    donor_name, donor_email, fund_code, amount_cents, platform_fee_percent,
+    currency, status, cancel_at_period_end, current_period_start,
+    current_period_end, canceled_at, ended_at, created_at, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, 2.5, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(stripe_subscription_id) DO UPDATE SET
+    stripe_customer_id = excluded.stripe_customer_id,
+    donor_name = COALESCE(NULLIF(excluded.donor_name, ''), giving_subscriptions.donor_name),
+    donor_email = COALESCE(NULLIF(excluded.donor_email, ''), giving_subscriptions.donor_email),
+    fund_code = excluded.fund_code,
+    amount_cents = excluded.amount_cents,
+    currency = excluded.currency,
+    status = excluded.status,
+    cancel_at_period_end = excluded.cancel_at_period_end,
+    current_period_start = excluded.current_period_start,
+    current_period_end = excluded.current_period_end,
+    canceled_at = excluded.canceled_at,
+    ended_at = excluded.ended_at,
+    updated_at = excluded.updated_at`).bind(
+      subscription.id,
+      event.account || env.STRIPE_CONNECTED_ACCOUNT_ID || null,
+      subscription.customer || null,
+      normalizeText(metadata.donor_name, 120),
+      normalizeEmail(metadata.donor_email),
+      fund,
+      getSubscriptionAmount(subscription),
+      normalizeText(subscription.currency || subscription.items?.data?.[0]?.price?.currency || 'usd', 10),
+      status,
+      subscription.cancel_at_period_end ? 1 : 0,
+      unixToIso(subscription.current_period_start),
+      unixToIso(subscription.current_period_end),
+      unixToIso(subscription.canceled_at),
+      unixToIso(subscription.ended_at),
+      unixToIso(subscription.created) || now,
       now
     ).run();
 }
@@ -310,13 +511,20 @@ async function handleWebhook(request, env) {
 
   if (['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'checkout.session.async_payment_failed'].includes(event.type)) {
     await processCheckoutEvent(event, env);
+  } else if (['invoice.paid', 'invoice.payment_failed'].includes(event.type)) {
+    await processInvoiceEvent(event, env);
+  } else if (['customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted'].includes(event.type)) {
+    await processSubscriptionEvent(event, env);
   }
 
   await env.DB.prepare(`INSERT INTO stripe_webhook_events (
     stripe_event_id, event_type, connected_account_id, processed_at
-  ) VALUES (?, ?, ?, ?)`)
-    .bind(event.id, event.type, event.account || null, new Date().toISOString())
-    .run();
+  ) VALUES (?, ?, ?, ?)`).bind(
+      event.id,
+      event.type,
+      event.account || null,
+      new Date().toISOString()
+    ).run();
 
   return json({ received: true });
 }
