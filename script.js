@@ -11,6 +11,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    if (!document.getElementById('sharedFooterResponsiveStyles')) {
+        const footerStyles = document.createElement('style');
+        footerStyles.id = 'sharedFooterResponsiveStyles';
+        footerStyles.textContent = `
+            @media (max-width: 768px) {
+                footer .footer-top-row,
+                footer .footer-bottom-row {
+                    flex-direction: column !important;
+                    align-items: stretch !important;
+                }
+                footer .footer-top-row {
+                    text-align: center;
+                }
+                footer .footer-logo {
+                    align-self: center;
+                }
+                footer .footer-text-content {
+                    align-items: center !important;
+                    text-align: center !important;
+                    width: 100%;
+                }
+                footer .footer-links-section {
+                    width: 100% !important;
+                    box-sizing: border-box;
+                }
+            }
+        `;
+        document.head.appendChild(footerStyles);
+    }
+
     // Page-specific cleanup that remains reliable even when older HTML is cached.
     document.querySelectorAll('section[aria-label="Newsletter signup"]').forEach((section) => section.remove());
     document.querySelectorAll('.content-subnav').forEach((list) => {
