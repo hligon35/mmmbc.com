@@ -156,6 +156,12 @@
 				"DEV_BYPASS_AUTH": "false",
 				"SUPPORT_TO_EMAIL": "support@hldesignedit.com",
 				"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com"
+			},
+			"observability": {
+				"logs": {
+					"enabled": false,
+					"invocation_logs": true
+				}
 			}
 		}
 	}
