@@ -33,6 +33,27 @@ document.addEventListener('DOMContentLoaded', () => {
       border-radius: 8px 8px 0 0 !important;
     }
     .gallery-label { margin-top: auto; }
+    .pagination {
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: center;
+      width: 100%;
+      gap: 12px;
+      box-sizing: border-box;
+    }
+    .pagination #prevPage {
+      justify-self: start;
+      margin-left: 0 !important;
+    }
+    .pagination #pageInfo {
+      justify-self: center;
+      margin: 0 !important;
+      white-space: nowrap;
+    }
+    .pagination #nextPage {
+      justify-self: end;
+      margin-right: 0 !important;
+    }
     .lightbox-content {
       width: min(94vw, 1400px) !important;
       height: min(92vh, 1000px) !important;
@@ -66,6 +87,17 @@ document.addEventListener('DOMContentLoaded', () => {
       .gallery-item { min-height: 210px; }
       .gallery-item img { height: 165px !important; }
       .gallery-label { padding: 8px 6px !important; font-size: .82rem !important; }
+      .pagination { gap: 6px; }
+      .pagination button {
+        margin: 0 !important;
+        padding: 8px 10px !important;
+        font-size: .88rem !important;
+      }
+      .pagination #pageInfo {
+        padding-left: 4px !important;
+        padding-right: 4px !important;
+        font-size: .88rem !important;
+      }
       .lightbox-content { width: 96vw !important; height: 88vh !important; padding: 12px !important; }
     }
   `;
