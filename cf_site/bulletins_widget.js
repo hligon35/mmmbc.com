@@ -101,7 +101,48 @@
     }
   }
 
+  function applyHomepageUpdates() {
+    if (!document.body.classList.contains('home')) return;
+
+    if (!document.querySelector('link[href="home-layout-updates.css"]')) {
+      const stylesheet = document.createElement('link');
+      stylesheet.rel = 'stylesheet';
+      stylesheet.href = 'home-layout-updates.css';
+      document.head.appendChild(stylesheet);
+    }
+
+    const worshipDays = document.querySelectorAll('#worship-times .worship-day');
+    if (worshipDays[1] && worshipDays[1].textContent.trim() === 'Monday') {
+      worshipDays[1].textContent = 'Tuesday';
+    }
+
+    document.querySelectorAll('#times .service-details p').forEach((paragraph) => {
+      Array.from(paragraph.childNodes).forEach((node) => {
+        if (node.nodeType !== Node.TEXT_NODE) return;
+        const match = node.textContent.trim().match(/^\((.+)\)$/s);
+        if (!match) return;
+
+        const context = document.createElement('span');
+        context.className = 'schedule-context';
+        context.textContent = match[1];
+        node.replaceWith(context);
+      });
+    });
+
+    const designedBy = document.querySelector('.footer-copyright-row p:first-child');
+    if (designedBy) {
+      designedBy.textContent = 'Designed by ';
+      const link = document.createElement('a');
+      link.href = 'https://www.alphazonelabs.com';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'AlphaZoneLabs';
+      designedBy.appendChild(link);
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
+    applyHomepageUpdates();
     void loadBulletin();
   });
 })();
