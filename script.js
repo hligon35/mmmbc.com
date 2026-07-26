@@ -11,6 +11,33 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Page-specific cleanup that remains reliable even when older HTML is cached.
+    document.querySelectorAll('section[aria-label="Newsletter signup"]').forEach((section) => section.remove());
+    document.querySelectorAll('.content-subnav').forEach((list) => {
+        list.style.listStyle = 'none';
+        list.style.paddingLeft = '0';
+        list.querySelectorAll('li').forEach((item) => { item.style.listStyle = 'none'; });
+    });
+    document.querySelectorAll('.givingTrustCard').forEach((aside) => aside.remove());
+    const givingLayout = document.querySelector('.givingLayout');
+    if (givingLayout) {
+        givingLayout.style.display = 'block';
+        givingLayout.style.maxWidth = '860px';
+        givingLayout.style.margin = '0 auto';
+    }
+    const givingSubmit = document.getElementById('givingSubmit');
+    if (givingSubmit && !document.querySelector('.givingStripeNote')) {
+        const stripeNote = document.createElement('p');
+        stripeNote.className = 'givingStripeNote';
+        stripeNote.textContent = 'Powered by Stripe';
+        stripeNote.style.margin = '12px 0 0';
+        stripeNote.style.textAlign = 'center';
+        stripeNote.style.fontSize = '0.9rem';
+        stripeNote.style.fontWeight = '700';
+        stripeNote.style.opacity = '0.72';
+        givingSubmit.insertAdjacentElement('afterend', stripeNote);
+    }
+
     const footer = document.querySelector('footer');
     if (footer) {
         const currentYear = new Date().getFullYear();
