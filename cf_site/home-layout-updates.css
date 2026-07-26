@@ -1,0 +1,88 @@
+/* Homepage schedule and footer refinements */
+
+.home .schedule-context {
+    display: inline;
+    font-size: calc(1em - 2pt);
+    font-style: italic;
+}
+
+/* Present Worship Times and Weekly Ministry Times as separate full-width sections. */
+.home #times {
+    grid-template-columns: 1fr;
+    gap: 28px;
+}
+
+.home #worship-times .days-container,
+.home #ministries .days-container {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+    align-items: stretch;
+}
+
+/* Worship: Sunday left; Tuesday and Wednesday stacked right. */
+.home #worship-times .day:nth-child(1) {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+}
+
+.home #worship-times .day:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.home #worship-times .day:nth-child(3) {
+    grid-column: 2;
+    grid-row: 2;
+}
+
+/* Weekly ministry: Tuesday and Wednesday stacked left; Thursday right. */
+.home #ministries .day:nth-child(1) {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.home #ministries .day:nth-child(2) {
+    grid-column: 1;
+    grid-row: 2;
+}
+
+.home #ministries .day:nth-child(3) {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+}
+
+.home #worship-times .day,
+.home #ministries .day {
+    width: auto;
+    box-sizing: border-box;
+}
+
+.home .footer-copyright-row a {
+    color: #ccc;
+    text-decoration: none;
+}
+
+.home .footer-copyright-row a:hover,
+.home .footer-copyright-row a:focus-visible {
+    color: #fff;
+    text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+    .home #worship-times .days-container,
+    .home #ministries .days-container {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .home .footer-bottom-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .home .footer-links-section {
+        width: 100%;
+        box-sizing: border-box;
+    }
+}
