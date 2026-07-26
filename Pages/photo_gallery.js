@@ -59,8 +59,13 @@ document.addEventListener('DOMContentLoaded', () => {
       object-position: center !important;
     }
     @media (max-width: 680px) {
-      .gallery-item { min-height: 230px; }
-      .gallery-item img { height: 190px !important; }
+      .photo-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 10px !important;
+      }
+      .gallery-item { min-height: 210px; }
+      .gallery-item img { height: 165px !important; }
+      .gallery-label { padding: 8px 6px !important; font-size: .82rem !important; }
       .lightbox-content { width: 96vw !important; height: 88vh !important; padding: 12px !important; }
     }
   `;
