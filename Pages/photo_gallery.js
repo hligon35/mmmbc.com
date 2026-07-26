@@ -15,6 +15,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (!grid) return;
 
+  const galleryStyle = document.createElement('style');
+  galleryStyle.textContent = `
+    .photo-grid { align-items: start; }
+    .gallery-item {
+      aspect-ratio: auto !important;
+      min-height: 280px;
+      padding: 0;
+      background: rgba(255,255,255,.96) !important;
+    }
+    .gallery-item img {
+      width: 100% !important;
+      height: 240px !important;
+      object-fit: contain !important;
+      object-position: center !important;
+      background: #111;
+      border-radius: 8px 8px 0 0 !important;
+    }
+    .gallery-label { margin-top: auto; }
+    .lightbox-content {
+      width: min(94vw, 1400px) !important;
+      height: min(92vh, 1000px) !important;
+      max-width: 94vw !important;
+      max-height: 92vh !important;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .lightbox-image-container {
+      width: 100% !important;
+      height: calc(100% - 64px) !important;
+      max-width: none !important;
+      max-height: none !important;
+      min-height: 0;
+      margin: 0 0 10px !important;
+    }
+    .lightbox-image {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100% !important;
+      max-height: 100% !important;
+      object-fit: contain !important;
+      object-position: center !important;
+    }
+    @media (max-width: 680px) {
+      .gallery-item { min-height: 230px; }
+      .gallery-item img { height: 190px !important; }
+      .lightbox-content { width: 96vw !important; height: 88vh !important; padding: 12px !important; }
+    }
+  `;
+  document.head.appendChild(galleryStyle);
+
   const pageSize = 20;
   let allItems = [];
   let filteredItems = [];
