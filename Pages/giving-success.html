@@ -43,7 +43,7 @@
       const status = document.getElementById('givingSuccessStatus');
       const sessionId = new URLSearchParams(window.location.search).get('session_id');
       if (!sessionId) {
-        status.textContent = 'Your checkout was completed. Check your email for the Stripe receipt.';
+        status.textContent = 'Your payment was completed. Check your email for the Stripe receipt.';
         return;
       }
       fetch('/api/giving/session?session_id=' + encodeURIComponent(sessionId))
@@ -58,7 +58,7 @@
           }
         })
         .catch(() => {
-          status.textContent = 'Your checkout was completed. Check your email for the Stripe receipt.';
+          status.textContent = 'Your payment was completed. Check your email for the Stripe receipt.';
         });
     })();
   </script>
