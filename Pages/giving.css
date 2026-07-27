@@ -65,14 +65,13 @@ body.givingPage {
   color: #000;
 }
 
-.givingCard {
-  padding: clamp(24px, 4vw, 42px);
-}
+.givingCard { padding: clamp(24px, 4vw, 42px); }
 
 .givingTrustCard {
   position: sticky;
   top: 110px;
   padding: 30px;
+  text-align: center;
 }
 
 .givingTrustCard img {
@@ -82,32 +81,15 @@ body.givingPage {
   margin: 0 auto 20px;
 }
 
-.givingTrustCard {
-  text-align: center;
-}
-
 .givingTrustCard h2,
-.givingSection h2 {
-  margin: 0 0 16px;
-  color: #000;
-}
+.givingSection h2 { margin: 0 0 16px; color: #000; }
 
 .givingTrustCard p,
 .givingTrustCard li,
-.givingDisclosure p {
-  line-height: 1.6;
-}
+.givingDisclosure p { line-height: 1.6; }
 
-.givingTrustCard ul {
-  padding-left: 20px;
-  text-align: left;
-}
-
-.givingTrustFinePrint {
-  margin-top: 22px;
-  font-size: .86rem;
-  opacity: .72;
-}
+.givingTrustCard ul { padding-left: 20px; text-align: left; }
+.givingTrustFinePrint { margin-top: 22px; font-size: .86rem; opacity: .72; }
 
 .givingSection + .givingSection {
   margin-top: 32px;
@@ -117,34 +99,12 @@ body.givingPage {
 
 .givingFundGrid,
 .givingAmountGrid,
-.givingFrequency {
-  display: grid;
-  gap: 12px;
-}
-
-.givingFundGrid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.givingAmountGrid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-bottom: 16px;
-}
-
-.givingFrequency {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.givingChoice {
-  position: relative;
-  cursor: pointer;
-}
-
-.givingChoice input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
+.givingFrequency { display: grid; gap: 12px; }
+.givingFundGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.givingAmountGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 16px; }
+.givingFrequency { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.givingChoice { position: relative; cursor: pointer; }
+.givingChoice input { position: absolute; opacity: 0; pointer-events: none; }
 
 .givingChoice span,
 .givingAmountBtn {
@@ -176,15 +136,8 @@ body.givingPage {
   gap: 18px;
 }
 
-.givingField {
-  display: grid;
-  gap: 8px;
-  font-weight: 700;
-}
-
-.givingField--full {
-  grid-column: 1 / -1;
-}
+.givingField { display: grid; gap: 8px; font-weight: 700; }
+.givingField--full { grid-column: 1 / -1; }
 
 .givingField input,
 .givingField textarea {
@@ -198,9 +151,7 @@ body.givingPage {
   font: inherit;
 }
 
-.givingField textarea {
-  resize: vertical;
-}
+.givingField textarea { resize: vertical; }
 
 .givingMoneyInput {
   display: grid;
@@ -212,23 +163,9 @@ body.givingPage {
   padding-left: 16px;
 }
 
-.givingMoneyInput input {
-  border: 0;
-  border-radius: 0 12px 12px 0;
-  outline: none;
-}
-
-.givingDisclosure {
-  margin: 28px 0 18px;
-  padding: 16px 18px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, .045);
-  font-size: .9rem;
-}
-
-.givingDisclosure p {
-  margin: 0;
-}
+.givingMoneyInput input { border: 0; border-radius: 0 12px 12px 0; outline: none; }
+.givingDisclosure { margin: 28px 0 18px; padding: 16px 18px; border-radius: 12px; background: rgba(0, 0, 0, .045); font-size: .9rem; }
+.givingDisclosure p { margin: 0; }
 
 .givingSubmit {
   width: 100%;
@@ -243,50 +180,51 @@ body.givingPage {
 }
 
 .givingSubmit:hover,
-.givingSubmit:focus-visible {
-  background: linear-gradient(180deg, #d97939, #a85223);
-}
-
-.givingSubmit:disabled {
-  cursor: wait;
-  opacity: .65;
-}
-
-.givingStatus {
-  min-height: 1.4em;
-  margin-top: 12px;
-  font-weight: 700;
-}
-
-.givingStatus.is-error {
-  color: #9f1f1f;
-}
+.givingSubmit:focus-visible { background: linear-gradient(180deg, #d97939, #a85223); }
+.givingSubmit:disabled { cursor: wait; opacity: .65; }
+.givingStatus { min-height: 1.4em; margin-top: 12px; font-weight: 700; }
+.givingStatus.is-error { color: #9f1f1f; }
 
 @media (max-width: 900px) {
-  .givingLayout {
-    grid-template-columns: 1fr;
-  }
-
-  .givingTrustCard {
-    position: static;
-  }
+  .givingLayout { grid-template-columns: 1fr; }
+  .givingTrustCard { position: static; }
 }
 
 @media (max-width: 680px) {
   .givingMain {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
     padding: 42px 16px 72px;
+    margin-left: auto;
+    margin-right: auto;
   }
+
+  .givingIntro,
+  .givingLayout,
+  .givingCard,
+  .givingSection,
+  .givingDetailsGrid,
+  .givingField,
+  .givingMoneyInput,
+  .givingStatus {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .givingLayout {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .givingCard { padding: 22px 16px; }
 
   .givingFundGrid,
-  .givingAmountGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .givingDetailsGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .givingField--full {
-    grid-column: auto;
-  }
+  .givingAmountGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .givingDetailsGrid { grid-template-columns: 1fr; }
+  .givingField--full { grid-column: auto; }
 }
