@@ -34,25 +34,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     .gallery-label { margin-top: auto; }
     .pagination {
-      display: grid !important;
-      grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
-      align-items: center;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      flex-wrap: wrap;
       width: 100%;
       gap: 12px;
       box-sizing: border-box;
+      text-align: center;
     }
-    .pagination #prevPage {
-      justify-self: start;
-      margin-left: 0 !important;
+    .pagination #prevPage,
+    .pagination #pageInfo,
+    .pagination #nextPage {
+      justify-self: auto !important;
+      margin: 0 !important;
     }
     .pagination #pageInfo {
-      justify-self: center;
-      margin: 0 !important;
+      min-width: 150px;
       white-space: nowrap;
-    }
-    .pagination #nextPage {
-      justify-self: end;
-      margin-right: 0 !important;
+      text-align: center;
     }
     .lightbox-content {
       width: min(94vw, 1400px) !important;
@@ -94,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
         font-size: .88rem !important;
       }
       .pagination #pageInfo {
+        min-width: 120px;
         padding-left: 4px !important;
         padding-right: 4px !important;
         font-size: .88rem !important;
