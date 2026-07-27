@@ -20,19 +20,27 @@ document.addEventListener('DOMContentLoaded', () => {
     .photo-grid { align-items: start; }
     .gallery-item {
       aspect-ratio: auto !important;
-      min-height: 280px;
+      min-height: 0 !important;
+      height: auto !important;
       padding: 0;
+      overflow: visible !important;
       background: rgba(255,255,255,.96) !important;
     }
     .gallery-item img {
+      display: block !important;
       width: 100% !important;
-      height: 240px !important;
+      height: auto !important;
+      max-width: 100% !important;
+      max-height: none !important;
       object-fit: contain !important;
       object-position: center !important;
+      transform: none !important;
+      scale: 1 !important;
+      clip-path: none !important;
       background: #111;
       border-radius: 8px 8px 0 0 !important;
     }
-    .gallery-label { margin-top: auto; }
+    .gallery-label { margin-top: 0; }
     .pagination {
       display: flex !important;
       align-items: center !important;
@@ -55,37 +63,44 @@ document.addEventListener('DOMContentLoaded', () => {
       text-align: center;
     }
     .lightbox-content {
-      width: min(94vw, 1400px) !important;
-      height: min(92vh, 1000px) !important;
-      max-width: 94vw !important;
-      max-height: 92vh !important;
+      width: min(96vw, 1600px) !important;
+      height: auto !important;
+      max-width: 96vw !important;
+      max-height: 94vh !important;
       box-sizing: border-box;
-      overflow: hidden;
+      overflow: auto !important;
     }
     .lightbox-image-container {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
       width: 100% !important;
-      height: calc(100% - 64px) !important;
-      max-width: none !important;
-      max-height: none !important;
+      height: auto !important;
+      max-width: 100% !important;
+      max-height: calc(94vh - 100px) !important;
       min-height: 0;
+      overflow: auto !important;
       margin: 0 0 10px !important;
     }
     .lightbox-image {
-      display: block;
-      width: 100% !important;
-      height: 100% !important;
+      display: block !important;
+      width: auto !important;
+      height: auto !important;
       max-width: 100% !important;
-      max-height: 100% !important;
+      max-height: calc(94vh - 120px) !important;
       object-fit: contain !important;
       object-position: center !important;
+      transform: none !important;
+      scale: 1 !important;
+      clip-path: none !important;
     }
     @media (max-width: 680px) {
       .photo-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
         gap: 10px !important;
       }
-      .gallery-item { min-height: 210px; }
-      .gallery-item img { height: 165px !important; }
+      .gallery-item { min-height: 0 !important; }
+      .gallery-item img { height: auto !important; max-height: none !important; }
       .gallery-label { padding: 8px 6px !important; font-size: .82rem !important; }
       .pagination { gap: 6px; }
       .pagination button {
@@ -99,7 +114,8 @@ document.addEventListener('DOMContentLoaded', () => {
         padding-right: 4px !important;
         font-size: .88rem !important;
       }
-      .lightbox-content { width: 96vw !important; height: 88vh !important; padding: 12px !important; }
+      .lightbox-content { width: 96vw !important; max-height: 92vh !important; padding: 12px !important; }
+      .lightbox-image { max-height: calc(92vh - 110px) !important; }
     }
   `;
   document.head.appendChild(galleryStyle);
@@ -174,7 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
       grid.innerHTML = '<p class="gallery-empty">No photos are available for this selection.</p>';
     } else {
       grid.innerHTML = visible.map((item, index) => {
-        const src = absoluteAssetUrl(item.thumb || item.file);
+        const src = absoluteAssetUrl(item.file || item.thumb);
         const name = displayName(item);
         return `<button class="gallery-item" type="button" data-gallery-index="${start + index}" aria-label="Open ${escapeHtml(name)}">
           <img src="${escapeHtml(src)}" alt="${escapeHtml(name)}" loading="lazy" decoding="async">
@@ -192,6 +208,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const item = filteredItems[index];
     if (!item || !overlay || !lightboxImage) return;
     lightboxIndex = index;
+    lightboxImage.removeAttribute('width');
+    lightboxImage.removeAttribute('height');
+    lightboxImage.style.width = 'auto';
+    lightboxImage.style.height = 'auto';
     lightboxImage.src = absoluteAssetUrl(item.file || item.thumb);
     lightboxImage.alt = displayName(item);
     if (lightboxCaption) lightboxCaption.textContent = `${displayName(item)} — Image ${index + 1} of ${filteredItems.length}`;
