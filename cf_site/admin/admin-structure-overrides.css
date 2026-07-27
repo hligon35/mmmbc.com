@@ -247,12 +247,13 @@
   background: rgba(255,255,255,0.07) !important;
 }
 
-/* Align every Help & Support content block with its page header. */
+/* Center the full Help & Support page at roughly 60% width on desktop. */
+#tab-support > .pageContext,
 #tab-support > :not(.pageContext) {
   box-sizing: border-box;
-  width: calc(100% - (2 * clamp(12px, 2vw, 30px)));
-  margin-left: clamp(12px, 2vw, 30px) !important;
-  margin-right: clamp(12px, 2vw, 30px) !important;
+  width: min(60%, 960px) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
 }
 
 #tab-support > form {
@@ -279,5 +280,12 @@
   .newsletterSubscriberContext {
     grid-column: 1;
     grid-row: auto;
+  }
+}
+
+@media (max-width: 820px) {
+  #tab-support > .pageContext,
+  #tab-support > :not(.pageContext) {
+    width: calc(100% - (2 * clamp(12px, 4vw, 24px))) !important;
   }
 }
