@@ -92,6 +92,9 @@ const TRUST_PROXY = envBool('TRUST_PROXY', process.env.NODE_ENV === 'production'
 // Allow ENFORCE_HTTPS=false to override production defaults (useful for LAN-only Pi setups).
 const ENFORCE_HTTPS = envBool('ENFORCE_HTTPS', process.env.NODE_ENV === 'production');
 const ENABLE_CSP = String(process.env.ENABLE_CSP || '').toLowerCase() === 'true';
+const REQUIRE_POSTGRES_IN_PROD = envBool('REQUIRE_POSTGRES_IN_PROD', false);
+const REQUIRE_SHARED_SESSION_STORE_IN_PROD = envBool('REQUIRE_SHARED_SESSION_STORE_IN_PROD', false);
+const SESSION_STORE_MODE = String(process.env.SESSION_STORE_MODE || 'auto').trim().toLowerCase();
 function isPathInside(parentPath, childPath) {
   const parent = path.resolve(parentPath);
   const child = path.resolve(childPath);
@@ -180,6 +183,119 @@ function newId() {
   return typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
     : crypto.randomBytes(16).toString('hex');
+}
+
+function storageModeInfo() {
+  return {
+    mode: hasPostgres() ? 'hybrid_postgres_json' : 'json_only',
+    postgresConfigured: Boolean(POSTGRES_URL),
+    postgresConnected: hasPostgres(),
+    requirePostgresInProd: REQUIRE_POSTGRES_IN_PROD,
+    announcementsStorage: hasPostgres() ? 'postgres' : 'json',
+    bulletinsStorage: hasPostgres() ? 'postgres' : 'json',
+    financeStorage: 'json',
+    galleryStorage: String(process.env.WORKER_ORIGIN || '').trim() ? 'worker_r2' : 'json+filesystem'
+  };
+}
+
+function sessionStoreModeInfo() {
+  return {
+    mode: SESSION_STORE_MODE,
+    requireSharedInProd: REQUIRE_SHARED_SESSION_STORE_IN_PROD,
+    postgresAvailable: hasPostgres(),
+    sessionsDir: SESSIONS_DIR
+  };
+}
+
+function createSessionStore() {
+  const mode = SESSION_STORE_MODE;
+  const wantsPostgres = mode === 'postgres' || (mode === 'auto' && hasPostgres());
+
+  if (wantsPostgres) {
+    if (!hasPostgres()) {
+      throw new Error('SESSION_STORE_MODE requires Postgres, but Postgres is not connected.');
+    }
+    try {
+      // eslint-disable-next-line global-require
+      const PgSession = require('connect-pg-simple')(session);
+      return new PgSession({
+        pool: pgPool,
+        tableName: 'admin_sessions',
+        createTableIfMissing: true
+      });
+    } catch (err) {
+      throw new Error(`Postgres session store is unavailable: ${err?.message || err}`);
+    }
+  }
+
+  if (mode !== 'auto' && mode !== 'file') {
+    throw new Error(`Unsupported SESSION_STORE_MODE: ${mode}`);
+  }
+
+  return new FileStore({
+    path: SESSIONS_DIR,
+    retries: 5,
+    touchAfter: 60,
+    logFn: () => {}
+  });
+}
+
+function ensureRequestId(req, res) {
+  const existing = String(req.headers['x-request-id'] || '').trim();
+  const requestId = existing || newId();
+  req.requestId = requestId;
+  res.setHeader('X-Request-Id', requestId);
+  return requestId;
+}
+
+function statusFallbackMessage(status) {
+  switch (Number(status) || 500) {
+    case 400:
+      return 'Invalid request.';
+    case 401:
+      return 'Session expired.';
+    case 403:
+      return 'Permission or security verification failed.';
+    case 404:
+      return 'Requested record or endpoint was not found.';
+    case 409:
+      return 'Record conflict.';
+    case 413:
+      return 'Uploaded file exceeds the allowed size.';
+    case 422:
+      return 'Validation failed.';
+    case 429:
+      return 'Too many attempts. Try again later.';
+    case 500:
+      return 'Server failure.';
+    case 503:
+      return 'Service temporarily unavailable.';
+    default:
+      return 'Request failed.';
+  }
+}
+
+function sanitizeClientErrorMessage(value, status) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return statusFallbackMessage(status);
+
+  const scrubbed = text
+    .replace(/[A-Z]:\\[^\s]+/g, '')
+    .replace(/(token|secret|password|key)\s*[:=]\s*[^\s]+/ig, '$1 [redacted]')
+    .replace(/\b(select|insert|update|delete|drop|create|alter)\b[^.]*?/ig, '')
+    .trim();
+
+  return scrubbed || statusFallbackMessage(status);
+}
+
+function sendApiError(res, status, message, extras = {}) {
+  const safeStatus = Number(status) || 500;
+  const requestId = String(extras.requestId || res.getHeader('X-Request-Id') || '').trim();
+  return res.status(safeStatus).json({
+    error: sanitizeClientErrorMessage(message, safeStatus),
+    requestId,
+    ...(extras.code ? { code: String(extras.code) } : {})
+  });
 }
 
 function sha256Hex(input) {
@@ -650,7 +766,7 @@ function requireAuth(req, res, next) {
     path: req.originalUrl,
     reason: 'no_session'
   });
-  return res.status(401).json({ error: 'Unauthorized' });
+  return sendApiError(res, 401, 'Session expired. Sign in again.', { code: 'SESSION_EXPIRED', requestId: req.requestId });
 }
 
 function requirePermission(permission) {
@@ -663,7 +779,7 @@ function requirePermission(permission) {
         path: req.originalUrl,
         reason: 'no_session'
       });
-      return res.status(401).json({ error: 'Unauthorized' });
+      return sendApiError(res, 401, 'Session expired. Sign in again.', { code: 'SESSION_EXPIRED', requestId: req.requestId });
     }
     if (hasPermission(user.role, permission)) return next();
     audit('authz_denied', {
@@ -675,7 +791,7 @@ function requirePermission(permission) {
       role: user.role,
       permission
     });
-    return res.status(403).json({ error: 'Forbidden' });
+    return sendApiError(res, 403, 'You do not have permission to perform this action.', { code: 'PERMISSION_DENIED', requestId: req.requestId });
   };
 }
 
@@ -690,7 +806,7 @@ function requireAnyPermission(permissions) {
         path: req.originalUrl,
         reason: 'no_session'
       });
-      return res.status(401).json({ error: 'Unauthorized' });
+      return sendApiError(res, 401, 'Session expired. Sign in again.', { code: 'SESSION_EXPIRED', requestId: req.requestId });
     }
     const ok = list.some((perm) => hasPermission(user.role, perm));
     if (ok) return next();
@@ -703,7 +819,7 @@ function requireAnyPermission(permissions) {
       role: user.role,
       permissions: list
     });
-    return res.status(403).json({ error: 'Forbidden' });
+    return sendApiError(res, 403, 'You do not have permission to perform this action.', { code: 'PERMISSION_DENIED', requestId: req.requestId });
   };
 }
 
@@ -723,7 +839,7 @@ function requireRole(roles) {
         path: req.originalUrl,
         reason: 'no_session'
       });
-      return res.status(401).json({ error: 'Unauthorized' });
+      return sendApiError(res, 401, 'Session expired. Sign in again.', { code: 'SESSION_EXPIRED', requestId: req.requestId });
     }
     if (hasRole(user, allowed)) return next();
     audit('authz_denied', {
@@ -735,7 +851,7 @@ function requireRole(roles) {
       role: user.role,
       roles: allowed
     });
-    return res.status(403).json({ error: 'Forbidden' });
+    return sendApiError(res, 403, 'You do not have permission to perform this action.', { code: 'PERMISSION_DENIED', requestId: req.requestId });
   };
 }
 
@@ -840,6 +956,11 @@ if (ENFORCE_HTTPS) {
   app.use(helmet.hsts({ maxAge: 15552000, includeSubDomains: true }));
 }
 
+app.use((req, res, next) => {
+  ensureRequestId(req, res);
+  next();
+});
+
 app.use(requestLogger);
 app.use(compression());
 app.use(express.json({ limit: '2mb' }));
@@ -870,19 +991,11 @@ app.use(
       httpOnly: true,
       sameSite: 'lax',
       // In production behind TLS, set Secure automatically (requires trust proxy).
-      secure: (process.env.NODE_ENV === 'production' && TRUST_PROXY) ? 'auto' : false
+      secure: (process.env.NODE_ENV === 'production' && TRUST_PROXY) ? 'auto' : false,
+      maxAge: 1000 * 60 * 60 * 12
     },
-    // When session storage location changes, existing browser cookies may reference
-    // session IDs whose files no longer exist. session-file-store can log noisy
-    // ENOENT retries in that case. Treat missing sessions as normal.
-    store: new FileStore({
-      path: SESSIONS_DIR,
-      // Windows can intermittently throw EPERM on atomic rename (AV/OneDrive/file indexer).
-      // Allow a few retries and avoid writing on every request.
-      retries: 5,
-      touchAfter: 60,
-      logFn: () => {}
-    })
+    rolling: true,
+    store: createSessionStore()
   })
 );
 
@@ -1733,7 +1846,40 @@ app.get('/api/admin/health', requirePermission(PERMISSIONS.USERS_MANAGE), (req, 
     memory: process.memoryUsage(),
     loadavg: os.loadavg(),
     dataDir: DATA_DIR,
-    sessionsDir: SESSIONS_DIR
+    sessionsDir: SESSIONS_DIR,
+    storage: storageModeInfo(),
+    sessionStore: sessionStoreModeInfo()
+  });
+});
+
+app.get('/api/admin/storage-health', requirePermission(PERMISSIONS.USERS_MANAGE), async (req, res) => {
+  const storage = storageModeInfo();
+  let postgresCheck = { ok: null, latencyMs: null, error: '' };
+
+  if (storage.postgresConnected) {
+    const started = Date.now();
+    try {
+      await pgQuery('SELECT 1 AS ok');
+      postgresCheck = { ok: true, latencyMs: Date.now() - started, error: '' };
+    } catch (err) {
+      postgresCheck = { ok: false, latencyMs: Date.now() - started, error: sanitizeClientErrorMessage(err?.message || 'Postgres check failed.', 503) };
+    }
+  }
+
+  const production = process.env.NODE_ENV === 'production';
+  const degraded = Boolean(
+    (production && REQUIRE_POSTGRES_IN_PROD && !storage.postgresConnected)
+    || (storage.postgresConnected && postgresCheck.ok === false)
+  );
+
+  return res.json({
+    ok: !degraded,
+    degraded,
+    production,
+    checkedAt: new Date().toISOString(),
+    storage,
+    sessionStore: sessionStoreModeInfo(),
+    postgresCheck
   });
 });
 
@@ -5435,12 +5581,16 @@ app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
 
   if (err.code === 'EBADCSRFTOKEN') {
-    audit('csrf_rejected', { at: new Date().toISOString(), ip: req.ip, path: req.originalUrl });
-    return res.status(403).json({ error: 'Invalid CSRF token.' });
+    audit('csrf_rejected', { at: new Date().toISOString(), ip: req.ip, path: req.originalUrl, requestId: req.requestId });
+    return sendApiError(res, 403, 'Your security token expired. Refresh your session and try again.', {
+      code: 'CSRF_INVALID',
+      requestId: req.requestId
+    });
   }
 
   const status = Number(err.statusCode || err.status || 500);
   logger.error('request_error', {
+    requestId: req.requestId,
     status,
     path: req.originalUrl,
     method: req.method,
@@ -5451,9 +5601,9 @@ app.use((err, req, res, next) => {
   });
 
   const safeMessage = process.env.NODE_ENV === 'production'
-    ? 'Server error.'
-    : (err.message || 'Server error.');
-  res.status(status).json({ error: safeMessage });
+    ? statusFallbackMessage(status)
+    : sanitizeClientErrorMessage(err.message || 'Server error.', status);
+  sendApiError(res, status, safeMessage, { requestId: req.requestId });
 });
 
 // ----------------- BOOT -----------------
@@ -5477,14 +5627,35 @@ async function boot({ listen = true } = {}) {
     writeJsonAtomic(NEWSLETTER_RECORDS_DATA_PATH, { drafts: [], scheduled: [], history: [] });
   }
 
+  if (process.env.NODE_ENV === 'production' && REQUIRE_POSTGRES_IN_PROD && !hasPostgres()) {
+    throw new Error('Production startup blocked: REQUIRE_POSTGRES_IN_PROD=true but Postgres is not connected.');
+  }
+
+  if (process.env.NODE_ENV === 'production' && REQUIRE_SHARED_SESSION_STORE_IN_PROD) {
+    const sessionMode = sessionStoreModeInfo();
+    const sharedStoreReady = sessionMode.mode === 'postgres' || (sessionMode.mode === 'auto' && sessionMode.postgresAvailable);
+    if (!sharedStoreReady) {
+      throw new Error('Production startup blocked: REQUIRE_SHARED_SESSION_STORE_IN_PROD=true but no shared session store is active.');
+    }
+  }
+
   startNewsletterScheduler();
 
   await ensureMasterAdmin();
 
   if (!listen) return { port: null };
 
-  const { port } = await listenWithPortFallback(app, PORT, { maxTries: 25, host: HOST || undefined });
-  logger.info('server_started', { port, host: HOST || null, enforceHttps: ENFORCE_HTTPS, trustProxy: TRUST_PROXY });
+  const maxTries = process.env.NODE_ENV === 'production' ? 1 : 25;
+  const { port } = await listenWithPortFallback(app, PORT, { maxTries, host: HOST || undefined });
+  logger.info('server_started', {
+    port,
+    host: HOST || null,
+    enforceHttps: ENFORCE_HTTPS,
+    trustProxy: TRUST_PROXY,
+    storage: storageModeInfo(),
+    sessionStore: sessionStoreModeInfo(),
+    nodeEnv: process.env.NODE_ENV || 'development'
+  });
   // Keep console messages for local dev convenience.
   console.log(`MMMBC Admin server running on http://localhost:${port}`);
   console.log(`Admin dashboard: http://localhost:${port}/admin/`);

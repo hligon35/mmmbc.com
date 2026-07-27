@@ -55,11 +55,11 @@
   </header>
   <button class="adminDrawerBackdrop" id="adminDrawerBackdrop" type="button" aria-label="Close menu" hidden></button>
 
-  <dialog class="dialog" id="inviteAdminDialog" aria-label="Invite admin user">
-    <a class="dialog__backdrop" href="#" aria-label="Close"></a>
+  <dialog class="dialog" id="inviteAdminDialog" aria-labelledby="inviteAdminDialogTitle" aria-modal="true">
+    <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
     <div class="card dialog__inner">
       <div class="sectionHeader sectionHeader--compact">
-        <h3 class="sectionHeader__title">Invite an Admin</h3>
+        <h3 class="sectionHeader__title" id="inviteAdminDialogTitle">Invite an Admin</h3>
         <button class="btn" id="inviteAdminCloseBtn" type="button">Close</button>
       </div>
       <p class="muted">Send a branded invite email with a secure onboarding link.</p>
@@ -305,6 +305,11 @@
               <a class="iconBtn iconBtn--help" id="photoHelpBtn" href="#photoHelpDialog" aria-label="Photo upload instructions" title="Photo upload instructions">?</a>
               <button class="btn" id="exportBtn" type="button">Refresh Website Gallery</button>
             </div>
+              <div class="photoBulkBar" id="photoBulkBar" hidden>
+                <button class="btn" id="photoBulkEditBtn" type="button">Edit selected photos</button>
+                <button class="btn btn--danger" id="photoBulkDeleteBtn" type="button">Delete selected photos</button>
+                <span class="muted" id="photoBulkCount" aria-live="polite"></span>
+              </div>
             <div class="syncProgress" id="syncProgressWrap" aria-live="polite" hidden>
               <progress class="syncProgress__meter" id="syncProgressMeter" max="500" value="0"></progress>
               <div class="syncProgress__text" id="syncProgressText">Ready.</div>
@@ -312,12 +317,12 @@
           </div>
         </div>
 
-        <dialog class="dialog" id="photoHelpDialog" aria-label="Photo upload instructions">
-          <a class="dialog__backdrop" href="#" aria-label="Close"></a>
+        <dialog class="dialog" id="photoHelpDialog" aria-labelledby="photoHelpDialogTitle" aria-modal="true">
+          <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
           <div class="card dialog__inner">
             <div class="sectionHeader sectionHeader--compact">
-              <h3 class="sectionHeader__title">How to add photos</h3>
-              <a class="btn" id="photoHelpCloseBtn" href="#" role="button">Close</a>
+              <h3 class="sectionHeader__title" id="photoHelpDialogTitle">How to add photos</h3>
+              <button class="btn" id="photoHelpCloseBtn" type="button">Close</button>
             </div>
 
             <p class="muted">Use these steps when you want to add a new album or update an existing one.</p>
@@ -345,12 +350,6 @@
         <div class="subTabPanel" role="tabpanel" id="panel-photos-manage" aria-labelledby="subTabBtn-photos-manage">
           <p class="muted">Add photos, group them by album, and use tags so the library stays easy to browse.</p>
 
-          <div class="photoBulkBar" id="photoBulkBar" hidden>
-            <button class="btn" id="photoBulkEditBtn" type="button">Edit selected photos</button>
-            <button class="btn btn--danger" id="photoBulkDeleteBtn" type="button">Delete selected photos</button>
-            <span class="muted" id="photoBulkCount" aria-live="polite"></span>
-          </div>
-
           <form id="photoUploadForm" class="form form--row" enctype="multipart/form-data">
             <label class="label">
               Album name
@@ -368,7 +367,10 @@
               Choose photos
               <input class="input" name="images" type="file" accept="image/*" multiple required />
             </label>
-            <button class="btn btn--primary" type="submit">Add Photos</button>
+            <div class="photoUploadSubmitRow" aria-label="Upload actions">
+              <button class="btn btn--primary" type="submit">Add Photos</button>
+              <p class="hint photoUploadAccepted">Accepted: JPG, PNG, WEBP, GIF. Maximum 15 MB per image, up to 20 files. Recommended: at least 1600 × 1200.</p>
+            </div>
             <div class="hint" id="photoUploadHint" aria-live="polite"></div>
           </form>
 
@@ -504,6 +506,7 @@
               File
               <input class="input" name="file" type="file" accept="application/pdf,image/*" required />
             </label>
+            <p class="hint">Accepted: PDF, JPG, PNG, WEBP, GIF. Maximum 25 MB per file.</p>
             <div class="formRow">
               <label class="label">
                 Show from
@@ -557,25 +560,31 @@
                   <img class="iconBtn__icon" src="/Icons/ffilter.png" alt="" aria-hidden="true" />
                   <span class="srOnly">Filters</span>
                 </summary>
-                <div class="menu__panel" role="menu" aria-label="Filters">
-                  <div class="menu__title">Date range</div>
+                <form class="menu__panel financeFilterPanel" id="financeFilterForm" aria-label="Finance filters">
+                  <fieldset class="financeFilterFieldset">
+                    <legend class="menu__title">Date range</legend>
 
-                  <label class="menu__checkItem" role="menuitemcheckbox">
-                    <input class="menu__check" type="checkbox" data-fin-range="7" />
-                    <span>Last 7 days</span>
-                  </label>
-                  <label class="menu__checkItem" role="menuitemcheckbox">
-                    <input class="menu__check" type="checkbox" data-fin-range="30" />
-                    <span>Last 30 days</span>
-                  </label>
-                  <label class="menu__checkItem" role="menuitemcheckbox">
-                    <input class="menu__check" type="checkbox" data-fin-range="90" />
-                    <span>Last 90 days</span>
-                  </label>
-                  <label class="menu__checkItem" role="menuitemcheckbox">
-                    <input class="menu__check" type="checkbox" data-fin-range="custom" id="financeCustomToggle" />
-                    <span>Custom</span>
-                  </label>
+                    <label class="menu__checkItem">
+                      <input class="menu__check" type="radio" name="financeDateRange" value="all" id="financeRangeAll" checked />
+                      <span>All dates</span>
+                    </label>
+                    <label class="menu__checkItem">
+                      <input class="menu__check" type="radio" name="financeDateRange" value="7" id="financeRange7" />
+                      <span>Last 7 days</span>
+                    </label>
+                    <label class="menu__checkItem">
+                      <input class="menu__check" type="radio" name="financeDateRange" value="30" id="financeRange30" />
+                      <span>Last 30 days</span>
+                    </label>
+                    <label class="menu__checkItem">
+                      <input class="menu__check" type="radio" name="financeDateRange" value="90" id="financeRange90" />
+                      <span>Last 90 days</span>
+                    </label>
+                    <label class="menu__checkItem">
+                      <input class="menu__check" type="radio" name="financeDateRange" value="custom" id="financeRangeCustom" />
+                      <span>Custom date range</span>
+                    </label>
+                  </fieldset>
 
                   <div class="menu__custom" id="financeCustomRange" hidden>
                     <div class="formRow">
@@ -588,24 +597,31 @@
                         <input class="input" id="financeTo" type="date" />
                       </label>
                     </div>
+                    <p class="hint" id="financeDateRangeHint" aria-live="polite"></p>
                     <div class="toolbar toolbar--tightTop">
-                      <button class="btn btn--primary" id="financeApplyCustomRangeBtn" type="button">Apply</button>
-                      <button class="btn" id="financeClearRangeBtn" type="button">Clear</button>
+                      <button class="btn btn--primary" id="financeApplyCustomRangeBtn" type="button">Apply custom range</button>
                     </div>
                   </div>
 
                   <div class="menu__divider" role="separator" aria-hidden="true"></div>
 
-                  <div class="menu__title menu__title--spaced">Type</div>
-                  <label class="menu__checkItem" role="menuitemcheckbox">
-                    <input class="menu__check" type="checkbox" id="financeTypeIncome" checked />
-                    <span>Income</span>
-                  </label>
-                  <label class="menu__checkItem" role="menuitemcheckbox">
-                    <input class="menu__check" type="checkbox" id="financeTypeExpense" checked />
-                    <span>Expense</span>
-                  </label>
-                </div>
+                  <fieldset class="financeFilterFieldset">
+                    <legend class="menu__title menu__title--spaced">Entry type</legend>
+                    <label class="menu__checkItem">
+                      <input class="menu__check" type="checkbox" id="financeTypeIncome" checked />
+                      <span>Income</span>
+                    </label>
+                    <label class="menu__checkItem">
+                      <input class="menu__check" type="checkbox" id="financeTypeExpense" checked />
+                      <span>Expense</span>
+                    </label>
+                  </fieldset>
+
+                  <div class="toolbar toolbar--tightTop">
+                    <button class="btn" id="financeClearRangeBtn" type="button">Clear filters</button>
+                  </div>
+                  <p class="hint" id="financeFilterSummary" aria-live="polite">Showing all dates and all entry types.</p>
+                </form>
               </details>
             </div>
           </div>
@@ -678,10 +694,10 @@
           <div class="financePrintHeader__meta" id="financePrintMeta"></div>
         </div>
 
-        <dialog class="dialog" id="financeReceiptsDialog" aria-label="Print receipts">
+        <dialog class="dialog" id="financeReceiptsDialog" aria-labelledby="financeReceiptsDialogTitle" aria-modal="true">
           <form method="dialog" class="card dialog__inner">
             <div class="sectionHeader sectionHeader--compact">
-              <h3 class="sectionHeader__title">Print receipts</h3>
+              <h3 class="sectionHeader__title" id="financeReceiptsDialogTitle">Print receipts</h3>
               <button class="btn" id="financeReceiptsCloseBtn" type="submit">Close</button>
             </div>
 
@@ -891,7 +907,7 @@
 
                 <label class="label newsletterSectionEditor__item">
                   07. Contact line (footer left)
-                  <input class="input" id="newsletterSectionContactLine" type="text" maxlength="200" placeholder="www.mmbc.church" />
+                  <input class="input" id="newsletterSectionContactLine" type="text" maxlength="200" placeholder="www.mmmbc.com" />
                 </label>
 
                 <label class="label newsletterSectionEditor__item">
@@ -1076,6 +1092,7 @@
                       <input class="input" id="profileImageFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
                     </label>
                   </div>
+                  <p class="hint">Accepted: JPG, PNG, WEBP, GIF. Maximum 8 MB. Recommended portrait image near 1200 × 1200.</p>
                   <div class="toolbar">
                     <button class="btn" id="profileUploadImageBtn" type="button">Upload Image</button>
                     <button class="btn" id="profileRemoveImageBtn" type="button">Remove Image</button>
@@ -1131,25 +1148,27 @@
           <h2 class="pageContext__title">Help &amp; Support</h2>
           <p class="pageContext__description">Send a support request if you need help with the website manager.</p>
         </div>
-        <p class="muted">Send a message to <strong>support@alphazonelabs.com</strong>.</p>
+        <div class="card supportFormShell">
+          <p class="muted">Send a message to <strong>support@alphazonelabs.com</strong>.</p>
 
-        <form id="supportForm" class="form">
-          <label class="label">
-            Subject line
-            <input class="input" name="subject" type="text" maxlength="140" placeholder="What do you need help with?" required />
-          </label>
-          <label class="label">
-            Message
-            <textarea class="textarea" name="message" rows="6" maxlength="5000" placeholder="Share the details and any error message you see…" required></textarea>
-          </label>
-          <label class="label">
-            Your email address (optional)
-            <input class="input" name="replyTo" type="email" maxlength="254" placeholder="you@example.com" />
-          </label>
-          <button class="btn btn--primary" type="submit">Send Message</button>
-          <div class="hint" id="supportHint" aria-live="polite"></div>
-          <div class="error" id="supportError" role="alert" hidden></div>
-        </form>
+          <form id="supportForm" class="form">
+            <label class="label">
+              Subject line
+              <input class="input" name="subject" type="text" maxlength="140" placeholder="What do you need help with?" required />
+            </label>
+            <label class="label">
+              Message
+              <textarea class="textarea" name="message" rows="6" maxlength="5000" placeholder="Share the details and any error message you see…" required></textarea>
+            </label>
+            <label class="label">
+              Your email address (optional)
+              <input class="input" name="replyTo" type="email" maxlength="254" placeholder="you@example.com" />
+            </label>
+            <button class="btn btn--primary" type="submit">Send Message</button>
+            <div class="hint" id="supportHint" aria-live="polite"></div>
+            <div class="error" id="supportError" role="alert" hidden></div>
+          </form>
+        </div>
 
         <div class="card card--spacedTop" id="appearanceCard">
           <h3 class="card__subtitle">Appearance</h3>
@@ -1163,6 +1182,16 @@
             </select>
           </label>
           <div class="hint" id="appearanceHint" aria-live="polite"></div>
+        </div>
+
+        <div class="card card--spacedTop" id="adminStorageHealthCard" hidden>
+          <h3 class="card__subtitle">Admin Diagnostics</h3>
+          <p class="muted">Shows current storage mode and backend availability for production troubleshooting.</p>
+          <div class="hint" id="adminStorageHealthSummary" aria-live="polite">Checking storage health…</div>
+          <div class="hint" id="adminStorageHealthDetails"></div>
+          <div class="toolbar">
+            <button class="btn" id="adminStorageHealthRefreshBtn" type="button">Refresh Diagnostics</button>
+          </div>
         </div>
       </section>
 

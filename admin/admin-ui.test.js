@@ -93,7 +93,15 @@ describe('Admin accessibility redesign guards', () => {
 
   test('Keyboard accessibility handlers remain for tabs and popovers', () => {
     expect(adminJs).toContain("$('siteEditorPageTabs').addEventListener('keydown'");
-    expect(adminJs).toContain("$('newsletterRecipientPopover').addEventListener('keydown'");
+    expect(adminJs).toContain("$('newsletterTestRecipientsInput').addEventListener('keydown'");
+  });
+
+  test('Unsaved-state tracking includes file selections and upload progress', () => {
+    expect(adminJs).toContain('const unsavedFileSelections = new Set();');
+    expect(adminJs).toContain('const formUploadsInProgress = new Set();');
+    expect(adminJs).toContain('function fileSignature(file)');
+    expect(adminJs).toContain("markFormUploadState(form, true);");
+    expect(adminJs).toContain('You selected file changes that have not been uploaded yet.');
   });
 
   test('Authentication and CSRF behavior remains wired', () => {

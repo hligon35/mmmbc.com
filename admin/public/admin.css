@@ -83,6 +83,34 @@ body{
 
 .app{max-width:none;margin:0;padding:14px var(--admin-window-gutter) 20px;}
 
+.sessionWarning{
+  margin:10px var(--admin-window-gutter) 0;
+  border:2px solid rgba(139,63,31,.45);
+  background:linear-gradient(135deg, rgba(139,63,31,.24), rgba(255,244,227,.12));
+  color:var(--text);
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+}
+
+.sessionWarning__title{
+  margin:0 0 4px;
+  font-size:1rem;
+}
+
+.sessionWarning__message{
+  margin:0;
+  color:var(--text);
+}
+
+.sessionWarning__actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
 .loginShell{
   width:min(1080px, calc(100% - 20px));
   margin:26px auto;
@@ -383,7 +411,7 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
   gap:4px;
   justify-self:end;
   align-self:center;
-  transform:translate(-100px, -25px);
+  transform:translate(-110px, -25px);
 }
 
 #pageContext-finances .financeHeaderSearch{
@@ -404,6 +432,32 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 #financeFilterMenu .menu__item,
 #financeFilterMenu .menu__checkItem{
   color:#111;
+}
+
+.financeFilterPanel{
+  min-width:min(360px, calc(100vw - 40px));
+  max-width:min(420px, calc(100vw - 40px));
+}
+
+.financeFilterFieldset{
+  border:0;
+  padding:0;
+  margin:0;
+  min-width:0;
+}
+
+.financeFilterFieldset + .financeFilterFieldset{
+  margin-top:10px;
+}
+
+#financeFilterSummary{
+  margin:8px 0 0;
+  font-size:.92rem;
+  font-weight:700;
+}
+
+#financeDateRangeHint{
+  margin:4px 0 0;
 }
 
 .financePeriodTabs{display:flex;gap:3px;align-items:center;}
@@ -1255,15 +1309,17 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
   top:10px;
   left:10px;
   z-index:2;
-  width:28px;
-  height:28px;
-  display:grid;
-  place-items:center;
-  border-radius:10px;
-  border:1px solid rgba(255,255,255,.25);
-  background:rgba(0,0,0,.55);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  width:auto;
+  height:auto;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
 }
 
 .thumb__check{width:18px;height:18px;accent-color: var(--accent);}
@@ -1661,8 +1717,7 @@ input[type="time"].input{
 }
 
 .checkbox,
-.menu__check,
-.thumb__check{
+.menu__check{
   width:28px;
   height:28px;
 }
@@ -1971,6 +2026,10 @@ body.navDrawerCollapsed .sideNav{
   background:#fff;
 }
 
+.tabPanel > .pageContext{
+  margin:0 0 16px;
+}
+
 .pageContext__crumb{
   margin:0 0 6px;
   font-size:1rem;
@@ -1995,8 +2054,16 @@ body.navDrawerCollapsed .sideNav{
   color:var(--muted);
 }
 
-.pageContext__primaryActions{
-  transform:translate(-25px,25px);
+.pageContext__primaryActions{transform:none;}
+
+.supportFormShell{
+  width:100%;
+  max-width:100%;
+  margin:0 0 14px;
+}
+
+.supportFormShell .muted{
+  margin-top:0;
 }
 
 
@@ -2432,7 +2499,7 @@ body.adminDrawerOpen{overflow:hidden;}
 
 .sitePreviewToolbar__titles{display:grid;gap:2px;}
 .sitePreviewToolbar__actions{display:flex;gap:8px;flex-wrap:wrap;}
-.sitePagePreviewFrame{width:100%;height:min(72vh, 820px);border:1px solid var(--border);border-radius:12px;background:#fff;}
+.sitePagePreviewFrame{width:100%;height:min(62vh, 720px);border:1px solid var(--border);border-radius:12px;background:#fff;}
 .sitePagePreviewFrame{display:block;overflow:hidden;}
 .previewDraftHeader{margin-top:12px;}
 
@@ -2470,7 +2537,7 @@ body.navDrawerCollapsed .sideNav{display:flex;}
 
 .editorSplit--siteEditor .sitePagePreviewFrame{
   height:auto;
-  min-height:520px;
+  min-height:320px;
 }
 
 .editorSplit--siteEditor .previewPane{
@@ -2522,6 +2589,45 @@ body.navDrawerCollapsed .sideNav{display:flex;}
 
 .editorSplit--siteEditor .formRow{
   align-items:start;
+}
+
+#tab-photos .iconGroup{
+  justify-items:stretch;
+  min-width:min(460px, 100%);
+}
+
+#tab-photos .photoBulkBar{
+  position:static;
+  top:auto;
+  margin-top:2px;
+  justify-content:flex-end;
+}
+
+#tab-photos .photoBulkBar[hidden]{
+  display:none !important;
+}
+
+#photoUploadForm .photoUploadSubmitRow{
+  grid-column:1 / -1;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:12px;
+}
+
+#photoUploadForm .photoUploadAccepted{
+  margin:0;
+  padding:8px 12px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:rgba(255,255,255,.03);
+}
+
+@media (max-width:900px){
+  #photoUploadForm .photoUploadSubmitRow{
+    flex-direction:column;
+    align-items:stretch;
+  }
 }
 
 .editorSplit--siteEditor .siteEditorImagePreview{

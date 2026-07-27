@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -6,7 +6,7 @@
   <title>Church Website Manager</title>
   <meta name="description" content="Admin dashboard for Mt. Moriah Missionary Baptist Church website." />
   <link rel="stylesheet" href="/admin/admin.css?v=20260124" />
-  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260725001823" />
+  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260726213520" />
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
@@ -56,11 +56,11 @@
   </header>
   <button class="adminDrawerBackdrop" id="adminDrawerBackdrop" type="button" aria-label="Close menu" hidden></button>
 
-  <dialog class="dialog" id="inviteAdminDialog" aria-label="Invite admin user">
-    <a class="dialog__backdrop" href="#" aria-label="Close"></a>
+  <dialog class="dialog" id="inviteAdminDialog" aria-labelledby="inviteAdminDialogTitle" aria-modal="true">
+    <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
     <div class="card dialog__inner">
       <div class="sectionHeader sectionHeader--compact">
-        <h3 class="sectionHeader__title">Invite an Admin</h3>
+        <h3 class="sectionHeader__title" id="inviteAdminDialogTitle">Invite an Admin</h3>
         <button class="btn" id="inviteAdminCloseBtn" type="button">Close</button>
       </div>
       <p class="muted">Send a branded invite email with a secure onboarding link.</p>
@@ -102,7 +102,7 @@
 
       <div class="card" id="googleLoginPanel">
         <div class="card__subtitle">Google sign-in</div>
-        <p class="muted" id="googleLoginHint">Loading Google sign-inâ€¦</p>
+        <p class="muted" id="googleLoginHint">Loading Google sign-in…</p>
         <div id="googleSignInBtn" aria-label="Google sign-in button"></div>
       </div>
 
@@ -178,7 +178,7 @@
 
     <section class="card loginCard" id="inviteCard" aria-label="Account setup" hidden>
       <h1 class="card__title">Finish account setup</h1>
-      <p class="muted" id="inviteEmail">Loading inviteâ€¦</p>
+      <p class="muted" id="inviteEmail">Loading invite…</p>
 
       <form id="inviteForm" class="form">
         <label class="label">
@@ -289,41 +289,41 @@
 
       <!-- Photos -->
       <section class="tabPanel" role="tabpanel" id="tab-photos" aria-labelledby="tabBtn-photos" hidden>
-        <div class="pageContext pageContext--photos" id="pageContext-photos">
-  <div class="pageContext__main">
-    <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> &rsaquo; Photos</p>
-    <h2 class="pageContext__title">Photos</h2>
-    <p class="pageContext__description">Upload, organize, and refresh website photo galleries.</p>
-  </div>
-  <div class="pageContext__actions pageContext__actions--photos">
-    <div class="pageContext__primaryActions">
-      <a class="iconBtn iconBtn--help" id="photoHelpBtn" href="#photoHelpDialog" aria-label="Photo upload instructions" title="Photo upload instructions">
-        <svg class="pageContextHelpIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2" />
-          <path d="M9.8 9a2.45 2.45 0 0 1 4.7.9c0 1.7-1.25 2.2-2.05 2.9-.5.42-.7.8-.7 1.45" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-          <circle cx="12" cy="17.4" r="1" fill="currentColor" />
-        </svg>
-      </a>
-      <button class="btn" id="exportBtn" type="button">Refresh Website Gallery</button>
-    </div>
-    <div class="photoBulkBar photoBulkBar--pageContext" id="photoBulkBar" hidden>
-            <button class="btn" id="photoBulkEditBtn" type="button">Edit selected photos</button>
-            <button class="btn btn--danger" id="photoBulkDeleteBtn" type="button">Delete selected photos</button>
-            <span class="muted" id="photoBulkCount" aria-live="polite"></span>
+        <div class="pageContext" id="pageContext-photos">
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Photos</p>
+          <h2 class="pageContext__title">Photos</h2>
+          <p class="pageContext__description">Upload, organize, and refresh website photo galleries.</p>
+        </div>
+        <div class="sectionHeader">
+          <div class="sectionHeader__left">
+            <h2 class="sectionHeader__title">Photos</h2>
+            <div class="tabs subTabs photoSubTabs" role="tablist" aria-label="Photo gallery sections">
+              <button class="tab tab--sub" role="tab" aria-selected="true" aria-controls="panel-photos-manage" id="subTabBtn-photos-manage" type="button">Add Photos</button>
+            </div>
           </div>
-    <div class="syncProgress" id="syncProgressWrap" aria-live="polite" hidden>
-      <progress class="syncProgress__meter" id="syncProgressMeter" max="500" value="0"></progress>
-      <div class="syncProgress__text" id="syncProgressText">Ready.</div>
-    </div>
-  </div>
-</div>
+          <div class="iconGroup" aria-label="Photo gallery actions">
+            <div class="iconGroup__row">
+              <a class="iconBtn iconBtn--help" id="photoHelpBtn" href="#photoHelpDialog" aria-label="Photo upload instructions" title="Photo upload instructions">?</a>
+              <button class="btn" id="exportBtn" type="button">Refresh Website Gallery</button>
+            </div>
+              <div class="photoBulkBar" id="photoBulkBar" hidden>
+                <button class="btn" id="photoBulkEditBtn" type="button">Edit selected photos</button>
+                <button class="btn btn--danger" id="photoBulkDeleteBtn" type="button">Delete selected photos</button>
+                <span class="muted" id="photoBulkCount" aria-live="polite"></span>
+              </div>
+            <div class="syncProgress" id="syncProgressWrap" aria-live="polite" hidden>
+              <progress class="syncProgress__meter" id="syncProgressMeter" max="500" value="0"></progress>
+              <div class="syncProgress__text" id="syncProgressText">Ready.</div>
+            </div>
+          </div>
+        </div>
 
-<dialog class="dialog" id="photoHelpDialog" aria-label="Photo upload instructions">
-          <a class="dialog__backdrop" href="#" aria-label="Close"></a>
+        <dialog class="dialog" id="photoHelpDialog" aria-labelledby="photoHelpDialogTitle" aria-modal="true">
+          <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
           <div class="card dialog__inner">
             <div class="sectionHeader sectionHeader--compact">
-              <h3 class="sectionHeader__title">How to add photos</h3>
-              <a class="btn" id="photoHelpCloseBtn" href="#" role="button">Close</a>
+              <h3 class="sectionHeader__title" id="photoHelpDialogTitle">How to add photos</h3>
+              <button class="btn" id="photoHelpCloseBtn" type="button">Close</button>
             </div>
 
             <p class="muted">Use these steps when you want to add a new album or update an existing one.</p>
@@ -368,7 +368,10 @@
               Choose photos
               <input class="input" name="images" type="file" accept="image/*" multiple required />
             </label>
-            <button class="btn btn--primary" type="submit">Add Photos</button>
+            <div class="photoUploadSubmitRow" aria-label="Upload actions">
+              <button class="btn btn--primary" type="submit">Add Photos</button>
+              <p class="hint photoUploadAccepted">Accepted: JPG, PNG, WEBP, GIF. Maximum 15 MB per image, up to 20 files. Recommended: at least 1600 × 1200.</p>
+            </div>
             <div class="hint" id="photoUploadHint" aria-live="polite"></div>
           </form>
 
@@ -378,8 +381,8 @@
               <select class="select" id="photoSort">
                 <option value="date-desc">Date (newest)</option>
                 <option value="date-asc">Date (oldest)</option>
-                <option value="name-asc">Name (Aâ€“Z)</option>
-                <option value="name-desc">Name (Zâ€“A)</option>
+                <option value="name-asc">Name (A–Z)</option>
+                <option value="name-desc">Name (Z–A)</option>
                 <option value="manual">Manual (arranged)</option>
               </select>
             </label>
@@ -451,7 +454,7 @@
       <!-- Announcements -->
       <section class="tabPanel" role="tabpanel" id="tab-content" aria-labelledby="tabBtn-content" hidden>
         <div class="pageContext" id="pageContext-content">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Announcements</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Announcements</p>
           <h2 class="pageContext__title">Announcements</h2>
           <p class="pageContext__description">Share updates and publish bulletins for the church website.</p>
         </div>
@@ -504,6 +507,7 @@
               File
               <input class="input" name="file" type="file" accept="application/pdf,image/*" required />
             </label>
+            <p class="hint">Accepted: PDF, JPG, PNG, WEBP, GIF. Maximum 25 MB per file.</p>
             <div class="formRow">
               <label class="label">
                 Show from
@@ -537,7 +541,7 @@
       <!-- Finances -->
       <section class="tabPanel" role="tabpanel" id="tab-finances" aria-labelledby="tabBtn-finances" hidden>
         <div class="pageContext" id="pageContext-finances">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Church Finances</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Church Finances</p>
           <h2 class="pageContext__title">Church Finances</h2>
           <p class="pageContext__description">Record giving and expenses, then review and print reports.</p>
 
@@ -557,25 +561,31 @@
                   <img class="iconBtn__icon" src="/Icons/ffilter.png" alt="" aria-hidden="true" />
                   <span class="srOnly">Filters</span>
                 </summary>
-                <div class="menu__panel" role="menu" aria-label="Filters">
-                  <div class="menu__title">Date range</div>
+                <form class="menu__panel financeFilterPanel" id="financeFilterForm" aria-label="Finance filters">
+                  <fieldset class="financeFilterFieldset">
+                    <legend class="menu__title">Date range</legend>
 
-                  <label class="menu__checkItem" role="menuitemcheckbox">
-                    <input class="menu__check" type="checkbox" data-fin-range="7" />
-                    <span>Last 7 days</span>
-                  </label>
-                  <label class="menu__checkItem" role="menuitemcheckbox">
-                    <input class="menu__check" type="checkbox" data-fin-range="30" />
-                    <span>Last 30 days</span>
-                  </label>
-                  <label class="menu__checkItem" role="menuitemcheckbox">
-                    <input class="menu__check" type="checkbox" data-fin-range="90" />
-                    <span>Last 90 days</span>
-                  </label>
-                  <label class="menu__checkItem" role="menuitemcheckbox">
-                    <input class="menu__check" type="checkbox" data-fin-range="custom" id="financeCustomToggle" />
-                    <span>Custom</span>
-                  </label>
+                    <label class="menu__checkItem">
+                      <input class="menu__check" type="radio" name="financeDateRange" value="all" id="financeRangeAll" checked />
+                      <span>All dates</span>
+                    </label>
+                    <label class="menu__checkItem">
+                      <input class="menu__check" type="radio" name="financeDateRange" value="7" id="financeRange7" />
+                      <span>Last 7 days</span>
+                    </label>
+                    <label class="menu__checkItem">
+                      <input class="menu__check" type="radio" name="financeDateRange" value="30" id="financeRange30" />
+                      <span>Last 30 days</span>
+                    </label>
+                    <label class="menu__checkItem">
+                      <input class="menu__check" type="radio" name="financeDateRange" value="90" id="financeRange90" />
+                      <span>Last 90 days</span>
+                    </label>
+                    <label class="menu__checkItem">
+                      <input class="menu__check" type="radio" name="financeDateRange" value="custom" id="financeRangeCustom" />
+                      <span>Custom date range</span>
+                    </label>
+                  </fieldset>
 
                   <div class="menu__custom" id="financeCustomRange" hidden>
                     <div class="formRow">
@@ -588,24 +598,31 @@
                         <input class="input" id="financeTo" type="date" />
                       </label>
                     </div>
+                    <p class="hint" id="financeDateRangeHint" aria-live="polite"></p>
                     <div class="toolbar toolbar--tightTop">
-                      <button class="btn btn--primary" id="financeApplyCustomRangeBtn" type="button">Apply</button>
-                      <button class="btn" id="financeClearRangeBtn" type="button">Clear</button>
+                      <button class="btn btn--primary" id="financeApplyCustomRangeBtn" type="button">Apply custom range</button>
                     </div>
                   </div>
 
                   <div class="menu__divider" role="separator" aria-hidden="true"></div>
 
-                  <div class="menu__title menu__title--spaced">Type</div>
-                  <label class="menu__checkItem" role="menuitemcheckbox">
-                    <input class="menu__check" type="checkbox" id="financeTypeIncome" checked />
-                    <span>Income</span>
-                  </label>
-                  <label class="menu__checkItem" role="menuitemcheckbox">
-                    <input class="menu__check" type="checkbox" id="financeTypeExpense" checked />
-                    <span>Expense</span>
-                  </label>
-                </div>
+                  <fieldset class="financeFilterFieldset">
+                    <legend class="menu__title menu__title--spaced">Entry type</legend>
+                    <label class="menu__checkItem">
+                      <input class="menu__check" type="checkbox" id="financeTypeIncome" checked />
+                      <span>Income</span>
+                    </label>
+                    <label class="menu__checkItem">
+                      <input class="menu__check" type="checkbox" id="financeTypeExpense" checked />
+                      <span>Expense</span>
+                    </label>
+                  </fieldset>
+
+                  <div class="toolbar toolbar--tightTop">
+                    <button class="btn" id="financeClearRangeBtn" type="button">Clear filters</button>
+                  </div>
+                  <p class="hint" id="financeFilterSummary" aria-live="polite">Showing all dates and all entry types.</p>
+                </form>
               </details>
             </div>
           </div>
@@ -674,14 +691,14 @@
         <p class="muted noPrint">Add income and expenses, filter the ledger, export to CSV, and print cleanly.</p>
 
         <div class="financePrintHeader printOnly" aria-label="Print header">
-          <div class="financePrintHeader__title" id="financePrintTitle">Mt. Moriah Missionary Baptist Church â€” Finance</div>
+          <div class="financePrintHeader__title" id="financePrintTitle">Mt. Moriah Missionary Baptist Church — Finance</div>
           <div class="financePrintHeader__meta" id="financePrintMeta"></div>
         </div>
 
-        <dialog class="dialog" id="financeReceiptsDialog" aria-label="Print receipts">
+        <dialog class="dialog" id="financeReceiptsDialog" aria-labelledby="financeReceiptsDialogTitle" aria-modal="true">
           <form method="dialog" class="card dialog__inner">
             <div class="sectionHeader sectionHeader--compact">
-              <h3 class="sectionHeader__title">Print receipts</h3>
+              <h3 class="sectionHeader__title" id="financeReceiptsDialogTitle">Print receipts</h3>
               <button class="btn" id="financeReceiptsCloseBtn" type="submit">Close</button>
             </div>
 
@@ -689,8 +706,8 @@
 
             <div class="toolbarGroup">
               <div class="inputGroup financeReceiptsSearchGroup">
-                <input class="input" id="financeReceiptsSearch" type="search" placeholder="Search entriesâ€¦" autocomplete="off" />
-                <button class="inputIconBtn" id="financeReceiptsSearchClear" type="button" aria-label="Clear search" title="Clear">Ã—</button>
+                <input class="input" id="financeReceiptsSearch" type="search" placeholder="Search entries…" autocomplete="off" />
+                <button class="inputIconBtn" id="financeReceiptsSearchClear" type="button" aria-label="Clear search" title="Clear">×</button>
               </div>
               <button class="btn" id="financeReceiptsSelectAllBtn" type="button">Select all</button>
               <button class="btn" id="financeReceiptsClearBtn" type="button">Clear</button>
@@ -793,7 +810,7 @@
       <!-- Events -->
       <section class="tabPanel" role="tabpanel" id="tab-events" aria-labelledby="tabBtn-events" hidden>
         <div class="pageContext" id="pageContext-events">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Events</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Events</p>
           <h2 class="pageContext__title">Events</h2>
           <p class="pageContext__description">Add service times, meetings, and church programs.</p>
         </div>
@@ -822,7 +839,7 @@
       <!-- Newsletter -->
       <section class="tabPanel" role="tabpanel" id="tab-newsletter" aria-labelledby="tabBtn-newsletter" hidden>
         <div class="pageContext" id="pageContext-newsletter">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Newsletter</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Newsletter</p>
           <h2 class="pageContext__title">Newsletter</h2>
           <p class="pageContext__description">Write and send church newsletters in three clear steps.</p>
         </div>
@@ -891,7 +908,7 @@
 
                 <label class="label newsletterSectionEditor__item">
                   07. Contact line (footer left)
-                  <input class="input" id="newsletterSectionContactLine" type="text" maxlength="200" placeholder="www.mmbc.church" />
+                  <input class="input" id="newsletterSectionContactLine" type="text" maxlength="200" placeholder="www.mmmbc.com" />
                 </label>
 
                 <label class="label newsletterSectionEditor__item">
@@ -978,7 +995,7 @@
       <!-- Profiles -->
       <section class="tabPanel" role="tabpanel" id="tab-profiles" aria-labelledby="tabBtn-profiles" hidden>
         <div class="pageContext" id="pageContext-profiles">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Edit Website Pages</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Edit Website Pages</p>
           <h2 class="pageContext__title">Edit Website Pages</h2>
           <p class="pageContext__description">Update ministries, leadership, church history, contact details, and more.</p>
         </div>
@@ -1076,6 +1093,7 @@
                       <input class="input" id="profileImageFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
                     </label>
                   </div>
+                  <p class="hint">Accepted: JPG, PNG, WEBP, GIF. Maximum 8 MB. Recommended portrait image near 1200 × 1200.</p>
                   <div class="toolbar">
                     <button class="btn" id="profileUploadImageBtn" type="button">Upload Image</button>
                     <button class="btn" id="profileRemoveImageBtn" type="button">Remove Image</button>
@@ -1127,29 +1145,31 @@
       <!-- Support -->
       <section class="tabPanel" role="tabpanel" id="tab-support" aria-labelledby="tabBtn-support" hidden>
         <div class="pageContext" id="pageContext-support">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Help &amp; Support</p>
+          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> › Help &amp; Support</p>
           <h2 class="pageContext__title">Help &amp; Support</h2>
           <p class="pageContext__description">Send a support request if you need help with the website manager.</p>
         </div>
-        <p class="muted">Send a message to <strong>support@alphazonelabs.com</strong>.</p>
+        <div class="card supportFormShell">
+          <p class="muted">Send a message to <strong>support@alphazonelabs.com</strong>.</p>
 
-        <form id="supportForm" class="form">
-          <label class="label">
-            Subject line
-            <input class="input" name="subject" type="text" maxlength="140" placeholder="What do you need help with?" required />
-          </label>
-          <label class="label">
-            Message
-            <textarea class="textarea" name="message" rows="6" maxlength="5000" placeholder="Share the details and any error message you seeâ€¦" required></textarea>
-          </label>
-          <label class="label">
-            Your email address (optional)
-            <input class="input" name="replyTo" type="email" maxlength="254" placeholder="you@example.com" />
-          </label>
-          <button class="btn btn--primary" type="submit">Send Message</button>
-          <div class="hint" id="supportHint" aria-live="polite"></div>
-          <div class="error" id="supportError" role="alert" hidden></div>
-        </form>
+          <form id="supportForm" class="form">
+            <label class="label">
+              Subject line
+              <input class="input" name="subject" type="text" maxlength="140" placeholder="What do you need help with?" required />
+            </label>
+            <label class="label">
+              Message
+              <textarea class="textarea" name="message" rows="6" maxlength="5000" placeholder="Share the details and any error message you see…" required></textarea>
+            </label>
+            <label class="label">
+              Your email address (optional)
+              <input class="input" name="replyTo" type="email" maxlength="254" placeholder="you@example.com" />
+            </label>
+            <button class="btn btn--primary" type="submit">Send Message</button>
+            <div class="hint" id="supportHint" aria-live="polite"></div>
+            <div class="error" id="supportError" role="alert" hidden></div>
+          </form>
+        </div>
 
         <div class="card card--spacedTop" id="appearanceCard">
           <h3 class="card__subtitle">Appearance</h3>
@@ -1164,6 +1184,16 @@
           </label>
           <div class="hint" id="appearanceHint" aria-live="polite"></div>
         </div>
+
+        <div class="card card--spacedTop" id="adminStorageHealthCard" hidden>
+          <h3 class="card__subtitle">Admin Diagnostics</h3>
+          <p class="muted">Shows current storage mode and backend availability for production troubleshooting.</p>
+          <div class="hint" id="adminStorageHealthSummary" aria-live="polite">Checking storage health…</div>
+          <div class="hint" id="adminStorageHealthDetails"></div>
+          <div class="toolbar">
+            <button class="btn" id="adminStorageHealthRefreshBtn" type="button">Refresh Diagnostics</button>
+          </div>
+        </div>
       </section>
 
 
@@ -1175,7 +1205,7 @@
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="/admin/admin.js?v=20260124"></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260725001823" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260726213520" defer></script>
 </body>
 </html>
 

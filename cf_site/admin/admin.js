@@ -5,15 +5,193 @@ let googleInitializedClientId = '';
 let googleRenderedClientId = '';
 let googleInitRetryCount = 0;
 let googleInitRetryTimer = null;
+let sessionWarningVisible = false;
 
-async function fetchCsrfToken() {
+const API_FRIENDLY_STATUS = {
+  400: 'Invalid request. Review the information and try again.',
+  401: 'Your session has expired. Refresh your session or sign in again.',
+  403: 'This action could not be completed because your session, permissions, or security token could not be verified.',
+  404: 'The requested item could not be found.',
+  409: 'This record was changed somewhere else. Refresh and try again.',
+  413: 'The selected file is too large for this upload.',
+  422: 'Please correct the highlighted information and try again.',
+  429: 'Too many attempts were made. Wait a moment and try again.',
+  500: 'The server could not complete this request.',
+  503: 'The service is temporarily unavailable. Try again shortly.'
+};
+
+class ApiRequestError extends Error {
+  constructor(message, { status = 0, requestId = '', retryable = false, sessionExpired = false, csrfFailed = false } = {}) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+    this.requestId = requestId;
+    this.retryable = retryable;
+    this.sessionExpired = sessionExpired;
+    this.csrfFailed = csrfFailed;
+  }
+}
+
+function sanitizeApiMessage(value) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  return text
+    .replace(/[A-Z]:\\[^\s]+/g, '')
+    .replace(/\b(select|insert|update|delete|drop|create|alter)\b[^.]*?/ig, '')
+    .replace(/(token|secret|password|key)\s*[:=]\s*[^\s]+/ig, '$1 [redacted]')
+    .trim();
+}
+
+function buildApiErrorMessage(status, detail, requestId = '') {
+  const fallback = API_FRIENDLY_STATUS[status] || 'The request could not be completed.';
+  const safeDetail = sanitizeApiMessage(detail);
+  const base = safeDetail || fallback;
+  return requestId ? `${base} Request ID: ${requestId}` : base;
+}
+
+async function parseApiErrorResponse(res) {
+  const requestId = String(res.headers.get('x-request-id') || '').trim();
+  let bodyText = '';
+  let jsonPayload = null;
+
+  try {
+    bodyText = await res.text();
+  } catch {
+    bodyText = '';
+  }
+
+  const trimmed = String(bodyText || '').trim();
+  if (trimmed) {
+    try {
+      jsonPayload = JSON.parse(trimmed);
+    } catch {
+      jsonPayload = null;
+    }
+  }
+
+  const detail = jsonPayload && typeof jsonPayload === 'object'
+    ? String(jsonPayload.error || jsonPayload.message || '')
+    : trimmed;
+  const effectiveRequestId = requestId || String(jsonPayload?.requestId || '').trim();
+  const message = buildApiErrorMessage(
+    res.status,
+    detail || res.statusText || '',
+    effectiveRequestId
+  );
+  const lowerDetail = String(detail || '').toLowerCase();
+
+  return new ApiRequestError(message, {
+    status: res.status,
+    requestId: effectiveRequestId,
+    retryable: res.status === 401 || (res.status === 403 && /csrf|session|security token|sign in|unauthoriz/.test(lowerDetail)),
+    sessionExpired: res.status === 401 || (res.status === 403 && /session|sign in|unauthoriz/.test(lowerDetail)),
+    csrfFailed: res.status === 403 && /csrf|security token/.test(lowerDetail)
+  });
+}
+
+function ensureSessionWarningUi() {
+  if (typeof document === 'undefined') return null;
+  let root = $('sessionWarning');
+  if (root) return root;
+
+  root = document.createElement('section');
+  root.id = 'sessionWarning';
+  root.className = 'sessionWarning card';
+  root.hidden = true;
+  root.setAttribute('role', 'alert');
+  root.setAttribute('aria-live', 'assertive');
+  root.innerHTML = `
+    <div class="sessionWarning__body">
+      <h2 class="sessionWarning__title">Session attention required</h2>
+      <p class="sessionWarning__message" id="sessionWarningMessage">Your session needs attention.</p>
+    </div>
+    <div class="sessionWarning__actions">
+      <button class="btn" id="sessionWarningRefreshBtn" type="button">Refresh session</button>
+      <button class="btn btn--primary" id="sessionWarningSignInBtn" type="button">Sign in again</button>
+    </div>
+  `;
+
+  const app = $('app');
+  if (app && app.parentNode) app.parentNode.insertBefore(root, app);
+  else document.body.insertBefore(root, document.body.firstChild);
+
+  const refreshBtn = $('sessionWarningRefreshBtn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async () => {
+      const message = $('sessionWarningMessage');
+      if (refreshBtn.disabled) return;
+      refreshBtn.disabled = true;
+      if (message) message.textContent = 'Refreshing your session…';
+      try {
+        csrfToken = '';
+        csrfReady = fetchCsrfToken({ throwOnFailure: true });
+        await csrfReady;
+        hideSessionWarning();
+        await refreshAuthUI();
+      } catch (err) {
+        if (message) message.textContent = err instanceof Error ? err.message : 'Session refresh failed.';
+      } finally {
+        refreshBtn.disabled = false;
+      }
+    });
+  }
+
+  const signInBtn = $('sessionWarningSignInBtn');
+  if (signInBtn) {
+    signInBtn.addEventListener('click', () => {
+      window.location.hash = '';
+      window.location.reload();
+    });
+  }
+
+  return root;
+}
+
+function showSessionWarning(message) {
+  const root = ensureSessionWarningUi();
+  if (!root) return;
+  const text = $('sessionWarningMessage');
+  if (text) text.textContent = message;
+  root.hidden = false;
+  sessionWarningVisible = true;
+}
+
+function hideSessionWarning() {
+  const root = $('sessionWarning');
+  if (!root) return;
+  root.hidden = true;
+  sessionWarningVisible = false;
+}
+
+function getSessionWarningVisible() {
+  return sessionWarningVisible;
+}
+
+async function fetchCsrfToken({ throwOnFailure = false } = {}) {
   try {
     const res = await fetch('/api/csrf', { method: 'GET', credentials: 'same-origin' });
-    if (!res.ok) return '';
+    if (!res.ok) {
+      const err = await parseApiErrorResponse(res);
+      csrfToken = '';
+      if (throwOnFailure) throw err;
+      return '';
+    }
     const data = await res.json();
     csrfToken = String(data?.csrfToken || '');
+    if (!csrfToken) {
+      const err = new ApiRequestError(buildApiErrorMessage(403, 'A security token could not be created.'), {
+        status: 403,
+        retryable: true,
+        csrfFailed: true
+      });
+      if (throwOnFailure) throw err;
+      return '';
+    }
+    hideSessionWarning();
     return csrfToken;
-  } catch {
+  } catch (err) {
+    csrfToken = '';
+    if (throwOnFailure) throw err;
     return '';
   }
 }
@@ -31,51 +209,77 @@ async function api(path, options = {}) {
     && !url.startsWith('/api/auth/recover')
     && !url.startsWith('/api/invites/');
 
-  if (needsCsrf) {
+  const isFormData = options.body instanceof FormData;
+  const createHeaders = () => ({
+    ...(options.headers || {}),
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' })
+  });
+
+  const ensureCsrfToken = async () => {
     await csrfReady;
-    // If the page hasn't fetched a token yet (or it was cleared), fetch now.
     if (!csrfToken) {
-      csrfReady = fetchCsrfToken();
+      csrfReady = fetchCsrfToken({ throwOnFailure: true });
       await csrfReady;
     }
-  }
-
-  const headers = {
-    ...(options.headers || {}),
-    ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' })
+    if (!csrfToken) {
+      throw new ApiRequestError(buildApiErrorMessage(403, 'A valid security token is required before saving changes.'), {
+        status: 403,
+        retryable: true,
+        csrfFailed: true
+      });
+    }
   };
-  if (needsCsrf && csrfToken) headers['X-CSRF-Token'] = csrfToken;
 
-  const doRequest = async () => {
+  if (needsCsrf) await ensureCsrfToken();
+
+  const doRequest = async (headers) => {
     const res = await fetch(url, {
       headers,
       credentials: 'same-origin',
       ...options
     });
+    if (!res.ok) throw await parseApiErrorResponse(res);
+    const bodyText = await res.text();
+    if (!bodyText) return null;
     const isJson = (res.headers.get('content-type') || '').includes('application/json');
-    const data = isJson ? await res.json() : null;
-    return { res, data };
+    if (isJson) {
+      try {
+        return JSON.parse(bodyText);
+      } catch {
+        return null;
+      }
+    }
+    return bodyText;
   };
 
-  let out = await doRequest();
+  try {
+    const headers = createHeaders();
+    if (needsCsrf) headers['X-CSRF-Token'] = csrfToken;
+    return await doRequest(headers);
+  } catch (err) {
+    if (!(err instanceof ApiRequestError)) throw err;
+    if (!(needsCsrf && err.retryable)) {
+      if (err.sessionExpired || err.csrfFailed) showSessionWarning(err.message);
+      throw err;
+    }
 
-  // If the session rotated, CSRF tokens can become invalid. Refresh once and retry.
-  if (needsCsrf && !out.res.ok && out.res.status === 403) {
-    const errMsg = String(out.data?.error || '');
-    if (/csrf/i.test(errMsg)) {
-      csrfReady = fetchCsrfToken();
+    csrfToken = '';
+    csrfReady = fetchCsrfToken({ throwOnFailure: true });
+
+    try {
       await csrfReady;
-      if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
-      out = await doRequest();
+      const retryHeaders = createHeaders();
+      retryHeaders['X-CSRF-Token'] = csrfToken;
+      hideSessionWarning();
+      return await doRequest(retryHeaders);
+    } catch (retryErr) {
+      const finalErr = retryErr instanceof ApiRequestError
+        ? retryErr
+        : new ApiRequestError('The request could not be completed.', { status: 500 });
+      showSessionWarning(finalErr.message);
+      throw finalErr;
     }
   }
-
-  if (!out.res.ok) {
-    const msg = out.data?.error || `Request failed: ${out.res.status}`;
-    throw new Error(msg);
-  }
-
-  return out.data;
 }
 
 function $(id) { return document.getElementById(id); }
@@ -91,6 +295,44 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value).replace(/`/g, '&#96;');
+}
+
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(1)} MB`;
+  const gb = mb / 1024;
+  return `${gb.toFixed(1)} GB`;
+}
+
+function validateUploadFiles(fileList, {
+  maxFileBytes = 0,
+  maxFiles = 0,
+  allowedMimes = null,
+  label = 'file'
+} = {}) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return `${label[0].toUpperCase()}${label.slice(1)} selection is required.`;
+  if (maxFiles > 0 && files.length > maxFiles) {
+    return `You can upload up to ${maxFiles} ${label}${maxFiles === 1 ? '' : 's'} at a time.`;
+  }
+
+  for (const file of files) {
+    const mimeType = String(file?.type || '').toLowerCase();
+    if (allowedMimes instanceof Set && allowedMimes.size > 0 && !allowedMimes.has(mimeType)) {
+      return `Unsupported ${label} type for ${String(file?.name || 'selected file')}.`;
+    }
+    const size = Number(file?.size || 0);
+    if (maxFileBytes > 0 && size > maxFileBytes) {
+      return `${String(file?.name || 'Selected file')} exceeds the ${formatBytes(maxFileBytes)} size limit.`;
+    }
+  }
+
+  return '';
 }
 
 let syncProgressHideTimer = null;
@@ -148,8 +390,18 @@ const NEWSLETTER_SECTION_FIELDS = [
 ];
 const unsavedSnapshots = new Map();
 const unsavedDirtyForms = new Set();
+const unsavedFileSelections = new Set();
+const formUploadsInProgress = new Set();
+const programmaticFormUpdates = new Set();
+const PHOTO_UPLOAD_MAX_BYTES = 15 * 1024 * 1024;
+const PHOTO_UPLOAD_MAX_FILES = 20;
+const SITE_IMAGE_UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
+const BULLETIN_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
+const IMAGE_UPLOAD_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const BULLETIN_UPLOAD_MIME_TYPES = new Set(['application/pdf', ...IMAGE_UPLOAD_MIME_TYPES]);
 let adminDrawerOpen = false;
 let adminDrawerRestoreFocus = null;
+const dialogFocusRestoreTargets = new WeakMap();
 
 const sitePreviewPageMap = {
   home: { label: 'Home', url: '/' },
@@ -272,6 +524,66 @@ function setAdminDrawerOpen(isOpen, { restoreFocus = true } = {}) {
   }
 }
 
+function openManagedDialog(dialogEl, { initialFocusId = '' } = {}) {
+  if (!(dialogEl instanceof HTMLElement)) return;
+  const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  if (active) dialogFocusRestoreTargets.set(dialogEl, active);
+
+  dialogEl.setAttribute('aria-modal', 'true');
+  if (dialogEl instanceof HTMLDialogElement && typeof dialogEl.showModal === 'function') {
+    try {
+      if (!dialogEl.open) dialogEl.showModal();
+    } catch {
+      dialogEl.setAttribute('open', '');
+    }
+  } else {
+    dialogEl.setAttribute('open', '');
+  }
+
+  if (initialFocusId) {
+    const focusTarget = $(initialFocusId);
+    if (focusTarget instanceof HTMLElement) {
+      try { focusTarget.focus(); } catch { /* ignore */ }
+    }
+  }
+}
+
+function closeManagedDialog(dialogEl, { restoreFocus = true } = {}) {
+  if (!(dialogEl instanceof HTMLElement)) return;
+
+  try {
+    if (dialogEl instanceof HTMLDialogElement && typeof dialogEl.close === 'function') {
+      if (dialogEl.open) dialogEl.close();
+    } else {
+      dialogEl.removeAttribute('open');
+    }
+  } catch {
+    dialogEl.removeAttribute('open');
+  }
+
+  if (!restoreFocus) return;
+  const previous = dialogFocusRestoreTargets.get(dialogEl);
+  if (previous instanceof HTMLElement) {
+    try { previous.focus(); } catch { /* ignore */ }
+  }
+}
+
+function wireDialogDismissBehavior(dialogEl, { onClose = null } = {}) {
+  if (!(dialogEl instanceof HTMLElement)) return;
+  const closeHandler = typeof onClose === 'function' ? onClose : () => closeManagedDialog(dialogEl);
+
+  dialogEl.addEventListener('click', (e) => {
+    if (e.target !== dialogEl) return;
+    e.preventDefault();
+    closeHandler();
+  });
+
+  dialogEl.addEventListener('cancel', (e) => {
+    e.preventDefault();
+    closeHandler();
+  });
+}
+
 function closeDrawerAfterNavigation() {
   if (!adminDrawerOpen) return;
   setAdminDrawerOpen(false, { restoreFocus: true });
@@ -307,47 +619,131 @@ function applyAppearancePreference(pref) {
   }
 }
 
+function fileSignature(file) {
+  if (!file) return '';
+  return [
+    String(file.name || ''),
+    Number(file.size) || 0,
+    Number(file.lastModified) || 0
+  ].join(':');
+}
+
 function serializeFormState(form) {
-  const pairs = [];
+  const fields = [];
+  const files = [];
   const elements = Array.from(form.elements || []);
   for (const el of elements) {
-    if (!el || !el.name) continue;
+    if (!el) continue;
     if (el.disabled) continue;
-    if (el.type === 'file') continue;
-    if (el.type === 'checkbox' || el.type === 'radio') {
-      pairs.push(`${el.name}:${el.checked ? '1' : '0'}`);
+    const key = String(el.name || el.id || '').trim();
+    if (!key) continue;
+    if (el.type === 'file') {
+      const selectedFiles = Array.from(el.files || []);
+      files.push({
+        key,
+        count: selectedFiles.length,
+        files: selectedFiles.map((file) => fileSignature(file))
+      });
       continue;
     }
-    pairs.push(`${el.name}:${String(el.value || '')}`);
+    if (el.type === 'checkbox' || el.type === 'radio') {
+      fields.push(`${key}:${el.checked ? '1' : '0'}`);
+      continue;
+    }
+    fields.push(`${key}:${String(el.value || '')}`);
   }
-  return pairs.join('|');
+  return JSON.stringify({ fields, files });
+}
+
+function parseSerializedFormState(snapshot) {
+  if (!snapshot) return { fields: [], files: [] };
+  try {
+    const parsed = JSON.parse(snapshot);
+    return {
+      fields: Array.isArray(parsed?.fields) ? parsed.fields : [],
+      files: Array.isArray(parsed?.files) ? parsed.files : []
+    };
+  } catch {
+    return { fields: [String(snapshot)], files: [] };
+  }
+}
+
+function hasSelectedFiles(snapshot) {
+  return Array.isArray(snapshot?.files) && snapshot.files.some((entry) => Number(entry?.count) > 0);
+}
+
+function markFormUploadState(formOrId, uploading) {
+  const formId = typeof formOrId === 'string'
+    ? formOrId
+    : String(formOrId?.id || '').trim();
+  if (!formId) return;
+  if (uploading) formUploadsInProgress.add(formId);
+  else formUploadsInProgress.delete(formId);
+}
+
+function withProgrammaticFormUpdate(form, applyChanges, { resetBaseline = true } = {}) {
+  if (!(form instanceof HTMLFormElement)) {
+    applyChanges();
+    return;
+  }
+  programmaticFormUpdates.add(form.id);
+  try {
+    applyChanges();
+  } finally {
+    if (resetBaseline) resetUnsavedBaseline(form);
+    programmaticFormUpdates.delete(form.id);
+  }
 }
 
 function resetUnsavedBaseline(form) {
   if (!(form instanceof HTMLFormElement) || !form.id) return;
   unsavedSnapshots.set(form.id, serializeFormState(form));
   unsavedDirtyForms.delete(form.id);
+  unsavedFileSelections.delete(form.id);
+  formUploadsInProgress.delete(form.id);
 }
 
 function updateUnsavedForForm(form) {
   if (!(form instanceof HTMLFormElement) || !form.id) return;
+  if (programmaticFormUpdates.has(form.id)) return;
   const baseline = unsavedSnapshots.get(form.id);
   if (baseline === undefined) {
     resetUnsavedBaseline(form);
     return;
   }
-  const current = serializeFormState(form);
-  if (current !== baseline) unsavedDirtyForms.add(form.id);
+  const current = parseSerializedFormState(serializeFormState(form));
+  const previous = parseSerializedFormState(baseline);
+
+  if (JSON.stringify(current.fields) !== JSON.stringify(previous.fields)) unsavedDirtyForms.add(form.id);
   else unsavedDirtyForms.delete(form.id);
+
+  if (JSON.stringify(current.files) !== JSON.stringify(previous.files) && hasSelectedFiles(current)) {
+    unsavedFileSelections.add(form.id);
+  } else {
+    unsavedFileSelections.delete(form.id);
+  }
 }
 
 function hasUnsavedChanges() {
-  return unsavedDirtyForms.size > 0;
+  return unsavedDirtyForms.size > 0 || unsavedFileSelections.size > 0 || formUploadsInProgress.size > 0;
+}
+
+function unsavedChangeMessage() {
+  if (formUploadsInProgress.size > 0) {
+    return 'An upload is still in progress. Leave this page and interrupt the upload?';
+  }
+  if (unsavedFileSelections.size > 0 && unsavedDirtyForms.size > 0) {
+    return 'You have unsaved changes and selected files that have not been uploaded. Leave this page without saving them?';
+  }
+  if (unsavedFileSelections.size > 0) {
+    return 'You selected file changes that have not been uploaded yet. Leave this page without uploading them?';
+  }
+  return UNSAVED_WARNING_TEXT;
 }
 
 function confirmUnsavedChanges() {
   if (!hasUnsavedChanges()) return true;
-  return confirmWrite(UNSAVED_WARNING_TEXT);
+  return confirmWrite(unsavedChangeMessage());
 }
 
 function resetAllUnsavedBaselines() {
@@ -407,7 +803,10 @@ function setSyncProgress({ visible, indeterminate, value, max, text } = {}) {
 
 function safeResetForm(e) {
   const form = e?.currentTarget || e?.target?.closest?.('form');
-  if (form && typeof form.reset === 'function') form.reset();
+  if (form && typeof form.reset === 'function') {
+    form.reset();
+    window.setTimeout(() => resetUnsavedBaseline(form), 0);
+  }
 }
 
 function showToast(message, { variant = 'success', timeoutMs = 3500 } = {}) {
@@ -933,6 +1332,7 @@ async function refreshAuthUI() {
   $('dashboardCard').hidden = !loggedIn || inInviteFlow;
   $('logoutBtn').hidden = !loggedIn;
   if ($('inviteAdminBtn')) $('inviteAdminBtn').hidden = !canManageUsers || inInviteFlow;
+  if ($('adminStorageHealthCard')) $('adminStorageHealthCard').hidden = !canManageUsers || inInviteFlow;
 
   if (!loggedIn && !inInviteFlow) {
     const form = $('loginForm');
@@ -968,6 +1368,9 @@ async function refreshAuthUI() {
     csrfReady = fetchCsrfToken();
     await csrfReady;
     await loadAll();
+    if (canManageUsers) {
+      await loadAdminStorageHealth();
+    }
     applyHashNavigation();
     setAdminDrawerOpen(getStoredDrawerPreference(), { restoreFocus: false });
     resetAllUnsavedBaselines();
@@ -1195,24 +1598,77 @@ function financeSetQuickKind(kind, { render = true } = {}) {
   if (render) renderFinances();
 }
 
-function financeReadCheckedRangeDays(menuEl) {
-  if (!menuEl) return [];
-  const inputs = Array.from(menuEl.querySelectorAll('input[data-fin-range]'));
-  const days = [];
-  for (const el of inputs) {
-    if (!(el instanceof HTMLInputElement)) continue;
-    if (!el.checked) continue;
-    const v = String(el.getAttribute('data-fin-range') || '').trim();
-    if (/^\d+$/.test(v)) days.push(Number(v));
+function financeDateRangeSelection() {
+  const checked = document.querySelector('input[name="financeDateRange"]:checked');
+  const value = String(checked?.value || '').trim().toLowerCase();
+  if (value === '7' || value === '30' || value === '90' || value === 'custom' || value === 'all') return value;
+  return 'all';
+}
+
+function financeCustomRangeValidation() {
+  const from = String($('financeFrom')?.value || '').trim();
+  const to = String($('financeTo')?.value || '').trim();
+  if (!from || !to) {
+    return { ok: false, from, to, message: 'Choose both From and To dates.' };
   }
-  return days;
+  if (from > to) {
+    return { ok: false, from, to, message: 'From date cannot be after To date.' };
+  }
+  return { ok: true, from, to, message: '' };
+}
+
+function financeRangeFromSelection(selection) {
+  const sel = String(selection || 'all').trim().toLowerCase();
+  if (sel === 'custom') {
+    const check = financeCustomRangeValidation();
+    return {
+      from: check.ok ? check.from : '',
+      to: check.ok ? check.to : '',
+      rangeError: check.ok ? '' : check.message
+    };
+  }
+  if (sel === '7' || sel === '30' || sel === '90') {
+    const days = Number(sel);
+    const to = isoDateToday();
+    const from = addDaysToIsoDate(to, -(days - 1));
+    return { from, to, rangeError: '' };
+  }
+  return { from: '', to: '', rangeError: '' };
+}
+
+function financeDateRangeLabel(filters) {
+  const selection = String(filters?.dateRange || 'all');
+  if (selection === '7') return 'Last 7 days (inclusive)';
+  if (selection === '30') return 'Last 30 days (inclusive)';
+  if (selection === '90') return 'Last 90 days (inclusive)';
+  if (selection === 'custom') {
+    if (filters?.from && filters?.to) return `Custom: ${filters.from} to ${filters.to} (To date inclusive)`;
+    return 'Custom date range';
+  }
+  return 'All dates';
+}
+
+function financeRenderFilterSummary(filters, rowCount) {
+  const el = $('financeFilterSummary');
+  if (!el) return;
+  const types = Array.isArray(filters?.types) && filters.types.length
+    ? filters.types.map((t) => t === 'income' ? 'Income' : 'Expense').join(' + ')
+    : 'All entry types';
+  const searchText = String(filters?.search || '').trim();
+  const searchSummary = searchText ? `Search: "${searchText}"` : 'No search';
+  const countText = Number.isFinite(Number(rowCount)) ? ` • ${rowCount} matching entries` : '';
+  el.textContent = `${financeDateRangeLabel(filters)} • ${types} • ${searchSummary}${countText}`;
 }
 
 function financeCurrentFilters() {
   const selectedTypes = financeSelectedTypes();
+  const dateRange = financeDateRangeSelection();
+  const range = financeRangeFromSelection(dateRange);
   return {
-    from: String($('financeFrom')?.value || ''),
-    to: String($('financeTo')?.value || ''),
+    from: range.from,
+    to: range.to,
+    dateRange,
+    rangeError: range.rangeError,
     type: String($('financeTypeFilter')?.value || ''),
     types: selectedTypes,
     kind: String(financeQuickKind || ''),
@@ -1287,7 +1743,7 @@ function populateFinanceDatalists() {
   const categories = Array.isArray(finances?.meta?.categories) ? finances.meta.categories : [];
   const funds = Array.isArray(finances?.meta?.funds) ? finances.meta.funds : [];
 
-  const setOptions = (sel, values, { required = false } = {}) => {
+  const setOptions = (sel, values, { required = false, allowDelete = false } = {}) => {
     if (!(sel instanceof HTMLSelectElement)) return;
     const current = String(sel.value || '');
     sel.innerHTML = '';
@@ -1301,7 +1757,7 @@ function populateFinanceDatalists() {
     unique.sort((a, b) => a.localeCompare(b));
 
     // Ensure current value remains selectable even if it isn't in meta.
-    if (current && !unique.includes(current) && current !== FIN_CREATE_VALUE) unique.unshift(current);
+    if (current && !unique.includes(current) && current !== FIN_CREATE_VALUE && current !== FIN_DELETE_VALUE) unique.unshift(current);
 
     for (const v of unique) {
       const opt = document.createElement('option');
@@ -1315,10 +1771,17 @@ function populateFinanceDatalists() {
     createOpt.textContent = 'Create…';
     sel.appendChild(createOpt);
 
+    if (allowDelete) {
+      const deleteOpt = document.createElement('option');
+      deleteOpt.value = FIN_DELETE_VALUE;
+      deleteOpt.textContent = 'Delete…';
+      sel.appendChild(deleteOpt);
+    }
+
     if (current && Array.from(sel.options).some((o) => o.value === current)) sel.value = current;
   };
 
-  setOptions(catSel, categories, { required: true });
+  setOptions(catSel, categories, { required: true, allowDelete: true });
   setOptions(fundSel, funds, { required: false });
 }
 
@@ -1329,7 +1792,54 @@ function normalizeFinanceName(value) {
 async function financeHandleCreateSelect(kind) {
   const sel = kind === 'fund' ? $('financeFund') : $('financeCategory');
   if (!(sel instanceof HTMLSelectElement)) return;
-  if (String(sel.value || '') !== FIN_CREATE_VALUE) return;
+  const selected = String(sel.value || '');
+  if (selected !== FIN_CREATE_VALUE && selected !== FIN_DELETE_VALUE) return;
+
+  if (selected === FIN_DELETE_VALUE) {
+    sel.value = '';
+    if (kind !== 'category') return;
+
+    const currentCats = Array.isArray(finances?.meta?.categories) ? finances.meta.categories : [];
+    if (!currentCats.length) {
+      setFinanceHint('There are no categories to delete.');
+      return;
+    }
+
+    const typed = normalizeFinanceName(prompt('Type the category name you want to delete'));
+    if (!typed) return;
+
+    const matched = currentCats.find((name) => financeNormalizeKey(name) === financeNormalizeKey(typed));
+    if (!matched) {
+      setFinanceHint('Category not found. Enter an existing category name.');
+      return;
+    }
+
+    const entries = Array.isArray(finances?.entries) ? finances.entries : [];
+    const inUse = entries.some((entry) => financeNormalizeKey(entry?.category) === financeNormalizeKey(matched));
+    if (inUse) {
+      setFinanceHint('That category is in use by existing ledger entries and cannot be deleted.');
+      return;
+    }
+
+    if (!confirmWrite(`Delete category "${matched}"?`)) return;
+
+    const currentFunds = Array.isArray(finances?.meta?.funds) ? finances.meta.funds : [];
+    const cats = currentCats.filter((name) => financeNormalizeKey(name) !== financeNormalizeKey(matched));
+
+    setFinanceHint('Saving…');
+    try {
+      const res = await api('/api/finances/meta', {
+        method: 'PUT',
+        body: JSON.stringify({ categories: cats, funds: currentFunds })
+      });
+      finances = res.data;
+      populateFinanceDatalists();
+      setFinanceHint('Category deleted.');
+    } catch (e) {
+      setFinanceHint(String(e?.message || e || 'Unable to save.'));
+    }
+    return;
+  }
 
   // Reset immediately so cancel doesn't leave it stuck on the sentinel.
   sel.value = '';
@@ -1437,6 +1947,8 @@ function renderFinances() {
   const filters = financeCurrentFilters();
   const all = Array.isArray(finances?.entries) ? finances.entries : [];
   const rows = all.filter((e) => financeEntryMatches(e, filters));
+  const rangeHint = $('financeDateRangeHint');
+  if (rangeHint) rangeHint.textContent = String(filters?.rangeError || '');
 
   // Totals should reflect the selected date/search filters, but not the
   // quick-kind mini-tabs OR the type checkbox filters.
@@ -1460,9 +1972,11 @@ function renderFinances() {
 
   const meta = $('financePrintMeta');
   if (meta) {
-    const range = filters.from || filters.to ? `${filters.from || '…'} to ${filters.to || '…'}` : 'All dates';
+    const range = financeDateRangeLabel(filters);
     meta.textContent = `Printed: ${formatLocalTimestamp()} • Report: Finance ledger • ${range} • ${rows.length} entries • Income ${formatMoneyCents(income)} • Expense ${formatMoneyCents(expense)} • Net ${formatMoneyCents(net)}`;
   }
+
+  financeRenderFilterSummary(filters, rows.length);
 
   const tbody = $('financeTableBody');
   if (!tbody) return;
@@ -1550,7 +2064,7 @@ async function loadFinances() {
   if ($('financeDate') && !$('financeDate').value) $('financeDate').value = isoDateToday();
   // Hide custom range UI unless the user explicitly opens it.
   if ($('financeCustomRange')) {
-    const customToggle = $('financeCustomToggle');
+    const customToggle = $('financeRangeCustom');
     const wantsCustom = (customToggle instanceof HTMLInputElement) ? !!customToggle.checked : false;
     setFinanceCustomMode(wantsCustom);
   }
@@ -1717,6 +2231,7 @@ let photoCurrentPage = 1;
 const PHOTO_ROWS_PER_PAGE = 6;
 
 const FIN_CREATE_VALUE = '__CREATE__';
+const FIN_DELETE_VALUE = '__DELETE__';
 
 function photoGetColumns() {
   const grid = $('photoGrid');
@@ -3454,17 +3969,20 @@ function buildNewsletterPayloadFromForm() {
 }
 
 function applyNewsletterPayloadToForm(record) {
-  if ($('newsletterSubject')) $('newsletterSubject').value = String(record?.subject || '');
-  if ($('newsletterMessage')) $('newsletterMessage').value = String(record?.message || '');
-  if ($('newsletterScheduleDate')) $('newsletterScheduleDate').value = String(record?.scheduleDate || '');
-  if ($('newsletterScheduleTime')) $('newsletterScheduleTime').value = String(record?.scheduleTime || '');
-  if ($('newsletterScheduleTimezone')) $('newsletterScheduleTimezone').value = String(record?.scheduleTimezone || 'America/Chicago');
-  const emails = Array.isArray(record?.emails) ? record.emails : [];
-  const normalized = emails.map((x) => String(x || '').trim().toLowerCase()).filter(Boolean);
-  newsletterSelectedRecipients = new Set(normalized);
-  newsletterRecipientSelection = normalized.length === 1 ? normalized[0] : '__all__';
-  renderRecipientOptions();
-  renderNewsletterPreview();
+  const form = $('newsletterForm');
+  withProgrammaticFormUpdate(form, () => {
+    if ($('newsletterSubject')) $('newsletterSubject').value = String(record?.subject || '');
+    if ($('newsletterMessage')) $('newsletterMessage').value = String(record?.message || '');
+    if ($('newsletterScheduleDate')) $('newsletterScheduleDate').value = String(record?.scheduleDate || '');
+    if ($('newsletterScheduleTime')) $('newsletterScheduleTime').value = String(record?.scheduleTime || '');
+    if ($('newsletterScheduleTimezone')) $('newsletterScheduleTimezone').value = String(record?.scheduleTimezone || 'America/Chicago');
+    const emails = Array.isArray(record?.emails) ? record.emails : [];
+    const normalized = emails.map((x) => String(x || '').trim().toLowerCase()).filter(Boolean);
+    newsletterSelectedRecipients = new Set(normalized);
+    newsletterRecipientSelection = normalized.length === 1 ? normalized[0] : '__all__';
+    renderRecipientOptions();
+    renderNewsletterPreview();
+  });
 }
 
 function detectBrowserTimeZone() {
@@ -3812,7 +4330,7 @@ function syncSitePreviewFrameHeight() {
       doc.body.offsetHeight || 0,
       doc.documentElement?.offsetHeight || 0
     );
-    frame.style.height = `${Math.max(bodyHeight, 520)}px`;
+    frame.style.height = `${Math.max(bodyHeight, 320)}px`;
     frame.style.overflow = 'hidden';
   } catch {
     // ignore cross-frame sizing issues
@@ -3983,7 +4501,7 @@ function renderNewsletterPreview() {
   const weekOfDate = String(parsedSections['Week of date'] || '').trim();
   const bodyHeader = String(parsedSections['Header'] || '').trim() || 'Weekly Newsletter Header';
   const welcomeBody = String(parsedSections['Welcome'] || '').trim() || 'Add the welcome message for this newsletter issue.';
-  const contactLine = String(parsedSections['Contact line'] || '').trim() || 'www.mmbc.church';
+  const contactLine = String(parsedSections['Contact line'] || '').trim() || 'www.mmmbc.com';
   const footerLine = String(parsedSections['Footer line'] || '').trim() || 'Mt. Moriah Newsletter';
 
   const contentSections = [
@@ -4069,34 +4587,39 @@ function fillProfileHeaderEditor() {
   const pageMeta = page === 'leadership' ? meta.leadership : meta.ministries;
   const isProfilePage = page === 'ministries' || page === 'leadership';
 
-  if ($('profileHeaderPageTitle')) $('profileHeaderPageTitle').value = isProfilePage ? (pageMeta.pageTitle || '') : '';
-  if ($('profileHeaderIntroText')) $('profileHeaderIntroText').value = isProfilePage ? (meta.ministries.introText || '') : '';
-  if ($('profileHeaderStaffHeading')) $('profileHeaderStaffHeading').value = meta.leadership.staffHeading || '';
-  if ($('profileHeaderDeaconsHeading')) $('profileHeaderDeaconsHeading').value = meta.leadership.deaconsHeading || '';
-  if ($('profileHeaderDeaconessesHeading')) $('profileHeaderDeaconessesHeading').value = meta.leadership.deaconessesHeading || '';
-  if ($('profileHeaderOfficialTeamHeading')) $('profileHeaderOfficialTeamHeading').value = meta.leadership.officialTeamHeading || '';
+  withProgrammaticFormUpdate($('profileHeaderForm'), () => {
+    if ($('profileHeaderPageTitle')) $('profileHeaderPageTitle').value = isProfilePage ? (pageMeta.pageTitle || '') : '';
+    if ($('profileHeaderIntroText')) $('profileHeaderIntroText').value = isProfilePage ? (meta.ministries.introText || '') : '';
+    if ($('profileHeaderStaffHeading')) $('profileHeaderStaffHeading').value = meta.leadership.staffHeading || '';
+    if ($('profileHeaderDeaconsHeading')) $('profileHeaderDeaconsHeading').value = meta.leadership.deaconsHeading || '';
+    if ($('profileHeaderDeaconessesHeading')) $('profileHeaderDeaconessesHeading').value = meta.leadership.deaconessesHeading || '';
+    if ($('profileHeaderOfficialTeamHeading')) $('profileHeaderOfficialTeamHeading').value = meta.leadership.officialTeamHeading || '';
 
-  const leadershipOnly = $('profileHeaderLeadershipFields');
-  if (leadershipOnly) leadershipOnly.hidden = page !== 'leadership';
-  const ministriesIntro = $('profileHeaderMinistriesIntroRow');
-  if (ministriesIntro) ministriesIntro.hidden = page !== 'ministries';
+    const leadershipOnly = $('profileHeaderLeadershipFields');
+    if (leadershipOnly) leadershipOnly.hidden = page !== 'leadership';
+    const ministriesIntro = $('profileHeaderMinistriesIntroRow');
+    if (ministriesIntro) ministriesIntro.hidden = page !== 'ministries';
 
-  renderSiteEditorPreview();
+    renderSiteEditorPreview();
+  });
 }
 
 function fillProfileEditor(id) {
   const p = profiles.find((x) => String(x.id) === String(id));
   if (!p) return;
-  if ($('profileId')) $('profileId').value = p.id;
-  if ($('profilePage')) $('profilePage').value = p.page;
-  if ($('profileSection')) $('profileSection').value = p.section || '';
-  if ($('profileImage')) $('profileImage').value = p.image || '';
-  if ($('profileImageAlt')) $('profileImageAlt').value = p.alt || p.name || '';
-  if ($('profileName')) $('profileName').value = p.name || '';
-  if ($('profileTitle')) $('profileTitle').value = p.title || '';
-  if ($('profileBio')) $('profileBio').value = p.bio || '';
-  updateProfileImagePreview(p.image || '', p.alt || p.name || '');
-  renderSiteEditorPreview();
+  withProgrammaticFormUpdate($('profileForm'), () => {
+    if ($('profileId')) $('profileId').value = p.id;
+    if ($('profilePage')) $('profilePage').value = p.page;
+    if ($('profileSection')) $('profileSection').value = p.section || '';
+    if ($('profileImage')) $('profileImage').value = p.image || '';
+    if ($('profileImageAlt')) $('profileImageAlt').value = p.alt || p.name || '';
+    if ($('profileName')) $('profileName').value = p.name || '';
+    if ($('profileTitle')) $('profileTitle').value = p.title || '';
+    if ($('profileBio')) $('profileBio').value = p.bio || '';
+    if ($('profileImageFile')) $('profileImageFile').value = '';
+    updateProfileImagePreview(p.image || '', p.alt || p.name || '');
+    renderSiteEditorPreview();
+  });
 }
 
 async function loadProfiles() {
@@ -4145,6 +4668,44 @@ async function loadAll() {
   }
 }
 
+function renderStorageHealthStatus(data) {
+  const summary = $('adminStorageHealthSummary');
+  const details = $('adminStorageHealthDetails');
+  if (!summary || !details) return;
+
+  if (!data || typeof data !== 'object') {
+    summary.textContent = 'Diagnostics unavailable.';
+    details.textContent = '';
+    return;
+  }
+
+  const degraded = !!data.degraded;
+  const storageMode = String(data?.storage?.mode || 'unknown').replace(/_/g, ' ');
+  const pgStatus = data?.storage?.postgresConnected ? 'connected' : 'not connected';
+  summary.textContent = degraded
+    ? `Storage health degraded. Active mode: ${storageMode}.`
+    : `Storage health OK. Active mode: ${storageMode}.`;
+  details.textContent = `Postgres: ${pgStatus}. Finance storage: ${String(data?.storage?.financeStorage || 'unknown')}. Gallery storage: ${String(data?.storage?.galleryStorage || 'unknown')}.`;
+}
+
+async function loadAdminStorageHealth() {
+  const card = $('adminStorageHealthCard');
+  const summary = $('adminStorageHealthSummary');
+  const details = $('adminStorageHealthDetails');
+  if (!card || !summary || !details) return;
+
+  summary.textContent = 'Checking storage health…';
+  details.textContent = '';
+
+  try {
+    const data = await api('/api/admin/storage-health', { method: 'GET' });
+    renderStorageHealthStatus(data);
+  } catch (err) {
+    summary.textContent = err instanceof Error ? err.message : 'Storage diagnostics failed.';
+    details.textContent = '';
+  }
+}
+
 // -------- Wire UI --------
 document.addEventListener('DOMContentLoaded', async () => {
   updateHeaderBumper();
@@ -4156,6 +4717,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   resetTransientUiState();
 
   applyAppearancePreference(getAppearancePreference());
+  if ($('adminStorageHealthRefreshBtn')) {
+    $('adminStorageHealthRefreshBtn').addEventListener('click', async () => {
+      await loadAdminStorageHealth();
+    });
+  }
   if ($('appearanceSelect')) {
     $('appearanceSelect').value = getAppearancePreference();
     $('appearanceSelect').addEventListener('change', () => {
@@ -4309,6 +4875,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     'bulletinForm',
     'financeEntryForm',
     'newsletterForm',
+    'photoUploadForm',
     'profileHeaderForm',
     'profileForm',
     'supportForm'
@@ -4472,61 +5039,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Filter dropdown (multi-select presets + custom)
+  // Filter dropdown (single-choice date range + independent type toggles)
   if ($('financeFilterMenu')) {
     const menu = $('financeFilterMenu');
-    const rangeInputs = Array.from(menu.querySelectorAll('input[data-fin-range]'))
+    const rangeInputs = Array.from(menu.querySelectorAll('input[name="financeDateRange"]'))
       .filter((el) => el instanceof HTMLInputElement);
-    const customToggle = $('financeCustomToggle');
 
-    const uncheckNumericRanges = () => {
-      for (const el of rangeInputs) {
-        const v = String(el.getAttribute('data-fin-range') || '').trim();
-        if (/^\d+$/.test(v)) el.checked = false;
-      }
-    };
-
-    const applyCheckedPresets = () => {
-      const days = financeReadCheckedRangeDays(menu);
-      if (days.length > 0) {
-        setFinanceCustomMode(false);
-        if (customToggle instanceof HTMLInputElement) customToggle.checked = false;
-        setFinanceRangePreset(Math.max(...days));
-        return true;
-      }
-      return false;
+    const syncDateRangeUi = () => {
+      const selection = financeDateRangeSelection();
+      setFinanceCustomMode(selection === 'custom');
+      if (selection !== 'custom' && $('financeDateRangeHint')) $('financeDateRangeHint').textContent = '';
     };
 
     for (const el of rangeInputs) {
       el.addEventListener('change', () => {
-        const v = String(el.getAttribute('data-fin-range') || '').trim();
-
-        if (v === 'custom') {
-          const isOn = !!el.checked;
-          setFinanceCustomMode(isOn);
-          if (isOn) uncheckNumericRanges();
-          renderFinances();
-          return;
-        }
-
-        // Numeric preset changed
-        setFinanceCustomMode(false);
-        if (customToggle instanceof HTMLInputElement) customToggle.checked = false;
-
-        const applied = applyCheckedPresets();
-        if (!applied) {
-          if ($('financeFrom')) $('financeFrom').value = '';
-          if ($('financeTo')) $('financeTo').value = '';
-        }
+        syncDateRangeUi();
+        if (String(el.value || '') === 'custom' && el.checked) return;
         renderFinances();
       });
     }
+
+    syncDateRangeUi();
   }
 
   if ($('financeApplyCustomRangeBtn')) {
     $('financeApplyCustomRangeBtn').addEventListener('click', () => {
-      setFinanceCustomMode(true);
-      if ($('financeCustomToggle') instanceof HTMLInputElement) $('financeCustomToggle').checked = true;
+      const selection = financeDateRangeSelection();
+      if (selection !== 'custom') {
+        const customRadio = $('financeRangeCustom');
+        if (customRadio instanceof HTMLInputElement) customRadio.checked = true;
+      }
+
+      const check = financeCustomRangeValidation();
+      const hint = $('financeDateRangeHint');
+      if (!check.ok) {
+        if (hint) hint.textContent = check.message;
+        renderFinances();
+        return;
+      }
+
+      if (hint) hint.textContent = '';
       renderFinances();
       const menu = $('financeFilterMenu');
       if (menu) menu.open = false;
@@ -4535,18 +5087,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if ($('financeClearRangeBtn')) {
     $('financeClearRangeBtn').addEventListener('click', () => {
+      const allDates = $('financeRangeAll');
+      if (allDates instanceof HTMLInputElement) allDates.checked = true;
       if ($('financeFrom')) $('financeFrom').value = '';
       if ($('financeTo')) $('financeTo').value = '';
-      if ($('financeCustomToggle') instanceof HTMLInputElement) $('financeCustomToggle').checked = false;
-      if ($('financeFilterMenu')) {
-        const menu = $('financeFilterMenu');
-        const rangeInputs = Array.from(menu.querySelectorAll('input[data-fin-range]'))
-          .filter((el) => el instanceof HTMLInputElement);
-        for (const el of rangeInputs) {
-          const v = String(el.getAttribute('data-fin-range') || '').trim();
-          if (/^\d+$/.test(v)) el.checked = false;
-        }
-      }
+      if ($('financeSearch')) $('financeSearch').value = '';
+      if ($('financeTypeIncome') instanceof HTMLInputElement) $('financeTypeIncome').checked = true;
+      if ($('financeTypeExpense') instanceof HTMLInputElement) $('financeTypeExpense').checked = true;
+      if ($('financeDateRangeHint')) $('financeDateRangeHint').textContent = '';
       setFinanceCustomMode(false);
       renderFinances();
       const menu = $('financeFilterMenu');
@@ -4594,38 +5142,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       const dlg = $('financeReceiptsDialog');
       if (!dlg) return;
 
-      // Open dialog (robust fallback)
-      if (typeof dlg.showModal === 'function') {
-        try { dlg.showModal(); }
-        catch { dlg.setAttribute('open', ''); }
-      } else {
-        dlg.setAttribute('open', '');
-      }
+      openManagedDialog(dlg, { initialFocusId: 'financeReceiptsSearch' });
 
       // Render the picker list using current filters.
       financeRenderReceiptsPicker({ keepSelection: true });
-      try { $('financeReceiptsSearch')?.focus(); } catch { /* ignore */ }
     });
   }
 
   if ($('financeReceiptsDialog')) {
     const dlg = $('financeReceiptsDialog');
-    const closeDlg = () => {
-      try {
-        if (typeof dlg.close === 'function') dlg.close();
-        else dlg.removeAttribute('open');
-      } catch {
-        dlg.removeAttribute('open');
-      }
-    };
-
-    dlg.addEventListener('click', (e) => {
-      if (e.target === dlg) closeDlg();
-    });
-    dlg.addEventListener('cancel', (e) => {
-      e.preventDefault();
-      closeDlg();
-    });
+    const closeDlg = () => closeManagedDialog(dlg);
+    wireDialogDismissBehavior(dlg, { onClose: closeDlg });
 
     if ($('financeReceiptsSearch') instanceof HTMLInputElement) {
       $('financeReceiptsSearch').addEventListener('input', () => financeRenderReceiptsPicker({ keepSelection: true }));
@@ -4823,13 +5350,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       err.textContent = '';
     }
     if (hint) hint.textContent = '';
-    if (typeof inviteAdminDialog.showModal === 'function') inviteAdminDialog.showModal();
-    else inviteAdminDialog.setAttribute('open', '');
-    try { $('inviteAdminEmail')?.focus(); } catch { /* ignore */ }
+    openManagedDialog(inviteAdminDialog, { initialFocusId: 'inviteAdminEmail' });
   };
   const closeInviteAdminDialog = () => {
     if (!(inviteAdminDialog instanceof HTMLDialogElement)) return;
-    if (inviteAdminDialog.open) inviteAdminDialog.close();
+    closeManagedDialog(inviteAdminDialog);
   };
 
   if ($('inviteAdminBtn')) {
@@ -4839,13 +5364,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('inviteAdminCloseBtn').addEventListener('click', () => closeInviteAdminDialog());
   }
   if (inviteAdminDialog instanceof HTMLDialogElement) {
-    inviteAdminDialog.addEventListener('click', (e) => {
-      if (e.target === inviteAdminDialog) closeInviteAdminDialog();
-    });
-    inviteAdminDialog.addEventListener('cancel', (e) => {
-      e.preventDefault();
-      closeInviteAdminDialog();
-    });
+    wireDialogDismissBehavior(inviteAdminDialog, { onClose: closeInviteAdminDialog });
   }
 
   if ($('inviteAdminForm')) {
@@ -5391,6 +5910,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('profileUploadImageBtn')) {
     $('profileUploadImageBtn').addEventListener('click', async () => {
       const hint = $('profileHint');
+      const profileForm = $('profileForm');
+      const uploadBtn = $('profileUploadImageBtn');
       const id = String($('profileId')?.value || '').trim();
       const fileInput = $('profileImageFile');
       const file = fileInput?.files?.[0];
@@ -5403,8 +5924,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
+      const uploadValidation = validateUploadFiles([file], {
+        maxFileBytes: SITE_IMAGE_UPLOAD_MAX_BYTES,
+        maxFiles: 1,
+        allowedMimes: IMAGE_UPLOAD_MIME_TYPES,
+        label: 'image'
+      });
+      if (uploadValidation) {
+        if (hint) hint.textContent = uploadValidation;
+        return;
+      }
+
       if (!confirmWrite('Upload and replace this profile image?')) return;
       if (hint) hint.textContent = 'Uploading image…';
+      if (uploadBtn) uploadBtn.disabled = true;
+      markFormUploadState(profileForm, true);
       try {
         const fd = new FormData();
         fd.append('image', file);
@@ -5428,8 +5962,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if ($('profileImageFile')) $('profileImageFile').value = '';
         updateProfileImagePreview(imagePath, String($('profileImageAlt')?.value || $('profileName')?.value || '').trim());
         if (hint) hint.textContent = 'Image uploaded.';
+        if (profileForm instanceof HTMLFormElement) resetUnsavedBaseline(profileForm);
       } catch (err) {
         if (hint) hint.textContent = err.message;
+      } finally {
+        markFormUploadState(profileForm, false);
+        if (uploadBtn) uploadBtn.disabled = false;
       }
     });
   }
@@ -5586,29 +6124,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     e.preventDefault();
     const form = e.currentTarget;
     const hint = $('photoUploadHint');
+    const submitBtn = form?.querySelector?.('button[type="submit"]');
+    const fileInput = form?.querySelector?.('input[name="images"]');
+
+    const validationError = validateUploadFiles(fileInput?.files, {
+      maxFileBytes: PHOTO_UPLOAD_MAX_BYTES,
+      maxFiles: PHOTO_UPLOAD_MAX_FILES,
+      allowedMimes: IMAGE_UPLOAD_MIME_TYPES,
+      label: 'image'
+    });
+    if (validationError) {
+      if (hint) hint.textContent = validationError;
+      return;
+    }
 
     if (!confirmWrite('Upload selected photo(s)?')) return;
 
     hint.textContent = 'Uploading…';
+    if (submitBtn) submitBtn.disabled = true;
+    markFormUploadState(form, true);
 
     const fd = new FormData(form);
-    await csrfReady;
-    const res = await fetch('/api/gallery/upload', {
-      method: 'POST',
-      body: fd,
-      headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
-      credentials: 'same-origin'
-    });
+    try {
+      const data = await api('/api/gallery/upload', {
+        method: 'POST',
+        body: fd
+      });
 
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      hint.textContent = data.error || 'Upload failed.';
-      return;
+      hint.textContent = `Uploaded ${data?.added?.length || 0} photo(s).`;
+      if (form && typeof form.reset === 'function') form.reset();
+      resetUnsavedBaseline(form);
+      await loadGallery();
+    } catch (err) {
+      hint.textContent = err.message;
+    } finally {
+      markFormUploadState(form, false);
+      if (submitBtn) submitBtn.disabled = false;
     }
-
-    hint.textContent = `Uploaded ${data.added?.length || 0} photo(s).`;
-    if (form && typeof form.reset === 'function') form.reset();
-    await loadGallery();
   });
 
   $('photoSort').addEventListener('change', applyPhotoFilters);
@@ -5813,46 +6365,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Photo upload instructions help dialog
   if ($('photoHelpDialog')) {
     const dlg = $('photoHelpDialog');
-    const openDlg = () => {
-      if (typeof dlg.showModal === 'function') {
-        try {
-          dlg.showModal();
-          return;
-        } catch {
-          // Some environments expose showModal but still throw.
-        }
-      }
-      dlg.setAttribute('open', '');
-    };
-    const closeDlg = () => {
-      try {
-        if (typeof dlg.close === 'function') dlg.close();
-        else dlg.removeAttribute('open');
-      } catch {
-        dlg.removeAttribute('open');
-      }
-    };
-
-    if (!window.__mmmbcPhotoHelpDelegated) {
-      window.__mmmbcPhotoHelpDelegated = true;
-      const handler = (e) => {
-        const btn = e.target?.closest ? e.target.closest('#photoHelpBtn') : null;
-        if (!btn) return;
-        e.preventDefault();
-        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-        if (typeof e.stopPropagation === 'function') e.stopPropagation();
-        openDlg();
-      };
-      document.addEventListener('click', handler, true);
-      document.addEventListener('pointerup', handler, true);
-      document.addEventListener('mouseup', handler, true);
-    }
+    const openDlg = () => openManagedDialog(dlg, { initialFocusId: 'photoHelpCloseBtn' });
+    const closeDlg = () => closeManagedDialog(dlg);
 
     if ($('photoHelpBtn')) {
       $('photoHelpBtn').addEventListener('click', (e) => {
         e.preventDefault();
-        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-        if (typeof e.stopPropagation === 'function') e.stopPropagation();
         openDlg();
       });
 
@@ -5869,27 +6387,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         closeDlg();
       });
     }
-    dlg.addEventListener('click', (e) => {
-      // Close when clicking the backdrop
-      if (e.target === dlg) closeDlg();
-    });
 
-    // Escape key / cancel
-    dlg.addEventListener('cancel', (e) => {
-      e.preventDefault();
-      closeDlg();
-    });
-
-    if (!window.__mmmbcPhotoHelpEscBound) {
-      window.__mmmbcPhotoHelpEscBound = true;
-      document.addEventListener('keydown', (e) => {
-        const k = String(e.key || '').toLowerCase();
-        if (k !== 'escape') return;
-        if (!dlg.hasAttribute('open')) return;
-        e.preventDefault();
-        closeDlg();
-      }, true);
-    }
+    wireDialogDismissBehavior(dlg, { onClose: closeDlg });
   }
 
   if ($('r2GoBtn')) {
@@ -6008,33 +6507,47 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('bulletinForm')) {
     $('bulletinForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const form = e.currentTarget;
       const hint = $('bulletinHint');
+      const submitBtn = form?.querySelector?.('button[type="submit"]');
+      const fileInput = form?.querySelector?.('input[name="file"]');
+
+      const validationError = validateUploadFiles(fileInput?.files, {
+        maxFileBytes: BULLETIN_UPLOAD_MAX_BYTES,
+        maxFiles: 1,
+        allowedMimes: BULLETIN_UPLOAD_MIME_TYPES,
+        label: 'bulletin file'
+      });
+      if (validationError) {
+        hint.textContent = validationError;
+        return;
+      }
 
       if (!confirmWrite('Upload and schedule this bulletin?')) return;
 
       hint.textContent = 'Uploading…';
+      if (submitBtn) submitBtn.disabled = true;
+      markFormUploadState(form, true);
 
-      const fd = new FormData(e.currentTarget);
+      const fd = new FormData(form);
       const createAnnouncement = fd.get('createAnnouncement') === 'on';
       fd.set('createAnnouncement', createAnnouncement ? 'true' : 'false');
 
-      await csrfReady;
-      const res = await fetch('/api/bulletins/upload', {
-        method: 'POST',
-        body: fd,
-        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
-        credentials: 'same-origin'
-      });
+      try {
+        await api('/api/bulletins/upload', {
+          method: 'POST',
+          body: fd
+        });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        hint.textContent = data.error || 'Upload failed.';
-        return;
+        safeResetForm(e);
+        hint.textContent = 'Uploaded.';
+        await loadBulletins();
+      } catch (err) {
+        hint.textContent = err.message;
+      } finally {
+        markFormUploadState(form, false);
+        if (submitBtn) submitBtn.disabled = false;
       }
-
-      safeResetForm(e);
-      hint.textContent = 'Uploaded.';
-      await loadBulletins();
     });
   }
 
