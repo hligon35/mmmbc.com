@@ -15,6 +15,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (!grid) return;
 
+  const topPager = document.createElement('div');
+  topPager.className = 'pagination pagination--top';
+  topPager.setAttribute('aria-label', 'Gallery pagination, top');
+  topPager.innerHTML = `
+    <button id="prevPageTop" type="button" disabled>Previous</button>
+    <span id="pageInfoTop" aria-live="polite">Page 0 of 0</span>
+    <button id="nextPageTop" type="button" disabled>Next</button>
+  `;
+  grid.parentNode.insertBefore(topPager, grid);
+
+  const prevPageTop = document.getElementById('prevPageTop');
+  const nextPageTop = document.getElementById('nextPageTop');
+  const pageInfoTop = document.getElementById('pageInfoTop');
+
   const galleryStyle = document.createElement('style');
   galleryStyle.textContent = `
     .photo-grid { align-items: start; }
@@ -51,13 +65,18 @@ document.addEventListener('DOMContentLoaded', () => {
       box-sizing: border-box;
       text-align: center;
     }
+    .pagination--top { margin: 10px auto 22px !important; }
     .pagination #prevPage,
     .pagination #pageInfo,
-    .pagination #nextPage {
+    .pagination #nextPage,
+    .pagination #prevPageTop,
+    .pagination #pageInfoTop,
+    .pagination #nextPageTop {
       justify-self: auto !important;
       margin: 0 !important;
     }
-    .pagination #pageInfo {
+    .pagination #pageInfo,
+    .pagination #pageInfoTop {
       min-width: 150px;
       white-space: nowrap;
       text-align: center;
@@ -95,25 +114,14 @@ document.addEventListener('DOMContentLoaded', () => {
       clip-path: none !important;
     }
     @media (max-width: 680px) {
-      .photo-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-        gap: 10px !important;
-      }
+      .photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; }
       .gallery-item { min-height: 0 !important; }
       .gallery-item img { height: auto !important; max-height: none !important; }
       .gallery-label { padding: 8px 6px !important; font-size: .82rem !important; }
       .pagination { gap: 6px; }
-      .pagination button {
-        margin: 0 !important;
-        padding: 8px 10px !important;
-        font-size: .88rem !important;
-      }
-      .pagination #pageInfo {
-        min-width: 120px;
-        padding-left: 4px !important;
-        padding-right: 4px !important;
-        font-size: .88rem !important;
-      }
+      .pagination button { margin: 0 !important; padding: 8px 10px !important; font-size: .88rem !important; }
+      .pagination #pageInfo,
+      .pagination #pageInfoTop { min-width: 120px; padding-left: 4px !important; padding-right: 4px !important; font-size: .88rem !important; }
       .lightbox-content { width: 96vw !important; max-height: 92vh !important; padding: 12px !important; }
       .lightbox-image { max-height: calc(92vh - 110px) !important; }
     }
@@ -128,8 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let assetOrigin = window.location.origin;
 
   const workerOrigin = (() => {
-    const meta = document.querySelector('meta[name="mmmbc-worker-origin"]');
-    const value = String(meta?.content || '').trim();
+    const value = String(document.querySelector('meta[name="mmmbc-worker-origin"]')?.content || '').trim();
     try { return value ? new URL(value).origin : ''; } catch { return ''; }
   })();
 
@@ -166,15 +173,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function updatePagers(totalPages) {
+    const label = filteredItems.length ? `Page ${currentPage} of ${totalPages}` : 'Page 0 of 0';
+    [pageInfo, pageInfoTop].forEach((node) => { if (node) node.textContent = label; });
+    [prevPage, prevPageTop].forEach((button) => { if (button) button.disabled = currentPage <= 1; });
+    [nextPage, nextPageTop].forEach((button) => {
+      if (button) button.disabled = currentPage >= totalPages || filteredItems.length === 0;
+    });
+  }
+
   function applyFilters() {
     const album = String(albumFilter?.value || '').trim();
     const query = String(tagSearch?.value || '').trim().toLowerCase();
     filteredItems = sortItems(allItems.filter((item) => {
       if (album && String(item.album || '') !== album) return false;
       if (!query) return true;
-      const haystack = [item.album, item.label, item.originalName, ...(Array.isArray(item.tags) ? item.tags : [])]
-        .join(' ').toLowerCase();
-      return haystack.includes(query);
+      return [item.album, item.label, item.originalName, ...(Array.isArray(item.tags) ? item.tags : [])]
+        .join(' ').toLowerCase().includes(query);
     }));
     currentPage = 1;
     render();
@@ -198,10 +213,16 @@ document.addEventListener('DOMContentLoaded', () => {
         </button>`;
       }).join('');
     }
+    updatePagers(totalPages);
+  }
 
-    if (pageInfo) pageInfo.textContent = filteredItems.length ? `Page ${currentPage} of ${totalPages}` : 'Page 0 of 0';
-    if (prevPage) prevPage.disabled = currentPage <= 1;
-    if (nextPage) nextPage.disabled = currentPage >= totalPages || filteredItems.length === 0;
+  function changePage(direction) {
+    const next = currentPage + direction;
+    const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+    if (next < 1 || next > totalPages) return;
+    currentPage = next;
+    render();
+    topPager.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function openLightbox(index) {
@@ -235,8 +256,8 @@ document.addEventListener('DOMContentLoaded', () => {
     grid.innerHTML = '<p class="gallery-loading">Loading photos…</p>';
     const endpoints = ['/public/gallery.json'];
     if (workerOrigin && workerOrigin !== window.location.origin) endpoints.push(`${workerOrigin}/public/gallery.json`);
-
     let lastError = null;
+
     for (const endpoint of endpoints) {
       try {
         const response = await fetch(endpoint, { cache: 'no-store', headers: { Accept: 'application/json' } });
@@ -246,9 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
         assetOrigin = new URL(endpoint, window.location.href).origin;
         allItems = data.items.filter((item) => item && (item.file || item.thumb));
         const albums = [...new Set(allItems.map((item) => String(item.album || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-        if (albumFilter) {
-          albumFilter.innerHTML = '<option value="">All</option>' + albums.map((album) => `<option value="${escapeHtml(album)}">${escapeHtml(album)}</option>`).join('');
-        }
+        if (albumFilter) albumFilter.innerHTML = '<option value="">All</option>' + albums.map((album) => `<option value="${escapeHtml(album)}">${escapeHtml(album)}</option>`).join('');
         applyFilters();
         return;
       } catch (error) {
@@ -258,21 +277,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     console.error('Unable to load gallery', lastError);
     grid.innerHTML = '<p class="gallery-error">The photo gallery could not be loaded. Please refresh the page and try again.</p>';
-    if (pageInfo) pageInfo.textContent = 'Page 0 of 0';
-    if (prevPage) prevPage.disabled = true;
-    if (nextPage) nextPage.disabled = true;
+    filteredItems = [];
+    updatePagers(1);
   }
 
   grid.addEventListener('click', (event) => {
     const button = event.target.closest('[data-gallery-index]');
-    if (!button) return;
-    openLightbox(Number(button.dataset.galleryIndex));
+    if (button) openLightbox(Number(button.dataset.galleryIndex));
   });
   albumFilter?.addEventListener('change', applyFilters);
   sortBy?.addEventListener('change', applyFilters);
   tagSearch?.addEventListener('input', applyFilters);
-  prevPage?.addEventListener('click', () => { if (currentPage > 1) { currentPage -= 1; render(); } });
-  nextPage?.addEventListener('click', () => { if (currentPage * pageSize < filteredItems.length) { currentPage += 1; render(); } });
+  prevPage?.addEventListener('click', () => changePage(-1));
+  prevPageTop?.addEventListener('click', () => changePage(-1));
+  nextPage?.addEventListener('click', () => changePage(1));
+  nextPageTop?.addEventListener('click', () => changePage(1));
   closeBtn?.addEventListener('click', closeLightbox);
   prevLightbox?.addEventListener('click', () => moveLightbox(-1));
   nextLightbox?.addEventListener('click', () => moveLightbox(1));
