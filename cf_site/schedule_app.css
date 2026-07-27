@@ -10,19 +10,18 @@
 
 /* START OF MOVED STYLES FROM style.css */
 #schedule-display-area {
-    flex: 1; /* Changed from 2 to 1 to ensure equal space with event-image-container */
+    flex: 1;
     background-color: rgba(196, 97, 35, 0.3);
     padding: 0;
     border-radius: 15px;
-    overflow: hidden; /* Match image panel clipping */
+    overflow: hidden;
     box-sizing: border-box;
     color: #fff;
     display: flex;
     flex-direction: column;
-    position: relative; /* Added for positioning context if needed */
+    position: relative;
 }
 
-/* Homepage: keep the schedule panel a consistent size on desktop */
 @media (min-width: 981px) {
     .home #schedule-display-area {
         height: 420px;
@@ -31,37 +30,35 @@
 
 .schedule-header {
     display: flex;
-    justify-content: center; /* Center the month text */
+    justify-content: center;
     align-items: center;
     margin-bottom: 15px;
-    width: 100%; /* Ensure header takes full width for centering */
+    width: 100%;
 }
 
 .schedule-header h3 {
-    margin: 0; 
+    margin: 0;
     font-size: 2.5em;
 }
 
-/* Main styles for the schedule items display area */
 #schedule-display {
     min-height: 150px;
     max-height: none;
-    width: 100%; 
+    width: 100%;
     height: 100%;
     flex: 1 1 auto;
-    overflow-y: auto; 
-    background-color: rgba(0, 0, 0, 0.3); 
+    overflow-y: auto;
+    background-color: rgba(0, 0, 0, 0.3);
     border: 1px dashed #555;
     border-radius: 0;
-    padding: 10px; /* Added padding for internal spacing */
+    padding: 10px;
     color: #fff;
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    box-sizing: border-box; /* Ensure padding is included in width/height */
+    box-sizing: border-box;
 }
 
-/* Mobile/tablet: keep the schedule panel a reasonable size and scroll the list */
 @media (max-width: 980px) {
     #schedule-display {
         height: auto;
@@ -71,44 +68,39 @@
 }
 /* END OF MOVED STYLES FROM style.css */
 
-/* Styles for the Schedule Management Modal */
-/* Modal container and content styles are in style.css (.modal-hidden, .modal-content) */
-
-/* START OF MOVED STYLES FROM style.css */
 .schedule-controls-modal h4 {
-    margin-top: 20px; /* Retained from style.css */
-    margin-bottom: 10px; /* Retained from style.css */
-    border-bottom: 1px solid #444; /* Retained from style.css */
-    padding-bottom: 5px; /* Retained from style.css */
-    color: #e0e0e0; /* Adjusted from schedule_app.css for consistency if different */
+    margin-top: 20px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #444;
+    padding-bottom: 5px;
+    color: #e0e0e0;
 }
 
 .schedule-controls-modal input[type="text"],
 .schedule-controls-modal input[type="date"],
 .schedule-controls-modal input[type="time"],
 .schedule-controls-modal button {
-    width: calc(100% - 20px); /* Retained from style.css */
-    padding: 10px; /* Retained from style.css */
-    margin-bottom: 10px; /* Retained from style.css */
-    border-radius: 5px; /* Retained from style.css */
-    border: 1px solid #555; /* Retained from style.css */
-    background-color: #333; /* Retained from style.css */
-    color: #f1f1f1; /* Retained from style.css */
-    box-sizing: border-box; /* Retained from style.css */
+    width: calc(100% - 20px);
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    border: 1px solid #555;
+    background-color: #333;
+    color: #f1f1f1;
+    box-sizing: border-box;
 }
 
 .schedule-controls-modal button {
-    background-color: rgb(196, 97, 35); /* Retained from style.css */
-    cursor: pointer; /* Retained from style.css */
-    font-weight: bold; /* Retained from style.css */
-    transition: background-color 0.2s ease; /* Added for consistency */
+    background-color: rgb(196, 97, 35);
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s ease;
 }
 
 .schedule-controls-modal button:hover {
-    background-color: rgb(160, 70, 20); /* Retained from style.css */
+    background-color: rgb(160, 70, 20);
 }
 
-/* Preview display within the modal */
 #schedule-app-preview-display {
     min-height: 80px;
     max-height: 200px;
@@ -121,27 +113,23 @@
     margin-bottom: 15px;
 }
 
-/* Update Live Page Button in Modal */
-/* #update-live-page-button was here, now moved from style.css */
 #update-live-page-button {
-    background-color: #28a745; /* Green */ /* Retained from style.css */
-    color: white; /* Retained from style.css */
-    padding: 12px 25px; /* Retained from style.css */
-    border-radius: 5px; /* Retained from style.css */
-    border: none; /* Retained from style.css */
-    cursor: pointer; /* Retained from style.css */
-    font-size: 1.1em; /* Retained from style.css */
-    display: block; /* Retained from style.css */
-    margin: 20px auto 0 auto; /* Retained from style.css */
-    transition: background-color 0.2s ease; /* Added for consistency */
+    background-color: #28a745;
+    color: white;
+    padding: 12px 25px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1em;
+    display: block;
+    margin: 20px auto 0 auto;
+    transition: background-color 0.2s ease;
 }
 
 #update-live-page-button:hover {
-    background-color: #218838; /* Darker green */ /* Added for consistency */
+    background-color: #218838;
 }
-/* END OF MOVED STYLES FROM style.css */
 
-/* Styles for individual event items (used in modal preview AND live display) */
 .event-item {
     background-color: rgba(0, 0, 0, 0.7);
     padding: 12px;
@@ -149,28 +137,26 @@
     border-radius: 5px;
     border-left: 4px solid rgb(196, 97, 35);
     display: flex;
-    justify-content: space-between; /* Default for modal view with button */
+    justify-content: space-between;
     align-items: center;
     transition: background-color 0.2s ease;
     width: 100%;
-    box-sizing: border-box; /* Added for consistent width calculation */
+    box-sizing: border-box;
 }
 
-/* Specific override for event items in the live display area */
 #schedule-display .event-item {
-    display: block; 
-    text-align: center; 
+    display: block;
+    text-align: center;
     width: 100%;
-    box-sizing: border-box; 
-    margin-top: 5px; /* Add some space between event items */
-    margin-bottom: 5px; /* Add some space between event items */
+    box-sizing: border-box;
+    margin-top: 5px;
+    margin-bottom: 5px;
 }
 
 .event-item p {
     margin: 3px 0;
-    /* flex-grow: 1; /* Removed as parent is not flex in this context */
     color: #e0e0e0;
-    text-align: center; /* Ensure text within p is centered */
+    text-align: center;
 }
 
 .event-item strong {
@@ -178,12 +164,11 @@
     margin-bottom: 4px;
     color: #ffffff;
     font-size: 1.05em;
-    text-align: center; /* Ensure text within strong is centered */
+    text-align: center;
 }
 
-/* Delete button (only shown in modal preview) */
 .btn-delete-event {
-    background-color: #c46123; 
+    background-color: #c46123;
     color: white;
     border: none;
     padding: 6px 12px;
@@ -198,7 +183,6 @@
     background-color: #a04e1c;
 }
 
-/* Scrollbar styling for modal preview and live display */
 #schedule-app-preview-display::-webkit-scrollbar,
 #schedule-display::-webkit-scrollbar {
     width: 6px;
@@ -221,6 +205,93 @@
     background: rgb(172, 85, 30);
 }
 
-/* Remove redundant/unused styles from original schedule_app.css */
-/* Specifically, #scheduleAppContainer, .schedule-controls, #eventList, etc. 
-   are no longer used as the modal structure is simpler and some styles were moved to style.css or consolidated. */
+/* Shared mobile alignment for every public static page. */
+@media (max-width: 768px) {
+    body:not(.admin-page) main,
+    body:not(.admin-page) main > section,
+    body:not(.admin-page) main > article,
+    body:not(.admin-page) .page-content,
+    body:not(.admin-page) .content-container,
+    body:not(.admin-page) .section-container,
+    body:not(.admin-page) .container,
+    body:not(.admin-page) .card,
+    body:not(.admin-page) .form-container,
+    body:not(.admin-page) .gallery-controls,
+    body:not(.admin-page) .photo-gallery-section,
+    body:not(.admin-page) .leadership-container,
+    body:not(.admin-page) .ministries-container,
+    body:not(.admin-page) .history-container,
+    body:not(.admin-page) .contact-container,
+    body:not(.admin-page) .giving-container,
+    body:not(.admin-page) .rental-container,
+    body:not(.admin-page) .live-praise-container,
+    body:not(.admin-page) .footer-top-row,
+    body:not(.admin-page) .footer-bottom-row,
+    body:not(.admin-page) .footer-links-section {
+        box-sizing: border-box !important;
+        width: min(100%, calc(100vw - 32px)) !important;
+        max-width: 100% !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+
+    body:not(.admin-page) main,
+    body:not(.admin-page) main > section,
+    body:not(.admin-page) main > article {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+    body:not(.admin-page) h1,
+    body:not(.admin-page) h2,
+    body:not(.admin-page) .page-title,
+    body:not(.admin-page) .section-title {
+        text-align: center !important;
+    }
+
+    body:not(.admin-page) img,
+    body:not(.admin-page) video,
+    body:not(.admin-page) iframe {
+        max-width: 100% !important;
+    }
+
+    body.home .hero-section {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding-left: 16px !important;
+        padding-right: 16px !important;
+        text-align: center !important;
+    }
+
+    body.home .hero-content {
+        width: min(100%, 680px) !important;
+        max-width: 100% !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        text-align: center !important;
+    }
+
+    body.home .hero-content h1,
+    body.home .hero-content .hero-line,
+    body.home .hero-content p {
+        width: 100% !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        text-align: center !important;
+    }
+
+    body.home .hero-content .btn-contact,
+    body.home .announcement-ticker-wrap,
+    body.home .bulletin-frame-wrap {
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+
+    body:not(.admin-page) .footer-top-row,
+    body:not(.admin-page) .footer-bottom-row {
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+    }
+}
