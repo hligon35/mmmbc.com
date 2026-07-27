@@ -277,30 +277,36 @@
   right: 8px !important;
 }
 
-/* Show complete gallery images without cropping inside six-column cards. */
-#tab-photos #photoGrid .thumb {
+/* Preserve each admin gallery image's full natural aspect ratio. */
+#tab-photos #photoGrid.grid .thumb {
+  height: auto !important;
   overflow: visible !important;
 }
 
-#tab-photos #photoGrid .thumb__img,
-#tab-photos #photoGrid img.thumb__img {
+#tab-photos #photoGrid.grid .thumb > img.thumb__img,
+#tab-photos #photoGrid.grid .thumb img.thumb__img {
   display: block !important;
   width: 100% !important;
-  height: 160px !important;
+  height: auto !important;
+  min-height: 0 !important;
   max-width: 100% !important;
-  max-height: 160px !important;
+  max-height: none !important;
   object-fit: contain !important;
   object-position: center center !important;
+  transform: none !important;
+  scale: 1 !important;
+  clip-path: none !important;
   overflow: visible !important;
 }
 
-#tab-photos #photoGrid .thumb__media,
-#tab-photos #photoGrid .thumb__image,
-#tab-photos #photoGrid .thumb > a:has(.thumb__img) {
-  display: grid !important;
-  place-items: center !important;
+#tab-photos #photoGrid.grid .thumb__media,
+#tab-photos #photoGrid.grid .thumb__image,
+#tab-photos #photoGrid.grid .thumb > a:has(.thumb__img) {
+  display: block !important;
   width: 100% !important;
-  min-height: 160px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
   overflow: visible !important;
 }
 
