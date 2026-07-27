@@ -247,6 +247,63 @@
   background: rgba(255,255,255,0.07) !important;
 }
 
+/* Keep finance ledger search fully visible and clear of the search icon. */
+#pageContext-finances,
+#pageContext-finances .financeHeaderSearch,
+#pageContext-finances .financeHeaderSearch .inputGroup {
+  overflow: visible !important;
+}
+
+#pageContext-finances .financeHeaderSearch {
+  box-sizing: border-box !important;
+  min-width: 300px !important;
+  max-width: min(420px, 42vw) !important;
+  padding-right: 6px !important;
+}
+
+#pageContext-finances .financeHeaderSearch .inputGroup {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+#pageContext-finances .financeHeaderSearch #financeSearch {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  padding-right: 58px !important;
+}
+
+#pageContext-finances .financeHeaderSearch .inputIconBtn {
+  right: 8px !important;
+}
+
+/* Show complete gallery images without cropping inside six-column cards. */
+#tab-photos #photoGrid .thumb {
+  overflow: visible !important;
+}
+
+#tab-photos #photoGrid .thumb__img,
+#tab-photos #photoGrid img.thumb__img {
+  display: block !important;
+  width: 100% !important;
+  height: 160px !important;
+  max-width: 100% !important;
+  max-height: 160px !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  overflow: visible !important;
+}
+
+#tab-photos #photoGrid .thumb__media,
+#tab-photos #photoGrid .thumb__image,
+#tab-photos #photoGrid .thumb > a:has(.thumb__img) {
+  display: grid !important;
+  place-items: center !important;
+  width: 100% !important;
+  min-height: 160px !important;
+  overflow: visible !important;
+}
+
 /* Center the full Help & Support page at roughly 60% width on desktop. */
 #tab-support > .pageContext,
 #tab-support > :not(.pageContext) {
@@ -280,6 +337,11 @@
   .newsletterSubscriberContext {
     grid-column: 1;
     grid-row: auto;
+  }
+
+  #pageContext-finances .financeHeaderSearch {
+    min-width: 260px !important;
+    max-width: 100% !important;
   }
 }
 
