@@ -294,4 +294,34 @@
         justify-content: center !important;
         text-align: center !important;
     }
+
+    /* Ministries and Leadership & Staff use the same profile card structure. */
+    body:not(.admin-page) .leadership-profile {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: min(100%, calc(100vw - 32px)) !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        text-align: center !important;
+    }
+
+    body:not(.admin-page) .leadership-profile .profile-image {
+        display: block !important;
+        float: none !important;
+        width: min(100%, 320px) !important;
+        height: auto !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        object-position: center center !important;
+        align-self: center !important;
+    }
+
+    body:not(.admin-page) .leadership-profile .profile-details {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
 }
