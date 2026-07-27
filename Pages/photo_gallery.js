@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     .gallery-label { margin-top: auto; }
     .pagination {
       display: grid !important;
-      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
       align-items: center;
       width: 100%;
       gap: 12px;
