@@ -84,7 +84,6 @@
   function useOriginalGalleryImages() {
     const grid = document.getElementById('photoGrid');
     if (!grid) return;
-
     const repair = () => {
       grid.querySelectorAll('.thumb').forEach((card) => {
         const image = card.querySelector('.thumb__img');
@@ -95,7 +94,6 @@
         image.src = original;
       });
     };
-
     repair();
     if (grid.dataset.originalImageObserverBound !== '1') {
       grid.dataset.originalImageObserverBound = '1';
@@ -113,9 +111,26 @@
     const helpButton = document.getElementById('photoHelpBtn');
     const refreshButton = document.getElementById('exportBtn');
     const syncProgress = document.getElementById('syncProgressWrap');
-    if (!tab || !pageContext || !sectionHeader || !panel || !uploadForm) return;
+    const title = pageContext?.querySelector('.pageContext__title');
+    if (!tab || !pageContext || !sectionHeader || !panel || !uploadForm || !title) return;
 
     restoreInviteButton();
+
+    const submitRow = uploadForm.querySelector('.photoUploadSubmitRow');
+    const submitButton = submitRow?.querySelector('button[type="submit"]') || uploadForm.querySelector('button[type="submit"]');
+    const accepted = submitRow?.querySelector('.photoUploadAccepted') || uploadForm.querySelector('.photoUploadAccepted');
+
+    let titleRow = pageContext.querySelector('.photoPageContextTitleRow');
+    if (!titleRow) {
+      titleRow = document.createElement('div');
+      titleRow.className = 'photoPageContextTitleRow';
+      title.parentNode.insertBefore(titleRow, title);
+      titleRow.appendChild(title);
+    }
+    if (submitButton) {
+      submitButton.classList.add('photoPageContextAddBtn');
+      titleRow.appendChild(submitButton);
+    }
 
     let contextActions = pageContext.querySelector('.photoPageContextActions');
     if (!contextActions) {
@@ -124,16 +139,12 @@
       pageContext.appendChild(contextActions);
     }
 
-    const submitRow = uploadForm.querySelector('.photoUploadSubmitRow');
-    const submitButton = submitRow?.querySelector('button[type="submit"]') || uploadForm.querySelector('button[type="submit"]');
-    const accepted = submitRow?.querySelector('.photoUploadAccepted') || uploadForm.querySelector('.photoUploadAccepted');
     let acceptedContainer = submitRow?.querySelector('.photoUploadAcceptedContainer') || contextActions.querySelector('.photoUploadAcceptedContainer');
     if (accepted && !acceptedContainer) {
       acceptedContainer = document.createElement('div');
       acceptedContainer.className = 'photoUploadAcceptedContainer';
       acceptedContainer.appendChild(accepted);
     }
-
     if (acceptedContainer) contextActions.appendChild(acceptedContainer);
 
     if (helpButton) {
@@ -145,10 +156,8 @@
     if (syncProgress) contextActions.appendChild(syncProgress);
 
     sectionHeader.classList.add('photoWorkspaceHeader');
-    const duplicateLeft = sectionHeader.querySelector('.sectionHeader__left');
-    if (duplicateLeft) duplicateLeft.remove();
-    const oldIconGroup = sectionHeader.querySelector('.iconGroup');
-    if (oldIconGroup) oldIconGroup.remove();
+    sectionHeader.querySelector('.sectionHeader__left')?.remove();
+    sectionHeader.querySelector('.iconGroup')?.remove();
 
     let bulkActions = sectionHeader.querySelector('.photoWorkspaceHeader__actions');
     if (!bulkActions) {
@@ -161,9 +170,7 @@
       bulkActions.appendChild(bulkBar);
     }
 
-    const syncBulkHeader = () => {
-      sectionHeader.hidden = !bulkBar || bulkBar.hidden;
-    };
+    const syncBulkHeader = () => { sectionHeader.hidden = !bulkBar || bulkBar.hidden; };
     syncBulkHeader();
     if (bulkBar && bulkBar.dataset.headerObserverBound !== '1') {
       bulkBar.dataset.headerObserverBound = '1';
@@ -172,8 +179,8 @@
 
     if (submitRow) {
       submitRow.classList.add('photoUploadActions');
-      if (submitButton) submitRow.appendChild(submitButton);
-      uploadForm.appendChild(submitRow);
+      if (!submitRow.children.length) submitRow.remove();
+      else uploadForm.appendChild(submitRow);
     }
 
     panel.setAttribute('aria-label', 'Manage photos');
@@ -257,189 +264,61 @@
     const style = document.createElement('style');
     style.id = 'adminLayoutRefinementStyles';
     style.textContent = `
-      .pageContext {
-        width: calc(100% - (2 * clamp(12px, 2vw, 30px)));
-        margin-left: clamp(12px, 2vw, 30px) !important;
-        margin-right: clamp(12px, 2vw, 30px) !important;
-      }
-      #tab-support > form {
-        width: calc(100% - (2 * clamp(12px, 2vw, 30px)));
-        margin: 0 clamp(12px, 2vw, 30px);
-        padding: 18px;
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        background: var(--panel);
-      }
+      .pageContext { width: calc(100% - (2 * clamp(12px, 2vw, 30px))); margin-left: clamp(12px, 2vw, 30px) !important; margin-right: clamp(12px, 2vw, 30px) !important; }
+      #tab-support > form { width: calc(100% - (2 * clamp(12px, 2vw, 30px))); margin: 0 clamp(12px, 2vw, 30px); padding: 18px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
       .headerInviteBtn { display: grid; place-items: center; }
-      .editorSplit__preview, #siteEditorPreviewPane, .previewPane {
-        align-self: start !important;
-        height: max-content !important;
-        min-height: 0 !important;
-        max-height: none !important;
-      }
+      .editorSplit__preview, #siteEditorPreviewPane, .previewPane { align-self: start !important; height: max-content !important; min-height: 0 !important; max-height: none !important; }
       #siteEditorPreviewPane { padding-bottom: 16px !important; }
       .sitePagePreviewFrame { height: clamp(360px, 54vh, 620px) !important; }
       #siteEditorLivePreview { min-height: 0 !important; }
 
-      #tab-photos #pageContext-photos {
-        display: grid !important;
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: center;
-        column-gap: 18px;
-      }
+      #tab-photos #pageContext-photos { display: grid !important; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 18px; }
       #tab-photos #pageContext-photos > .pageContext__crumb,
-      #tab-photos #pageContext-photos > .pageContext__title,
+      #tab-photos #pageContext-photos > .photoPageContextTitleRow,
       #tab-photos #pageContext-photos > .pageContext__description { grid-column: 1; }
-      #tab-photos .photoPageContextActions {
-        grid-column: 2;
-        grid-row: 1 / span 3;
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 10px;
-        flex-wrap: wrap;
-      }
+      #tab-photos .photoPageContextTitleRow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+      #tab-photos .photoPageContextTitleRow .pageContext__title { margin: 0; }
+      #tab-photos .photoPageContextAddBtn { min-height: 42px; white-space: nowrap; }
+      #tab-photos .photoPageContextActions { grid-column: 2; grid-row: 1 / span 3; display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
       #tab-photos .photoPageContextActions .syncProgress { flex-basis: 100%; }
-      #tab-photos .photoHelpIconBtn {
-        display: inline-grid !important;
-        place-items: center;
-        width: 46px;
-        min-width: 46px;
-        height: 46px;
-        padding: 0 !important;
-      }
-      #tab-photos .photoHelpIconBtn svg {
-        width: 24px;
-        height: 24px;
-        fill: none;
-        stroke: currentColor;
-        stroke-width: 2;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-      }
-      #tab-photos > .photoWorkspaceHeader {
-        align-items: center;
-        justify-content: flex-end;
-        min-height: 0;
-        margin: 0 clamp(12px, 2vw, 30px) 14px;
-        padding: 0;
-        border: 0;
-      }
+      #tab-photos .photoHelpIconBtn { display: inline-grid !important; place-items: center; width: 46px; min-width: 46px; height: 46px; padding: 0 !important; }
+      #tab-photos .photoHelpIconBtn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      #tab-photos > .photoWorkspaceHeader { align-items: center; justify-content: flex-end; min-height: 0; margin: 0 clamp(12px, 2vw, 30px) 14px; padding: 0; border: 0; }
       #tab-photos > .photoWorkspaceHeader[hidden] { display: none !important; }
       #tab-photos .photoWorkspaceHeader__actions { display: flex; justify-content: flex-end; width: 100%; }
-      #tab-photos #photoBulkBar {
-        position: static !important;
-        inset: auto !important;
-        width: auto !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        border: 0 !important;
-        background: transparent !important;
-        box-shadow: none !important;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
+      #tab-photos #photoBulkBar { position: static !important; inset: auto !important; width: auto !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; display: flex; align-items: center; gap: 8px; }
       #tab-photos #photoBulkBar[hidden] { display: none !important; }
       #tab-photos #photoBulkCount { white-space: nowrap; }
-
-      #tab-photos #photoUploadForm {
-        display: grid !important;
-        grid-template-columns: repeat(4, minmax(150px, 1fr));
-        align-items: end;
-        gap: 14px;
-        width: 100%;
-        margin-bottom: 20px;
-      }
-      #tab-photos #photoUploadForm > .label,
-      #tab-photos #photoToolbar > .label { min-width: 0; display: grid; gap: 7px; }
-      #tab-photos #photoUploadForm .input,
-      #tab-photos #photoToolbar .input,
-      #tab-photos #photoToolbar .select { width: 100%; min-width: 0; min-height: 52px; }
-      #tab-photos .photoUploadActions {
-        grid-column: 1 / -1;
-        display: flex !important;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 12px;
-        width: 100%;
-      }
-      #tab-photos .photoUploadAcceptedContainer {
-        display: flex;
-        align-items: center;
-        min-height: 46px;
-        max-width: min(520px, 42vw);
-        padding: 8px 12px;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        background: var(--panel);
-      }
+      #tab-photos #photoUploadForm { display: grid !important; grid-template-columns: repeat(4, minmax(150px, 1fr)); align-items: end; gap: 14px; width: 100%; margin-bottom: 20px; }
+      #tab-photos #photoUploadForm > .label, #tab-photos #photoToolbar > .label { min-width: 0; display: grid; gap: 7px; }
+      #tab-photos #photoUploadForm .input, #tab-photos #photoToolbar .input, #tab-photos #photoToolbar .select { width: 100%; min-width: 0; min-height: 52px; }
+      #tab-photos .photoUploadActions { grid-column: 1 / -1; display: flex !important; align-items: center; justify-content: flex-end; gap: 12px; width: 100%; }
+      #tab-photos .photoUploadAcceptedContainer { display: flex; align-items: center; min-height: 46px; max-width: min(520px, 42vw); padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
       #tab-photos .photoUploadAccepted { margin: 0; }
-      #tab-photos .photoUploadActions > .btn[type="submit"] { min-height: 46px; white-space: nowrap; }
       #tab-photos #photoUploadHint { grid-column: 1 / -1; }
-      #tab-photos #photoToolbar {
-        display: grid !important;
-        grid-template-columns: repeat(4, minmax(150px, 1fr));
-        gap: 14px;
-        width: 100%;
-        overflow: visible;
-      }
-      #tab-photos #photoPager:not([hidden]),
-      #tab-photos #photoPagerBottom:not([hidden]) {
-        display: flex !important;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        width: 100%;
-        margin: 18px auto !important;
-      }
-      #tab-photos #photoPageInfo,
-      #tab-photos #photoPageInfoBottom { min-width: 180px; text-align: center; }
-      #tab-photos #photoGrid.grid {
-        display: grid !important;
-        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
-        gap: 12px !important;
-      }
-      #tab-photos #photoGrid .thumb {
-        min-width: 0;
-        overflow: hidden !important;
-        display: flex;
-        flex-direction: column;
-      }
-      #tab-photos #photoGrid .thumb__img {
-        display: block !important;
-        width: 100% !important;
-        height: 160px !important;
-        max-width: 100% !important;
-        object-fit: contain !important;
-        object-position: center center !important;
-        background: #111;
-      }
+      #tab-photos #photoToolbar { display: grid !important; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 14px; width: 100%; overflow: visible; }
+      #tab-photos #photoPager:not([hidden]), #tab-photos #photoPagerBottom:not([hidden]) { display: flex !important; align-items: center; justify-content: center; gap: 12px; width: 100%; margin: 18px auto !important; }
+      #tab-photos #photoPageInfo, #tab-photos #photoPageInfoBottom { min-width: 180px; text-align: center; }
+      #tab-photos #photoGrid.grid { display: grid !important; grid-template-columns: repeat(6, minmax(0, 1fr)) !important; gap: 12px !important; }
+      #tab-photos #photoGrid .thumb { min-width: 0; overflow: hidden !important; display: flex; flex-direction: column; }
+      #tab-photos #photoGrid .thumb__img { display: block !important; width: 100% !important; height: 160px !important; max-width: 100% !important; object-fit: contain !important; object-position: center center !important; background: #111; }
       #tab-photos #photoGrid .row__actions { display: flex !important; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: auto; }
       #tab-photos #photoGrid .thumb__select { background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; width: auto !important; height: auto !important; }
       #tab-photos #photoGrid .thumb__check { margin: 0 !important; box-shadow: none !important; }
 
-      @media (max-width: 1380px) {
-        #tab-photos #photoGrid.grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
-      }
+      @media (max-width: 1380px) { #tab-photos #photoGrid.grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; } }
       @media (max-width: 1080px) {
-        #tab-photos #photoUploadForm,
-        #tab-photos #photoToolbar { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+        #tab-photos #photoUploadForm, #tab-photos #photoToolbar { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
         #tab-photos #photoGrid.grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
       }
       @media (max-width: 760px) {
         #tab-photos #pageContext-photos { grid-template-columns: 1fr; row-gap: 12px; }
         #tab-photos .photoPageContextActions { grid-column: 1; grid-row: auto; justify-content: flex-start; }
         #tab-photos .photoUploadAcceptedContainer { max-width: 100%; }
-        #tab-photos #photoUploadForm,
-        #tab-photos #photoToolbar { grid-template-columns: 1fr; }
-        #tab-photos .photoUploadActions { align-items: stretch; flex-direction: column; }
-        #tab-photos .photoUploadActions > .btn[type="submit"] { width: 100%; }
+        #tab-photos #photoUploadForm, #tab-photos #photoToolbar { grid-template-columns: 1fr; }
         #tab-photos #photoGrid.grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
       }
-      @media (max-width: 420px) {
-        #tab-photos #photoGrid.grid { grid-template-columns: 1fr !important; }
-      }
+      @media (max-width: 420px) { #tab-photos #photoGrid.grid { grid-template-columns: 1fr !important; } }
     `;
     document.head.appendChild(style);
   }
