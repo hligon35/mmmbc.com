@@ -14,9 +14,9 @@
 
   function restoreInviteButton() {
     const button = document.getElementById('inviteAdminBtn');
-    const actions = document.querySelector('#adminHeader .headerActions');
-    if (!button || !actions) return;
-    if (button.parentElement !== actions) actions.appendChild(button);
+    const headerRight = document.querySelector('#adminHeader .header__right');
+    if (!button || !headerRight) return;
+    if (button.parentElement !== headerRight) headerRight.appendChild(button);
   }
 
   function selectableValues(select) {
@@ -48,7 +48,6 @@
     select.addEventListener('change', async () => {
       if (select.value !== FIN_DELETE_VALUE) return;
       select.value = '';
-
       const categories = selectableValues(select);
       if (!categories.length) {
         if (typeof window.setFinanceHint === 'function') window.setFinanceHint('There are no categories to delete.');
@@ -67,14 +66,13 @@
       const warning = `Delete “${match}” from the category list?\n\nExisting ledger entries will keep their saved category text, but this category will no longer appear as a selectable option.`;
       if (!window.confirm(warning)) return;
 
-      const nextCategories = categories.filter((value) => value.toLowerCase() !== match.toLowerCase());
-      const funds = selectableValues(fundSelect);
-      if (typeof window.setFinanceHint === 'function') window.setFinanceHint('Deleting category…');
-
       try {
         await window.api('/api/finances/meta', {
           method: 'PUT',
-          body: JSON.stringify({ categories: nextCategories, funds })
+          body: JSON.stringify({
+            categories: categories.filter((value) => value.toLowerCase() !== match.toLowerCase()),
+            funds: selectableValues(fundSelect)
+          })
         });
         window.location.reload();
       } catch (error) {
@@ -87,37 +85,77 @@
     const tab = document.getElementById('tab-photos');
     const pageContext = document.getElementById('pageContext-photos');
     const sectionHeader = tab?.querySelector(':scope > .sectionHeader');
+    const panel = document.getElementById('panel-photos-manage');
+    const uploadForm = document.getElementById('photoUploadForm');
     const bulkBar = document.getElementById('photoBulkBar');
-    const contextActions = pageContext?.querySelector('.pageContext__actions--photos');
-    if (!tab || !sectionHeader) return;
+    const helpButton = document.getElementById('photoHelpBtn');
+    const refreshButton = document.getElementById('exportBtn');
+    const syncProgress = document.getElementById('syncProgressWrap');
+    if (!tab || !pageContext || !sectionHeader || !panel || !uploadForm) return;
 
-    sectionHeader.hidden = false;
+    restoreInviteButton();
+
+    let contextActions = pageContext.querySelector('.photoPageContextActions');
+    if (!contextActions) {
+      contextActions = document.createElement('div');
+      contextActions.className = 'photoPageContextActions noPrint';
+      pageContext.appendChild(contextActions);
+    }
+    if (helpButton) contextActions.appendChild(helpButton);
+    if (refreshButton) contextActions.appendChild(refreshButton);
+    if (syncProgress) contextActions.appendChild(syncProgress);
+
     sectionHeader.classList.add('photoWorkspaceHeader');
+    const duplicateLeft = sectionHeader.querySelector('.sectionHeader__left');
+    if (duplicateLeft) duplicateLeft.remove();
+    const oldIconGroup = sectionHeader.querySelector('.iconGroup');
+    if (oldIconGroup) oldIconGroup.remove();
 
-    let actions = sectionHeader.querySelector('.photoWorkspaceHeader__actions');
-    if (!actions) {
-      actions = document.createElement('div');
-      actions.className = 'photoWorkspaceHeader__actions';
-      sectionHeader.appendChild(actions);
+    let bulkActions = sectionHeader.querySelector('.photoWorkspaceHeader__actions');
+    if (!bulkActions) {
+      bulkActions = document.createElement('div');
+      bulkActions.className = 'photoWorkspaceHeader__actions';
+      sectionHeader.appendChild(bulkActions);
     }
-
-    if (contextActions) {
-      const primary = contextActions.querySelector('.pageContext__primaryActions');
-      if (primary) actions.appendChild(primary);
-      contextActions.remove();
-    }
-
-    if (bulkBar && bulkBar.parentElement !== actions) {
+    if (bulkBar && bulkBar.parentElement !== bulkActions) {
       bulkBar.classList.remove('photoBulkBar--pageContext', 'photoBulkBar--header', 'photoBulkBar--nav');
-      actions.appendChild(bulkBar);
+      bulkActions.appendChild(bulkBar);
     }
+
+    const syncBulkHeader = () => {
+      sectionHeader.hidden = !bulkBar || bulkBar.hidden;
+    };
+    syncBulkHeader();
+    if (bulkBar && bulkBar.dataset.headerObserverBound !== '1') {
+      bulkBar.dataset.headerObserverBound = '1';
+      new MutationObserver(syncBulkHeader).observe(bulkBar, { attributes: true, attributeFilter: ['hidden'] });
+    }
+
+    const submitRow = uploadForm.querySelector('.photoUploadSubmitRow');
+    const submitButton = submitRow?.querySelector('button[type="submit"]') || uploadForm.querySelector('button[type="submit"]');
+    const accepted = submitRow?.querySelector('.photoUploadAccepted') || uploadForm.querySelector('.photoUploadAccepted');
+    if (submitRow) {
+      submitRow.classList.add('photoUploadActions');
+      if (accepted) {
+        let acceptedContainer = submitRow.querySelector('.photoUploadAcceptedContainer');
+        if (!acceptedContainer) {
+          acceptedContainer = document.createElement('div');
+          acceptedContainer.className = 'photoUploadAcceptedContainer';
+          submitRow.insertBefore(acceptedContainer, submitButton || null);
+        }
+        acceptedContainer.appendChild(accepted);
+      }
+      if (submitButton) submitRow.appendChild(submitButton);
+      uploadForm.appendChild(submitRow);
+    }
+
+    panel.setAttribute('aria-label', 'Manage photos');
   }
 
   function combineAnnouncementsAndEvents() {
     const contentTab = document.getElementById('tab-content');
     const eventsTab = document.getElementById('tab-events');
     if (!contentTab || !eventsTab || contentTab.querySelector('.contentEventsSplit')) return;
-
     const navContent = document.getElementById('tabBtn-content');
     const navEvents = document.getElementById('tabBtn-events');
     if (navContent) navContent.textContent = 'Announcements & Events';
@@ -136,7 +174,6 @@
     announcementPane.className = 'contentEventsSplit__pane contentEventsSplit__pane--announcements';
     const eventPane = document.createElement('section');
     eventPane.className = 'contentEventsSplit__pane contentEventsSplit__pane--events';
-
     Array.from(contentTab.children).forEach((child) => {
       if (child !== pageContext && child !== split) announcementPane.appendChild(child);
     });
@@ -197,7 +234,6 @@
         margin-left: clamp(12px, 2vw, 30px) !important;
         margin-right: clamp(12px, 2vw, 30px) !important;
       }
-
       #tab-support > form {
         width: calc(100% - (2 * clamp(12px, 2vw, 30px)));
         margin: 0 clamp(12px, 2vw, 30px);
@@ -206,12 +242,8 @@
         border-radius: 16px;
         background: var(--panel);
       }
-
       .headerInviteBtn { display: grid; place-items: center; }
-
-      .editorSplit__preview,
-      #siteEditorPreviewPane,
-      .previewPane {
+      .editorSplit__preview, #siteEditorPreviewPane, .previewPane {
         align-self: start !important;
         height: max-content !important;
         min-height: 0 !important;
@@ -221,35 +253,35 @@
       .sitePagePreviewFrame { height: clamp(360px, 54vh, 620px) !important; }
       #siteEditorLivePreview { min-height: 0 !important; }
 
-      #tab-photos .pageContext--photos { display: block !important; }
-      #tab-photos > .photoWorkspaceHeader {
-        display: flex !important;
+      #tab-photos #pageContext-photos {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        flex-wrap: wrap;
-        margin: 0 clamp(12px, 2vw, 30px) 18px;
+        column-gap: 18px;
       }
-      #tab-photos .photoWorkspaceHeader__actions {
+      #tab-photos #pageContext-photos > .pageContext__crumb,
+      #tab-photos #pageContext-photos > .pageContext__title,
+      #tab-photos #pageContext-photos > .pageContext__description { grid-column: 1; }
+      #tab-photos .photoPageContextActions {
+        grid-column: 2;
+        grid-row: 1 / span 3;
         display: flex;
         align-items: center;
         justify-content: flex-end;
         gap: 10px;
         flex-wrap: wrap;
-        margin-left: auto;
       }
-      #tab-photos .pageContext__primaryActions {
-        display: flex;
-        align-items: stretch;
-        gap: 10px;
+      #tab-photos .photoPageContextActions .syncProgress { flex-basis: 100%; }
+      #tab-photos > .photoWorkspaceHeader {
+        align-items: center;
+        justify-content: flex-end;
+        min-height: 0;
+        margin: 0 clamp(12px, 2vw, 30px) 14px;
+        padding: 0;
+        border: 0;
       }
-      #tab-photos .pageContext__primaryActions .iconBtn {
-        width: 46px;
-        min-width: 46px;
-        min-height: 46px;
-        display: grid;
-        place-items: center;
-      }
+      #tab-photos > .photoWorkspaceHeader[hidden] { display: none !important; }
+      #tab-photos .photoWorkspaceHeader__actions { display: flex; justify-content: flex-end; width: 100%; }
       #tab-photos #photoBulkBar {
         position: static !important;
         inset: auto !important;
@@ -266,22 +298,9 @@
       #tab-photos #photoBulkBar[hidden] { display: none !important; }
       #tab-photos #photoBulkCount { white-space: nowrap; }
 
-      #tab-photos #photoGrid .thumb__select {
-        background: transparent !important;
-        border: 0 !important;
-        box-shadow: none !important;
-        padding: 0 !important;
-        width: auto !important;
-        height: auto !important;
-      }
-      #tab-photos #photoGrid .thumb__check {
-        margin: 0 !important;
-        box-shadow: none !important;
-      }
-
       #tab-photos #photoUploadForm {
         display: grid !important;
-        grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
+        grid-template-columns: repeat(4, minmax(150px, 1fr));
         align-items: end;
         gap: 14px;
         width: 100%;
@@ -292,7 +311,25 @@
       #tab-photos #photoUploadForm .input,
       #tab-photos #photoToolbar .input,
       #tab-photos #photoToolbar .select { width: 100%; min-width: 0; min-height: 52px; }
-      #tab-photos #photoUploadForm > .btn[type="submit"] { min-height: 52px; }
+      #tab-photos .photoUploadActions {
+        grid-column: 1 / -1;
+        display: flex !important;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 12px;
+        width: 100%;
+      }
+      #tab-photos .photoUploadAcceptedContainer {
+        display: flex;
+        align-items: center;
+        min-height: 46px;
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--panel);
+      }
+      #tab-photos .photoUploadAccepted { margin: 0; }
+      #tab-photos .photoUploadActions > .btn[type="submit"] { min-height: 46px; white-space: nowrap; }
       #tab-photos #photoUploadHint { grid-column: 1 / -1; }
       #tab-photos #photoToolbar {
         display: grid !important;
@@ -301,25 +338,43 @@
         width: 100%;
         overflow: visible;
       }
+      #tab-photos #photoPager:not([hidden]),
+      #tab-photos #photoPagerBottom:not([hidden]) {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        width: 100%;
+        margin: 18px auto !important;
+      }
+      #tab-photos #photoPageInfo,
+      #tab-photos #photoPageInfoBottom { min-width: 180px; text-align: center; }
       #tab-photos #photoGrid.grid {
         display: grid !important;
-        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)) !important;
-        gap: 14px !important;
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+        gap: 12px !important;
       }
       #tab-photos #photoGrid .thumb { min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
-      #tab-photos #photoGrid .thumb__img { width: 100%; height: 190px; object-fit: contain !important; background: #111; }
-      #tab-photos #photoGrid .row__actions { display: flex !important; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: auto; }
+      #tab-photos #photoGrid .thumb__img { width: 100%; height: 150px; object-fit: contain !important; background: #111; }
+      #tab-photos #photoGrid .row__actions { display: flex !important; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: auto; }
+      #tab-photos #photoGrid .thumb__select { background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; width: auto !important; height: auto !important; }
+      #tab-photos #photoGrid .thumb__check { margin: 0 !important; box-shadow: none !important; }
 
-      @media (max-width: 1180px) {
+      @media (max-width: 1380px) {
+        #tab-photos #photoGrid.grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+      }
+      @media (max-width: 1080px) {
         #tab-photos #photoUploadForm,
         #tab-photos #photoToolbar { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+        #tab-photos #photoGrid.grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
       }
       @media (max-width: 760px) {
-        #tab-photos > .photoWorkspaceHeader { align-items: stretch; }
-        #tab-photos .photoWorkspaceHeader__actions { width: 100%; justify-content: flex-start; margin-left: 0; }
-        #tab-photos #photoBulkBar { width: 100% !important; flex-wrap: wrap; }
+        #tab-photos #pageContext-photos { grid-template-columns: 1fr; row-gap: 12px; }
+        #tab-photos .photoPageContextActions { grid-column: 1; grid-row: auto; justify-content: flex-start; }
         #tab-photos #photoUploadForm,
         #tab-photos #photoToolbar { grid-template-columns: 1fr; }
+        #tab-photos .photoUploadActions { align-items: stretch; flex-direction: column; }
+        #tab-photos .photoUploadActions > .btn[type="submit"] { width: 100%; }
         #tab-photos #photoGrid.grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
       }
       @media (max-width: 420px) {
