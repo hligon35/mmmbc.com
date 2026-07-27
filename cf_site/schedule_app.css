@@ -1,14 +1,5 @@
 /* Styles for the Schedule Application Components */
 
-/* Styles for elements within the #schedule-display-area on the main page */
-/* (These were previously in style.css but are specific to schedule display) */
-
-/* .event-item, .btn-delete-event are already defined below for modal, 
-   and their styling is suitable for the main page display as well.
-   If specific overrides are needed for main page items, they can be added here.
-*/
-
-/* START OF MOVED STYLES FROM style.css */
 #schedule-display-area {
     flex: 1;
     background-color: rgba(196, 97, 35, 0.3);
@@ -23,9 +14,7 @@
 }
 
 @media (min-width: 981px) {
-    .home #schedule-display-area {
-        height: 420px;
-    }
+    .home #schedule-display-area { height: 420px; }
 }
 
 .schedule-header {
@@ -36,10 +25,7 @@
     width: 100%;
 }
 
-.schedule-header h3 {
-    margin: 0;
-    font-size: 2.5em;
-}
+.schedule-header h3 { margin: 0; font-size: 2.5em; }
 
 #schedule-display {
     min-height: 150px;
@@ -66,7 +52,6 @@
         -webkit-overflow-scrolling: touch;
     }
 }
-/* END OF MOVED STYLES FROM style.css */
 
 .schedule-controls-modal h4 {
     margin-top: 20px;
@@ -97,9 +82,7 @@
     transition: background-color 0.2s ease;
 }
 
-.schedule-controls-modal button:hover {
-    background-color: rgb(160, 70, 20);
-}
+.schedule-controls-modal button:hover { background-color: rgb(160, 70, 20); }
 
 #schedule-app-preview-display {
     min-height: 80px;
@@ -126,9 +109,7 @@
     transition: background-color 0.2s ease;
 }
 
-#update-live-page-button:hover {
-    background-color: #218838;
-}
+#update-live-page-button:hover { background-color: #218838; }
 
 .event-item {
     background-color: rgba(0, 0, 0, 0.7);
@@ -153,19 +134,8 @@
     margin-bottom: 5px;
 }
 
-.event-item p {
-    margin: 3px 0;
-    color: #e0e0e0;
-    text-align: center;
-}
-
-.event-item strong {
-    display: block;
-    margin-bottom: 4px;
-    color: #ffffff;
-    font-size: 1.05em;
-    text-align: center;
-}
+.event-item p { margin: 3px 0; color: #e0e0e0; text-align: center; }
+.event-item strong { display: block; margin-bottom: 4px; color: #ffffff; font-size: 1.05em; text-align: center; }
 
 .btn-delete-event {
     background-color: #c46123;
@@ -179,31 +149,19 @@
     transition: background-color 0.2s ease;
 }
 
-.btn-delete-event:hover {
-    background-color: #a04e1c;
-}
+.btn-delete-event:hover { background-color: #a04e1c; }
 
 #schedule-app-preview-display::-webkit-scrollbar,
-#schedule-display::-webkit-scrollbar {
-    width: 6px;
-}
+#schedule-display::-webkit-scrollbar { width: 6px; }
 
 #schedule-app-preview-display::-webkit-scrollbar-track,
-#schedule-display::-webkit-scrollbar-track {
-    background: #2a2a2a;
-    border-radius: 3px;
-}
+#schedule-display::-webkit-scrollbar-track { background: #2a2a2a; border-radius: 3px; }
 
 #schedule-app-preview-display::-webkit-scrollbar-thumb,
-#schedule-display::-webkit-scrollbar-thumb {
-    background: rgb(196, 97, 35);
-    border-radius: 3px;
-}
+#schedule-display::-webkit-scrollbar-thumb { background: rgb(196, 97, 35); border-radius: 3px; }
 
 #schedule-app-preview-display::-webkit-scrollbar-thumb:hover,
-#schedule-display::-webkit-scrollbar-thumb:hover {
-    background: rgb(172, 85, 30);
-}
+#schedule-display::-webkit-scrollbar-thumb:hover { background: rgb(172, 85, 30); }
 
 /* Shared mobile alignment for every public static page. */
 @media (max-width: 768px) {
@@ -245,15 +203,11 @@
     body:not(.admin-page) h1,
     body:not(.admin-page) h2,
     body:not(.admin-page) .page-title,
-    body:not(.admin-page) .section-title {
-        text-align: center !important;
-    }
+    body:not(.admin-page) .section-title { text-align: center !important; }
 
     body:not(.admin-page) img,
     body:not(.admin-page) video,
-    body:not(.admin-page) iframe {
-        max-width: 100% !important;
-    }
+    body:not(.admin-page) iframe { max-width: 100% !important; }
 
     body.home .hero-section {
         display: flex !important;
@@ -295,33 +249,34 @@
         text-align: center !important;
     }
 
-    /* Ministries and Leadership & Staff use the same profile card structure. */
-    body:not(.admin-page) .leadership-profile {
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        justify-content: center !important;
-        width: min(100%, calc(100vw - 32px)) !important;
-        margin-left: auto !important;
-        margin-right: auto !important;
-        text-align: center !important;
+    /* Keep profile cards inside their parent; center portraits without enlarging them. */
+    body:not(.admin-page) .content-section .leadership-profile {
+        box-sizing: border-box !important;
+        width: auto !important;
+        max-width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        overflow: hidden !important;
+        align-items: stretch !important;
+        text-align: left !important;
     }
 
-    body:not(.admin-page) .leadership-profile .profile-image {
+    body:not(.admin-page) .content-section .leadership-profile .profile-image {
         display: block !important;
         float: none !important;
-        width: min(100%, 320px) !important;
+        width: auto !important;
         height: auto !important;
-        margin-left: auto !important;
-        margin-right: auto !important;
-        object-position: center center !important;
+        max-width: min(200px, 100%) !important;
+        margin: 0 auto 16px !important;
         align-self: center !important;
+        object-position: center center !important;
     }
 
-    body:not(.admin-page) .leadership-profile .profile-details {
-        width: 100% !important;
+    body:not(.admin-page) .content-section .leadership-profile .profile-details {
+        box-sizing: border-box !important;
+        width: auto !important;
         max-width: 100% !important;
-        margin-left: auto !important;
-        margin-right: auto !important;
+        min-width: 0 !important;
+        margin: 0 !important;
     }
 }
