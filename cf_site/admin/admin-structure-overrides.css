@@ -247,6 +247,18 @@
   background: rgba(255,255,255,0.07) !important;
 }
 
+/* Align every Help & Support content block with its page header. */
+#tab-support > :not(.pageContext) {
+  box-sizing: border-box;
+  width: calc(100% - (2 * clamp(12px, 2vw, 30px)));
+  margin-left: clamp(12px, 2vw, 30px) !important;
+  margin-right: clamp(12px, 2vw, 30px) !important;
+}
+
+#tab-support > form {
+  margin-top: 0 !important;
+}
+
 @media (max-width: 1080px) {
   .contentEventsSplit {
     grid-template-columns: 1fr;
