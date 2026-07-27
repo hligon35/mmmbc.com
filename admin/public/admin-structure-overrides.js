@@ -13,19 +13,22 @@
   }
 
   function restoreInviteButton() {
-    const header = document.getElementById('adminHeader');
     const button = document.getElementById('inviteAdminBtn');
-    if (!header || !button) return;
+    const actions = document.querySelector('#adminHeader .headerActions');
+    if (!button || !actions) return;
+    if (button.parentElement !== actions) actions.appendChild(button);
+  }
 
-    const sync = () => {
-      if (!header.hidden) button.hidden = false;
-    };
-    sync();
-    new MutationObserver(sync).observe(header, { attributes: true, attributeFilter: ['hidden'] });
+  function selectableValues(select) {
+    if (!(select instanceof HTMLSelectElement)) return [];
+    return Array.from(select.options)
+      .map((option) => String(option.value || '').trim())
+      .filter((value) => value && value !== '__CREATE__' && value !== FIN_DELETE_VALUE);
   }
 
   function addFinanceCategoryDelete() {
     const select = document.getElementById('financeCategory');
+    const fundSelect = document.getElementById('financeFund');
     if (!(select instanceof HTMLSelectElement) || select.dataset.deleteCategoryBound === '1') return;
     select.dataset.deleteCategoryBound = '1';
 
@@ -39,17 +42,14 @@
       else select.appendChild(option);
     };
 
-    const observer = new MutationObserver(ensureDeleteOption);
-    observer.observe(select, { childList: true });
+    new MutationObserver(ensureDeleteOption).observe(select, { childList: true });
     ensureDeleteOption();
 
     select.addEventListener('change', async () => {
       if (select.value !== FIN_DELETE_VALUE) return;
       select.value = '';
 
-      const categories = Array.isArray(window.finances?.meta?.categories)
-        ? window.finances.meta.categories.map((value) => String(value || '').trim()).filter(Boolean)
-        : [];
+      const categories = selectableValues(select);
       if (!categories.length) {
         if (typeof window.setFinanceHint === 'function') window.setFinanceHint('There are no categories to delete.');
         return;
@@ -64,27 +64,19 @@
         return;
       }
 
-      const usedCount = Array.isArray(window.finances?.entries)
-        ? window.finances.entries.filter((entry) => String(entry?.category || '').trim().toLowerCase() === match.toLowerCase()).length
-        : 0;
-      const warning = usedCount
-        ? `Delete “${match}” from the category list?\n\n${usedCount} existing ledger entr${usedCount === 1 ? 'y' : 'ies'} will keep this category text, but it will no longer appear as a selectable category.`
-        : `Delete “${match}” from the category list?`;
+      const warning = `Delete “${match}” from the category list?\n\nExisting ledger entries will keep their saved category text, but this category will no longer appear as a selectable option.`;
       if (!window.confirm(warning)) return;
 
-      const funds = Array.isArray(window.finances?.meta?.funds) ? window.finances.meta.funds : [];
       const nextCategories = categories.filter((value) => value.toLowerCase() !== match.toLowerCase());
+      const funds = selectableValues(fundSelect);
       if (typeof window.setFinanceHint === 'function') window.setFinanceHint('Deleting category…');
 
       try {
-        const response = await window.api('/api/finances/meta', {
+        await window.api('/api/finances/meta', {
           method: 'PUT',
           body: JSON.stringify({ categories: nextCategories, funds })
         });
-        window.finances = response.data;
-        if (typeof window.populateFinanceDatalists === 'function') window.populateFinanceDatalists();
-        if (typeof window.renderFinances === 'function') window.renderFinances();
-        if (typeof window.setFinanceHint === 'function') window.setFinanceHint(`Deleted category: ${match}.`);
+        window.location.reload();
       } catch (error) {
         if (typeof window.setFinanceHint === 'function') window.setFinanceHint(String(error?.message || error || 'Unable to delete category.'));
       }
@@ -215,8 +207,7 @@
         background: var(--panel);
       }
 
-      .headerInviteBtn { display: grid !important; place-items: center; }
-      .headerInviteBtn[hidden] { display: grid !important; }
+      .headerInviteBtn { display: grid; place-items: center; }
 
       .editorSplit__preview,
       #siteEditorPreviewPane,
