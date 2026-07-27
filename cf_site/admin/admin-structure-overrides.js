@@ -1,232 +1,115 @@
 (() => {
   const HOME_LINK = '<a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a>';
+  const FIN_DELETE_VALUE = '__DELETE__';
 
   function fixBreadcrumbs() {
     document.querySelectorAll('.pageContext').forEach((context) => {
       const crumb = context.querySelector('.pageContext__crumb');
       const title = context.querySelector('.pageContext__title');
       if (!crumb || !title) return;
-
       const label = String(title.textContent || '').trim();
-      crumb.innerHTML = label === 'Church Website Manager'
-        ? HOME_LINK
-        : `${HOME_LINK} &rsaquo; ${label}`;
+      crumb.innerHTML = label === 'Church Website Manager' ? HOME_LINK : `${HOME_LINK} &rsaquo; ${label}`;
+    });
+  }
+
+  function restoreInviteButton() {
+    const button = document.getElementById('inviteAdminBtn');
+    const actions = document.querySelector('#adminHeader .headerActions');
+    if (!button || !actions) return;
+    if (button.parentElement !== actions) actions.appendChild(button);
+  }
+
+  function selectableValues(select) {
+    if (!(select instanceof HTMLSelectElement)) return [];
+    return Array.from(select.options)
+      .map((option) => String(option.value || '').trim())
+      .filter((value) => value && value !== '__CREATE__' && value !== FIN_DELETE_VALUE);
+  }
+
+  function addFinanceCategoryDelete() {
+    const select = document.getElementById('financeCategory');
+    const fundSelect = document.getElementById('financeFund');
+    if (!(select instanceof HTMLSelectElement) || select.dataset.deleteCategoryBound === '1') return;
+    select.dataset.deleteCategoryBound = '1';
+
+    const ensureDeleteOption = () => {
+      if (Array.from(select.options).some((option) => option.value === FIN_DELETE_VALUE)) return;
+      const createOption = Array.from(select.options).find((option) => option.value === '__CREATE__');
+      const option = document.createElement('option');
+      option.value = FIN_DELETE_VALUE;
+      option.textContent = 'Delete a category…';
+      if (createOption) createOption.insertAdjacentElement('afterend', option);
+      else select.appendChild(option);
+    };
+
+    new MutationObserver(ensureDeleteOption).observe(select, { childList: true });
+    ensureDeleteOption();
+
+    select.addEventListener('change', async () => {
+      if (select.value !== FIN_DELETE_VALUE) return;
+      select.value = '';
+
+      const categories = selectableValues(select);
+      if (!categories.length) {
+        if (typeof window.setFinanceHint === 'function') window.setFinanceHint('There are no categories to delete.');
+        return;
+      }
+
+      const typed = window.prompt(`Type the category name to delete:\n\n${categories.join('\n')}`);
+      const target = String(typed || '').trim();
+      if (!target) return;
+      const match = categories.find((value) => value.toLowerCase() === target.toLowerCase());
+      if (!match) {
+        if (typeof window.setFinanceHint === 'function') window.setFinanceHint('Category not found.');
+        return;
+      }
+
+      const warning = `Delete “${match}” from the category list?\n\nExisting ledger entries will keep their saved category text, but this category will no longer appear as a selectable option.`;
+      if (!window.confirm(warning)) return;
+
+      const nextCategories = categories.filter((value) => value.toLowerCase() !== match.toLowerCase());
+      const funds = selectableValues(fundSelect);
+      if (typeof window.setFinanceHint === 'function') window.setFinanceHint('Deleting category…');
+
+      try {
+        await window.api('/api/finances/meta', {
+          method: 'PUT',
+          body: JSON.stringify({ categories: nextCategories, funds })
+        });
+        window.location.reload();
+      } catch (error) {
+        if (typeof window.setFinanceHint === 'function') window.setFinanceHint(String(error?.message || error || 'Unable to delete category.'));
+      }
     });
   }
 
   function repairPhotoWorkspace() {
     const tab = document.getElementById('tab-photos');
-    const panel = document.getElementById('panel-photos-manage');
-    const uploadForm = document.getElementById('photoUploadForm');
+    const pageContext = document.getElementById('pageContext-photos');
+    const sectionHeader = tab?.querySelector(':scope > .sectionHeader');
     const bulkBar = document.getElementById('photoBulkBar');
-    if (!tab || !panel || !uploadForm) return;
+    const contextActions = pageContext?.querySelector('.pageContext__actions--photos');
+    if (!tab || !sectionHeader) return;
 
-    if (bulkBar && bulkBar.parentElement !== panel) {
-      bulkBar.classList.remove('photoBulkBar--pageContext', 'photoBulkBar--header', 'photoBulkBar--nav');
-      panel.insertBefore(bulkBar, uploadForm);
+    sectionHeader.hidden = false;
+    sectionHeader.classList.add('photoWorkspaceHeader');
+
+    let actions = sectionHeader.querySelector('.photoWorkspaceHeader__actions');
+    if (!actions) {
+      actions = document.createElement('div');
+      actions.className = 'photoWorkspaceHeader__actions';
+      sectionHeader.appendChild(actions);
     }
 
-    if (!document.getElementById('adminPhotoWorkspaceRepairStyles')) {
-      const style = document.createElement('style');
-      style.id = 'adminPhotoWorkspaceRepairStyles';
-      style.textContent = `
-        #tab-photos { min-width: 0; }
-        #tab-photos .pageContext--photos {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
-          align-items: center;
-          gap: 20px;
-        }
-        #tab-photos .pageContext__actions--photos {
-          display: grid;
-          gap: 10px;
-          min-width: min(100%, 300px);
-        }
-        #tab-photos .pageContext__primaryActions {
-          display: flex;
-          align-items: stretch;
-          justify-content: flex-end;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-        #tab-photos .pageContext__primaryActions .iconBtn {
-          width: 46px;
-          min-width: 46px;
-          min-height: 46px;
-          display: grid;
-          place-items: center;
-        }
-        #tab-photos .pageContext__primaryActions .btn { min-height: 46px; }
-        #tab-photos > .sectionHeader { display: none !important; }
+    if (contextActions) {
+      const primary = contextActions.querySelector('.pageContext__primaryActions');
+      if (primary) actions.appendChild(primary);
+      contextActions.remove();
+    }
 
-        #panel-photos-manage { min-width: 0; }
-        #panel-photos-manage > .muted:first-child { margin: 0 0 18px; }
-
-        #tab-photos #photoBulkBar {
-          position: static !important;
-          inset: auto !important;
-          width: 100% !important;
-          margin: 0 0 16px !important;
-          padding: 12px !important;
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 10px;
-          border: 1px solid var(--border);
-          border-radius: 12px;
-          background: rgba(196, 97, 35, .08);
-          box-shadow: none !important;
-          backdrop-filter: none !important;
-        }
-        #tab-photos #photoBulkBar[hidden] { display: none !important; }
-        #tab-photos #photoBulkCount { margin-left: auto; }
-
-        #tab-photos #photoUploadForm {
-          display: grid !important;
-          grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
-          align-items: end;
-          gap: 14px;
-          width: 100%;
-          margin: 0 0 20px;
-          overflow: visible;
-        }
-        #tab-photos #photoUploadForm > .label {
-          min-width: 0;
-          display: grid;
-          grid-template-columns: 1fr;
-          align-content: end;
-          gap: 7px;
-        }
-        #tab-photos #photoUploadForm .input {
-          width: 100%;
-          min-width: 0;
-          min-height: 52px;
-        }
-        #tab-photos #photoUploadForm input[type="file"] {
-          height: auto;
-          padding: 9px;
-        }
-        #tab-photos #photoUploadForm > .btn[type="submit"] {
-          min-height: 52px;
-          min-width: 124px;
-          white-space: nowrap;
-        }
-        #tab-photos #photoUploadHint { grid-column: 1 / -1; }
-
-        #tab-photos #photoToolbar {
-          display: grid !important;
-          grid-template-columns: repeat(4, minmax(150px, 1fr));
-          align-items: end;
-          gap: 14px;
-          width: 100%;
-          margin: 0 0 18px;
-          overflow: visible;
-        }
-        #tab-photos #photoToolbar > .label {
-          min-width: 0;
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 7px;
-          align-items: end;
-        }
-        #tab-photos #photoToolbar .input,
-        #tab-photos #photoToolbar .select {
-          width: 100%;
-          min-width: 0;
-          min-height: 52px;
-        }
-
-        #tab-photos #photoPager:not([hidden]),
-        #tab-photos #photoPagerBottom:not([hidden]) {
-          display: grid !important;
-          grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-          align-items: center;
-          gap: 10px;
-          width: 100% !important;
-          margin: 18px 0 !important;
-        }
-        #tab-photos #photoPager button:first-child,
-        #tab-photos #photoPagerBottom button:first-child { justify-self: start; }
-        #tab-photos #photoPager span,
-        #tab-photos #photoPagerBottom span { justify-self: center; white-space: nowrap; }
-        #tab-photos #photoPager button:last-child,
-        #tab-photos #photoPagerBottom button:last-child { justify-self: end; }
-
-        #tab-photos #photoGrid.grid {
-          display: grid !important;
-          grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)) !important;
-          align-items: stretch;
-          gap: 14px !important;
-          width: 100%;
-          min-width: 0;
-        }
-        #tab-photos #photoGrid .thumb {
-          min-width: 0;
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
-        }
-        #tab-photos #photoGrid .thumb__img {
-          display: block;
-          width: 100%;
-          height: 190px;
-          object-fit: contain !important;
-          object-position: center;
-          background: #111;
-        }
-        #tab-photos #photoGrid .row__actions {
-          display: flex !important;
-          flex-wrap: wrap;
-          justify-content: center;
-          align-items: center;
-          gap: 8px;
-          width: 100%;
-          margin-top: auto;
-        }
-        #tab-photos #photoGrid .row__actions .btn {
-          width: auto !important;
-          min-width: 68px;
-          flex: 0 1 auto;
-        }
-
-        #tab-photos #advancedPhotoTools {
-          margin-top: 22px;
-          overflow: hidden;
-        }
-        #tab-photos #advancedPhotoTools > summary { padding: 4px 0; }
-
-        @media (max-width: 1180px) {
-          #tab-photos #photoUploadForm,
-          #tab-photos #photoToolbar {
-            grid-template-columns: repeat(2, minmax(220px, 1fr));
-          }
-          #tab-photos #photoUploadForm > .btn[type="submit"] { width: 100%; }
-        }
-
-        @media (max-width: 760px) {
-          #tab-photos .pageContext--photos { grid-template-columns: 1fr; }
-          #tab-photos .pageContext__actions--photos { min-width: 0; }
-          #tab-photos .pageContext__primaryActions { justify-content: flex-start; }
-          #tab-photos #photoUploadForm,
-          #tab-photos #photoToolbar { grid-template-columns: 1fr; }
-          #tab-photos #photoBulkBar { align-items: stretch; }
-          #tab-photos #photoBulkBar .btn { flex: 1 1 180px; }
-          #tab-photos #photoBulkCount { width: 100%; margin-left: 0; text-align: center; }
-          #tab-photos #photoGrid.grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            gap: 10px !important;
-          }
-          #tab-photos #photoGrid .thumb__img { height: 150px; }
-        }
-
-        @media (max-width: 420px) {
-          #tab-photos #photoGrid.grid { grid-template-columns: 1fr !important; }
-          #tab-photos #photoGrid .thumb__img { height: 210px; }
-          #tab-photos #photoPager .btn,
-          #tab-photos #photoPagerBottom .btn { padding: 9px 10px; font-size: .9rem; }
-        }
-      `;
-      document.head.appendChild(style);
+    if (bulkBar && bulkBar.parentElement !== actions) {
+      bulkBar.classList.remove('photoBulkBar--pageContext', 'photoBulkBar--header', 'photoBulkBar--nav');
+      actions.appendChild(bulkBar);
     }
   }
 
@@ -239,10 +122,7 @@
     const navEvents = document.getElementById('tabBtn-events');
     if (navContent) navContent.textContent = 'Announcements & Events';
     if (navEvents) navEvents.remove();
-
-    document.querySelectorAll('[data-section-target="tab-events"]').forEach((el) => {
-      el.setAttribute('data-section-target', 'tab-content');
-    });
+    document.querySelectorAll('[data-section-target="tab-events"]').forEach((el) => el.setAttribute('data-section-target', 'tab-content'));
 
     const pageContext = contentTab.querySelector('.pageContext');
     const title = pageContext?.querySelector('.pageContext__title');
@@ -252,32 +132,22 @@
 
     const split = document.createElement('div');
     split.className = 'contentEventsSplit';
-
     const announcementPane = document.createElement('section');
     announcementPane.className = 'contentEventsSplit__pane contentEventsSplit__pane--announcements';
-    announcementPane.setAttribute('aria-label', 'Announcements and bulletins');
-
     const eventPane = document.createElement('section');
     eventPane.className = 'contentEventsSplit__pane contentEventsSplit__pane--events';
-    eventPane.setAttribute('aria-label', 'Events');
 
     Array.from(contentTab.children).forEach((child) => {
-      if (child === pageContext || child === split) return;
-      announcementPane.appendChild(child);
+      if (child !== pageContext && child !== split) announcementPane.appendChild(child);
     });
-
     const eventHeading = document.createElement('div');
     eventHeading.className = 'sectionHeader sectionHeader--compact contentEventsSplit__eventHeader';
     eventHeading.innerHTML = '<div><h2 class="sectionHeader__title">Events</h2><p class="muted">Add, edit, and delete service times, meetings, and church programs.</p></div>';
     eventPane.appendChild(eventHeading);
-
     Array.from(eventsTab.children).forEach((child) => {
-      if (child.classList?.contains('pageContext')) return;
-      eventPane.appendChild(child);
+      if (!child.classList?.contains('pageContext')) eventPane.appendChild(child);
     });
-
-    split.appendChild(announcementPane);
-    split.appendChild(eventPane);
+    split.append(announcementPane, eventPane);
     contentTab.appendChild(split);
     eventsTab.remove();
   }
@@ -286,20 +156,15 @@
     const context = document.getElementById('pageContext-newsletter');
     const select = document.getElementById('subscriberList');
     if (!context || !select || context.querySelector('.newsletterSubscriberContext')) return;
-
     select.removeAttribute('size');
     select.setAttribute('aria-label', 'Current subscribers');
-
     const holder = document.createElement('div');
     holder.className = 'newsletterSubscriberContext';
-
     const label = document.createElement('label');
     label.className = 'label newsletterSubscriberContext__label';
-    label.append('Current subscribers');
-    label.appendChild(select);
+    label.append('Current subscribers', select);
     holder.appendChild(label);
     context.appendChild(holder);
-
     const oldLabel = document.querySelector('#subscriberPanel .formRow > .label');
     if (oldLabel && !oldLabel.querySelector('select')) oldLabel.remove();
   }
@@ -310,24 +175,165 @@
     const dashboard = document.getElementById('financeDashboardBtn');
     const actions = document.querySelector('.financeActionButtons');
     if (!context || !title || context.querySelector('.financePageContextTitleRow')) return;
-
     const row = document.createElement('div');
     row.className = 'financePageContextTitleRow';
     title.parentNode.insertBefore(row, title);
     row.appendChild(title);
-
     const controls = document.createElement('div');
     controls.className = 'financePageContextActions noPrint';
     if (dashboard) controls.appendChild(dashboard);
     if (actions) controls.appendChild(actions);
     row.appendChild(controls);
+    document.querySelector('#tab-finances .financeHeaderTitleRow .sectionHeader__title')?.remove();
+  }
 
-    const duplicateHeaderTitle = document.querySelector('#tab-finances .financeHeaderTitleRow .sectionHeader__title');
-    if (duplicateHeaderTitle) duplicateHeaderTitle.remove();
+  function injectStyles() {
+    if (document.getElementById('adminLayoutRefinementStyles')) return;
+    const style = document.createElement('style');
+    style.id = 'adminLayoutRefinementStyles';
+    style.textContent = `
+      .pageContext {
+        width: calc(100% - (2 * clamp(12px, 2vw, 30px)));
+        margin-left: clamp(12px, 2vw, 30px) !important;
+        margin-right: clamp(12px, 2vw, 30px) !important;
+      }
+
+      #tab-support > form {
+        width: calc(100% - (2 * clamp(12px, 2vw, 30px)));
+        margin: 0 clamp(12px, 2vw, 30px);
+        padding: 18px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--panel);
+      }
+
+      .headerInviteBtn { display: grid; place-items: center; }
+
+      .editorSplit__preview,
+      #siteEditorPreviewPane,
+      .previewPane {
+        align-self: start !important;
+        height: max-content !important;
+        min-height: 0 !important;
+        max-height: none !important;
+      }
+      #siteEditorPreviewPane { padding-bottom: 16px !important; }
+      .sitePagePreviewFrame { height: clamp(360px, 54vh, 620px) !important; }
+      #siteEditorLivePreview { min-height: 0 !important; }
+
+      #tab-photos .pageContext--photos { display: block !important; }
+      #tab-photos > .photoWorkspaceHeader {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin: 0 clamp(12px, 2vw, 30px) 18px;
+      }
+      #tab-photos .photoWorkspaceHeader__actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-left: auto;
+      }
+      #tab-photos .pageContext__primaryActions {
+        display: flex;
+        align-items: stretch;
+        gap: 10px;
+      }
+      #tab-photos .pageContext__primaryActions .iconBtn {
+        width: 46px;
+        min-width: 46px;
+        min-height: 46px;
+        display: grid;
+        place-items: center;
+      }
+      #tab-photos #photoBulkBar {
+        position: static !important;
+        inset: auto !important;
+        width: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      #tab-photos #photoBulkBar[hidden] { display: none !important; }
+      #tab-photos #photoBulkCount { white-space: nowrap; }
+
+      #tab-photos #photoGrid .thumb__select {
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        width: auto !important;
+        height: auto !important;
+      }
+      #tab-photos #photoGrid .thumb__check {
+        margin: 0 !important;
+        box-shadow: none !important;
+      }
+
+      #tab-photos #photoUploadForm {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
+        align-items: end;
+        gap: 14px;
+        width: 100%;
+        margin-bottom: 20px;
+      }
+      #tab-photos #photoUploadForm > .label,
+      #tab-photos #photoToolbar > .label { min-width: 0; display: grid; gap: 7px; }
+      #tab-photos #photoUploadForm .input,
+      #tab-photos #photoToolbar .input,
+      #tab-photos #photoToolbar .select { width: 100%; min-width: 0; min-height: 52px; }
+      #tab-photos #photoUploadForm > .btn[type="submit"] { min-height: 52px; }
+      #tab-photos #photoUploadHint { grid-column: 1 / -1; }
+      #tab-photos #photoToolbar {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(150px, 1fr));
+        gap: 14px;
+        width: 100%;
+        overflow: visible;
+      }
+      #tab-photos #photoGrid.grid {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)) !important;
+        gap: 14px !important;
+      }
+      #tab-photos #photoGrid .thumb { min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
+      #tab-photos #photoGrid .thumb__img { width: 100%; height: 190px; object-fit: contain !important; background: #111; }
+      #tab-photos #photoGrid .row__actions { display: flex !important; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: auto; }
+
+      @media (max-width: 1180px) {
+        #tab-photos #photoUploadForm,
+        #tab-photos #photoToolbar { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+      }
+      @media (max-width: 760px) {
+        #tab-photos > .photoWorkspaceHeader { align-items: stretch; }
+        #tab-photos .photoWorkspaceHeader__actions { width: 100%; justify-content: flex-start; margin-left: 0; }
+        #tab-photos #photoBulkBar { width: 100% !important; flex-wrap: wrap; }
+        #tab-photos #photoUploadForm,
+        #tab-photos #photoToolbar { grid-template-columns: 1fr; }
+        #tab-photos #photoGrid.grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+      }
+      @media (max-width: 420px) {
+        #tab-photos #photoGrid.grid { grid-template-columns: 1fr !important; }
+      }
+    `;
+    document.head.appendChild(style);
   }
 
   function apply() {
+    injectStyles();
     fixBreadcrumbs();
+    restoreInviteButton();
+    addFinanceCategoryDelete();
     repairPhotoWorkspace();
     combineAnnouncementsAndEvents();
     moveSubscriberDropdown();
@@ -335,9 +341,6 @@
     fixBreadcrumbs();
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', apply, { once: true });
-  } else {
-    apply();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply, { once: true });
+  else apply();
 })();
