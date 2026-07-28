@@ -633,17 +633,25 @@ function buildAdminInviteEmailTemplate({ inviteLink, expiresAt, role }) {
   };
 }
 
-function mailchannelsSend(payload) {
+// SendGrid's v3 /mail/send payload shape is a superset of MailChannels' old
+// tx/v1/send format (personalizations/from/content), so callers below build
+// the same payload shape and only the transport + auth header changed.
+function sendgridSend(payload) {
+  const apiKey = String(process.env.SENDGRID_API_KEY || '').trim();
+  if (!apiKey) {
+    return Promise.resolve({ status: 0, body: 'SENDGRID_API_KEY is not configured.' });
+  }
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(payload);
     const req = https.request(
       {
         method: 'POST',
-        hostname: 'api.mailchannels.net',
-        path: '/tx/v1/send',
+        hostname: 'api.sendgrid.com',
+        path: '/v3/mail/send',
         headers: {
           'content-type': 'application/json',
-          'content-length': Buffer.byteLength(body)
+          'content-length': Buffer.byteLength(body),
+          authorization: `Bearer ${apiKey}`
         }
       },
       (resp) => {
@@ -2269,12 +2277,6 @@ app.post('/api/support/message', (req, res, next) => {
     return res.json({ ok: true, disabled: true });
   }
 
-  // MailChannels is intended to be called from Cloudflare (Workers). When local admin is
-  // configured with WORKER_ORIGIN, proxy this request to the Worker so sending works.
-  if (String(process.env.WORKER_ORIGIN || '').trim()) {
-    return proxyToWorker(req, res);
-  }
-
   const subjectRaw = String(req.body?.subject || '').trim();
   const messageRaw = String(req.body?.message || '').trim();
   const replyToRaw = String(req.body?.replyTo || '').trim();
@@ -2285,7 +2287,7 @@ app.post('/api/support/message', (req, res, next) => {
   const replyTo = replyToRaw && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyToRaw) ? replyToRaw : '';
 
   const toEmail = String(process.env.SUPPORT_TO_EMAIL || 'support@alphazonelabs.com').trim();
-  const fromEmail = String(process.env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
+  const fromEmail = String(process.env.SUPPORT_FROM_EMAIL || 'mmmbc@alphazonelabs.com').trim();
   const fromName = String(process.env.SUPPORT_FROM_NAME || 'MMMBC Admin Support').trim() || 'MMMBC Admin Support';
 
   const composedSubject = `[MMMBC Support] ${subject}`;
@@ -2306,7 +2308,7 @@ app.post('/api/support/message', (req, res, next) => {
         { type: 'text/html', value: supportTemplate.html }
       ]
     };
-    const out = await mailchannelsSend(payload);
+    const out = await sendgridSend(payload);
     if (out.status < 200 || out.status >= 300) {
       logger.error('support_email_failed', { status: out.status, body: String(out.body || '').slice(0, 2000) });
       return res.status(502).json({ error: `Email send failed (${out.status}).` });
@@ -2406,7 +2408,7 @@ app.post('/api/users/invite', requirePermission(PERMISSIONS.USERS_MANAGE), async
     return res.json({ ok: true, inviteLink, expiresAt, emailSent: false, disabled: true });
   }
 
-  const fromEmail = String(process.env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
+  const fromEmail = String(process.env.SUPPORT_FROM_EMAIL || 'mmmbc@alphazonelabs.com').trim();
   const fromName = String(process.env.SUPPORT_FROM_NAME || 'MMMBC Admin').trim() || 'MMMBC Admin';
   const subject = `MMMBC Admin Invite (${roleDisplayName(role)})`;
   const template = buildAdminInviteEmailTemplate({ inviteLink, expiresAt, role });
@@ -2421,7 +2423,7 @@ app.post('/api/users/invite', requirePermission(PERMISSIONS.USERS_MANAGE), async
       ]
     };
 
-    const out = await mailchannelsSend(payload);
+    const out = await sendgridSend(payload);
     if (out.status < 200 || out.status >= 300) {
       logger.error('admin_invite_email_failed', { status: out.status, body: String(out.body || '').slice(0, 2000), email, role });
       return res.json({ ok: true, inviteLink, expiresAt, emailSent: false });
@@ -5204,24 +5206,34 @@ async function sendNewsletterEmail({ subject, message, emails }) {
     return { ok: true, disabled: true, sent: 0 };
   }
 
-  const fromEmail = String(process.env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
+  const fromEmail = String(process.env.SUPPORT_FROM_EMAIL || 'mmmbc@alphazonelabs.com').trim();
   const fromName = String(process.env.SUPPORT_FROM_NAME || 'MMMBC Newsletter').trim() || 'MMMBC Newsletter';
   const template = buildNewsletterEmailTemplate({ subject, message });
+  const content = [
+    { type: 'text/plain', value: template.text },
+    { type: 'text/html', value: template.html }
+  ];
 
-  const payload = {
-    personalizations: [{ to: emails.map((email) => ({ email })), subject }],
-    from: { email: fromEmail, name: fromName },
-    content: [
-      { type: 'text/plain', value: template.text },
-      { type: 'text/html', value: template.html }
-    ]
-  };
-  const out = await mailchannelsSend(payload);
-  if (out.status < 200 || out.status >= 300) {
-    logger.error('newsletter_email_failed', { status: out.status, body: String(out.body || '').slice(0, 2000) });
-    return { ok: false, error: `Newsletter send failed (${out.status}).`, sent: 0 };
+  // One personalization per recipient so recipients never see each other's
+  // addresses (a single shared "to" list would leak the subscriber list).
+  // Batch to stay under SendGrid's 1000-personalizations-per-request limit.
+  const BATCH_SIZE = 500;
+  let sent = 0;
+  for (let i = 0; i < emails.length; i += BATCH_SIZE) {
+    const batch = emails.slice(i, i + BATCH_SIZE);
+    const payload = {
+      personalizations: batch.map((email) => ({ to: [{ email }], subject })),
+      from: { email: fromEmail, name: fromName },
+      content
+    };
+    const out = await sendgridSend(payload);
+    if (out.status < 200 || out.status >= 300) {
+      logger.error('newsletter_email_failed', { status: out.status, body: String(out.body || '').slice(0, 2000) });
+      return { ok: false, error: `Newsletter send failed (${out.status}).`, sent };
+    }
+    sent += batch.length;
   }
-  return { ok: true, disabled: false, sent: emails.length };
+  return { ok: true, disabled: false, sent };
 }
 
 function validateNewsletterRecipients(emails) {
