@@ -1288,6 +1288,9 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
   if (sectionId === 'tab-photos') {
     setPhotosSubTab(subTabId || 'panel-photos-manage');
   }
+  if (sectionId === 'tab-finances') {
+    setFinanceSubTab(subTabId || 'panel-finances-record');
+  }
 
   const hashMap = {
     'tab-home': 'home',
@@ -1447,7 +1450,7 @@ function applyHashNavigation() {
 
 // -------- Finances --------
 let finances = { entries: [], meta: { categories: [], funds: [] } };
-let financeQuickKind = 'income';
+let financeQuickKind = '';
 let financeGivingPeriod = 'week';
 
 function formatMoneyCents(cents) {
@@ -1499,82 +1502,53 @@ function financeDetectKindFromEntry(entry) {
 
 function financeApplyKindToForm(kind) {
   const typeEl = $('financeType');
-  const catEl = $('financeCategory');
-  const isEditing = !!String($('financeEditId')?.value || '').trim();
+  if (typeEl) typeEl.value = (kind === 'expense') ? 'expense' : 'income';
 
-  const ensureSelectOption = (sel, value) => {
-    if (!(sel instanceof HTMLSelectElement)) return;
-    const v = String(value || '').trim();
-    if (!v) return;
-    if (Array.from(sel.options).some((o) => String(o.value) === v)) return;
-    const opt = document.createElement('option');
-    opt.value = v;
-    opt.textContent = v;
-    // Insert after the leading blank option if present.
-    const first = sel.options?.[0];
-    if (first) sel.insertBefore(opt, first.nextSibling);
-    else sel.appendChild(opt);
-  };
-
-  const typeLabel = $('financeTypeLabelText');
-  if (typeLabel) typeLabel.textContent = 'Type';
+  const dateLabel = $('financeDateLabelText');
+  if (dateLabel) dateLabel.textContent = (kind === 'expense') ? 'Date paid' : 'Date received';
 
   const catLabel = $('financeCategoryLabelText');
-  if (catLabel) {
-    if (kind === 'tithes') catLabel.textContent = 'Tithes';
-    else if (kind === 'offerings') catLabel.textContent = 'Offering';
-    else catLabel.textContent = 'Category';
+  if (catLabel) catLabel.textContent = (kind === 'expense') ? 'What was the expense for?' : 'What kind of giving?';
+
+  const catHint = $('financeCategoryHint');
+  if (catHint) {
+    catHint.textContent = (kind === 'expense')
+      ? 'Choose what the payment was for.'
+      : 'Choose what the money was received for.';
   }
 
-  if (typeEl) {
-    typeEl.disabled = true;
-    typeEl.value = (kind === 'expense') ? 'expense' : 'income';
-  }
-
-  if (catEl) {
-    if (kind === 'tithes') {
-      ensureSelectOption(catEl, 'Tithes');
-      if (!isEditing) catEl.value = 'Tithes';
-      catEl.disabled = true;
-    } else if (kind === 'offerings') {
-      ensureSelectOption(catEl, 'Offerings');
-      if (!isEditing) catEl.value = 'Offerings';
-      catEl.disabled = true;
-    } else {
-      catEl.disabled = false;
-      if (!isEditing) {
-        // Only clear on add-mode; keep category when editing.
-        if (kind === 'income' && !String(catEl.value || '').trim()) catEl.value = '';
-        if (kind === 'expense' && !String(catEl.value || '').trim()) catEl.value = '';
-      }
-    }
-  }
+  const fundLabel = $('financeFundLabelText');
+  if (fundLabel) fundLabel.textContent = 'Which church fund?';
 
   const partyLabel = $('financePartyLabel');
   const partyInput = $('financeParty');
-  if (partyLabel) {
-    if (kind === 'expense') partyLabel.textContent = 'To (optional)';
-    else if (kind === 'tithes') partyLabel.textContent = 'Giver (required)';
-    else if (kind === 'offerings') partyLabel.textContent = 'Giver (optional)';
-    else partyLabel.textContent = 'From (optional)';
-  }
+  if (partyLabel) partyLabel.textContent = (kind === 'expense') ? 'Paid To' : 'Received From (optional)';
   if (partyInput instanceof HTMLInputElement) {
-    partyInput.required = (kind === 'tithes');
+    partyInput.required = false; // Validated explicitly in the wizard step logic instead of native required.
   }
+
+  const question = $('financeDirectionQuestion');
+  if (question) question.textContent = 'What are you recording?';
+
+  const incomeBtn = $('financeChoiceIncomeBtn');
+  const expenseBtn = $('financeChoiceExpenseBtn');
+  if (incomeBtn) incomeBtn.setAttribute('aria-pressed', kind === 'expense' ? 'false' : 'true');
+  if (expenseBtn) expenseBtn.setAttribute('aria-pressed', kind === 'expense' ? 'true' : 'false');
 }
 
-function financeSetQuickKind(kind, { render = true } = {}) {
-  const k = financeNormalizeKey(kind);
-  if (!k) return;
-  financeQuickKind = k;
+function financeSetQuickKind(kind, { render = true, toggle = false } = {}) {
+  const requested = financeNormalizeKey(kind);
+  if (!requested) return;
+  // Clicking the already-active filter turns it off (shows all again).
+  financeQuickKind = (toggle && financeQuickKind === requested) ? '' : requested;
 
-  // Sync the mini-tabs UI
+  // Sync the Money Received / Money Spent filter buttons in Review Transactions.
   const tabs = $('financeQuickTabs');
   if (tabs) {
     const btns = Array.from(tabs.querySelectorAll('[data-fin-kind]'));
     for (const b of btns) {
       const v = String(b.getAttribute('data-fin-kind') || '');
-      b.setAttribute('aria-selected', v === financeQuickKind ? 'true' : 'false');
+      b.setAttribute('aria-pressed', v === financeQuickKind ? 'true' : 'false');
     }
   }
 
@@ -1585,13 +1559,15 @@ function financeSetQuickKind(kind, { render = true } = {}) {
     if (financeQuickKind === 'expense') {
       incomeCb.checked = false;
       expenseCb.checked = true;
-    } else {
+    } else if (financeQuickKind === 'income') {
       incomeCb.checked = true;
       expenseCb.checked = false;
+    } else {
+      incomeCb.checked = true;
+      expenseCb.checked = true;
     }
   }
 
-  financeApplyKindToForm(financeQuickKind);
   if (render) renderFinances();
 }
 
@@ -1648,13 +1624,29 @@ function financeDateRangeLabel(filters) {
 function financeRenderFilterSummary(filters, rowCount) {
   const el = $('financeFilterSummary');
   if (!el) return;
-  const types = Array.isArray(filters?.types) && filters.types.length
-    ? filters.types.map((t) => t === 'income' ? 'Income' : 'Expense').join(' + ')
-    : 'All entry types';
+
+  const types = Array.isArray(filters?.types) ? filters.types : [];
+  let kindPhrase = 'all transactions';
+  if (types.length === 1 && types[0] === 'income') kindPhrase = 'Money Received';
+  else if (types.length === 1 && types[0] === 'expense') kindPhrase = 'Money Spent';
+
+  const selection = String(filters?.dateRange || 'all');
+  let rangePhrase = 'all dates';
+  if (selection === '7') rangePhrase = 'the last 7 days';
+  else if (selection === '30') rangePhrase = 'the last 30 days';
+  else if (selection === '90') rangePhrase = 'the last 90 days';
+  else if (selection === 'custom' && filters?.from && filters?.to) rangePhrase = `${filters.from} to ${filters.to}`;
+
+  const extra = [];
+  if (filters?.category) extra.push(`category "${filters.category}"`);
+  if (filters?.fund) extra.push(`fund "${filters.fund}"`);
+  if (filters?.method) extra.push(`payment method "${financeMethodLabel(filters.method)}"`);
   const searchText = String(filters?.search || '').trim();
-  const searchSummary = searchText ? `Search: "${searchText}"` : 'No search';
-  const countText = Number.isFinite(Number(rowCount)) ? ` • ${rowCount} matching entries` : '';
-  el.textContent = `${financeDateRangeLabel(filters)} • ${types} • ${searchSummary}${countText}`;
+  if (searchText) extra.push(`search "${searchText}"`);
+  const extraPhrase = extra.length ? `, filtered by ${extra.join(', ')}` : '';
+
+  const countText = Number.isFinite(Number(rowCount)) ? ` (${rowCount} matching)` : '';
+  el.textContent = `Showing ${kindPhrase} from ${rangePhrase}${extraPhrase}${countText}.`;
 }
 
 function financeCurrentFilters() {
@@ -1669,7 +1661,10 @@ function financeCurrentFilters() {
     type: String($('financeTypeFilter')?.value || ''),
     types: selectedTypes,
     kind: String(financeQuickKind || ''),
-    search: String($('financeSearch')?.value || '').trim().toLowerCase()
+    search: String($('financeSearch')?.value || '').trim().toLowerCase(),
+    category: String($('financeFilterCategory')?.value || '').trim(),
+    fund: String($('financeFilterFund')?.value || '').trim(),
+    method: String($('financeFilterMethod')?.value || '').trim()
   };
 }
 
@@ -1717,6 +1712,10 @@ function financeEntryMatches(entry, filters) {
     if (entryType !== 'income') return false;
     if (!financeNormalizeKey(entry?.category).includes('offering')) return false;
   }
+
+  if (filters.category && financeNormalizeKey(entry?.category) !== financeNormalizeKey(filters.category)) return false;
+  if (filters.fund && financeNormalizeKey(entry?.fund) !== financeNormalizeKey(filters.fund)) return false;
+  if (filters.method && financeNormalizeKey(entry?.method) !== financeNormalizeKey(filters.method)) return false;
 
   if (filters.search) {
     const hay = [
@@ -1780,6 +1779,28 @@ function populateFinanceDatalists() {
 
   setOptions(catSel, categories, { required: true, allowDelete: true });
   setOptions(fundSel, funds, { required: false });
+
+  const setFilterOptions = (sel, values, allLabel) => {
+    if (!(sel instanceof HTMLSelectElement)) return;
+    const current = String(sel.value || '');
+    sel.innerHTML = '';
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = allLabel;
+    sel.appendChild(blank);
+    const unique = Array.from(new Set(values.map((v) => String(v || '').trim()).filter(Boolean)));
+    unique.sort((a, b) => a.localeCompare(b));
+    for (const v of unique) {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      sel.appendChild(opt);
+    }
+    if (current && Array.from(sel.options).some((o) => o.value === current)) sel.value = current;
+  };
+
+  setFilterOptions($('financeFilterCategory'), categories, '(All categories)');
+  setFilterOptions($('financeFilterFund'), funds, '(All funds)');
 }
 
 function normalizeFinanceName(value) {
@@ -1868,10 +1889,13 @@ async function financeHandleCreateSelect(kind) {
 }
 
 function financeSetEditMode(isEditing) {
-  const cancelBtn = $('financeCancelEditBtn');
   const saveBtn = $('financeSaveBtn');
-  if (cancelBtn) cancelBtn.hidden = !isEditing;
-  if (saveBtn) saveBtn.textContent = isEditing ? 'Save Changes' : 'Add Entry';
+  const heading = $('financeWizardHeading');
+  const reviewHeading = $('financeReviewHeading');
+  if (saveBtn) saveBtn.textContent = isEditing ? 'Save Changes' : 'Save Entry';
+  if (heading) heading.textContent = isEditing ? 'Edit Transaction' : 'Record Money';
+  if (reviewHeading) reviewHeading.textContent = isEditing ? 'Review changes' : 'Review this entry';
+  financeWizard.mode = isEditing ? 'edit' : 'add';
 }
 
 function financeResetForm() {
@@ -1890,14 +1914,18 @@ function financeResetForm() {
   }
 
   financeSetEditMode(false);
-
-  // Ensure the form reflects the selected quick tab.
-  financeApplyKindToForm(financeQuickKind);
+  financeApplyKindToForm('income');
+  financeClearAllFieldErrors();
+  financeWizard.maxStepIndex = 0;
+  financeWizard.dirty = false;
+  try { resetUnsavedBaseline($('financeEntryForm')); } catch { /* ignore */ }
+  financeGoToStep('direction', { focus: false });
 }
 
 function financeStartEdit(entry) {
   if (!entry) return;
-  financeSetQuickKind(financeDetectKindFromEntry(entry), { render: false });
+  setFinanceSubTab('panel-finances-record');
+  const kind = financeDetectKindFromEntry(entry) === 'expense' ? 'expense' : 'income';
   $('financeEditId').value = String(entry.id || '');
   $('financeDate').value = String(entry.date || '');
   $('financeType').value = String(entry.type || 'income');
@@ -1907,8 +1935,295 @@ function financeStartEdit(entry) {
   $('financeAmount').value = (Number(entry.amountCents || 0) / 100).toFixed(2);
   $('financeParty').value = String(entry.party || '');
   $('financeMemo').value = String(entry.memo || '');
+  financeApplyKindToForm(kind);
   financeSetEditMode(true);
-  try { $('financeCategory').focus(); } catch { /* ignore */ }
+  financeClearAllFieldErrors();
+  financeWizard.maxStepIndex = FINANCE_WIZARD_STEPS.indexOf('details');
+  financeWizard.dirty = false;
+  try { resetUnsavedBaseline($('financeEntryForm')); } catch { /* ignore */ }
+  financeGoToStep('details');
+}
+
+// ---------------------------------------------------------------------------
+// Record Money wizard engine
+// ---------------------------------------------------------------------------
+const FINANCE_WIZARD_STEPS = ['direction', 'details', 'payment', 'review', 'saved'];
+const financeWizard = { mode: 'add', step: 'direction', maxStepIndex: 0, dirty: false, saving: false, lastSavedId: '' };
+
+function financeClearAllFieldErrors() {
+  for (const id of ['financeCategoryError', 'financeAmountError', 'financeMethodError', 'financePartyError']) {
+    const el = $(id);
+    if (el) { el.textContent = ''; el.hidden = true; }
+  }
+}
+
+function financeSetFieldError(id, message) {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = message;
+  el.hidden = !message;
+}
+
+function financeMarkDirty() {
+  financeWizard.dirty = true;
+}
+
+function financeWizardHasUnsavedChanges() {
+  return financeWizard.dirty && financeWizard.step !== 'saved';
+}
+
+function financeGoToStep(step, { focus = true } = {}) {
+  if (!FINANCE_WIZARD_STEPS.includes(step)) return;
+  const idx = FINANCE_WIZARD_STEPS.indexOf(step);
+  if (idx > financeWizard.maxStepIndex) financeWizard.maxStepIndex = idx;
+  financeWizard.step = step;
+
+  for (const s of FINANCE_WIZARD_STEPS) {
+    const panel = document.querySelector(`.wizardStep[data-step-panel="${s}"]`);
+    if (panel) panel.hidden = s !== step;
+  }
+
+  const progress = $('financeWizardProgress');
+  if (progress) {
+    const navSteps = ['direction', 'details', 'payment', 'review'];
+    for (const btn of progress.querySelectorAll('[data-wizard-goto]')) {
+      const target = btn.getAttribute('data-wizard-goto');
+      const targetIdx = navSteps.indexOf(target);
+      const isCurrent = target === step;
+      btn.classList.toggle('wizardProgress__step--current', isCurrent);
+      btn.classList.toggle('wizardProgress__step--done', targetIdx < navSteps.indexOf(step) || (step === 'saved'));
+      if (isCurrent) btn.setAttribute('aria-current', 'step'); else btn.removeAttribute('aria-current');
+      // Only allow returning to steps already reached.
+      btn.disabled = targetIdx > financeWizard.maxStepIndex;
+    }
+  }
+
+  if (step === 'review') financeRenderReviewSummary();
+
+  if (focus) {
+    const panel = document.querySelector(`.wizardStep[data-step-panel="${step}"]`);
+    const heading = panel?.querySelector('.wizardStep__question, .wizardStep__heading');
+    try {
+      if (heading) { heading.setAttribute('tabindex', '-1'); heading.focus(); }
+      else panel?.querySelector('input, select, button')?.focus();
+    } catch { /* ignore */ }
+  }
+}
+
+function financeValidateDirectionStep() {
+  const value = String($('financeType')?.value || '').trim();
+  if (value !== 'income' && value !== 'expense') {
+    setFinanceHint('Choose whether this is money received or money spent.');
+    return false;
+  }
+  return true;
+}
+
+function financeValidateDetailsStep() {
+  financeClearAllFieldErrors();
+  let ok = true;
+  let focusEl = null;
+
+  const category = String($('financeCategory')?.value || '').trim();
+  if (!category) {
+    const kind = String($('financeType')?.value || 'income');
+    financeSetFieldError('financeCategoryError', kind === 'expense' ? 'Choose what this expense was for.' : 'Choose what the money was received for.');
+    focusEl = focusEl || $('financeCategory');
+    ok = false;
+  }
+
+  const amountRaw = String($('financeAmount')?.value || '').trim();
+  const amount = Number(amountRaw);
+  if (!amountRaw || !Number.isFinite(amount) || amount <= 0) {
+    financeSetFieldError('financeAmountError', 'Enter an amount greater than $0.00.');
+    focusEl = focusEl || $('financeAmount');
+    ok = false;
+  }
+
+  if (!ok && focusEl) { try { focusEl.focus(); } catch { /* ignore */ } }
+  return ok;
+}
+
+function financeValidatePaymentStep() {
+  financeClearAllFieldErrors();
+  let ok = true;
+  let focusEl = null;
+
+  const method = String($('financeMethod')?.value || '').trim();
+  if (!method) {
+    financeSetFieldError('financeMethodError', 'Choose a payment method.');
+    focusEl = focusEl || $('financeMethod');
+    ok = false;
+  }
+
+  const kind = String($('financeType')?.value || 'income');
+  const party = String($('financeParty')?.value || '').trim();
+  if (kind === 'expense' && !party) {
+    financeSetFieldError('financePartyError', 'Enter who was paid.');
+    focusEl = focusEl || $('financeParty');
+    ok = false;
+  }
+
+  if (!ok && focusEl) { try { focusEl.focus(); } catch { /* ignore */ } }
+  return ok;
+}
+
+function financeFormatReviewDate(dateStr) {
+  const s = String(dateStr || '');
+  if (!s) return '';
+  const d = new Date(`${s}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function financeMethodLabel(value) {
+  const map = { cash: 'Cash', check: 'Check', card: 'Card', online: 'Online', other: 'Other' };
+  return map[String(value || '').trim()] || String(value || '');
+}
+
+function financeRenderReviewSummary() {
+  const dl = $('financeReviewSummary');
+  if (!dl) return;
+  const kind = String($('financeType')?.value || 'income');
+  const isExpense = kind === 'expense';
+  const amount = Number($('financeAmount')?.value || 0) || 0;
+  const date = financeFormatReviewDate($('financeDate')?.value);
+  const category = String($('financeCategory')?.value || '').trim();
+  const fund = String($('financeFund')?.value || '').trim();
+  const method = financeMethodLabel($('financeMethod')?.value);
+  const party = String($('financeParty')?.value || '').trim();
+  const memo = String($('financeMemo')?.value || '').trim();
+
+  const rows = [];
+  rows.push(['', `${formatMoneyCents(Math.round(amount * 100))} ${isExpense ? 'paid' : 'received'} on ${date}`]);
+  if (category) rows.push(['Category', category]);
+  if (fund) rows.push(['Fund', fund]);
+  if (method) rows.push(['Payment method', method]);
+  if (party) rows.push([isExpense ? 'Paid to' : 'Received from', party]);
+  if (memo) rows.push(['Note', memo]);
+
+  dl.innerHTML = '';
+  for (const [label, value] of rows) {
+    if (label) {
+      const dt = document.createElement('dt');
+      dt.textContent = label;
+      dl.appendChild(dt);
+    }
+    const dd = document.createElement('dd');
+    dd.className = label ? '' : 'wizardReview__headline';
+    dd.textContent = value;
+    dl.appendChild(dd);
+  }
+}
+
+function financeRenderSavedPanel(entry) {
+  const summary = $('financeSavedSummary');
+  if (!summary || !entry) return;
+  const isExpense = String(entry.type) === 'expense';
+  const amount = formatMoneyCents(Number(entry.amountCents || 0));
+  const date = financeFormatReviewDate(entry.date);
+  const category = String(entry.category || '').trim();
+  const descriptor = category ? category.toLowerCase() : (isExpense ? 'expense' : 'income');
+  summary.textContent = `The ${amount} ${descriptor} ${isExpense ? 'paid' : 'received'} on ${date} was saved.`;
+  const heading = $('financeSavedHeading');
+  try { heading?.focus(); } catch { /* ignore */ }
+}
+
+function financeOpenUnsavedDialog(onDiscard) {
+  const dialog = $('financeUnsavedDialog');
+  if (!(dialog instanceof HTMLDialogElement)) {
+    if (confirmWrite('You have entered information for a new transaction that has not been saved. Discard this entry?')) onDiscard();
+    return;
+  }
+  openManagedDialog(dialog);
+  const keepBtn = $('financeUnsavedKeepBtn');
+  const discardBtn = $('financeUnsavedDiscardBtn');
+  const cleanup = () => {
+    keepBtn?.removeEventListener('click', onKeep);
+    discardBtn?.removeEventListener('click', onDiscardClick);
+  };
+  const onKeep = () => { cleanup(); closeManagedDialog(dialog); };
+  const onDiscardClick = () => { cleanup(); closeManagedDialog(dialog); onDiscard(); };
+  keepBtn?.addEventListener('click', onKeep);
+  discardBtn?.addEventListener('click', onDiscardClick);
+}
+
+function financeOpenDeleteDialog(entry) {
+  const dialog = $('financeDeleteDialog');
+  const isExpense = String(entry?.type) === 'expense';
+  const body = $('financeDeleteDialogBody');
+  if (body) {
+    const amount = formatMoneyCents(Number(entry?.amountCents || 0));
+    const category = String(entry?.category || '').trim();
+    const descriptor = category ? `${category.toLowerCase()} ${isExpense ? 'expense' : 'income'}` : (isExpense ? 'expense' : 'income');
+    const date = financeFormatReviewDate(entry?.date);
+    const party = String(entry?.party || '').trim();
+    const partyLine = party ? `${isExpense ? 'Paid to' : 'Received from'} ${party}` : '';
+    body.innerHTML = '';
+    const p1 = document.createElement('p');
+    p1.textContent = `${amount} ${descriptor}`;
+    const p2 = document.createElement('p');
+    p2.textContent = date;
+    body.appendChild(p1);
+    body.appendChild(p2);
+    if (partyLine) {
+      const p3 = document.createElement('p');
+      p3.textContent = partyLine;
+      body.appendChild(p3);
+    }
+  }
+
+  if (!(dialog instanceof HTMLDialogElement)) {
+    if (confirmWrite('Delete this transaction? This cannot be undone.')) financeDeleteEntry(entry);
+    return;
+  }
+
+  openManagedDialog(dialog);
+  const confirmBtn = $('financeDeleteConfirmBtn');
+  const keepBtn = $('financeDeleteKeepBtn');
+  const cleanup = () => {
+    confirmBtn?.removeEventListener('click', onConfirm);
+    keepBtn?.removeEventListener('click', onKeep);
+  };
+  const onConfirm = () => { cleanup(); closeManagedDialog(dialog); financeDeleteEntry(entry); };
+  const onKeep = () => { cleanup(); closeManagedDialog(dialog); };
+  confirmBtn?.addEventListener('click', onConfirm);
+  keepBtn?.addEventListener('click', onKeep);
+}
+
+async function financeDeleteEntry(entry) {
+  if (!entry?.id) return;
+  setFinanceHint('Deleting…');
+  try {
+    const res = await api(`/api/finances/entries/${encodeURIComponent(String(entry.id))}`, { method: 'DELETE' });
+    finances = res.data;
+    financeResetForm();
+    renderFinances();
+    setFinanceHint('Deleted.');
+  } catch (err) {
+    setFinanceHint(err.message);
+  }
+}
+
+function setFinanceSubTab(panelId) {
+  const previous = document.querySelector('#panel-finances-record:not([hidden])');
+  if (previous && panelId !== 'panel-finances-record' && financeWizardHasUnsavedChanges()) {
+    financeOpenUnsavedDialog(() => {
+      financeResetForm();
+      setFinanceSubTab(panelId);
+    });
+    return;
+  }
+
+  setSubTab(
+    ['subTabBtn-finances-record', 'subTabBtn-finances-review', 'subTabBtn-finances-reports'],
+    ['panel-finances-record', 'panel-finances-review', 'panel-finances-reports'],
+    panelId
+  );
+
+  if (panelId === 'panel-finances-review' || panelId === 'panel-finances-reports') {
+    renderFinances();
+  }
 }
 
 function populateFinancePartyDatalist() {
@@ -1937,6 +2252,62 @@ function populateFinancePartyDatalist() {
   }
 }
 
+function financeBuildDescription(e) {
+  const category = String(e?.category || '').trim() || (String(e?.type) === 'expense' ? 'Expense' : 'Income');
+  const parts = [e?.fund, financeMethodLabel(e?.method), e?.party].map((v) => String(v || '').trim()).filter(Boolean);
+  return { title: category, subtitle: parts.join(' · ') };
+}
+
+function financeBuildDetailFields(e) {
+  const isExpense = String(e?.type) === 'expense';
+  const fields = [];
+  fields.push(['Transaction type', isExpense ? 'Money Spent' : 'Money Received']);
+  if (e?.category) fields.push(['Category', e.category]);
+  if (e?.fund) fields.push(['Fund', e.fund]);
+  if (e?.method) fields.push(['Payment method', financeMethodLabel(e.method)]);
+  if (e?.party) fields.push([isExpense ? 'Paid to' : 'Received from', e.party]);
+  if (e?.memo) fields.push(['Note', e.memo]);
+  if (e?.createdAt) fields.push(['Created', formatLocalTimestamp(new Date(e.createdAt))]);
+  if (e?.updatedAt && e.updatedAt !== e.createdAt) fields.push(['Last edited', formatLocalTimestamp(new Date(e.updatedAt))]);
+  return fields;
+}
+
+function financeRowActionButtons(e, { onToggle }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'row__actions financeRowActions';
+
+  const viewBtn = document.createElement('button');
+  viewBtn.type = 'button';
+  viewBtn.className = 'btn btn--sm';
+  viewBtn.textContent = 'View';
+  viewBtn.setAttribute('aria-expanded', 'false');
+  viewBtn.addEventListener('click', () => onToggle(viewBtn));
+
+  const editBtn = document.createElement('button');
+  editBtn.type = 'button';
+  editBtn.className = 'btn btn--sm';
+  editBtn.textContent = 'Edit';
+  editBtn.addEventListener('click', () => financeStartEdit(e));
+
+  const receiptBtn = document.createElement('button');
+  receiptBtn.type = 'button';
+  receiptBtn.className = 'btn btn--sm';
+  receiptBtn.textContent = 'Print Receipt';
+  receiptBtn.addEventListener('click', () => financePrintReceipts([e]));
+
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.className = 'btn btn--sm btn--danger';
+  delBtn.textContent = 'Delete';
+  delBtn.addEventListener('click', () => financeOpenDeleteDialog(e));
+
+  wrap.appendChild(viewBtn);
+  wrap.appendChild(editBtn);
+  wrap.appendChild(receiptBtn);
+  wrap.appendChild(delBtn);
+  return wrap;
+}
+
 function renderFinances() {
   populateFinanceDatalists();
   populateFinancePartyDatalist();
@@ -1963,93 +2334,162 @@ function renderFinances() {
   }
   const net = income - expense;
 
-  if ($('financeIncomeTotal')) $('financeIncomeTotal').textContent = `${formatMoneyCents(income)} income`;
-  if ($('financeExpenseTotal')) $('financeExpenseTotal').textContent = `${formatMoneyCents(expense)} expense`;
-  if ($('financeNetTotal')) $('financeNetTotal').textContent = `${formatMoneyCents(net)} net`;
+  if ($('financeIncomeTotal')) $('financeIncomeTotal').textContent = `${formatMoneyCents(income)} Money Received`;
+  if ($('financeExpenseTotal')) $('financeExpenseTotal').textContent = `${formatMoneyCents(expense)} Money Spent`;
+  if ($('financeNetTotal')) $('financeNetTotal').textContent = `${formatMoneyCents(net)} Net Total`;
 
   const meta = $('financePrintMeta');
   if (meta) {
     const range = financeDateRangeLabel(filters);
-    meta.textContent = `Printed: ${formatLocalTimestamp()} • Report: Finance ledger • ${range} • ${rows.length} entries • Income ${formatMoneyCents(income)} • Expense ${formatMoneyCents(expense)} • Net ${formatMoneyCents(net)}`;
+    meta.textContent = `Printed: ${formatLocalTimestamp()} • Report: Transaction History • ${range} • ${rows.length} entries • Money Received ${formatMoneyCents(income)} • Money Spent ${formatMoneyCents(expense)} • Net Total ${formatMoneyCents(net)}`;
   }
 
   financeRenderFilterSummary(filters, rows.length);
 
   const tbody = $('financeTableBody');
-  if (!tbody) return;
-  tbody.innerHTML = '';
+  const cardList = $('financeCardList');
+  if (tbody) tbody.innerHTML = '';
+  if (cardList) cardList.innerHTML = '';
 
   // Weekly Giving summary is independent of the table/filters.
   renderWeeklyGiving();
 
+  if (!tbody && !cardList) return;
+
   if (!rows.length) {
-    const tr = document.createElement('tr');
-    const td = document.createElement('td');
-    td.colSpan = 9;
-    td.textContent = 'No entries match the current filters.';
-    tr.appendChild(td);
-    tbody.appendChild(tr);
+    if (tbody) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 5;
+      td.textContent = 'No transactions match the current filters.';
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    }
+    if (cardList) {
+      const empty = document.createElement('p');
+      empty.className = 'hint';
+      empty.textContent = 'No transactions match the current filters.';
+      cardList.appendChild(empty);
+    }
     return;
   }
 
-  for (const e of rows) {
-    const tr = document.createElement('tr');
+  const sorted = [...rows].sort((a, b) => String(b?.date || '').localeCompare(String(a?.date || '')));
 
+  for (const e of sorted) {
     const amountCents = Number(e?.amountCents || 0);
-    const amtTd = document.createElement('td');
-    amtTd.className = `num ${String(e?.type) === 'income' ? 'financeAmt--income' : 'financeAmt--expense'}`;
-    const sign = String(e?.type) === 'expense' ? '-' : '';
-    amtTd.textContent = `${sign}${formatMoneyCents(amountCents)}`;
+    const isExpense = String(e?.type) === 'expense';
+    const { title, subtitle } = financeBuildDescription(e);
+    const detailFields = financeBuildDetailFields(e);
 
-    const mkTd = (text) => {
-      const td = document.createElement('td');
-      td.textContent = String(text || '');
-      return td;
-    };
+    // Desktop table row
+    if (tbody) {
+      const tr = document.createElement('tr');
+      const detailRow = document.createElement('tr');
+      detailRow.className = 'financeDetailRow';
+      detailRow.hidden = true;
 
-    tr.appendChild(mkTd(e?.date));
-    tr.appendChild(mkTd(e?.type));
-    tr.appendChild(mkTd(e?.category));
-    tr.appendChild(mkTd(e?.fund));
-    tr.appendChild(mkTd(e?.method));
-    tr.appendChild(mkTd(e?.party));
-    tr.appendChild(mkTd(e?.memo));
-    tr.appendChild(amtTd);
+      const mkTd = (text) => { const td = document.createElement('td'); td.textContent = String(text || ''); return td; };
+      tr.appendChild(mkTd(financeFormatReviewDate(e?.date)));
 
-    const actions = document.createElement('td');
-    actions.className = 'noPrint';
-
-    const editBtn = document.createElement('button');
-    editBtn.type = 'button';
-    editBtn.className = 'btn btn--sm';
-    editBtn.textContent = 'Edit';
-    editBtn.addEventListener('click', () => financeStartEdit(e));
-
-    const delBtn = document.createElement('button');
-    delBtn.type = 'button';
-    delBtn.className = 'btn btn--sm';
-    delBtn.textContent = 'Delete';
-    delBtn.addEventListener('click', async () => {
-      if (!confirmWrite('Delete this finance entry? This cannot be undone.')) return;
-      setFinanceHint('Deleting…');
-      try {
-        const res = await api(`/api/finances/entries/${encodeURIComponent(String(e.id))}`, { method: 'DELETE' });
-        finances = res.data;
-        financeResetForm();
-        renderFinances();
-        setFinanceHint('Deleted.');
-      } catch (err) {
-        setFinanceHint(err.message);
+      const descTd = document.createElement('td');
+      descTd.className = 'financeDescCell';
+      const titleEl = document.createElement('div');
+      titleEl.className = 'financeDescCell__title';
+      titleEl.textContent = title;
+      descTd.appendChild(titleEl);
+      if (subtitle) {
+        const subEl = document.createElement('div');
+        subEl.className = 'financeDescCell__subtitle';
+        subEl.textContent = subtitle;
+        descTd.appendChild(subEl);
       }
-    });
+      tr.appendChild(descTd);
 
-    actions.appendChild(editBtn);
-    actions.appendChild(delBtn);
-    actions.style.display = 'flex';
-    actions.style.gap = '8px';
+      const inTd = document.createElement('td');
+      inTd.className = 'num';
+      inTd.textContent = isExpense ? '' : formatMoneyCents(amountCents);
+      tr.appendChild(inTd);
 
-    tr.appendChild(actions);
-    tbody.appendChild(tr);
+      const outTd = document.createElement('td');
+      outTd.className = 'num';
+      outTd.textContent = isExpense ? formatMoneyCents(amountCents) : '';
+      tr.appendChild(outTd);
+
+      const actionsTd = document.createElement('td');
+      actionsTd.className = 'noPrint';
+      const toggleDetail = (btn) => {
+        const expanded = !detailRow.hidden;
+        detailRow.hidden = expanded;
+        btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        btn.textContent = expanded ? 'View' : 'Hide';
+      };
+      actionsTd.appendChild(financeRowActionButtons(e, { onToggle: toggleDetail }));
+      tr.appendChild(actionsTd);
+
+      const detailTd = document.createElement('td');
+      detailTd.colSpan = 5;
+      const dl = document.createElement('dl');
+      dl.className = 'wizardReview financeDetailFields';
+      for (const [label, value] of detailFields) {
+        const dt = document.createElement('dt'); dt.textContent = label;
+        const dd = document.createElement('dd'); dd.textContent = value;
+        dl.appendChild(dt); dl.appendChild(dd);
+      }
+      detailTd.appendChild(dl);
+      detailRow.appendChild(detailTd);
+
+      tbody.appendChild(tr);
+      tbody.appendChild(detailRow);
+    }
+
+    // Mobile stacked card
+    if (cardList) {
+      const card = document.createElement('div');
+      card.className = 'financeCard';
+
+      const head = document.createElement('div');
+      head.className = 'financeCard__head';
+      const dateEl = document.createElement('div');
+      dateEl.className = 'financeCard__date';
+      dateEl.textContent = financeFormatReviewDate(e?.date);
+      const amtEl = document.createElement('div');
+      amtEl.className = `financeCard__amount ${isExpense ? 'financeAmt--expense' : 'financeAmt--income'}`;
+      amtEl.textContent = `${isExpense ? '-' : ''}${formatMoneyCents(amountCents)}`;
+      head.appendChild(dateEl);
+      head.appendChild(amtEl);
+
+      const titleEl = document.createElement('div');
+      titleEl.className = 'financeCard__title';
+      titleEl.textContent = title;
+      const subEl = document.createElement('div');
+      subEl.className = 'financeCard__subtitle';
+      subEl.textContent = subtitle;
+
+      const detailWrap = document.createElement('dl');
+      detailWrap.className = 'wizardReview financeDetailFields';
+      detailWrap.hidden = true;
+      for (const [label, value] of detailFields) {
+        const dt = document.createElement('dt'); dt.textContent = label;
+        const dd = document.createElement('dd'); dd.textContent = value;
+        detailWrap.appendChild(dt); detailWrap.appendChild(dd);
+      }
+
+      const toggleDetail = (btn) => {
+        const expanded = !detailWrap.hidden;
+        detailWrap.hidden = expanded;
+        btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        btn.textContent = expanded ? 'View' : 'Hide';
+      };
+      const actions = financeRowActionButtons(e, { onToggle: toggleDetail });
+
+      card.appendChild(head);
+      card.appendChild(titleEl);
+      if (subtitle) card.appendChild(subEl);
+      card.appendChild(actions);
+      card.appendChild(detailWrap);
+      cardList.appendChild(card);
+    }
   }
 
   renderWeeklyGiving();
@@ -2058,7 +2498,7 @@ function renderFinances() {
 async function loadFinances() {
   const data = await api('/api/finances', { method: 'GET' });
   finances = data;
-  if ($('financeDate') && !$('financeDate').value) $('financeDate').value = isoDateToday();
+  financeResetForm();
   // Hide custom range UI unless the user explicitly opens it.
   if ($('financeCustomRange')) {
     const customToggle = $('financeRangeCustom');
@@ -3350,6 +3790,73 @@ function refreshEventsPrintOptions() {
   }
 }
 
+function financeBuildLedgerPrintReport() {
+  const root = $('adminPrintBody');
+  if (!root) return;
+  root.innerHTML = '';
+
+  const filters = financeCurrentFilters();
+  const all = Array.isArray(finances?.entries) ? finances.entries : [];
+  const rows = [...all.filter((e) => financeEntryMatches(e, filters))]
+    .sort((a, b) => String(b?.date || '').localeCompare(String(a?.date || '')));
+
+  let income = 0;
+  let expense = 0;
+  for (const e of rows) {
+    const cents = Number(e?.amountCents || 0);
+    if (String(e?.type) === 'income') income += cents; else expense += cents;
+  }
+
+  setFinancePrintHeader('Mt. Moriah Missionary Baptist Church', [
+    'Transaction History',
+    financeDateRangeLabel(filters),
+    `${rows.length} entries`,
+    `Money Received ${formatMoneyCents(income)}`,
+    `Money Spent ${formatMoneyCents(expense)}`,
+    `Net Total ${formatMoneyCents(income - expense)}`
+  ]);
+
+  const h = document.createElement('div');
+  h.className = 'printReportTitle';
+  h.textContent = 'Transaction History';
+  root.appendChild(h);
+
+  if (!rows.length) {
+    const empty = document.createElement('div');
+    empty.className = 'printMuted';
+    empty.textContent = 'No transactions match the current filters.';
+    root.appendChild(empty);
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'printTable';
+  const thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th style="width:110px">Date</th><th>Description</th><th style="width:100px">Money In</th><th style="width:100px">Money Out</th></tr>';
+  table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  for (const e of rows) {
+    const isExpense = String(e?.type) === 'expense';
+    const { title, subtitle } = financeBuildDescription(e);
+    const tr = document.createElement('tr');
+    const tdDate = document.createElement('td');
+    tdDate.textContent = financeFormatReviewDate(e?.date);
+    const tdDesc = document.createElement('td');
+    tdDesc.textContent = subtitle ? `${title} — ${subtitle}` : title;
+    const tdIn = document.createElement('td');
+    tdIn.textContent = isExpense ? '' : formatMoneyCents(Number(e?.amountCents || 0));
+    const tdOut = document.createElement('td');
+    tdOut.textContent = isExpense ? formatMoneyCents(Number(e?.amountCents || 0)) : '';
+    tr.appendChild(tdDate);
+    tr.appendChild(tdDesc);
+    tr.appendChild(tdIn);
+    tr.appendChild(tdOut);
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  root.appendChild(table);
+}
+
 function renderEventsPrintReport(rows, reportTitle) {
   const root = $('adminPrintBody');
   if (!root) return;
@@ -4569,6 +5076,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     $('financeEntryForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (financeWizard.saving) return;
       setFinanceHint('');
 
       const id = String($('financeEditId').value || '');
@@ -4583,7 +5091,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         memo: String($('financeMemo').value || '')
       };
 
-      if (!confirmWrite(id ? 'Save changes to this entry?' : 'Add this finance entry?')) return;
+      financeWizard.saving = true;
+      const saveBtn = $('financeSaveBtn');
+      if (saveBtn) saveBtn.disabled = true;
       setFinanceHint(id ? 'Saving…' : 'Adding…');
 
       try {
@@ -4595,13 +5105,21 @@ document.addEventListener('DOMContentLoaded', async () => {
           body: JSON.stringify(payload)
         });
         finances = res.data;
-        financeResetForm();
+        const savedEntry = Array.isArray(finances?.entries)
+          ? (finances.entries.find((x) => String(x.id) === String(id)) || finances.entries[finances.entries.length - 1])
+          : null;
+        financeWizard.dirty = false;
+        try { resetUnsavedBaseline($('financeEntryForm')); } catch { /* ignore */ }
+        setFinanceHint('');
+        financeRenderSavedPanel(savedEntry);
+        financeWizard.lastSavedId = savedEntry ? String(savedEntry.id || '') : '';
+        financeGoToStep('saved');
         renderFinances();
-        setFinanceHint(id ? 'Saved.' : 'Added.');
-        const financeForm = $('financeEntryForm');
-        if (financeForm instanceof HTMLFormElement) resetUnsavedBaseline(financeForm);
       } catch (err) {
         setFinanceHint(err.message);
+      } finally {
+        financeWizard.saving = false;
+        if (saveBtn) saveBtn.disabled = false;
       }
     });
 
@@ -4612,13 +5130,107 @@ document.addEventListener('DOMContentLoaded', async () => {
     if ($('financeFund')) {
       $('financeFund').addEventListener('change', () => financeHandleCreateSelect('fund'));
     }
+
+    // Mark the wizard dirty on any field change so unsaved-change prompts fire correctly.
+    $('financeEntryForm').addEventListener('input', financeMarkDirty);
+    $('financeEntryForm').addEventListener('change', financeMarkDirty);
+
+    // Step 1: Money direction
+    const chooseDirection = (direction) => {
+      financeApplyKindToForm(direction);
+      financeMarkDirty();
+    };
+    if ($('financeChoiceIncomeBtn')) {
+      $('financeChoiceIncomeBtn').addEventListener('click', () => chooseDirection('income'));
+    }
+    if ($('financeChoiceExpenseBtn')) {
+      $('financeChoiceExpenseBtn').addEventListener('click', () => chooseDirection('expense'));
+    }
+    if ($('financeStepDirectionContinueBtn')) {
+      $('financeStepDirectionContinueBtn').addEventListener('click', () => {
+        if (financeValidateDirectionStep()) financeGoToStep('details');
+      });
+    }
+
+    // Step 2: Details
+    if ($('financeStepDetailsContinueBtn')) {
+      $('financeStepDetailsContinueBtn').addEventListener('click', () => {
+        if (financeValidateDetailsStep()) financeGoToStep('payment');
+      });
+    }
+
+    // Step 3: Payment
+    if ($('financeStepPaymentContinueBtn')) {
+      $('financeStepPaymentContinueBtn').addEventListener('click', () => {
+        if (financeValidatePaymentStep()) financeGoToStep('review');
+      });
+    }
+
+    // Back buttons
+    for (const btn of document.querySelectorAll('[data-wizard-back]')) {
+      btn.addEventListener('click', () => financeGoToStep(btn.getAttribute('data-wizard-back')));
+    }
+
+    // Progress indicator: jump to any previously-reached step
+    if ($('financeWizardProgress')) {
+      for (const btn of $('financeWizardProgress').querySelectorAll('[data-wizard-goto]')) {
+        btn.addEventListener('click', () => financeGoToStep(btn.getAttribute('data-wizard-goto')));
+      }
+    }
+
+    // Saved panel actions
+    if ($('financeSavedAddAnotherBtn')) {
+      $('financeSavedAddAnotherBtn').addEventListener('click', () => financeResetForm());
+    }
+    if ($('financeSavedViewBtn')) {
+      $('financeSavedViewBtn').addEventListener('click', () => {
+        const savedId = financeWizard.lastSavedId;
+        financeResetForm();
+        setFinanceSubTab('panel-finances-review');
+        const search = $('financeSearch');
+        const entry = Array.isArray(finances?.entries) ? finances.entries.find((x) => String(x.id) === savedId) : null;
+        if (search instanceof HTMLInputElement && entry) {
+          search.value = String(entry.party || entry.category || '');
+          renderFinances();
+        }
+      });
+    }
+    if ($('financeSavedReviewAllBtn')) {
+      $('financeSavedReviewAllBtn').addEventListener('click', () => {
+        financeResetForm();
+        setFinanceSubTab('panel-finances-review');
+      });
+    }
+
+    if ($('financeCancelEditBtn')) {
+      $('financeCancelEditBtn').addEventListener('click', () => {
+        if (financeWizardHasUnsavedChanges()) {
+          financeOpenUnsavedDialog(() => {
+            financeResetForm();
+            setFinanceHint('');
+          });
+          return;
+        }
+        financeResetForm();
+        setFinanceHint('');
+      });
+    }
   }
 
-  if ($('financeCancelEditBtn')) {
-    $('financeCancelEditBtn').addEventListener('click', () => {
-      financeResetForm();
-      renderFinances();
-      setFinanceHint('');
+  // Main Finance sub-tab navigation
+  for (const id of ['subTabBtn-finances-record', 'subTabBtn-finances-review', 'subTabBtn-finances-reports']) {
+    const btn = $(id);
+    if (!btn) continue;
+    btn.addEventListener('click', () => setFinanceSubTab(btn.getAttribute('aria-controls')));
+  }
+
+  if ($('financeViewSummaryBtn')) {
+    $('financeViewSummaryBtn').addEventListener('click', () => {
+      const totals = $('financeReportsTotals');
+      const btn = $('financeViewSummaryBtn');
+      try { totals?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch { /* ignore */ }
+      btn?.setAttribute('aria-expanded', 'true');
+      try { totals?.setAttribute('tabindex', '-1'); totals?.focus(); } catch { /* ignore */ }
     });
   }
 
@@ -4635,14 +5247,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     el.addEventListener('change', () => renderFinances());
   }
 
-  // Finance quick tabs (Income / Expense / Tithes / Offerings)
+  // Finance quick tabs (Money Received / Money Spent)
   if ($('financeQuickTabs')) {
     const wrap = $('financeQuickTabs');
     const btns = Array.from(wrap.querySelectorAll('[data-fin-kind]'));
     for (const b of btns) {
       b.addEventListener('click', () => {
         const kind = b.getAttribute('data-fin-kind');
-        financeSetQuickKind(kind);
+        financeSetQuickKind(kind, { toggle: true });
       });
     }
   }
@@ -4666,8 +5278,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Default to current week in the giving chips.
   setGivingPeriod(financeGivingPeriod);
 
-  // Default quick view
-  financeSetQuickKind(financeQuickKind, { render: false });
+  // Default quick view: show all transactions until the user picks a filter.
 
   if ($('financeSearchForm')) {
     $('financeSearchForm').addEventListener('submit', (e) => {
@@ -4767,17 +5378,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if ($('printFinanceLedgerBtn')) {
     $('printFinanceLedgerBtn').addEventListener('click', () => {
-      closeDetailsMenu('financePrintMenu');
       setPrintMode('finance');
-      renderFinances();
+      financeBuildLedgerPrintReport();
       window.print();
     });
   }
 
   if ($('printFinanceReceiptsBtn')) {
     $('printFinanceReceiptsBtn').addEventListener('click', () => {
-      closeDetailsMenu('financePrintMenu');
-
       const dlg = $('financeReceiptsDialog');
       if (!dlg) return;
 
@@ -4850,9 +5458,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  if ($('financeUnsavedDialog')) {
+    wireDialogDismissBehavior($('financeUnsavedDialog'));
+  }
+  if ($('financeDeleteDialog')) {
+    wireDialogDismissBehavior($('financeDeleteDialog'));
+  }
+
   if ($('printEventsAllBtn')) {
     $('printEventsAllBtn').addEventListener('click', async () => {
-      closeDetailsMenu('financePrintMenu');
+      closeDetailsMenu('eventsPrintMenu');
       if (!Array.isArray(events) || !events.length) {
         try { await loadEvents(); } catch { /* ignore */ }
       }
@@ -4867,7 +5482,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('printEventsGroupBtn').addEventListener('click', async () => {
       const title = String($('printEventsGroupTitle')?.value || '').trim();
       if (!title) return;
-      closeDetailsMenu('financePrintMenu');
+      closeDetailsMenu('eventsPrintMenu');
       if (!Array.isArray(events) || !events.length) {
         try { await loadEvents(); } catch { /* ignore */ }
       }
@@ -4883,7 +5498,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('printEventBtn').addEventListener('click', async () => {
       const id = String($('printEventId')?.value || '').trim();
       if (!id) return;
-      closeDetailsMenu('financePrintMenu');
+      closeDetailsMenu('eventsPrintMenu');
       if (!Array.isArray(events) || !events.length) {
         try { await loadEvents(); } catch { /* ignore */ }
       }

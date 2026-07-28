@@ -4,6 +4,16 @@
       "id": "ministries-1",
       "page": "ministries",
       "section": "ministries",
+      "image": "",
+      "name": "",
+      "title": "",
+      "bio": "",
+      "alt": ""
+    },
+    {
+      "id": "ministries-2",
+      "page": "ministries",
+      "section": "ministries",
       "image": "Evangelist Melanie Nunn",
       "name": "Evangelist Melanie Nunn",
       "title": "",
@@ -11,7 +21,7 @@
       "alt": "../ConImg/webPages/ministries_image1.png"
     },
     {
-      "id": "ministries-2",
+      "id": "ministries-3",
       "page": "ministries",
       "section": "Evangelist Melanie Nunn",
       "image": "Elder Jimmy Jones",
@@ -21,7 +31,7 @@
       "alt": "../ConImg/webPages/ministries_image2.jpeg"
     },
     {
-      "id": "ministries-3",
+      "id": "ministries-4",
       "page": "ministries",
       "section": "Elder Jimmy Jones",
       "image": "Rev. Fairly Taylor",
@@ -31,7 +41,7 @@
       "alt": "../ConImg/webPages/ministries_image3.png"
     },
     {
-      "id": "ministries-4",
+      "id": "ministries-5",
       "page": "ministries",
       "section": "Rev. Fairly Taylor",
       "image": "Minister Joyce Shields",
@@ -41,7 +51,7 @@
       "alt": "../ConImg/webPages/ministries_image4.jpeg"
     },
     {
-      "id": "ministries-5",
+      "id": "ministries-6",
       "page": "ministries",
       "section": "Minister Joyce Shields",
       "image": "Minister Doralyn Warren",
@@ -51,7 +61,7 @@
       "alt": "../ConImg/webPages/ministries_image5.png"
     },
     {
-      "id": "ministries-6",
+      "id": "ministries-7",
       "page": "ministries",
       "section": "Minister Doralyn Warren",
       "image": "Rev. Dennis Gray",
@@ -64,6 +74,16 @@
       "id": "leadership-1",
       "page": "leadership",
       "section": "Staff",
+      "image": "",
+      "name": "",
+      "title": "",
+      "bio": "",
+      "alt": ""
+    },
+    {
+      "id": "leadership-2",
+      "page": "leadership",
+      "section": "leadership",
       "image": "Marsha Roundtree",
       "name": "Marsha Roundtree",
       "title": "Church Administrative Assistant",
@@ -71,7 +91,7 @@
       "alt": "../ConImg/webPages/leadership_staff_image1.jpeg"
     },
     {
-      "id": "leadership-2",
+      "id": "leadership-3",
       "page": "leadership",
       "section": "Marsha Roundtree",
       "image": "Weldon Stokes",
@@ -81,7 +101,7 @@
       "alt": "../ConImg/webPages/leadership_staff_image2.png"
     },
     {
-      "id": "leadership-3",
+      "id": "leadership-4",
       "page": "leadership",
       "section": "Weldon Stokes",
       "image": "John Burnett",
@@ -91,9 +111,19 @@
       "alt": "../ConImg/webPages/leadership_staff_image3.jpeg"
     },
     {
-      "id": "leadership-4",
+      "id": "leadership-5",
       "page": "leadership",
       "section": "Deacons",
+      "image": "",
+      "name": "",
+      "title": "",
+      "bio": "",
+      "alt": ""
+    },
+    {
+      "id": "leadership-6",
+      "page": "leadership",
+      "section": "leadership",
       "image": "John Burnett",
       "name": "John Burnett",
       "title": "Chairman of Deacons",
@@ -101,7 +131,7 @@
       "alt": "../ConImg/webPages/deacons_image1.jpeg"
     },
     {
-      "id": "leadership-5",
+      "id": "leadership-7",
       "page": "leadership",
       "section": "John Burnett",
       "image": "Thomas L. Biles",
@@ -111,7 +141,7 @@
       "alt": "../ConImg/webPages/deacons_image2.jpeg"
     },
     {
-      "id": "leadership-6",
+      "id": "leadership-8",
       "page": "leadership",
       "section": "Thomas L. Biles",
       "image": "Mario Johnson",
@@ -121,7 +151,7 @@
       "alt": "../ConImg/webPages/deacons_image3.jpeg"
     },
     {
-      "id": "leadership-7",
+      "id": "leadership-9",
       "page": "leadership",
       "section": "Mario Johnson",
       "image": "William S. Jones",
@@ -131,7 +161,7 @@
       "alt": "../ConImg/webPages/deacons_image4.jpeg"
     },
     {
-      "id": "leadership-8",
+      "id": "leadership-10",
       "page": "leadership",
       "section": "William S. Jones",
       "image": "Weldon Stokes",
@@ -141,7 +171,7 @@
       "alt": "../ConImg/webPages/deacons_image5.png"
     },
     {
-      "id": "leadership-9",
+      "id": "leadership-11",
       "page": "leadership",
       "section": "Weldon Stokes",
       "image": "David Jones, Sr.",
@@ -151,9 +181,19 @@
       "alt": "../ConImg/webPages/deacons_image6.jpeg"
     },
     {
-      "id": "leadership-10",
+      "id": "leadership-12",
       "page": "leadership",
       "section": "Deaconesses",
+      "image": "",
+      "name": "",
+      "title": "",
+      "bio": "",
+      "alt": ""
+    },
+    {
+      "id": "leadership-13",
+      "page": "leadership",
+      "section": "leadership",
       "image": "Angela Johnson",
       "name": "Angela Johnson",
       "title": "President",
@@ -161,7 +201,7 @@
       "alt": "../ConImg/webPages/deaconesses_image1.jpeg"
     },
     {
-      "id": "leadership-11",
+      "id": "leadership-14",
       "page": "leadership",
       "section": "Angela Johnson",
       "image": "Carrie Jones",
@@ -171,7 +211,7 @@
       "alt": "../ConImg/webPages/deaconesses_image2.png"
     },
     {
-      "id": "leadership-12",
+      "id": "leadership-15",
       "page": "leadership",
       "section": "Carrie Jones",
       "image": "Mattie Bryant",
@@ -181,7 +221,7 @@
       "alt": "../ConImg/webPages/deaconesses_image3.png"
     },
     {
-      "id": "leadership-13",
+      "id": "leadership-16",
       "page": "leadership",
       "section": "Mattie Bryant",
       "image": "L. Joyce Biles",
@@ -191,7 +231,7 @@
       "alt": "../ConImg/webPages/deaconesses_image4.jpeg"
     },
     {
-      "id": "leadership-14",
+      "id": "leadership-17",
       "page": "leadership",
       "section": "L. Joyce Biles",
       "image": "Ruthie Washington",
@@ -201,7 +241,7 @@
       "alt": "../ConImg/webPages/deaconesses_image5.png"
     },
     {
-      "id": "leadership-15",
+      "id": "leadership-18",
       "page": "leadership",
       "section": "Ruthie Washington",
       "image": "Mildred Arnold",
@@ -211,7 +251,7 @@
       "alt": "../ConImg/webPages/deaconesses_image6.png"
     },
     {
-      "id": "leadership-16",
+      "id": "leadership-19",
       "page": "leadership",
       "section": "Mildred Arnold",
       "image": "Sherona Waldon",
@@ -221,9 +261,19 @@
       "alt": "../ConImg/webPages/deaconesses_image7.png"
     },
     {
-      "id": "leadership-17",
+      "id": "leadership-20",
       "page": "leadership",
       "section": "Official Team & Trustees",
+      "image": "",
+      "name": "",
+      "title": "",
+      "bio": "",
+      "alt": ""
+    },
+    {
+      "id": "leadership-21",
+      "page": "leadership",
+      "section": "leadership",
       "image": "Carrie Jones",
       "name": "Carrie Jones",
       "title": "",
@@ -231,7 +281,7 @@
       "alt": "../ConImg/webPages/official_team_image1.png"
     },
     {
-      "id": "leadership-18",
+      "id": "leadership-22",
       "page": "leadership",
       "section": "Carrie Jones",
       "image": "Derek Strong",
@@ -241,7 +291,7 @@
       "alt": "../ConImg/webPages/official_team_image2.png"
     },
     {
-      "id": "leadership-19",
+      "id": "leadership-23",
       "page": "leadership",
       "section": "Derek Strong",
       "image": "Richard Washington",
@@ -251,7 +301,7 @@
       "alt": "../ConImg/webPages/official_team_image3.png"
     },
     {
-      "id": "leadership-20",
+      "id": "leadership-24",
       "page": "leadership",
       "section": "Richard Washington",
       "image": "Brenda Stokes",
@@ -261,7 +311,7 @@
       "alt": "../ConImg/webPages/official_team_image4.png"
     },
     {
-      "id": "leadership-21",
+      "id": "leadership-25",
       "page": "leadership",
       "section": "Brenda Stokes",
       "image": "Tonya Gill",
@@ -271,7 +321,7 @@
       "alt": "../ConImg/webPages/official_team_image5.png"
     },
     {
-      "id": "leadership-22",
+      "id": "leadership-26",
       "page": "leadership",
       "section": "Tonya Gill",
       "image": "Elbert Speers",
@@ -281,7 +331,7 @@
       "alt": "../ConImg/webPages/official_team_image6.png"
     },
     {
-      "id": "leadership-23",
+      "id": "leadership-27",
       "page": "leadership",
       "section": "Elbert Speers",
       "image": "Marsha Roundtree",
@@ -291,7 +341,7 @@
       "alt": "../ConImg/webPages/official_team_image7.jpeg"
     },
     {
-      "id": "leadership-24",
+      "id": "leadership-28",
       "page": "leadership",
       "section": "Marsha Roundtree",
       "image": "Bessie Newbern",

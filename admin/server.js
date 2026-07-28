@@ -3355,6 +3355,7 @@ app.post('/api/finances/entries', requirePermission(PERMISSIONS.FINANCE_WRITE), 
   if (type !== 'income' && type !== 'expense') return res.status(400).json({ error: 'Type must be income or expense.' });
   if (!category) return res.status(400).json({ error: 'Category required.' });
   if (!Number.isFinite(amountCents) || amountCents <= 0) return res.status(400).json({ error: 'Amount must be greater than 0.' });
+  if (type === 'expense' && !party) return res.status(400).json({ error: 'Enter who was paid.' });
   if (!fund && !fundIdInput) return res.status(400).json({ error: 'Please select a fund before saving this transaction.' });
 
   const { fundsData, balances } = getFundBalances();
@@ -3440,6 +3441,7 @@ app.put('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WRITE
   if (type !== 'income' && type !== 'expense') return res.status(400).json({ error: 'Type must be income or expense.' });
   if (!category) return res.status(400).json({ error: 'Category required.' });
   if (!Number.isFinite(amountCents) || amountCents <= 0) return res.status(400).json({ error: 'Amount must be greater than 0.' });
+  if (type === 'expense' && !party) return res.status(400).json({ error: 'Enter who was paid.' });
   if (!fund && !fundIdInput) return res.status(400).json({ error: 'Please select a fund before saving this transaction.' });
 
   const { fundsData, balances } = getFundBalances();
