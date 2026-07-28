@@ -1,0 +1,1226 @@
+/* =====================================================================
+   PUBLIC BASE — global site chrome shared by every public page.
+   Owns: reset, nav, hero, announcement ticker, main/section layout,
+   worship/ministry times grid, footer, events, modal shell.
+   Split from the original style.css (see public-components.css for the
+   second half: content pages, forms, cards, and page-specific rules).
+   Load order: public-base.css -> public-components.css -> (page CSS).
+   ===================================================================== */
+
+/********** Global Styles **********/
+/********** Body **********/
+
+body, html {
+    margin: 0;
+    padding: 0;
+    font-family: 'Arial', sans-serif;
+    color: #ffffff;
+    scroll-behavior: smooth;
+    min-height: 100vh; /* Ensure html takes at least full viewport height */
+    height: 100%; /* Ensure html stretches */
+}
+
+body {
+    background-image: url('ConImg/Church.jpg');
+    background-attachment: fixed;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    padding-top: 100px; /* Adjusted to prevent content overlap by 100px fixed navbar */
+    min-height: calc(100% - 100px); /* Ensure body content area can fill remaining space */
+    box-sizing: border-box; /* Include padding in height calculation */
+    overflow-x: hidden; /* Prevent horizontal scroll from nav/tab overflow */
+}
+
+/* Accessibility utility: visually hidden but still available to screen readers */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/********** Top Navigation Bar Styling **********/
+
+.top-nav {
+    background-color: rgba(0, 0, 0, 0.3);
+    height: 100px;
+    padding: 0 10px; /* Handles margins for logo and button */
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Ensures logo and menu button are spaced out */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    box-sizing: border-box; /* Ensures padding is included in width/height */
+    z-index: 1000; /* Keeps navbar on top */
+}
+
+.nav-logo {
+    height: 100px; /* Adjust as needed to fit well */
+    width: auto;
+}
+
+.nav-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.devicon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.25);
+    color: #ffffff;
+    text-decoration: none;
+    flex: 0 0 auto;
+}
+
+.devicon-btn:hover {
+    border-color: rgba(255, 255, 255, 0.32);
+    background: rgba(0, 0, 0, 0.35);
+}
+
+.devicon-btn__text {
+    font-weight: 800;
+    font-size: 0.95em;
+    line-height: 1;
+}
+
+/********** Menu Button Styling **********/
+
+.menu-button {
+    background-color: transparent;
+    border: 2px solid black; /* Added border */
+    padding: 5px; /* Added padding for space around lines */
+    cursor: pointer;
+    display: flex; /* Changed from none to flex to make it visible by default */
+    flex-direction: column;
+    justify-content: space-between;
+    height: 45px; /* Adjusted for 4 lines (2px each) and 3 spaces (2px each) = 14px, with some extra for visual balance */
+    width: 40px; 
+    box-sizing: border-box; /* Ensure padding and border are included in the element's total width and height */
+}
+
+.menu-button span {
+    display: block;
+    width: 100%; 
+    height: 4px; 
+    background-color: #c46123; 
+}
+
+/********* Navigation Links Styling *********/
+
+.nav-links {
+    display: none; /* Hidden by default, shown when .active */
+    flex-direction: column;
+    width: min(340px, calc(100vw - 20px)); /* Responsive dropdown width */
+    background-color: rgba(0, 0, 0, 0.85);
+    position: absolute;
+    top: 70px; /* Position below the nav bar (give the menu more room) */
+    left: auto; /* Remove left alignment */
+    right: 10px; /* Keep some breathing room on small screens */
+    padding-bottom: 6px;
+    z-index: 999; 
+    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    border-radius: 5px; /* Added rounded corners */
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+}
+
+.nav-links.active {
+    display: flex; /* Show when active (toggled by JS) */
+}
+
+.nav-links a {
+    color: white;
+    text-decoration: none;
+    padding: 8px 4px; /* Tighter so menu fits without internal scroll */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center; /* Centered text for dropdown items */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1); /* Separator for dropdown items */
+    font-size: 1.05em;
+    white-space: normal; /* Allow full labels to wrap */
+    overflow-wrap: anywhere;
+    word-break: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+/* Remove the public-site Login tab (admin is not a public nav destination). */
+.nav-links a[href="admin/"],
+.nav-links a[href="/admin/"],
+.nav-links a[href="../admin/"],
+.nav-links a[href$="/admin/"] {
+    display: none !important;
+}
+
+.nav-links a:last-child {
+    border-bottom: none; /* No border for the last item */
+}
+
+.nav-links a:hover {
+    background-color: rgb(196, 97, 35);
+    border-radius: 0; /* Override previous border-radius if any, or keep if desired */
+}
+
+/* Photo gallery: center the dropdown menu and bump nav text slightly (local request). */
+@media (max-width: 1399px) {
+    .page-photo-gallery .nav-links {
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+    }
+
+    .page-photo-gallery .nav-links a {
+        font-size: 1.15em;
+    }
+}
+
+/* Desktop navigation: show links as horizontal tabs with centered, stacked text */
+@media (min-width: 1400px) {
+    .top-nav {
+        /* Use a 2-column grid so the logo stays left and the tab bar starts after it */
+        display: grid;
+        grid-template-columns: auto 1fr;
+        grid-template-rows: 1fr 56px; /* bottom row is the "piano key" tab bar */
+        align-items: center;
+        column-gap: 24px;
+        overflow-x: hidden;
+    }
+
+    .nav-left {
+        justify-self: start;
+        grid-column: 1;
+        grid-row: 1 / span 2;
+        margin-left: 0;
+    }
+
+    .menu-button {
+        display: none;
+    }
+
+    .nav-links {
+        /* Piano-key tab bar along the bottom, starting AFTER the logo */
+        grid-column: 2;
+        grid-row: 2;
+
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+        justify-content: center;
+
+        position: static;
+        width: 100%;
+        height: 56px;
+        padding: 0 12px;
+        background-color: transparent;
+        border-top: none;
+        border-radius: 0;
+        box-sizing: border-box;
+        min-width: 0; /* allow the grid item to shrink instead of forcing overflow */
+        overflow-x: hidden;
+        max-height: none;
+        overflow-y: hidden;
+    }
+
+    .nav-links a {
+        /* Each link behaves like a "key" */
+        flex: 1 1 0;
+        min-width: 0;
+        height: 100%;
+        padding: 2px; /* 2px padding around text */
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        background-color: rgba(0, 0, 0, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-bottom: none;
+        border-radius: 10px 10px 0 0;
+
+        text-align: center;
+        white-space: normal; /* allow multi-line */
+        overflow: hidden;
+        text-overflow: clip;
+        line-height: 1.05;
+        font-size: 1.02em;
+        font-weight: 700;
+    }
+
+    /* Keep labels centered vertically. Avoid overriding display:flex with -webkit-box here. */
+
+    .nav-links a + a {
+        margin-left: 2px; /* small gap between keys */
+    }
+
+    .nav-links a:hover {
+        background-color: rgba(196, 97, 35, 0.9);
+        border-color: rgba(255, 255, 255, 0.22);
+        border-radius: 10px 10px 0 0;
+    }
+}
+
+/********** Hero Section **********/
+
+.hero-section {
+    /* Use min-height (not fixed height) so large hero text/buttons never overflow
+       into the next section on shorter landscape viewports (e.g., Surface Pro). */
+    min-height: 75vh;
+    height: auto;
+    padding: 40px 16px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    color: white;
+    background-color: rgba(0, 0, 0, 0); /* Dark overlay for better text readability */
+}
+
+/* Match hero content width to the rest of the page (same as main) so the
+   announcement ticker lines up with the site containers. */
+.hero-content {
+    width: 90%;
+    max-width: 1350px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.hero-content h1 {
+    font-size: 6em;
+    margin-bottom: 0px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.75);
+}
+
+/* Accessibility: honor reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+    html:focus-within {
+        scroll-behavior: auto;
+    }
+
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Keep the schedule manager file input hidden without inline styles */
+#schedule-file-input-modal {
+    display: none;
+}
+
+/* Hero title styling */
+.hero-content h1 .hero-line {
+    display: block;
+    margin-bottom: 0.5em; /* Space between lines */
+    white-space: nowrap; /* Ensures content of each line stays on a single line */
+}
+
+.hero-content h1 .hero-line:last-child {
+    margin-bottom: 50px;
+}
+
+.hero-content .hero-subtitle {
+    font-size: 0.6em; /* Roughly 2 sizes smaller than 1em, adjust as needed */
+}
+
+/********** Contact Button Styling **********/
+
+.btn-contact {
+    display: inline-block;
+    padding: 7px 15px;
+    background-color: #c46123; /* A welcoming purple, can be changed */
+    color: white;
+    text-decoration: none;
+    font-size: 1.2em;
+    border-radius: 20px;
+    transition: background-color 0.3s ease, transform 0.3s ease; /* Added transform to transition */
+}
+
+/* Utility modifier: adds top spacing when a button is used inline in text */
+.btn-contact.btn-contact--spaced {
+    margin-top: 10px;
+}
+
+.btn-contact:hover {
+    background-color: #c46123; /* Darker shade on hover */
+    transform: scale(1.25); /* Increase size by 25% */
+}
+
+/* Touch/pen devices can end up in a "stuck" hover-like state; avoid scaling that
+   can visually overlap nearby content on those devices. */
+@media (hover: none) {
+    .btn-contact:hover {
+        transform: none;
+    }
+}
+
+.btn-contact:active {
+    color: black; /* Black text on click */
+}
+
+/********** Home Announcement Ticker **********/
+
+.announcement-ticker-wrap {
+    /* Match the site's main content width/margins */
+    width: 100%;
+    max-width: none;
+    margin: 25px auto; /* 25px space above/below between button and first container */
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.announcement-ticker {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    text-decoration: none;
+    color: #ffffff;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 14px;
+    /* Taller banner (roughly double previous height) */
+    padding: 20px 16px;
+    min-height: 70px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+}
+
+.announcement-ticker:focus {
+    outline: 3px solid rgba(196, 97, 35, 0.9);
+    outline-offset: 3px;
+}
+
+.announcement-ticker__label {
+    flex: 0 0 auto;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: rgb(196, 97, 35);
+    text-transform: uppercase;
+    font-size: 0.95em;
+}
+
+
+.announcement-ticker__viewport {
+    position: relative;
+    overflow: hidden;
+    flex: 1 1 auto;
+    /* line height determines the visible band */
+    height: 1.35em;
+}
+
+.announcement-ticker__stack {
+    display: block;
+    will-change: transform;
+    transform: translateY(0);
+}
+
+.announcement-ticker__line {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* JS toggles this class to animate to the next line */
+.announcement-ticker__stack.is-sliding {
+    transition: transform 420ms ease;
+    transform: translateY(-1.35em);
+}
+
+.announcement-ticker:hover .announcement-ticker__stack,
+.announcement-ticker:focus .announcement-ticker__stack,
+.announcement-ticker:focus-within .announcement-ticker__stack {
+    transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .announcement-ticker__viewport { height: auto; }
+    .announcement-ticker__line { white-space: normal; }
+    .announcement-ticker__stack,
+    .announcement-ticker__stack.is-sliding {
+        transition: none;
+        transform: none;
+    }
+}
+
+/********** Main Content Area **********/
+
+main {  /***** Center area behind containers *****/
+    background-color: rgba(0, 0, 0, 0); 
+    padding-top: 75px;
+    margin-left: auto; /* Center main content */
+    margin-right: auto; /* Center main content */
+    max-width: 1350px; /* Set a max-width for main content area */
+    width: 90%; /* Allow it to be responsive */
+}
+
+/********** Section Styling **********/
+
+section {
+    padding: 5px;
+    text-align: center;
+    margin-bottom: 50px; 
+    border-radius: 15px; 
+    background-color: #000;
+    /* Removed fixed height, section will now size to content */
+}
+
+section:last-of-type {
+    border-bottom: none;
+}
+
+section h2 {    /*Section Names*/
+    font-size: 3em;
+    margin-bottom: 5px;
+    color: #ffffff;
+}
+
+/* Home page: orange section label headings */
+.home section h2 {
+    color: rgb(196, 97, 35);
+}
+
+/* Home page: orange labels inside the Times section */
+.home #times .worship-day {
+    color: rgb(196, 97, 35);
+}
+
+/* Home page: keep actual time values white */
+.home #times .time-slot {
+    color: #ffffff;
+}
+
+/* Home page: Upcoming Events label in orange */
+.home #events > h2 {
+    color: rgb(196, 97, 35);
+}
+
+/* ======================================================================
+   Combined Times container (Worship left, Ministries right)
+   ====================================================================== */
+
+#times {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    align-items: start;
+}
+
+#times .times-column {
+    background-color: rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 12px;
+}
+
+#times .times-column > h2 {
+    margin-top: 0;
+    color: rgb(196, 97, 35);
+}
+
+/* Reduce event block padding inside the combined Times container */
+#times .service-block {
+    padding: 4px;
+}
+
+section div {   /*Days Container*/
+    background-color: rgba(0, 0, 0, 0); /* Simplified from #c4238100 */
+    margin: 0;
+    padding: 5px 5px 5px 5px;
+    border-radius: 15px;
+    max-width: 1350px; /* Match main content width */
+}
+
+section div p {
+    font-size: 1.1em;
+    line-height: 1.6;
+}
+
+/********** Worship Times Styling **********/
+
+.worship-day {
+    text-align: center;
+    font-size: 2em; /* Made Sunday a bit larger */
+    margin-bottom: 0px;
+    font-weight: bold; /* Make day names bold */
+}
+
+.service-times-row {
+    display: flex;
+    justify-content: space-around; /* Evenly space the time slots -> Changed to center */
+    align-items: flex-start; /* Align time slots to the top of this container */
+    margin-top: 0px; /* Space below "Sunday" */
+    gap: 5.25rem; /* Ensures a minimum space between time slots */
+}
+
+.time-slot {    /*Individual times*/
+    font-size: 1.3em; /* Style for the times */
+    color: #ffffff;
+    margin: 0 0 5px; /* Provides space around each time, allowing more to be added */
+    padding: 2px 5px;
+    background-color: #c4612380;
+    border-radius: 5px;
+    border: 1px solid #bd5f25;
+}
+
+/********** Day Container Styling **********/
+
+.days-container {
+    display: flex;
+    justify-content: space-around; 
+    align-items: stretch; /* Makes all .day items in a row the same height */
+    gap: 20px; 
+    flex-wrap: wrap; /* Allows items to wrap */
+}
+
+.day {
+    padding: 0px 10px 0px 10px; 
+    background-color: rgba(0, 0, 0, 0); 
+    border-radius: 15px;
+    flex: 1; /* Allows day blocks to grow and shrink equally to fill space */
+    display: flex;
+    flex-direction: column;
+    align-items: center; 
+    text-align: center; 
+    justify-content: flex-start; /* ADDED: Aligns items to the top of the .day container */
+}
+
+/* ======================================================================
+   Schedule layout (Worship Times + Weekly Ministry Times)
+   Days down the left, events on the right
+   ====================================================================== */
+
+#worship-times .days-container,
+#ministries .days-container {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+}
+
+#worship-times .day,
+#ministries .day {
+    display: grid;
+    grid-template-columns: 170px 1fr;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 14px;
+    background-color: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(196, 97, 35, 0.35);
+}
+
+#worship-times .day-label,
+#ministries .day-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#worship-times .day-label .worship-day,
+#ministries .day-label .worship-day {
+    text-align: center;
+    margin: 2px 0 0;
+    font-size: 1.8em;
+    color: #ffffff;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.65);
+}
+
+#worship-times .day-events,
+#ministries .day-events {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+/* Generic time + event row */
+.simple-event-row,
+#worship-times .sunday-event-group,
+#ministries .thursday-event-group {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 12px;
+    align-items: center;
+}
+
+.simple-event-row .time-slot,
+#worship-times .sunday-event-group .time-slot,
+#ministries .thursday-event-group .time-slot {
+    margin: 0;
+    justify-self: center;
+}
+
+/* When an event has multiple blocks (e.g., Wednesday ministries, Thursday 6pm) */
+.event-service-blocks-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+}
+
+.event-service-blocks-row .service-block {
+    flex: 1;
+    min-width: 240px;
+}
+
+/* Tablet-ish widths (e.g., Surface Pro): stack multi-block rows to avoid overflow */
+@media (max-width: 1400px) and (min-width: 981px) {
+    #times .event-service-blocks-row {
+        flex-direction: column;
+    }
+
+    #times .event-service-blocks-row .service-block {
+        min-width: 0;
+        width: 100%;
+    }
+}
+
+/* Stack Day → Time → Events earlier to prevent overflow while resizing */
+@media (max-width: 980px) {
+    #worship-times .day,
+    #ministries .day {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        align-items: start;
+    }
+
+    #worship-times .day-label,
+    #ministries .day-label {
+        justify-content: center;
+    }
+
+    .simple-event-row,
+    #worship-times .sunday-event-group,
+    #ministries .thursday-event-group {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        align-items: start;
+        min-width: 0;
+    }
+
+    .simple-event-row .time-slot,
+    #worship-times .sunday-event-group .time-slot,
+    #ministries .thursday-event-group .time-slot {
+        justify-self: center;
+        width: fit-content;
+    }
+
+    .event-service-blocks-row {
+        flex-direction: column;
+    }
+
+    .event-service-blocks-row .service-block {
+        min-width: 0;
+        width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    #times {
+        grid-template-columns: 1fr;
+    }
+
+    #worship-times .day,
+    #ministries .day {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .simple-event-row,
+    #worship-times .sunday-event-group,
+    #ministries .thursday-event-group {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .event-service-blocks-row .service-block {
+        min-width: 0;
+    }
+}
+
+/* New styles for Sunday service blocks */
+.sunday-services .service-block {
+    display: flex;
+    flex-direction: column; /* Stack time and details vertically by default */
+    align-items: center; /* Center items within the block */
+    width: 100%; /* Ensure blocks take full width of their container */
+    margin-bottom: 15px; /* Space between service blocks */
+}
+
+.sunday-services .service-block:last-child {
+    margin-bottom: 0;
+}
+
+.sunday-services .service-details p {
+    margin: 2px 0; /* Adjust spacing around service detail text */
+    text-align: center; /* Center text within Sunday service details paragraphs on mobile */
+}
+
+/********** Styling for side-by-side divs A and B **********/
+
+.side-by-side-divs {
+    display: flex;
+    justify-content: space-around; /* Or space-between, or center, depending on desired spacing -> Changed to center */
+    margin-top: 0px; /* Add some space above these divs */
+    padding: 0; /* ADDED to negate padding from 'section div' */
+}
+
+.side-by-side-divs > div { /* Style for direct children (divA and divB) */
+    flex-basis: 45%; /* Example: each div takes up slightly less than half, allowing for some space between */
+    /* padding: 0px 0px 0px 10px; */
+    background-color: #c4612380; /* Light grey background for distinction */
+    border: 1px solid #bd5f25;
+    border-radius: 5px;
+}
+
+/* Added rule for when a .side-by-side-divs container has only one child div */
+.side-by-side-divs > div:only-child {
+    box-sizing: border-box; /* Ensures padding and border are included in the width */
+    flex-basis: auto;       /* Override the 45% basis */
+    width: calc(100% - 30px); /* Makes the element 15px narrower on each side than its parent .side-by-side-divs. With 15px margins, this results in 25px from .day's border (10px .day padding + 15px item margin). */
+    margin-left: 15px;      /* Adjusted from 10px to 15px */
+    margin-right: 15px;     /* Adjusted from 10px to 15px */
+}
+
+/********** Pastor Section Styling **********/
+
+.pastor-container {
+    position: relative; 
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.025); /* User's preference */
+    overflow: hidden; /* Changed from auto to hidden to remove scrollbar */
+    margin: 0; 
+    max-width: none; 
+    box-shadow: none; 
+}
+
+.pastor-image {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0;
+    float: none;
+    border-radius: 15px;
+}
+
+/********** FAQ Section Styling **********/
+
+.faq-section-wrapper {
+    display: flex;
+    justify-content: space-between; /* Adjust as needed: space-around, center, etc. */
+    align-items: center; /* Align items to the top */
+    gap: 200px; /* Space between FAQ list and image container */
+}
+
+.faq-container {
+    flex: 1; /* FAQ container takes more space */
+    max-width: 50%; /* Adjust as needed */
+    margin-left: 100px; /* Centering is now handled by flex wrapper */
+    text-align: center;
+}
+
+.faq-image-stack-container {
+    flex: 2; /* Image container takes less space */
+    display: flex;
+    flex-direction: column; /* Default: stack vertically */
+    align-items: center; /* Center images horizontally within this container */
+    justify-content: space-around; /* Center stack vertically if container is taller */
+    gap: 10px; /* Space between the two images */
+    min-width: 200px; /* Minimum width, adjust as needed */
+    max-width: 100%; /* Adjust as needed */
+    padding-top: 0px; /* Add some padding to visually center/adjust if needed */
+    padding-bottom: 0px; /* Add some padding */
+}
+
+/* ======================================================================
+   Homepage FAQ collage (main image + overlapping thumbnail)
+   ====================================================================== */
+
+.faq-image-collage {
+    position: relative;
+    display: block;
+    width: 100%;
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 10px;
+    padding-bottom: 120px; /* space for the overlapping thumbnail */
+    overflow: visible;
+.contact-form--spaced {
+    margin-top: 18px;
+}
+.footer-subscribe-form {
+    display: grid;
+    gap: 8px;
+}
+.footer-subscribe-form .input {
+    width: 100%;
+}
+.btn-contact--spaced {
+    margin-top: 6px;
+}
+.muted {
+    color: #4f4f4f;
+    font-size: 0.9rem;
+}
+}
+
+.faq-image-collage .faq-collage-main {
+    width: 100%;
+    max-width: 980px;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+    border-radius: 18px;
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+}
+
+.faq-image-collage .faq-collage-thumb {
+    position: absolute;
+    left: 15%;
+    bottom: 46px; /* anchors to the bottom edge, slightly overlapping */
+    transform: translateX(-50%);
+    width: min(64%, 520px); /* a little bigger than before */
+    height: auto;
+    border-radius: 14px;
+    border: 6px solid #ffffff;
+    background: #ffffff;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+}
+
+@media (max-width: 820px) {
+    .faq-image-collage {
+        padding-bottom: 100px;
+    }
+
+    .faq-image-collage .faq-collage-thumb {
+        width: min(64%, 520px);
+        bottom: 46px;
+    }
+}
+
+@media (max-width: 600px) {
+    .faq-image-collage {
+        padding-bottom: 10px;
+    }
+
+    .faq-image-collage .faq-collage-thumb {
+        position: static;
+        transform: none;
+        width: min(92%, 520px);
+        margin: 14px auto 0;
+        border-width: 4px;
+    }
+}
+
+.stacked-image {
+    width: 100%;
+    max-width: 600px;
+    height: auto;
+    border-radius: 15px;
+    padding-left: 0;
+    display: block;
+    margin: 0 auto;
+   /* box-shadow: 0 1px 3px rgba(0,0,0,0.3); */
+}
+
+.faq-item {
+    background-color: rgba(255, 255, 255, 0.1);
+    margin-bottom: 15px;
+    border-radius: 10px;
+    border: 1px solid #c46123;
+}
+
+.faq-question {
+    padding: 16px;
+    margin: 0;
+    cursor: pointer;
+    font-size: 1.2em;
+    color: #ffffff;
+    background-color: rgba(196, 97, 35, 0.5); /* Semi-transparent accent color */
+    border-radius: 10px 10px 10px 10px; /* Round top corners if answer is hidden initially */
+    transition: background-color 0.3s ease;
+}
+
+.faq-question:hover {
+    background-color: rgba(196, 97, 35, 0.7);
+}
+
+.faq-answer {
+    padding: 0 4px; /* Add padding only to sides initially */
+    margin: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.5s ease-out, padding 0.5s ease-out; /* Smooth transition for height and padding */
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 10px 10px 10px 10px; /* Round bottom corners */
+}
+
+.faq-answer p {
+    padding: 15px 0; /* Add vertical padding when answer is shown */
+    margin: 0;
+    color: #f0f0f0; /* Lighter text for answer */
+    font-size: 1em;
+    line-height: 1.6;
+}
+
+/***** Style for when the FAQ item is active/open *****/
+
+.faq-item.active .faq-answer {
+    max-height: 500px; /* Adjust as needed to fit content */
+    padding: 0 15px; /* Ensure side padding is maintained */
+}
+
+.faq-item.active .faq-question {
+    background-color: #c46123cc;
+    border-radius: 10px 10px 10px 10px;
+}
+
+/********** Footer Styles **********/
+
+footer {
+    background-color: #121212;
+    color: white;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center; 
+    gap: 20px;
+    text-align: center; /* Removed, alignment handled by flex children */
+}
+
+.footer-top-row {   /* Top row with logo and text */
+    display: flex;
+    flex-direction: row; /* Arrange logo and text side-by-side */
+    justify-content: center; /* Center the logo-text pair */
+    align-items: center; /* Vertically align logo and text block */
+    gap: 20px; /* Gap between logo and text block */
+    width: 100%;
+}
+
+.footer-logo {
+    height: 100px;
+    flex-shrink: 0; /* Prevent logo from shrinking */
+}
+
+.footer-text-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* Align text to the start (left) of its container */
+    text-align: left; /* Align text to the left within its block */
+    max-width: none;
+    flex: 1;
+}
+
+.footer-bottom-row {
+    display: flex;
+    justify-content: space-around; /* Distribute link sections */
+    width: 100%;
+    max-width: 1350px; /* Match main content width */
+    gap: 20px; /* Space between link sections */
+    padding-top: 20px;
+}
+
+.footer-links-section {
+    background-color: #ffffff0d; /* Transparent div background */
+    padding: 10px; /* Reduced padding */
+    border-radius: 8px;
+    text-align: center; /* Changed from left to center for h4 */
+    flex: 1; /* Make sections equal width */
+    display: flex; /* Enable flex for vertical alignment of children */
+    flex-direction: column; /* Stack h4 and ul vertically */
+}
+
+.footer-links-section h4 {
+    margin-top: 0;
+    margin-bottom: 8px; /* Reduced margin */
+    color: #c46123;
+    border-bottom: 1px solid #c46123;
+    padding-bottom: 4px; /* Reduced padding */
+    font-size: 1.1em; /* Slightly adjust font size if needed */
+}
+
+.footer-links-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    flex-grow: 1; /* Allow ul to grow and fill space */
+    justify-content: center; /* Center items if not enough to space-around */
+    gap: 4px; /* Added gap between li items */
+}
+
+.footer-links-section ul li a {
+    color: #ccc;
+    text-decoration: none;
+    font-size: 0.85em; /* Slightly reduced font size */
+    line-height: 1.6; /* Adjusted line height */
+    display: flex; /* Changed to flex for icon and text alignment */
+    align-items: center; /* Vertically align icon and text */
+    padding: 1px 0; /* Reduced padding */
+}
+
+.footer-links-section ul li a .link-icon {
+    margin-right: 5px; /* Restored original space */
+    display: inline-block; /* Or inline-flex */
+    width: 14px; /* Slightly reduced icon size */
+    height: 14px; /* Slightly reduced icon size */
+    vertical-align: left; /* Helps align image with text */
+}
+
+/* Comment related to YouTube icon spacing removed */
+
+.footer-links-section ul li a .link-text {
+    display: inline-block;
+}
+
+.footer-links-section ul li a:hover {
+    color: #fff;
+    text-decoration: underline;
+}
+
+.footer-copyright-row {
+    text-align: center; /* Horizontally center the copyright text */
+    padding: 10px 0;
+    border-top: 1px solid #444; /* Optional: adds a separator line */
+    margin-top: 20px; /* Optional: adds some space above the copyright line */
+}
+
+/* Desktop: align footer content to main/body margins */
+@media (min-width: 1025px) {
+    .footer-top-row,
+    .footer-bottom-row,
+    .footer-copyright-row {
+        width: 90%;
+        max-width: 1350px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+}
+
+.footer-copyright-row p {
+    margin: 0; /* Remove default paragraph margins */
+    font-size: 0.9em; /* Adjust font size as needed */
+    color: #ccc; /* Lighter text color for the copyright */
+}
+
+/********** Events Section Styles **********/
+
+#events {
+    background-color: #000;
+    padding: 10px 10px 10px 10px; /* Padding around the section */
+    border-radius: 15px;
+}
+
+#events h2 {
+    text-align: center;
+    color: #ffffff;
+    margin-bottom: 20px;
+}
+
+#events .events-container {
+    display: flex;
+    gap: 10px;
+    align-items: stretch; /* Ensures children are of equal height */
+    width: 100%;
+    max-width: none; /* Override global section div max-width */
+    padding: 4px; /* Override global section div padding */
+}
+
+#events .event-image-container {
+    flex: 1 1 0; /* Equal width columns; allow shrinking */
+    min-width: 0; /* Prevent overflow from long content */
+    display: flex; /* To allow image to fill height */
+    flex-direction: column; /* Stack content vertically if any */
+    /* Removed max-width to allow flex to control width */
+    max-width: none; /* Override global section div max-width */
+    padding: 0;
+    border-radius: 15px;
+    overflow: hidden; /* Clip image to match schedule panel shape */
+}
+
+/* Homepage: match the schedule panel height on desktop */
+@media (min-width: 981px) {
+    .home #events .event-image-container {
+        height: 420px;
+    }
+}
+
+#events .event-image {
+    width: 100%;
+    height: 100%; /* Makes the image take the full height of its container */
+    object-fit: cover; /* Ensures the image covers the area, maintaining aspect ratio */
+    border-radius: 0;
+}
+
+#schedule-display-area {
+    flex: 1 1 0; /* Equal width columns; allow shrinking */
+    min-width: 0; /* Prevent overflow from long content */
+    display: flex; /* Added to allow its content to be flex-managed if needed */
+    flex-direction: column; /* Align content within this area */
+    max-width: none; /* Override global section div max-width */
+    padding: 0;
+}
+
+/* Modal Styles */
+.modal-hidden {
+    display: none; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 2000; /* Sit on top */
+    left: 0;
+    top: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    overflow: auto; /* Enable scroll if needed */
+    background-color: rgba(0,0,0,0.7); /* Black w/ opacity */
+}
+
+.modal-content {
+    background-color: #2c2c2c; /* Dark background for modal */
+    color: #f1f1f1;
+    margin: 10% auto; /* 10% from the top and centered */
+    padding: 25px;
+    border: 1px solid #555;
+    width: 60%; /* Could be more or less, depending on screen size */
+    max-width: 700px; /* Max width */
+    border-radius: 10px;
+    position: relative;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+}
+
+.close-modal-button {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.close-modal-button:hover,
+.close-modal-button:focus {
+    color: #fff;
+    text-decoration: none;
+    cursor: pointer;
+}
+

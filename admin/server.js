@@ -73,6 +73,136 @@ const DOCS_UPLOADS_DIR = path.join(UPLOADS_DIR, 'docs');
 const BULLETINS_UPLOADS_DIR = path.join(UPLOADS_DIR, 'bulletins');
 const ROOT_BULLETINS_DIR = path.join(ROOT_DIR, 'bulletins');
 const GALLERY_DIR = path.join(ROOT_DIR, 'ConImg', 'gallery');
+
+// Keep local dev admin HTML in parity with what the production Cloudflare Worker
+// injects at runtime via transformAdminHtml() in src/worker-admin-api-wrapper.js.
+// Without this, the local admin/public/index.html (served as-is by express.static)
+// is missing the gallery layout fixes, the moved photo-bulk-action bar, and the
+// admin-structure-overrides.css/.js include — making dev visually diverge from prod.
+// Keep these constants and the transform logic in sync with the Worker copy.
+const DEV_HEADER_BULK_BAR = `
+            <div class="photoBulkBar photoBulkBar--header" id="photoBulkBar" hidden>
+              <button class="btn" id="photoBulkEditBtn" type="button">Edit selected photos</button>
+              <button class="btn btn--danger" id="photoBulkDeleteBtn" type="button">Delete selected photos</button>
+              <span class="muted" id="photoBulkCount" aria-live="polite"></span>
+            </div>`;
+
+const DEV_FINAL_GALLERY_STYLE = `
+<style id="mmmbc-gallery-layout-final">
+  #photoPager:not([hidden]),
+  #photoPagerBottom:not([hidden]) {
+    display: flex !important;
+    width: fit-content !important;
+    max-width: 100%;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 14px !important;
+  }
+  #photoPager:not([hidden]) {
+    margin-top: 26px !important;
+    margin-bottom: 22px !important;
+  }
+  #photoPagerBottom:not([hidden]) {
+    margin-top: 24px !important;
+    margin-bottom: 10px !important;
+  }
+  #tab-photos > .sectionHeader {
+    align-items: flex-start;
+  }
+  #tab-photos > .sectionHeader > .iconGroup {
+    margin-left: auto;
+    align-items: flex-end;
+    min-width: min(100%, 620px);
+  }
+  #tab-photos .photoBulkBar--header {
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    max-width: 100%;
+    margin: 8px 0 0 auto !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+  }
+  #tab-photos .photoBulkBar--header[hidden] {
+    display: none !important;
+  }
+  #tab-photos .photoBulkBar--header #photoBulkCount {
+    width: 100%;
+    text-align: right;
+  }
+  @media (max-width: 900px) {
+    #tab-photos > .sectionHeader {
+      flex-wrap: wrap;
+    }
+    #tab-photos > .sectionHeader > .iconGroup {
+      width: 100%;
+      min-width: 0;
+      align-items: stretch;
+    }
+    #tab-photos .photoBulkBar--header {
+      margin-left: 0 !important;
+      justify-content: flex-start;
+    }
+    #tab-photos .photoBulkBar--header #photoBulkCount {
+      text-align: left;
+    }
+  }
+</style>`;
+
+const DEV_STRUCTURE_STYLESHEET = '<link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260724-1" />';
+const DEV_STRUCTURE_SCRIPT = '<script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260724-1" defer></script>';
+
+function transformAdminHtmlForDev(html) {
+  html = html.replace(
+    /\s*<div class="photoBulkBar" id="photoBulkBar" hidden>[\s\S]*?<\/div>/,
+    ''
+  );
+
+  if (!html.includes('photoBulkBar--header')) {
+    html = html.replace(
+      '<div class="syncProgress" id="syncProgressWrap" aria-live="polite" hidden>',
+      `${DEV_HEADER_BULK_BAR}\n            <div class="syncProgress" id="syncProgressWrap" aria-live="polite" hidden>`
+    );
+  }
+
+  if (!html.includes('id="mmmbc-gallery-layout-final"')) {
+    html = html.replace('</head>', `${DEV_FINAL_GALLERY_STYLE}\n</head>`);
+  }
+
+  if (!html.includes('id="mmmbc-admin-structure-css"')) {
+    html = html.replace('</head>', `${DEV_STRUCTURE_STYLESHEET}\n</head>`);
+  }
+
+  if (!html.includes('id="mmmbc-admin-structure-js"')) {
+    html = html.replace('</body>', `${DEV_STRUCTURE_SCRIPT}\n</body>`);
+  }
+
+  return html;
+}
+
+function sendTransformedAdminHtml(res, filePath) {
+  fs.readFile(filePath, 'utf8', (err, html) => {
+    if (err) {
+      res.status(404).end();
+      return;
+    }
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.send(transformAdminHtmlForDev(html));
+  });
+}
 const WEBPAGE_IMAGES_DIR = path.join(ROOT_DIR, 'ConImg', 'webPages');
 const PORT = Number(process.env.PORT || 8787);
 const HOST = String(process.env.HOST || '').trim();
@@ -1082,6 +1212,13 @@ app.get('/admin', (req, res, next) => {
   return next();
 });
 
+// Serve the main admin dashboard through the same HTML transform the production
+// Worker applies, so local dev visually matches production (see
+// transformAdminHtmlForDev above).
+app.get(['/admin/', '/admin/index.html'], (req, res) => {
+  return sendTransformedAdminHtml(res, path.join(ADMIN_DIR, 'public', 'index.html'));
+});
+
 // Cloudflare Access is expected to gate /admin/* in deployments that use it.
 // Keep legacy login URLs working by redirecting users to the current admin entry point.
 app.get(['/admin/login', '/admin/login.html', '/admin/login.js', '/admin/login_legacy.html'], (req, res) => {
@@ -1089,7 +1226,7 @@ app.get(['/admin/login', '/admin/login.html', '/admin/login.js', '/admin/login_l
 });
 
 function sendAdminFinancePage(res, fileName) {
-  return res.sendFile(path.join(ADMIN_DIR, 'public', fileName));
+  return sendTransformedAdminHtml(res, path.join(ADMIN_DIR, 'public', fileName));
 }
 
 app.get('/admin/finances/funds', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {

@@ -4,6 +4,8 @@ function rewriteGivingHtml(html, success = false) {
   output = output
     .replaceAll('href="../Icons/', 'href="/Icons/')
     .replaceAll('href="../style.css"', 'href="/style.css"')
+    .replaceAll('href="../public-base.css"', 'href="/public-base.css"')
+    .replaceAll('href="../public-components.css"', 'href="/public-components.css"')
     .replaceAll('href="giving.css', 'href="/Pages/giving.css')
     .replaceAll('src="../ConImg/', 'src="/ConImg/')
     .replaceAll('src="../script.js"', 'src="/script.js"')

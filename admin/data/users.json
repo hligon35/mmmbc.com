@@ -16,7 +16,7 @@
     {
       "id": "1b73e4ca-dec5-449d-a3ce-6f1c0a5e5f7e",
       "email": "hligon@getsparqd.com",
-      "passwordHash": "$2a$12$poJxNy8vZUsQHmlIOxmzX.9fRFzijjsKYPpF2NzzL.riznDIXtz7u",
+      "passwordHash": "$2a$12$v4dvzlOSI2x41PjxL7FyI.dhxpf25sS5y9UFRQohJOiBUxNd8zqaW",
       "role": "administrator",
       "createdAt": "2026-07-22T15:56:57.049Z",
       "isMaster": true,
@@ -25,6 +25,22 @@
       "onboardedAt": "2026-07-22T15:56:57.050Z",
       "twoFactorEnabled": false,
       "twoFactorSecret": ""
+    },
+    {
+      "id": "5a673ea3-8e4f-4bb0-a9c5-339aa10c9f3c",
+      "email": "hligon35@gmail.com",
+      "passwordHash": "$2a$12$2psCHhUOaJFlJSTIou.Vi.hOrzr6Qqeb52T7DK1jk0GQhaOiz6.EC",
+      "role": "website_editor",
+      "createdAt": "2026-07-28T02:19:10.608Z",
+      "isMaster": false,
+      "name": "",
+      "mustOnboard": true,
+      "onboardedAt": "",
+      "inviteTokenHash": "4c3d924a698c7a08cd7fcc7c4ba30ab4a67b22ce244c1be149849e7bc2375894",
+      "inviteExpiresAt": "2026-08-04T02:19:10.261Z",
+      "twoFactorEnabled": false,
+      "twoFactorSecret": "",
+      "twoFactorPendingSecret": ""
     }
   ]
 }
