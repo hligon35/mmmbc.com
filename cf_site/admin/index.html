@@ -6,7 +6,8 @@
   <title>Church Website Manager</title>
   <meta name="description" content="Admin dashboard for Mt. Moriah Missionary Baptist Church website." />
   <link rel="stylesheet" href="/admin/admin.css?v=20260124" />
-  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260728014631" />
+  <link rel="stylesheet" href="/admin/site-editor.css?v=20260124" />
+  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260728154438" />
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
@@ -41,16 +42,6 @@
         <span class="statusChip" id="financeOfferingsTotal">$0.00 Offerings</span>
         <span class="statusChip" id="financeGivingTotal">$0.00 Total</span>
         <span class="statusChip" id="financeNetTotal">$0.00 Net</span>
-      </div>
-
-      <div class="tabs subTabs siteEditorPageTabs noPrint" id="siteEditorPageTabs" role="tablist" aria-label="Site editor pages" hidden>
-        <button class="tab tab--sub" type="button" role="tab" aria-selected="true" data-site-page="home">Home</button>
-        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="ministries">Ministries</button>
-        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="leadership">Leadership &amp; Staff</button>
-        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="church_history">Church History</button>
-        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="facility_rental">Facility Rental</button>
-        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="live_praise">Live Praise</button>
-        <button class="tab tab--sub" type="button" role="tab" aria-selected="false" data-site-page="contact">Contact</button>
       </div>
     </div>
   </header>
@@ -997,148 +988,13 @@
         <div class="pageContext" id="pageContext-profiles">
           <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Edit Website Pages</p>
           <h2 class="pageContext__title">Edit Website Pages</h2>
-          <p class="pageContext__description">Update ministries, leadership, church history, contact details, and more.</p>
+          <p class="pageContext__description">Open a page below to edit it visually, directly on the live layout.</p>
         </div>
-        <p class="muted" id="siteEditorPageHelp">Edit each website page from the tabs above. The public top navigation stays fixed here.</p>
 
-        <h3 class="card__subtitle" id="siteEditorPageTitle">Home</h3>
-
-        <div class="editorSplit editorSplit--siteEditor">
-          <div class="editorSplit__main">
-            <div class="card" id="siteEditorHeaderCard">
-              <h3 class="card__subtitle">Page Heading and Intro</h3>
-              <p class="muted">Keep headings short and write introductions the way you would explain the page to a visitor.</p>
-              <form id="profileHeaderForm" class="form" aria-label="Site editor heading form">
-                <label class="label">
-                  Page title shown on the website
-                  <input class="input" id="profileHeaderPageTitle" type="text" maxlength="120" required />
-                </label>
-                <label class="label" id="profileHeaderMinistriesIntroRow">
-                  Intro paragraph
-                  <textarea class="textarea" id="profileHeaderIntroText" rows="4" maxlength="2000"></textarea>
-                </label>
-                <div id="profileHeaderLeadershipFields">
-                  <label class="label">
-                    Staff section heading
-                    <input class="input" id="profileHeaderStaffHeading" type="text" maxlength="80" />
-                  </label>
-                  <label class="label">
-                    Deacons section heading
-                    <input class="input" id="profileHeaderDeaconsHeading" type="text" maxlength="80" />
-                  </label>
-                  <label class="label">
-                    Deaconesses section heading
-                    <input class="input" id="profileHeaderDeaconessesHeading" type="text" maxlength="80" />
-                  </label>
-                  <label class="label">
-                    Trustees and official team heading
-                    <input class="input" id="profileHeaderOfficialTeamHeading" type="text" maxlength="120" />
-                  </label>
-                </div>
-                <button class="btn btn--primary" type="submit">Save Page Heading</button>
-                <div class="hint" id="profileHeaderHint" aria-live="polite"></div>
-              </form>
-            </div>
-
-            <div class="card" id="siteEditorProfilesCard">
-              <h3 class="card__subtitle">Section Profiles</h3>
-              <p class="muted">Use this panel for ministry or leadership profile cards such as Elder Jimmy Jones and Marsha Roundtree.</p>
-
-              <div class="formRow">
-                <label class="label">
-                  Profile list
-                <select class="select" id="profileSelect" size="8" aria-label="Profile list"></select>
-                </label>
-              </div>
-
-              <form id="profileForm" class="form" aria-label="Profile editor">
-                <input id="profileId" type="hidden" />
-                <input id="profilePage" type="hidden" />
-                <label class="label">
-                  Section name
-                  <input class="input" id="profileSection" type="text" maxlength="80" placeholder="Staff" />
-                </label>
-                <label class="label">
-                  Name
-                  <input class="input" id="profileName" type="text" maxlength="120" required />
-                </label>
-                <label class="label">
-                  Title
-                  <input class="input" id="profileTitle" type="text" maxlength="120" placeholder="Ministry Leader" />
-                </label>
-                <label class="label">
-                  Short bio
-                  <textarea class="textarea" id="profileBio" rows="6" maxlength="2000" required></textarea>
-                </label>
-
-                <div class="card card--spacedTop">
-                  <h4 class="card__subtitle">Profile Image</h4>
-                  <div class="formRow">
-                    <label class="label">
-                      Current image file
-                      <input class="input" id="profileImage" type="text" maxlength="400" placeholder="/ConImg/webPages/example.png" />
-                    </label>
-                    <label class="label">
-                      Alt text
-                      <input class="input" id="profileImageAlt" type="text" maxlength="160" placeholder="Image alt text" />
-                    </label>
-                  </div>
-                  <p class="hint" id="profileImageFilenameHint">No image selected.</p>
-                  <div class="formRow">
-                    <img id="profileImagePreview" alt="Selected profile image preview" class="siteEditorImagePreview" hidden />
-                  </div>
-                  <div class="formRow">
-                    <label class="label">
-                      Replace image file
-                      <input class="input" id="profileImageFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
-                    </label>
-                  </div>
-                  <p class="hint">Accepted: JPG, PNG, WEBP, GIF. Maximum 8 MB. Recommended portrait image near 1200 Ã— 1200.</p>
-                  <div class="toolbar">
-                    <button class="btn" id="profileUploadImageBtn" type="button">Upload Image</button>
-                    <button class="btn" id="profileRemoveImageBtn" type="button">Remove Image</button>
-                  </div>
-                </div>
-
-                <button class="btn btn--primary" type="submit">Save Profile</button>
-                <div class="hint" id="profileHint" aria-live="polite"></div>
-              </form>
-            </div>
-
-            <div class="card" id="siteEditorInfoCard" hidden>
-              <h3 class="card__subtitle">Page Layout</h3>
-              <p class="muted" id="siteEditorInfoText">This page currently uses static content and media from the website files.</p>
-            </div>
-          </div>
-
-          <aside class="editorSplit__preview">
-            <div class="card previewPane" id="siteEditorPreviewPane" aria-live="polite">
-              <div class="sitePreviewToolbar" id="sitePreviewToolbar">
-                <div class="sitePreviewToolbar__titles">
-                  <strong>Published Page Preview</strong>
-                  <span id="sitePreviewPageName"></span>
-                </div>
-                <div class="sitePreviewToolbar__actions">
-                  <button class="btn" id="sitePreviewRefreshBtn" type="button">Refresh Preview</button>
-                  <a class="btn" id="sitePreviewOpenBtn" href="/" target="_blank" rel="noopener noreferrer">Open Full Page</a>
-                </div>
-              </div>
-              <div class="hint" id="sitePreviewStatus" aria-live="polite"></div>
-              <iframe
-                id="sitePagePreviewFrame"
-                title="Selected website page preview"
-                class="sitePagePreviewFrame"
-                loading="lazy"
-                sandbox="allow-same-origin allow-scripts allow-forms"
-              ></iframe>
-
-              <div class="sectionHeader sectionHeader--compact previewDraftHeader">
-                <h3 class="card__subtitle">Unsaved Changes Preview</h3>
-                <span class="previewBadge">Updates as you type</span>
-              </div>
-              <div id="siteEditorLivePreview" class="siteEditorLivePreview"></div>
-            </div>
-          </aside>
+        <div class="card">
+          <h3 class="card__subtitle">Website Pages</h3>
+          <p class="muted">Choose a page to open the full-screen visual editor. Changes save as a draft until you choose Update to publish them.</p>
+          <div class="siteEditorLauncherGrid" id="siteEditorLauncherGrid"></div>
         </div>
       </section>
 
@@ -1203,9 +1059,52 @@
     </section>
   </main>
 
+  <div class="siteEditorOverlay" id="siteEditorOverlay" hidden>
+    <header class="siteEditorOverlay__header">
+      <div class="siteEditorOverlay__tabs" id="siteEditorOverlayTabs" role="tablist" aria-label="Website pages"></div>
+      <h2 class="siteEditorOverlay__title" id="siteEditorOverlayTitle">Edit Page</h2>
+      <div class="siteEditorOverlay__actions">
+        <span class="siteEditorOverlay__status" id="siteEditorOverlayStatus" aria-live="polite">Saved</span>
+        <button class="btn" id="siteEditorSaveBtn" type="button">Save</button>
+        <button class="btn btn--primary" id="siteEditorUpdateBtn" type="button">Update</button>
+        <button class="btn siteEditorOverlay__exitBtn" id="siteEditorExitBtn" type="button" aria-label="Exit editor">Exit</button>
+      </div>
+    </header>
+
+    <div class="siteEditorOverlay__body">
+      <iframe class="siteEditorOverlay__frame" id="siteEditorFrame" title="Page preview"></iframe>
+      <div class="siteEditorOverlay__loading" id="siteEditorOverlayLoading" aria-live="polite">Loading pageâ€¦</div>
+    </div>
+
+    <div class="siteEditorPopover" id="siteEditorPopover" role="dialog" aria-modal="false" aria-labelledby="siteEditorPopoverTitle" hidden>
+      <div class="siteEditorPopover__header">
+        <h3 class="siteEditorPopover__title" id="siteEditorPopoverTitle">Edit field</h3>
+        <button class="iconBtn siteEditorPopover__close" id="siteEditorPopoverCloseBtn" type="button" aria-label="Close editor">&times;</button>
+      </div>
+      <div class="siteEditorPopover__body" id="siteEditorPopoverBody"></div>
+      <div class="siteEditorPopover__footer">
+        <span class="hint" id="siteEditorPopoverHint" aria-live="polite"></span>
+      </div>
+    </div>
+  </div>
+
+  <dialog class="dialog" id="siteEditorExitDialog" aria-labelledby="siteEditorExitDialogTitle">
+    <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
+    <div class="card dialog__inner">
+      <h3 id="siteEditorExitDialogTitle">Exit without saving?</h3>
+      <p class="muted">You have unsaved changes on this page. Choose Save Draft to keep them for later, or Discard to exit without saving.</p>
+      <div class="toolbar">
+        <button class="btn" id="siteEditorExitDiscardBtn" type="button">Discard Changes</button>
+        <button class="btn btn--primary" id="siteEditorExitSaveBtn" type="button">Save Draft &amp; Exit</button>
+        <button class="btn" id="siteEditorExitCancelBtn" type="button">Cancel</button>
+      </div>
+    </div>
+  </dialog>
+
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="/admin/admin.js?v=20260124"></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260728014631" defer></script>
+  <script src="/admin/site-editor.js?v=20260124"></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260728154438" defer></script>
 </body>
 </html>
 

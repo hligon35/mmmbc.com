@@ -35,6 +35,20 @@
     margin-bottom: 20px;
 }
 
+.facility-availability-badge {
+    display: inline-block;
+    font-weight: 700;
+    font-size: 0.9em;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: #c46123;
+    border: 1px solid #c46123;
+    border-radius: 999px;
+    padding: 6px 14px;
+    margin: 0 0 16px;
+}
+
+
 .content-subnav {
     list-style: none;
     padding: 0;

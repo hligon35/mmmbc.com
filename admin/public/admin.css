@@ -550,118 +550,6 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 .recipientPickerList{max-height:280px;overflow:auto;display:grid;gap:8px;padding-right:4px;}
 .recipientPickerOption{display:flex;gap:10px;align-items:flex-start;}
 
-.siteEditorPageTabs{margin-bottom:12px;}
-.siteEditorImagePreview{
-  max-width:260px;
-  max-height:260px;
-  border:1px solid var(--border);
-  border-radius:12px;
-  object-fit:cover;
-  background:#0f0f0f;
-}
-
-.editorSplit{
-  display:grid;
-  grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
-  gap:18px;
-  align-items:start;
-}
-
-.editorSplit__main,
-.editorSplit__preview{min-width:0;}
-
-.previewPane{
-  position:static;
-  display:grid;
-  gap:14px;
-}
-
-.editorSplit--siteEditor .editorSplit__preview{
-  display:grid;
-  gap:14px;
-}
-
-.previewBadge{
-  display:inline-flex;
-  align-items:center;
-  padding:6px 10px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,.18);
-  background:rgba(255,255,255,.08);
-  font-size:.85rem;
-  font-weight:900;
-  text-transform:uppercase;
-  letter-spacing:.04em;
-}
-
-.previewShell,
-.newsletterPreview,
-.siteEditorLivePreview{display:grid;gap:14px;}
-
-.previewHero,
-.previewInfoCard,
-.previewEmail{
-  border:1px solid rgba(255,255,255,.14);
-  border-radius:16px;
-  padding:16px;
-  background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
-}
-
-.previewKicker,
-.previewMeta,
-.previewFilename{
-  font-size:.82rem;
-  font-weight:900;
-  text-transform:uppercase;
-  letter-spacing:.08em;
-  color:var(--muted);
-}
-
-.previewHero h4,
-.previewEmail__header h4{
-  margin:6px 0 8px;
-  font-size:1.18rem;
-}
-
-.previewHero p,
-.previewInfoCard p,
-.previewEmail__body,
-.previewProfileCard__body p{color:var(--text);line-height:1.45;}
-
-.previewProfileCard{
-  display:grid;
-  gap:12px;
-  grid-template-columns:minmax(120px, 180px) minmax(0, 1fr);
-  border:1px solid rgba(255,255,255,.14);
-  border-radius:16px;
-  padding:14px;
-  background:rgba(0,0,0,.14);
-}
-
-.previewProfileCard__image{
-  width:100%;
-  aspect-ratio:1 / 1;
-  object-fit:cover;
-  border-radius:14px;
-  border:1px solid rgba(255,255,255,.14);
-  background:#0f0f0f;
-}
-
-.previewProfileCard__image--empty{
-  display:grid;
-  place-items:center;
-  color:var(--muted);
-  text-align:center;
-  padding:16px;
-}
-
-.previewProfileCard__body h5{margin:4px 0 4px;font-size:1.12rem;}
-.previewRole{font-weight:900;color:var(--accent);margin-bottom:8px;}
-
-.previewEmail__meta,
-.previewEmail__footer{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
-.previewEmail__meta{justify-content:space-between;color:var(--muted);font-weight:800;font-size:.92rem;}
-.previewEmail__body{white-space:pre-wrap;padding:12px;border-radius:12px;background:rgba(0,0,0,.16);border:1px solid rgba(255,255,255,.12);}
 .previewPill{
   display:inline-flex;
   align-items:center;
@@ -910,8 +798,6 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
   margin-top:8px;
 }
 
-.siteEditorLivePreview .previewHero{margin-bottom:0;}
-.siteEditorLivePreview .previewInfoCard{margin-top:0;}
 
 .newsletterRecordRow .toolbar{margin:0;}
 
@@ -1166,10 +1052,6 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 .financeActionButtons > .menu,
 .financeActionButtons > .iconBtn{
   margin:0;
-}
-
-#profileSelect{
-  min-height:220px;
 }
 
 #newsletterRecipients{
@@ -1926,18 +1808,6 @@ input[type="time"].input{
   font-size:.95rem;
 }
 
-.siteEditorPageTabs{
-  margin:0 0 12px;
-  padding:10px;
-  border:1px solid var(--border);
-  border-radius:16px;
-  background:rgba(255,255,255,.74);
-}
-
-.siteEditorPageTabs .tab--sub{
-  flex:0 0 auto;
-}
-
 .adminLayout{
   grid-template-columns:minmax(250px, 290px) minmax(0, 1fr);
 }
@@ -1996,17 +1866,6 @@ body.navDrawerCollapsed .sideNav{
     flex-wrap:wrap;
     justify-content:flex-start;
   }
-
-  .siteEditorPageTabs{
-    overflow-x:auto;
-    flex-wrap:nowrap;
-    padding-bottom:6px;
-  }
-
-  .editorSplit{grid-template-columns:1fr;}
-  .previewPane{position:static;}
-  .previewProfileCard{grid-template-columns:1fr;}
-  .previewEmail__meta{flex-direction:column;align-items:flex-start;}
 }
 
 .sideNav__groupLabel{
@@ -2302,8 +2161,7 @@ body.authMode .loginStage{
   gap:14px;
 }
 
-.adminSectionExtension .financeTopBar,
-.adminSectionExtension .siteEditorPageTabs{
+.adminSectionExtension .financeTopBar{
   margin:0 auto;
   width:fit-content;
   max-width:100%;
@@ -2314,24 +2172,10 @@ body.authMode .loginStage{
   align-items:center;
 }
 
-.siteEditorPageTabs{
-  position:static;
-  top:auto;
-  z-index:auto;
-  padding:0;
-  border:0;
-  border-radius:14px;
-  background:transparent;
-  box-shadow:none;
-}
-
-.siteEditorPageTabs .tab--sub{border-radius:999px;}
-
 .card,
 .pageContext,
 .homeTaskCard,
 .advancedTools,
-.previewPane,
 .dialog__inner,
 .loginCard,
 .recipientPickerPopover,
@@ -2345,7 +2189,6 @@ body.authMode .loginStage{
 .pageContext,
 .homeTaskCard,
 .advancedTools,
-.previewPane,
 .loginCard,
 .menu,
 .recipientPickerPopover{
@@ -2488,21 +2331,6 @@ body.adminDrawerOpen{overflow:hidden;}
 .btn--drawerToggle:hover,
 .btn--drawerToggle:focus-visible{background:#111;border-color:#fff;color:#fff;}
 
-.sitePreviewToolbar{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  flex-wrap:wrap;
-  margin-bottom:8px;
-}
-
-.sitePreviewToolbar__titles{display:grid;gap:2px;}
-.sitePreviewToolbar__actions{display:flex;gap:8px;flex-wrap:wrap;}
-.sitePagePreviewFrame{width:100%;height:min(62vh, 720px);border:1px solid var(--border);border-radius:12px;background:#fff;}
-.sitePagePreviewFrame{display:block;overflow:hidden;}
-.previewDraftHeader{margin-top:12px;}
-
 body.navDrawerCollapsed .adminLayout{grid-template-columns:unset;}
 body.navDrawerCollapsed .sideNav{display:flex;}
 
@@ -2512,83 +2340,6 @@ body.navDrawerCollapsed .sideNav{display:flex;}
   .headerActions{justify-content:flex-start;}
   .header__logo{width:180px;height:auto;}
   .sideNav__groupLabel{display:block;}
-}
-
-/* Site editor workbench: keep the preview at half width and on the same page scroll as the edit fields. */
-.editorSplit--siteEditor{
-  grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
-  align-items:start;
-}
-
-.editorSplit--siteEditor .card,
-.editorSplit--siteEditor .previewPane{
-  min-width:0;
-}
-
-.editorSplit--siteEditor .siteEditorLivePreview{
-  max-width:100%;
-}
-
-.editorSplit--siteEditor .siteEditorLivePreview .previewShell,
-.editorSplit--siteEditor .siteEditorLivePreview .previewProfileCard,
-.editorSplit--siteEditor .siteEditorLivePreview .previewInfoCard{
-  width:100%;
-}
-
-.editorSplit--siteEditor .sitePagePreviewFrame{
-  height:auto;
-  min-height:320px;
-}
-
-.editorSplit--siteEditor .previewPane{
-  overflow:visible;
-}
-
-.editorSplit--siteEditor .form{
-  gap:14px;
-}
-
-.editorSplit--siteEditor .label{
-  grid-template-columns:minmax(0, 220px) minmax(0, 1fr);
-  align-items:center;
-  gap:14px;
-}
-
-.editorSplit--siteEditor .label > .input,
-.editorSplit--siteEditor .label > .textarea,
-.editorSplit--siteEditor .label > .select,
-.editorSplit--siteEditor .label > .inputGroup,
-.editorSplit--siteEditor .label > .timePicker,
-.editorSplit--siteEditor .label > .hint{
-  grid-column:2;
-}
-
-.editorSplit--siteEditor .label > .hint{
-  margin-top:-2px;
-}
-
-.editorSplit--siteEditor #profileHeaderLeadershipFields,
-.editorSplit--siteEditor #profileHeaderMinistriesIntroRow,
-.editorSplit--siteEditor #profileHeaderForm,
-.editorSplit--siteEditor #profileForm{
-  display:grid;
-  gap:14px;
-}
-
-.editorSplit--siteEditor #profileHeaderLeadershipFields,
-.editorSplit--siteEditor #profileForm .card,
-.editorSplit--siteEditor #siteEditorHeaderCard,
-.editorSplit--siteEditor #siteEditorProfilesCard,
-.editorSplit--siteEditor #siteEditorInfoCard{
-  width:100%;
-}
-
-.editorSplit--siteEditor #profileSelect{
-  min-height:240px;
-}
-
-.editorSplit--siteEditor .formRow{
-  align-items:start;
 }
 
 #tab-photos .iconGroup{
@@ -2628,10 +2379,6 @@ body.navDrawerCollapsed .sideNav{display:flex;}
     flex-direction:column;
     align-items:stretch;
   }
-}
-
-.editorSplit--siteEditor .siteEditorImagePreview{
-  max-width:100%;
 }
 
 .adminDrawer{
@@ -2798,11 +2545,6 @@ body.navDrawerCollapsed .sideNav{display:flex;}
 #financeOfferingsTotal{background:#fff3de;border-color:#e6c590;color:#704214;}
 #financeGivingTotal{background:#e6f7ff;border-color:#9bcde0;color:#0a4e69;}
 #financeNetTotal{background:#f4efe4;border-color:#cfb68b;color:#5d4319;}
-
-@media (max-width:768px){
-  .sitePagePreviewFrame{height:58vh;}
-  .siteEditorPageTabs{overflow-x:auto;flex-wrap:nowrap;padding-bottom:6px;}
-}
 
 /* Final desktop lock: keep header + primary nav as one fixed stack. */
 @media (min-width:901px){

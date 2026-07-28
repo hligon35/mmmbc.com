@@ -36,7 +36,18 @@
 </nav>
 <main>
 <section class="content-section content-section--wide"><h1>Ministries</h1>
-<p>Learn more about the ministries and leaders who serve the Mt. Moriah Missionary Baptist Church family.</p>
+<p data-cms-field="page.intro" data-cms-type="rich_text">Learn more about the ministries and leaders who serve the Mt. Moriah Missionary Baptist Church family.</p>
+<div class="ministries-profiles-grid" data-cms-collection="profiles">
+<template data-cms-item-template>
+<div class="leadership-profile">
+<img alt="" class="profile-image" data-cms-item-field="image" data-cms-type="image"/>
+<div class="profile-details">
+<h2 data-cms-item-field="name" data-cms-type="text"></h2>
+<p data-cms-item-field="title" data-cms-type="text"></p>
+<p data-cms-item-field="bio" data-cms-type="textarea"></p>
+</div>
+</div>
+</template>
 <div class="leadership-profile">
 <img alt="Evangelist Melanie Nunn" class="profile-image" src="../ConImg/webPages/ministries_image1.png"/>
 <div class="profile-details">
@@ -104,6 +115,7 @@
 <p>Pastor Gray has retired from Pastoring at Second Christian Church and is now serving at Mt. Moriah Missionary Baptist Church in Paducah, Kentucky as an Associate Minister. Pastor Gray is the husband of Sue Gray, and together they have three children and four grandchildren.</p>
 <p>Pastor Gray is very serious about the work of the Lord. He is an inspirational and gifted teacher-preacher with exceptional leadership and team-building skills.</p>
 </div>
+</div>
 </div></section>
 </main>
 <footer>
@@ -142,6 +154,7 @@
 </div>
 </footer>
 <script src="../script.js"></script>
+<script src="../site-content-loader.js" defer data-cms-page="ministries"></script>
 </body>
 </html>
 

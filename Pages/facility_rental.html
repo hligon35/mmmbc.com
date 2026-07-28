@@ -34,6 +34,7 @@
 </nav>
 <main>
 <section class="content-section"><h1>Facility Rental</h1>
+<p class="facility-availability-badge" data-cms-field="availability" data-cms-type="select" data-cms-options='{"open":"Open for booking","limited":"Limited availability","closed":"Not currently available"}'>Open for booking</p>
 
 <div class="rental-gallery" aria-label="Facility rental photo gallery">
 <div class="rental-gallery__hero" aria-label="Featured facility photos">
@@ -56,7 +57,7 @@
 <p>Mt. Moriah Missionary Baptist Church seats up to 250 people, and the fellowship and educational building seating is 200.</p>
 
 <h2>Submit a Request for Building Rental</h2>
-<p>Request for Building Rental (Church or/and Fellowship Building) Reservation Form to John Burnett by faxing it to 270-443-7125 or e-mail to the church at <a href="mailto:mtmoriahmbc@comcast.net">mtmoriahmbc@comcast.net</a>. John will contact you after reviewing your request and the church calendar.</p>
+<p>Request for Building Rental (Church or/and Fellowship Building) Reservation Form to John Burnett by faxing it to 270-443-7125 or e-mail to the church at <a href="mailto:mtmoriahmbc@comcast.net" data-cms-field="contact.email" data-cms-type="email" data-cms-attr="href"><span data-cms-field="contact.email" data-cms-type="email">mtmoriahmbc@comcast.net</span></a>. John will contact you after reviewing your request and the church calendar.</p>
 
 <div class="content-subnav">
 <a href="facility_rental_members_form.html">Member's Reservation Form (Online)</a>
@@ -65,7 +66,7 @@
 <a href="mailto:mtmoriahmbc@comcast.net?subject=Non-Member%27s%20Reservation%20Form%20Request">Non-Member's Reservation Form (Request PDF)</a>
 </div>
 
-<p>For availability, pricing, and requirements, please contact the church office via the <a href="contact.html">Contact Us</a> page or call (270) 443-3714.</p></section>
+<p>For availability, pricing, and requirements, please contact the church office via the <a href="contact.html">Contact Us</a> page or call <span data-cms-field="contact.phone" data-cms-type="telephone">(270) 443-3714</span>.</p></section>
 </main>
 <footer>
 <div class="footer-top-row">
@@ -103,6 +104,7 @@
 </div>
 </footer>
 <script src="../script.js"></script>
+<script src="../site-content-loader.js" defer data-cms-page="facility_rental"></script>
 </body>
 </html>
 

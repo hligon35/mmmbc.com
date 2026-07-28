@@ -1266,13 +1266,10 @@ function setTab(activeId) {
 function updateActiveSectionExtensions(activeTabId) {
   const extension = $('adminSectionExtension');
   const financeTopBar = $('financeTopBar');
-  const siteEditorTabs = $('siteEditorPageTabs');
   const showFinance = activeTabId === 'tab-finances';
-  const showSiteTabs = activeTabId === 'tab-profiles';
 
   if (financeTopBar) financeTopBar.hidden = !showFinance;
-  if (siteEditorTabs) siteEditorTabs.hidden = !showSiteTabs;
-  if (extension) extension.hidden = !(showFinance || showSiteTabs);
+  if (extension) extension.hidden = !showFinance;
 }
 
 function activateMainSection(sectionId, { subTabId = '' } = {}) {
@@ -4232,262 +4229,25 @@ async function loadSubscribers() {
   renderSubscribers();
 }
 
-// -------- Profiles --------
-let profiles = [];
-let profilePageMeta = null;
-const siteEditorPages = ['home', 'ministries', 'leadership', 'church_history', 'facility_rental', 'live_praise', 'contact'];
-let siteEditorActivePage = 'home';
-
-function createDefaultProfilePageMeta() {
-  return {
-    ministries: {
-      pageTitle: 'Ministries',
-      introText: 'Learn more about the ministries and leaders who serve the Mt. Moriah Missionary Baptist Church family.'
-    },
-    leadership: {
-      pageTitle: 'Leadership & Staff',
-      staffHeading: 'Staff',
-      deaconsHeading: 'Deacons',
-      deaconessesHeading: 'Deaconesses',
-      officialTeamHeading: 'Official Team & Trustees'
-    },
-    nav: {
-      ministriesLabel: 'Ministries',
-      leadershipLabel: 'Leadership & Staff'
-    }
-  };
-}
-
-function normalizeProfilePageMeta(raw) {
-  const base = createDefaultProfilePageMeta();
-  const src = raw && typeof raw === 'object' ? raw : {};
-  const ministries = src.ministries && typeof src.ministries === 'object' ? src.ministries : {};
-  const leadership = src.leadership && typeof src.leadership === 'object' ? src.leadership : {};
-  const nav = src.nav && typeof src.nav === 'object' ? src.nav : {};
-
-  return {
-    ministries: {
-      pageTitle: String(ministries.pageTitle || base.ministries.pageTitle).trim(),
-      introText: String(ministries.introText || base.ministries.introText).trim()
-    },
-    leadership: {
-      pageTitle: String(leadership.pageTitle || base.leadership.pageTitle).trim(),
-      staffHeading: String(leadership.staffHeading || base.leadership.staffHeading).trim(),
-      deaconsHeading: String(leadership.deaconsHeading || base.leadership.deaconsHeading).trim(),
-      deaconessesHeading: String(leadership.deaconessesHeading || base.leadership.deaconessesHeading).trim(),
-      officialTeamHeading: String(leadership.officialTeamHeading || base.leadership.officialTeamHeading).trim()
-    },
-    nav: {
-      ministriesLabel: String(nav.ministriesLabel || base.nav.ministriesLabel).trim(),
-      leadershipLabel: String(nav.leadershipLabel || base.nav.leadershipLabel).trim()
-    }
-  };
-}
-
-function activeProfilePage() {
-  return String(siteEditorActivePage || 'home').trim().toLowerCase();
-}
-
-function getSitePreviewConfig(pageKey) {
-  const key = String(pageKey || '').trim().toLowerCase();
-  return sitePreviewPageMap[key] || sitePreviewPageMap.home;
-}
-
-function updateSitePreviewFrame(pageKey, { forceReload = false } = {}) {
-  const frame = $('sitePagePreviewFrame');
-  const pageName = $('sitePreviewPageName');
-  const openBtn = $('sitePreviewOpenBtn');
-  const status = $('sitePreviewStatus');
-  if (!frame || !pageName || !openBtn) return;
-
-  const cfg = getSitePreviewConfig(pageKey);
-  const targetUrl = cfg.url;
-  pageName.textContent = cfg.label;
-  openBtn.href = targetUrl;
-
-  let frameUrl = targetUrl;
-  if (forceReload) {
-    const stamp = Date.now();
-    frameUrl = targetUrl.includes('?') ? `${targetUrl}&_preview=${stamp}` : `${targetUrl}?_preview=${stamp}`;
-  }
-
-  if (forceReload || String(frame.getAttribute('src') || '') !== frameUrl) {
-    frame.setAttribute('src', frameUrl);
-    if (status) status.textContent = `Loaded published preview: ${cfg.label}`;
-  }
-}
-
-function syncSitePreviewFrameHeight() {
-  const frame = $('sitePagePreviewFrame');
-  if (!frame) return;
-
-  try {
-    const doc = frame.contentDocument || frame.contentWindow?.document;
-    if (!doc || !doc.body) return;
-    const bodyHeight = Math.max(
-      doc.body.scrollHeight || 0,
-      doc.documentElement?.scrollHeight || 0,
-      doc.body.offsetHeight || 0,
-      doc.documentElement?.offsetHeight || 0
-    );
-    frame.style.height = `${Math.max(bodyHeight, 320)}px`;
-    frame.style.overflow = 'hidden';
-  } catch {
-    // ignore cross-frame sizing issues
-  }
-}
-
-function refreshPublishedSitePreview() {
-  updateSitePreviewFrame(activeProfilePage(), { forceReload: true });
-  announceLive('Published page preview refreshed.');
-}
-
-function setSiteEditorPage(page) {
-  const next = String(page || '').trim().toLowerCase();
-  if (!siteEditorPages.includes(next)) return;
-  siteEditorActivePage = next;
-
-  const tabs = Array.from(document.querySelectorAll('[data-site-page]'));
-  for (const tab of tabs) {
-    const key = String(tab.getAttribute('data-site-page') || '').trim().toLowerCase();
-    tab.setAttribute('aria-selected', key === siteEditorActivePage ? 'true' : 'false');
-  }
-
-  const pageTitle = $('siteEditorPageTitle');
-  if (pageTitle) {
-    const activeTab = tabs.find((tab) => String(tab.getAttribute('data-site-page') || '').trim().toLowerCase() === siteEditorActivePage);
-    pageTitle.textContent = activeTab ? String(activeTab.textContent || '').trim() : 'Site Page';
-  }
-
-  const isProfilesPage = siteEditorActivePage === 'ministries' || siteEditorActivePage === 'leadership';
-  const headerCard = $('siteEditorHeaderCard');
-  const profilesCard = $('siteEditorProfilesCard');
-  const infoCard = $('siteEditorInfoCard');
-  const infoText = $('siteEditorInfoText');
-  const pageHelp = $('siteEditorPageHelp');
-
-  if (headerCard) headerCard.hidden = !isProfilesPage;
-  if (profilesCard) profilesCard.hidden = !isProfilesPage;
-  if (infoCard) infoCard.hidden = isProfilesPage;
-
-  if (pageHelp) {
-    pageHelp.textContent = isProfilesPage
-      ? 'Edit page heading and profile content for this page.'
-      : 'This page layout matches the public page structure and currently reads from static website files.';
-  }
-
-  if (infoText) {
-    const label = pageTitle ? String(pageTitle.textContent || 'This page') : 'This page';
-    infoText.textContent = `${label} currently uses static website sections. Use the website content files for full section-level edits.`;
-  }
-
-  fillProfileHeaderEditor();
-  renderProfileSelect();
-  renderSiteEditorPreview();
-  updateSitePreviewFrame(siteEditorActivePage);
-  updateLayoutMetrics();
-}
-
-function clearProfileEditor() {
-  if ($('profileId')) $('profileId').value = '';
-  if ($('profilePage')) $('profilePage').value = '';
-  if ($('profileSection')) $('profileSection').value = '';
-  if ($('profileImage')) $('profileImage').value = '';
-  if ($('profileImageAlt')) $('profileImageAlt').value = '';
-  if ($('profileName')) $('profileName').value = '';
-  if ($('profileTitle')) $('profileTitle').value = '';
-  if ($('profileBio')) $('profileBio').value = '';
-  if ($('profileImageFile')) $('profileImageFile').value = '';
-  if ($('profileImageFilenameHint')) $('profileImageFilenameHint').textContent = 'No image selected.';
-}
-
-function getFilenameFromPath(path) {
-  const raw = String(path || '').trim();
-  if (!raw) return '';
-  const clean = raw.split('?')[0].split('#')[0];
-  const parts = clean.split('/').filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : clean;
-}
-
-function updateProfileImagePreview(path, altText) {
-  const img = $('profileImagePreview');
-  const filenameHint = $('profileImageFilenameHint');
-  if (!(img instanceof HTMLImageElement)) return;
-  const src = String(path || '').trim();
-  if (!src) {
-    img.hidden = true;
-    img.removeAttribute('src');
-    if (filenameHint) filenameHint.textContent = 'No image selected.';
-    return;
-  }
-  img.src = src;
-  img.alt = String(altText || 'Selected profile image preview').trim() || 'Selected profile image preview';
-  img.hidden = false;
-  if (filenameHint) {
-    const filename = getFilenameFromPath(src);
-    filenameHint.textContent = filename ? `Filename in use: ${filename}` : `Path in use: ${src}`;
-  }
-}
-
-function renderSiteEditorPreview() {
-  const preview = $('siteEditorLivePreview');
-  if (!preview) return;
-
-  const page = activeProfilePage();
-  const meta = normalizeProfilePageMeta(profilePageMeta || createDefaultProfilePageMeta());
-  const pageMeta = page === 'leadership' ? meta.leadership : meta.ministries;
-  const isProfilePage = page === 'ministries' || page === 'leadership';
-  const selectedId = String($('profileId')?.value || $('profileSelect')?.value || '').trim();
-  const profile = profiles.find((item) => String(item.id) === selectedId) || profiles.find((item) => item.page === page) || null;
-  const title = String($('profileHeaderPageTitle')?.value || pageMeta.pageTitle || page || 'Site Page').trim();
-  const intro = String($('profileHeaderIntroText')?.value || pageMeta.introText || '').trim();
-  const image = String($('profileImage')?.value || profile?.image || '').trim();
-  const imageAlt = String($('profileImageAlt')?.value || profile?.alt || profile?.name || '').trim();
-  const filename = getFilenameFromPath(image);
-  const bodyName = String($('profileName')?.value || profile?.name || '').trim();
-  const bodyTitle = String($('profileTitle')?.value || profile?.title || '').trim();
-  const bodyBio = String($('profileBio')?.value || profile?.bio || '').trim();
-  const section = String($('profileSection')?.value || profile?.section || '').trim();
-
-  preview.innerHTML = '';
-
-  const shell = document.createElement('div');
-  shell.className = 'previewShell';
-
-  const header = document.createElement('div');
-  header.className = 'previewHero';
-  header.innerHTML = `
-    <div class="previewKicker">${escapeHtml(page === 'leadership' ? 'Leadership' : page === 'ministries' ? 'Ministries' : 'Page')}</div>
-    <h4>${escapeHtml(title || 'Site Preview')}</h4>
-    <p>${escapeHtml(intro || 'Live page content will appear here as you type.')}</p>
-  `;
-  shell.appendChild(header);
-
-  if (isProfilePage) {
-    const card = document.createElement('div');
-    card.className = 'previewProfileCard';
+// -------- Site Editor (visual editor launcher) --------
+// The full editing implementation (schema/draft/publish, iframe bridge, popovers)
+// lives in admin/public/site-editor.js and is exposed via window.SiteEditor.
+function renderSiteEditorLauncher() {
+  const grid = $('siteEditorLauncherGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  for (const key of Object.keys(sitePreviewPageMap)) {
+    const cfg = sitePreviewPageMap[key];
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'siteEditorLauncherCard';
+    card.setAttribute('data-site-editor-open', key);
     card.innerHTML = `
-      ${image ? `<img class="previewProfileCard__image" src="${escapeAttr(image)}" alt="${escapeAttr(imageAlt || bodyName || 'Profile image preview')}" />` : '<div class="previewProfileCard__image previewProfileCard__image--empty">No image selected</div>'}
-      <div class="previewProfileCard__body">
-        <div class="previewMeta">${escapeHtml(section || 'Section')}</div>
-        <h5>${escapeHtml(bodyName || 'Profile Name')}</h5>
-        <div class="previewRole">${escapeHtml(bodyTitle || 'Profile title')}</div>
-        <p>${escapeHtml(bodyBio || 'Profile bio preview will appear here.')}</p>
-        <div class="previewFilename">${escapeHtml(filename ? `Image file: ${filename}` : 'Image file: not set')}</div>
-      </div>
+      <span class="siteEditorLauncherCard__title">${escapeHtml(cfg.label)}</span>
+      <span class="siteEditorLauncherCard__hint">Edit this page</span>
     `;
-    shell.appendChild(card);
-  } else {
-    const card = document.createElement('div');
-    card.className = 'previewInfoCard';
-    card.innerHTML = `
-      <div class="previewMeta">Static page note</div>
-      <p>${escapeHtml(String($('siteEditorInfoText')?.textContent || 'This page uses static site content.'))}</p>
-    `;
-    shell.appendChild(card);
+    grid.appendChild(card);
   }
-
-  preview.appendChild(shell);
 }
 
 function renderNewsletterPreview() {
@@ -4555,101 +4315,6 @@ function renderNewsletterPreview() {
   updateNewsletterStepSummaries();
 }
 
-function renderProfileSelect() {
-  const sel = $('profileSelect');
-  if (!(sel instanceof HTMLSelectElement)) return;
-  const page = activeProfilePage();
-  const list = profiles.filter((p) => p.page === page);
-  const prev = String(sel.value || '').trim();
-  sel.innerHTML = '';
-  for (const p of list) {
-    const opt = document.createElement('option');
-    opt.value = p.id;
-    opt.textContent = String(p.name || '').trim() || '(Unnamed profile)';
-    sel.appendChild(opt);
-  }
-  if (!list.length) {
-    clearProfileEditor();
-    updateProfileImagePreview('', '');
-    renderSiteEditorPreview();
-    return;
-  }
-  if (list.length) {
-    sel.value = list.some((p) => p.id === prev) ? prev : list[0].id;
-    fillProfileEditor(sel.value);
-  }
-  renderSiteEditorPreview();
-}
-
-function fillProfileHeaderEditor() {
-  const page = activeProfilePage();
-  const meta = normalizeProfilePageMeta(profilePageMeta);
-  const pageMeta = page === 'leadership' ? meta.leadership : meta.ministries;
-  const isProfilePage = page === 'ministries' || page === 'leadership';
-
-  withProgrammaticFormUpdate($('profileHeaderForm'), () => {
-    if ($('profileHeaderPageTitle')) $('profileHeaderPageTitle').value = isProfilePage ? (pageMeta.pageTitle || '') : '';
-    if ($('profileHeaderIntroText')) $('profileHeaderIntroText').value = isProfilePage ? (meta.ministries.introText || '') : '';
-    if ($('profileHeaderStaffHeading')) $('profileHeaderStaffHeading').value = meta.leadership.staffHeading || '';
-    if ($('profileHeaderDeaconsHeading')) $('profileHeaderDeaconsHeading').value = meta.leadership.deaconsHeading || '';
-    if ($('profileHeaderDeaconessesHeading')) $('profileHeaderDeaconessesHeading').value = meta.leadership.deaconessesHeading || '';
-    if ($('profileHeaderOfficialTeamHeading')) $('profileHeaderOfficialTeamHeading').value = meta.leadership.officialTeamHeading || '';
-
-    const leadershipOnly = $('profileHeaderLeadershipFields');
-    if (leadershipOnly) leadershipOnly.hidden = page !== 'leadership';
-    const ministriesIntro = $('profileHeaderMinistriesIntroRow');
-    if (ministriesIntro) ministriesIntro.hidden = page !== 'ministries';
-
-    renderSiteEditorPreview();
-  });
-}
-
-function fillProfileEditor(id) {
-  const p = profiles.find((x) => String(x.id) === String(id));
-  if (!p) return;
-  withProgrammaticFormUpdate($('profileForm'), () => {
-    if ($('profileId')) $('profileId').value = p.id;
-    if ($('profilePage')) $('profilePage').value = p.page;
-    if ($('profileSection')) $('profileSection').value = p.section || '';
-    if ($('profileImage')) $('profileImage').value = p.image || '';
-    if ($('profileImageAlt')) $('profileImageAlt').value = p.alt || p.name || '';
-    if ($('profileName')) $('profileName').value = p.name || '';
-    if ($('profileTitle')) $('profileTitle').value = p.title || '';
-    if ($('profileBio')) $('profileBio').value = p.bio || '';
-    if ($('profileImageFile')) $('profileImageFile').value = '';
-    updateProfileImagePreview(p.image || '', p.alt || p.name || '');
-    renderSiteEditorPreview();
-  });
-}
-
-async function loadProfiles() {
-  try {
-    const data = await api('/api/profiles', { method: 'GET' });
-    profiles = Array.isArray(data?.profiles) ? data.profiles : [];
-    profilePageMeta = normalizeProfilePageMeta(data?.pageMeta);
-  } catch {
-    profiles = [];
-    profilePageMeta = createDefaultProfilePageMeta();
-  }
-  fillProfileHeaderEditor();
-  renderProfileSelect();
-  renderSiteEditorPreview();
-}
-
-async function saveProfiles(nextProfiles, nextPageMeta) {
-  const payloadMeta = normalizeProfilePageMeta(nextPageMeta || profilePageMeta || createDefaultProfilePageMeta());
-  const data = await api('/api/profiles', {
-    method: 'PUT',
-    body: JSON.stringify({ profiles: nextProfiles, pageMeta: payloadMeta })
-  });
-  profiles = Array.isArray(data?.profiles) ? data.profiles : [];
-  profilePageMeta = normalizeProfilePageMeta(data?.pageMeta);
-  fillProfileHeaderEditor();
-  renderProfileSelect();
-  renderSiteEditorPreview();
-  refreshPublishedSitePreview();
-}
-
 // -------- Load everything --------
 async function loadAll() {
   const results = await Promise.allSettled([
@@ -4660,7 +4325,6 @@ async function loadAll() {
     loadFinances(),
     loadSubscribers(),
     loadNewsletterRecords(),
-    loadProfiles(),
   ]);
 
   for (const r of results) {
@@ -4817,29 +4481,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  if ($('sitePreviewRefreshBtn')) {
-    $('sitePreviewRefreshBtn').addEventListener('click', () => {
-      refreshPublishedSitePreview();
-    });
-  }
-
-  if ($('sitePagePreviewFrame')) {
-    $('sitePagePreviewFrame').addEventListener('load', () => {
-      const status = $('sitePreviewStatus');
-      const cfg = getSitePreviewConfig(activeProfilePage());
-      if (status) status.textContent = `Preview loaded: ${cfg.label}`;
-      requestAnimationFrame(() => syncSitePreviewFrameHeight());
-    });
-    $('sitePagePreviewFrame').addEventListener('error', () => {
-      const status = $('sitePreviewStatus');
-      if (status) status.textContent = 'Preview could not be loaded for this page.';
-    });
-  }
-
-  window.addEventListener('resize', () => {
-    try { syncSitePreviewFrameHeight(); } catch { /* ignore */ }
-  });
-
   // Sub-tabs
   if ($('subTabBtn-content-announcements')) {
     $('subTabBtn-content-announcements').addEventListener('click', () => setContentSubTab('panel-content-announcements'));
@@ -4876,8 +4517,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     'financeEntryForm',
     'newsletterForm',
     'photoUploadForm',
-    'profileHeaderForm',
-    'profileForm',
     'supportForm'
   ];
   for (const formId of unsavedFormIds) {
@@ -5768,236 +5407,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   wireRecordsActions('newsletterRecordsScheduled');
   wireRecordsActions('newsletterRecordsHistory');
 
-  // Profiles
-  if ($('siteEditorPageTabs')) {
-    $('siteEditorPageTabs').addEventListener('click', (e) => {
-      const btn = e.target?.closest?.('[data-site-page]');
+  // Site Editor launcher (opens the full-screen visual editor from site-editor.js)
+  renderSiteEditorLauncher();
+  if ($('siteEditorLauncherGrid')) {
+    $('siteEditorLauncherGrid').addEventListener('click', (e) => {
+      const btn = e.target?.closest?.('[data-site-editor-open]');
       if (!btn) return;
-      const page = String(btn.getAttribute('data-site-page') || '').trim();
-      setSiteEditorPage(page);
-    });
-    $('siteEditorPageTabs').addEventListener('keydown', (e) => {
-      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
-      const tabs = Array.from($('siteEditorPageTabs').querySelectorAll('[data-site-page]'));
-      const current = tabs.findIndex((t) => String(t.getAttribute('aria-selected') || '') === 'true');
-      if (current === -1) return;
-      let nextIndex = current;
-      if (e.key === 'ArrowRight') nextIndex = (current + 1) % tabs.length;
-      if (e.key === 'ArrowLeft') nextIndex = (current - 1 + tabs.length) % tabs.length;
-      if (e.key === 'Home') nextIndex = 0;
-      if (e.key === 'End') nextIndex = tabs.length - 1;
-      e.preventDefault();
-      const next = tabs[nextIndex];
-      if (!next) return;
-      const page = String(next.getAttribute('data-site-page') || '').trim();
-      setSiteEditorPage(page);
-      next.focus();
-    });
-  }
-
-  setSiteEditorPage('home');
-  syncSitePreviewFrameHeight();
-
-  if ($('profileSelect')) {
-    $('profileSelect').addEventListener('change', () => fillProfileEditor($('profileSelect').value));
-  }
-  for (const id of ['profileHeaderPageTitle', 'profileHeaderIntroText', 'profileHeaderStaffHeading', 'profileHeaderDeaconsHeading', 'profileHeaderDeaconessesHeading', 'profileHeaderOfficialTeamHeading', 'profileSection', 'profileName', 'profileTitle', 'profileBio', 'profileImage', 'profileImageAlt']) {
-    const el = $(id);
-    if (!el) continue;
-    el.addEventListener('input', () => renderSiteEditorPreview());
-    el.addEventListener('change', () => renderSiteEditorPreview());
-  }
-  if ($('profileHeaderForm')) {
-    $('profileHeaderForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const hint = $('profileHeaderHint');
-      const page = activeProfilePage();
-      if (!['ministries', 'leadership'].includes(page)) {
-        if (hint) hint.textContent = 'Heading edits are available for Ministries and Leadership pages.';
-        return;
-      }
-      const current = normalizeProfilePageMeta(profilePageMeta || createDefaultProfilePageMeta());
-      const nextMeta = {
-        ministries: { ...current.ministries },
-        leadership: { ...current.leadership },
-        nav: { ...current.nav }
-      };
-
-      if (page === 'ministries') {
-        nextMeta.ministries.pageTitle = String($('profileHeaderPageTitle')?.value || '').trim();
-        nextMeta.ministries.introText = String($('profileHeaderIntroText')?.value || '').trim();
-      } else {
-        nextMeta.leadership.pageTitle = String($('profileHeaderPageTitle')?.value || '').trim();
-        nextMeta.leadership.staffHeading = String($('profileHeaderStaffHeading')?.value || '').trim();
-        nextMeta.leadership.deaconsHeading = String($('profileHeaderDeaconsHeading')?.value || '').trim();
-        nextMeta.leadership.deaconessesHeading = String($('profileHeaderDeaconessesHeading')?.value || '').trim();
-        nextMeta.leadership.officialTeamHeading = String($('profileHeaderOfficialTeamHeading')?.value || '').trim();
-      }
-
-      if (!nextMeta.ministries.pageTitle || !nextMeta.leadership.pageTitle) {
-        if (hint) hint.textContent = 'Ministries and leadership page titles are required.';
-        return;
-      }
-
-      if (!confirmWrite('Save page heading changes?')) return;
-      if (hint) hint.textContent = 'Saving…';
-      try {
-        await saveProfiles(profiles, nextMeta);
-        if (hint) hint.textContent = 'Saved.';
-        const headerForm = $('profileHeaderForm');
-        if (headerForm instanceof HTMLFormElement) resetUnsavedBaseline(headerForm);
-      } catch (err) {
-        if (hint) hint.textContent = err.message;
-      }
-    });
-  }
-  if ($('profileForm')) {
-    $('profileForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const hint = $('profileHint');
-      const id = String($('profileId')?.value || '').trim();
-      if (!id) {
-        if (hint) hint.textContent = 'Choose a profile first.';
-        return;
-      }
-
-      const next = profiles.map((p) => {
-        if (String(p.id) !== id) return p;
-        return {
-          ...p,
-          page: String($('profilePage')?.value || p.page || '').trim().toLowerCase(),
-          section: String($('profileSection')?.value || '').trim(),
-          image: String($('profileImage')?.value || '').trim(),
-          name: String($('profileName')?.value || '').trim(),
-          title: String($('profileTitle')?.value || '').trim(),
-          bio: String($('profileBio')?.value || '').trim(),
-          alt: String($('profileImageAlt')?.value || $('profileName')?.value || '').trim()
-        };
-      });
-
-      if (!confirmWrite('Save profile changes?')) return;
-      if (hint) hint.textContent = 'Saving…';
-      try {
-        await saveProfiles(next, profilePageMeta);
-        fillProfileEditor(id);
-        if (hint) hint.textContent = 'Saved.';
-        const profileForm = $('profileForm');
-        if (profileForm instanceof HTMLFormElement) resetUnsavedBaseline(profileForm);
-      } catch (err) {
-        if (hint) hint.textContent = err.message;
-      }
-    });
-  }
-
-  if ($('profileImage')) {
-    $('profileImage').addEventListener('input', () => {
-      updateProfileImagePreview(
-        String($('profileImage')?.value || '').trim(),
-        String($('profileImageAlt')?.value || $('profileName')?.value || '').trim()
-      );
-    });
-  }
-
-  if ($('profileImageAlt')) {
-    $('profileImageAlt').addEventListener('input', () => {
-      updateProfileImagePreview(
-        String($('profileImage')?.value || '').trim(),
-        String($('profileImageAlt')?.value || $('profileName')?.value || '').trim()
-      );
-    });
-  }
-
-  if ($('profileUploadImageBtn')) {
-    $('profileUploadImageBtn').addEventListener('click', async () => {
-      const hint = $('profileHint');
-      const profileForm = $('profileForm');
-      const uploadBtn = $('profileUploadImageBtn');
-      const id = String($('profileId')?.value || '').trim();
-      const fileInput = $('profileImageFile');
-      const file = fileInput?.files?.[0];
-      if (!id) {
-        if (hint) hint.textContent = 'Choose a profile first.';
-        return;
-      }
-      if (!file) {
-        if (hint) hint.textContent = 'Choose an image file first.';
-        return;
-      }
-
-      const uploadValidation = validateUploadFiles([file], {
-        maxFileBytes: SITE_IMAGE_UPLOAD_MAX_BYTES,
-        maxFiles: 1,
-        allowedMimes: IMAGE_UPLOAD_MIME_TYPES,
-        label: 'image'
-      });
-      if (uploadValidation) {
-        if (hint) hint.textContent = uploadValidation;
-        return;
-      }
-
-      if (!confirmWrite('Upload and replace this profile image?')) return;
-      if (hint) hint.textContent = 'Uploading image…';
-      if (uploadBtn) uploadBtn.disabled = true;
-      markFormUploadState(profileForm, true);
-      try {
-        const fd = new FormData();
-        fd.append('image', file);
-        fd.append('page', String($('profilePage')?.value || ''));
-        fd.append('profileId', id);
-        const out = await api('/api/site-editor/upload-image', {
-          method: 'POST',
-          body: fd
-        });
-        const imagePath = String(out?.path || '').trim();
-        const next = profiles.map((p) => {
-          if (String(p.id) !== id) return p;
-          return {
-            ...p,
-            image: imagePath,
-            alt: String($('profileImageAlt')?.value || p.name || '').trim()
-          };
-        });
-        await saveProfiles(next, profilePageMeta);
-        if ($('profileImage')) $('profileImage').value = imagePath;
-        if ($('profileImageFile')) $('profileImageFile').value = '';
-        updateProfileImagePreview(imagePath, String($('profileImageAlt')?.value || $('profileName')?.value || '').trim());
-        if (hint) hint.textContent = 'Image uploaded.';
-        if (profileForm instanceof HTMLFormElement) resetUnsavedBaseline(profileForm);
-      } catch (err) {
-        if (hint) hint.textContent = err.message;
-      } finally {
-        markFormUploadState(profileForm, false);
-        if (uploadBtn) uploadBtn.disabled = false;
-      }
-    });
-  }
-
-  if ($('profileRemoveImageBtn')) {
-    $('profileRemoveImageBtn').addEventListener('click', async () => {
-      const hint = $('profileHint');
-      const id = String($('profileId')?.value || '').trim();
-      if (!id) {
-        if (hint) hint.textContent = 'Choose a profile first.';
-        return;
-      }
-      if (!confirmWrite('Remove this profile image path?')) return;
-      const next = profiles.map((p) => {
-        if (String(p.id) !== id) return p;
-        return {
-          ...p,
-          image: '',
-          alt: String($('profileImageAlt')?.value || p.name || '').trim()
-        };
-      });
-      if (hint) hint.textContent = 'Removing image…';
-      try {
-        await saveProfiles(next, profilePageMeta);
-        if ($('profileImage')) $('profileImage').value = '';
-        if ($('profileImageFile')) $('profileImageFile').value = '';
-        updateProfileImagePreview('', '');
-        if (hint) hint.textContent = 'Image removed.';
-      } catch (err) {
-        if (hint) hint.textContent = err.message;
+      const page = String(btn.getAttribute('data-site-editor-open') || '').trim();
+      if (page && window.SiteEditor && typeof window.SiteEditor.open === 'function') {
+        window.SiteEditor.open(page);
       }
     });
   }

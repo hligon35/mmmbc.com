@@ -1,0 +1,244 @@
+/* Visual website editor: launcher grid (in the "Edit Website Pages" tab) and the
+   full-screen editing overlay (header + iframe + contextual popover + exit dialog).
+   Reuses design tokens (--bg, --panel, --text, --muted, --accent, --border) from
+   admin.css. See SITE_EDITOR.md for the architecture this styles. */
+
+/* ---------- Launcher grid ---------- */
+.siteEditorLauncherGrid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));
+  gap:14px;
+  margin-top:14px;
+}
+
+.siteEditorLauncherCard{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:6px;
+  padding:16px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:rgba(255,255,255,.03);
+  color:var(--text);
+  cursor:pointer;
+  text-align:left;
+  font:inherit;
+}
+
+.siteEditorLauncherCard:hover,
+.siteEditorLauncherCard:focus-visible{
+  border-color:var(--accent);
+  background:rgba(196,97,35,.12);
+}
+
+.siteEditorLauncherCard:focus-visible{outline:3px solid rgba(196,97,35,.55);outline-offset:2px;}
+
+.siteEditorLauncherCard__title{font-weight:900;font-size:1.05rem;}
+.siteEditorLauncherCard__hint{color:var(--muted);font-weight:700;font-size:.88rem;}
+
+/* ---------- Full-screen overlay ---------- */
+.siteEditorOverlay{
+  position:fixed;
+  inset:0;
+  z-index:500;
+  display:flex;
+  flex-direction:column;
+  background:var(--bg);
+}
+
+.siteEditorOverlay__header{
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  min-height:64px;
+  padding:8px 16px;
+  background:var(--accent);
+  color:#000;
+  border-bottom:2px solid rgba(0,0,0,.2);
+}
+
+.siteEditorOverlay__tabs{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  overflow-x:auto;
+  flex:0 1 auto;
+  min-width:0;
+}
+
+.siteEditorOverlay__tabs .tab{
+  flex:0 0 auto;
+  padding:8px 12px;
+  border-radius:999px;
+  border:2px solid rgba(0,0,0,.2);
+  background:rgba(255,255,255,.35);
+  color:#000;
+  font-weight:800;
+  cursor:pointer;
+  white-space:nowrap;
+}
+
+.siteEditorOverlay__tabs .tab[aria-selected="true"]{
+  background:#000;
+  color:#fff;
+  border-color:#000;
+}
+
+/* Centered title: absolutely positioned relative to the header so it stays
+   perfectly centered on the viewport regardless of how wide the left (tabs) or
+   right (actions) groups are. pointer-events is disabled on the wrapper (the
+   title itself has no interactive content) so it never blocks clicks on the
+   side groups if their widths approach the viewport center. */
+.siteEditorOverlay__title{
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%, -50%);
+  margin:0;
+  max-width:min(40vw, 480px);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:1.15rem;
+  font-weight:900;
+  color:#000;
+  pointer-events:none;
+  z-index:1;
+}
+
+.siteEditorOverlay__actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex:0 0 auto;
+}
+
+.siteEditorOverlay__status{
+  font-weight:800;
+  font-size:.88rem;
+  color:#000;
+  min-width:96px;
+  text-align:right;
+}
+
+.siteEditorOverlay__actions .btn{
+  padding:8px 12px;
+  font-size:.92rem;
+}
+
+.siteEditorOverlay__exitBtn{background:#000;color:#fff;border-color:#000;}
+
+.siteEditorOverlay__body{
+  position:relative;
+  flex:1 1 auto;
+  min-height:0;
+  background:#1a1a1a;
+}
+
+.siteEditorOverlay__frame{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  border:0;
+  background:#fff;
+}
+
+.siteEditorOverlay__loading{
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--muted);
+  font-weight:800;
+  background:#1a1a1a;
+  pointer-events:none;
+}
+
+.siteEditorOverlay__loading[hidden]{display:none;}
+
+/* Editable-field highlight is injected inside the iframe by site-content-loader.js
+   (same-origin styling), not here. */
+
+/* ---------- Contextual popover (desktop floating / mobile bottom sheet) ---------- */
+.siteEditorPopover{
+  position:fixed;
+  z-index:520;
+  width:min(360px, calc(100vw - 32px));
+  max-height:min(70vh, 560px);
+  overflow:auto;
+  display:flex;
+  flex-direction:column;
+  background:var(--panel);
+  color:var(--text);
+  border:1px solid var(--border);
+  border-radius:14px;
+  box-shadow:0 18px 40px rgba(0,0,0,.45);
+  top:80px;
+  left:16px;
+}
+
+.siteEditorPopover__header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:12px 14px;
+  border-bottom:1px solid var(--border);
+}
+
+.siteEditorPopover__title{margin:0;font-size:1rem;font-weight:900;}
+
+.siteEditorPopover__close{width:36px;height:36px;font-size:1.2rem;line-height:1;}
+
+.siteEditorPopover__body{
+  padding:14px;
+  display:grid;
+  gap:12px;
+}
+
+.siteEditorPopover__footer{
+  padding:0 14px 14px;
+}
+
+@media (max-width:640px){
+  .siteEditorOverlay__title{max-width:min(50vw, 260px);font-size:1rem;}
+  .siteEditorOverlay__status{display:none;}
+
+  .siteEditorPopover{
+    top:auto;
+    left:0;
+    right:0;
+    bottom:0;
+    width:100%;
+    max-height:80vh;
+    border-radius:16px 16px 0 0;
+    box-shadow:0 -12px 30px rgba(0,0,0,.45);
+  }
+}
+
+/* ---------- Field-type controls inside the popover ---------- */
+.siteEditorField{display:grid;gap:6px;}
+.siteEditorField label{font-weight:800;font-size:.92rem;}
+.siteEditorField .hint{margin:0;}
+.siteEditorField .error{margin:0;}
+
+.siteEditorImagePreviewBox{
+  display:grid;
+  gap:8px;
+  justify-items:start;
+}
+
+.siteEditorImagePreviewBox img{
+  max-width:100%;
+  max-height:180px;
+  border-radius:10px;
+  border:1px solid var(--border);
+  object-fit:cover;
+}
+
+/* ---------- Exit-confirmation dialog reuses .dialog from admin.css ---------- */

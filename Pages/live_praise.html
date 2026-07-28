@@ -41,6 +41,7 @@
     <main>
         <section class="content-section">
             <h1>Live Praise</h1>
+            <p class="live-praise-live-banner" data-cms-field="currently_live" data-cms-type="boolean" hidden>We are currently LIVE — join us now!</p>
             <p>When our services are being broadcast LIVE, the current service will be shown at the top of the page. </p>
             <p>Otherwise, the most recent service will appear at the top.</p>
             <p>Other past services are shown below the first image in chronological order.</p>
@@ -48,7 +49,7 @@
             <div class="youtube-live-placeholder" aria-label="YouTube live stream">
                 <div class="youtube-live-placeholder__inner">
                     <div class="youtube-embed">
-                        <iframe id="livePraiseTopPlayer" title="Mt. Moriah Missionary Baptist Church - Live Stream" loading="lazy" src="https://www.youtube.com/embed/live_stream?channel=UCkAaHiYmUKIdKePifg1D2pg&rel=0" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+                        <iframe id="livePraiseTopPlayer" title="Mt. Moriah Missionary Baptist Church - Live Stream" loading="lazy" src="https://www.youtube.com/embed/live_stream?channel=UCkAaHiYmUKIdKePifg1D2pg&rel=0" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen data-cms-field="stream.url" data-cms-type="url" data-cms-attr="src"></iframe>
                     </div>
                     <div class="live-player-actions live-player-actions--spaced">
                         <a class="youtube-live-placeholder__button" id="livePraiseWatchLink" href="https://www.youtube.com/channel/UCkAaHiYmUKIdKePifg1D2pg/live" rel="noopener noreferrer" target="_blank">Watch on YouTube</a>
@@ -152,6 +153,7 @@
     </footer>
 
         <script src="../script.js"></script>
+        <script src="../site-content-loader.js" defer data-cms-page="live_praise"></script>
         <script>
             (function () {
                 var CHANNEL_ID = 'UCkAaHiYmUKIdKePifg1D2pg';

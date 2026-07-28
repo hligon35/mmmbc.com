@@ -17,6 +17,7 @@ $files=@(
   "public-base.css","public-components.css","public-responsive.css",
   "theme.css","schedule_app.css","home-layout-updates.css","schedule_app.js","script.js",
   "announcements_ticker.js","bulletins_widget.js","facility_rental_form.js","facility_rental_nonmembers_form.js",
+  "site-content-loader.js",
   "announcements.json","bulletins.json","documents.json","gallery.json","livestream.json","schedule.json","site-settings.json"
 )
 foreach($f in $files){

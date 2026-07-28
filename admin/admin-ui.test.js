@@ -4,6 +4,7 @@ const path = require('path');
 describe('Admin accessibility redesign guards', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
+  const siteEditorJs = fs.readFileSync(path.join(__dirname, 'public', 'site-editor.js'), 'utf8');
 
   test('Home is the default section after authentication', () => {
     expect(indexHtml).toContain('id="tabBtn-home"');
@@ -92,7 +93,8 @@ describe('Admin accessibility redesign guards', () => {
   });
 
   test('Keyboard accessibility handlers remain for tabs and popovers', () => {
-    expect(adminJs).toContain("$('siteEditorPageTabs').addEventListener('keydown'");
+    expect(siteEditorJs).toContain("const container = el('siteEditorOverlayTabs');");
+    expect(siteEditorJs).toContain("['ArrowLeft', 'ArrowRight', 'Home', 'End']");
     expect(adminJs).toContain("$('newsletterTestRecipientsInput').addEventListener('keydown'");
   });
 
