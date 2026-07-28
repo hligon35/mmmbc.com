@@ -29,6 +29,15 @@
 			"destination_address": "hligon@getsparqd.com"
 		}
 	],
+	// Runs every 5 minutes; processes any newsletter_records rows that are due
+	// (status = 'scheduled'/'retrying' and schedule_at <= now).
+	// IMPORTANT: also declared under env.production below. `triggers` is inheritable,
+	// but since this top-level block and env.production both deploy to the SAME
+	// Worker name ("mmmbc"), a bare `npx wrangler deploy` (no --env) would silently
+	// clear the cron trigger on the live Worker if this were missing here. Keep both in sync.
+	"triggers": {
+		"crons": ["*/5 * * * *"]
+	},
 	// Cloudflare-side Worker vars.
 	// GOOGLE_CLIENT_ID, GOOGLE_ALLOWED_EMAILS, and SESSION_SECRET must be configured
 	// as Cloudflare Worker secrets/variables before Google sign-in will be enabled.
@@ -43,12 +52,15 @@
 		"SUPPORT_FROM_NAME": "Mount Moriah Admin",
 		"PUBLIC_SITE_URL": "https://mmmbc.alphazonelabs.com"
 	},
-	// Optional parallel environment:
-	// - Deploy prod:    npx wrangler deploy
-	// - Deploy preview: npx wrangler deploy --env preview
+	// Always deploy with `npm run deploy` (== build:cf + wrangler deploy --env production).
+	// env.production sets "name": "mmmbc", the SAME Worker name as this top-level block,
+	// so a bare `npx wrangler deploy` (no --env) publishes to the identical live Worker —
+	// it is NOT a separate/safe target. It also skips the build:cf step, risking stale
+	// cf_site/ static assets. Only use it for a quick `--dry-run` config check.
+	// Deploy preview instead: npx wrangler deploy --env preview
 	"env": {
 		"production": {
-			// Deploy with: npx wrangler deploy --env production
+			// Deploy with: npm run deploy  (or npx wrangler deploy --env production)
 			// Intended for the live custom domain.
 			"name": "mmmbc",
 			"main": "./src/worker-admin-api-wrapper.js",
