@@ -39,6 +39,8 @@
 		"DEV_BYPASS_AUTH": "false",
 		"SUPPORT_TO_EMAIL": "support@hldesignedit.com",
 		"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
+		"SUPPORT_FROM_EMAIL": "needhelp@mmmbc.com",
+		"SUPPORT_FROM_NAME": "Mount Moriah Admin",
 		"PUBLIC_SITE_URL": "https://mmmbc.alphazonelabs.com"
 	},
 	// Optional parallel environment:
@@ -72,6 +74,11 @@
 					"destination_address": "hligon@getsparqd.com"
 				}
 			],
+			// Runs every 5 minutes; processes any newsletter_records rows that are due
+			// (status = 'scheduled'/'retrying' and schedule_at <= now).
+			"triggers": {
+				"crons": ["*/5 * * * *"]
+			},
 			"vars": {
 				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 				"CANONICAL_HOST": "mmmbc.alphazonelabs.com",
@@ -79,6 +86,8 @@
 				"DEV_BYPASS_AUTH": "false",
 				"SUPPORT_TO_EMAIL": "support@hldesignedit.com",
 				"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
+				"SUPPORT_FROM_EMAIL": "needhelp@mmmbc.com",
+				"SUPPORT_FROM_NAME": "Mount Moriah Admin",
 				"PUBLIC_SITE_URL": "https://mmmbc.alphazonelabs.com"
 			}
 		},

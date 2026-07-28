@@ -6,6 +6,19 @@
 // When Access is enabled, Cloudflare injects cf-access-authenticated-user-email.
 
 import { EmailMessage } from 'cloudflare:email';
+import {
+  isEmailInvited,
+  handleUsersList,
+  handleUsersInvite,
+  handleUsersRevoke,
+  handleSubscribersGet,
+  handleSubscribersPut,
+  handleNewsletterRecordsGet,
+  handleNewsletterRecordsPost,
+  handleNewsletterTest,
+  handleNewsletterSend,
+  processScheduledNewsletters
+} from './worker-communications.js';
 
 function applySecurityHeaders(headers, { isHttps = true } = {}) {
   const setIfMissing = (k, v) => {
@@ -319,7 +332,7 @@ function hasAccessJwtAssertion(request) {
   return Boolean(getAccessJwt(request));
 }
 
-function requireAdmin(request, env) {
+async function requireAdmin(request, env) {
   if (isDevBypass(env)) return { ok: true, email: 'dev@local' };
 
   // Strong path: validate the service token headers against Worker secrets.
@@ -338,12 +351,17 @@ function requireAdmin(request, env) {
   const email = getAccessEmail(request);
   if (!email) return { ok: false, error: 'Unauthorized (Cloudflare Access required)' };
   const allow = allowList(env);
-  if (allow && !allow.has(email)) return { ok: false, error: 'Forbidden' };
-  return { ok: true, email };
+  if (!allow || allow.has(email)) return { ok: true, email };
+
+  // Dynamic admins granted via /api/users/invite (stored in D1, on top of the
+  // static ADMIN_ALLOW_EMAILS var).
+  if (await isEmailInvited(env, email)) return { ok: true, email };
+
+  return { ok: false, error: 'Forbidden' };
 }
 
 async function handleSupportMessage(request, env) {
-  const auth = requireAdmin(request, env);
+  const auth = await requireAdmin(request, env);
   if (!auth.ok) return json({ error: auth.error }, { status: 401 });
 
   const body = await request.json().catch(() => null);
@@ -544,7 +562,7 @@ function splitKeyUnderPrefix(key, prefix) {
 }
 
 async function handleR2Tree(request, env) {
-  const auth = requireAdmin(request, env);
+  const auth = await requireAdmin(request, env);
   if (!auth.ok) return json({ error: auth.error }, { status: 401 });
 
   const url = new URL(request.url);
@@ -596,7 +614,7 @@ async function handleR2Tree(request, env) {
 }
 
 async function handleR2DeleteObject(request, env) {
-  const auth = requireAdmin(request, env);
+  const auth = await requireAdmin(request, env);
   if (!auth.ok) return json({ error: auth.error }, { status: 401 });
 
   const url = new URL(request.url);
@@ -619,7 +637,7 @@ async function handleR2DeleteObject(request, env) {
 }
 
 async function handleGallerySyncFromR2(request, env) {
-  const auth = requireAdmin(request, env);
+  const auth = await requireAdmin(request, env);
   if (!auth.ok) return json({ error: auth.error }, { status: 401 });
 
   const url = new URL(request.url);
@@ -687,7 +705,7 @@ async function handleGallerySyncFromR2(request, env) {
 }
 
 async function handleGalleryUpload(request, env) {
-  const auth = requireAdmin(request, env);
+  const auth = await requireAdmin(request, env);
   if (!auth.ok) return json({ error: auth.error }, { status: 401 });
 
   const ct = request.headers.get('content-type') || '';
@@ -755,7 +773,7 @@ async function handleGalleryUpload(request, env) {
 }
 
 async function handleGalleryOrder(request, env) {
-  const auth = requireAdmin(request, env);
+  const auth = await requireAdmin(request, env);
   if (!auth.ok) return json({ error: auth.error }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
@@ -775,7 +793,7 @@ async function handleGalleryOrder(request, env) {
 }
 
 async function handleGalleryUpdate(request, env, id) {
-  const auth = requireAdmin(request, env);
+  const auth = await requireAdmin(request, env);
   if (!auth.ok) return json({ error: auth.error }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
@@ -810,7 +828,7 @@ async function handleGalleryUpdate(request, env, id) {
 }
 
 async function handleGalleryDelete(request, env, id) {
-  const auth = requireAdmin(request, env);
+  const auth = await requireAdmin(request, env);
   if (!auth.ok) return json({ error: auth.error }, { status: 401 });
 
   const row = await env.DB.prepare(
@@ -831,7 +849,7 @@ async function handleGalleryDelete(request, env, id) {
 }
 
 async function handleR2List(request, env) {
-  const auth = requireAdmin(request, env);
+  const auth = await requireAdmin(request, env);
   if (!auth.ok) return json({ error: auth.error }, { status: 401 });
 
   const url = new URL(request.url);
@@ -859,7 +877,7 @@ async function handleR2List(request, env) {
 }
 
 async function handleR2Migrate(request, env) {
-  const auth = requireAdmin(request, env);
+  const auth = await requireAdmin(request, env);
   if (!auth.ok) return json({ error: auth.error }, { status: 401 });
 
   const src = env.GALLERY_BUCKET_SRC;
@@ -1051,7 +1069,7 @@ export default {
     }
 
     if (url.pathname === '/api/gallery' && request.method === 'GET') {
-      const auth = requireAdmin(request, env);
+      const auth = await requireAdmin(request, env);
       if (!auth.ok) return json({ error: auth.error }, { status: 401 });
       return json(await listGallery(env));
     }
@@ -1102,7 +1120,7 @@ export default {
 
     // Health
     if (url.pathname === '/api/admin/health') {
-      const auth = requireAdmin(request, env);
+      const auth = await requireAdmin(request, env);
       if (!auth.ok) return json({ error: auth.error }, { status: 401 });
       return json({ ok: true, time: new Date().toISOString() });
     }
@@ -1110,6 +1128,64 @@ export default {
     // Support messages (admin only)
     if (url.pathname === '/api/support/message' && request.method === 'POST') {
       return handleSupportMessage(request, env);
+    }
+
+    // Admin users / invites (admin only)
+    if (url.pathname === '/api/users' && request.method === 'GET') {
+      const auth = await requireAdmin(request, env);
+      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+      return handleUsersList(request, env);
+    }
+
+    if (url.pathname === '/api/users/invite' && request.method === 'POST') {
+      const auth = await requireAdmin(request, env);
+      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+      return handleUsersInvite(request, env, auth.email);
+    }
+
+    if (url.pathname.startsWith('/api/users/') && request.method === 'DELETE') {
+      const auth = await requireAdmin(request, env);
+      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+      const id = decodeURIComponent(url.pathname.split('/').pop());
+      return handleUsersRevoke(request, env, id);
+    }
+
+    // Newsletter subscribers (admin only)
+    if (url.pathname === '/api/subscribers' && request.method === 'GET') {
+      const auth = await requireAdmin(request, env);
+      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+      return handleSubscribersGet(request, env);
+    }
+
+    if (url.pathname === '/api/subscribers' && request.method === 'PUT') {
+      const auth = await requireAdmin(request, env);
+      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+      return handleSubscribersPut(request, env);
+    }
+
+    // Newsletter records + sending (admin only)
+    if (url.pathname === '/api/newsletter/records' && request.method === 'GET') {
+      const auth = await requireAdmin(request, env);
+      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+      return handleNewsletterRecordsGet(request, env);
+    }
+
+    if (url.pathname === '/api/newsletter/records' && request.method === 'POST') {
+      const auth = await requireAdmin(request, env);
+      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+      return handleNewsletterRecordsPost(request, env);
+    }
+
+    if (url.pathname === '/api/newsletter/test' && request.method === 'POST') {
+      const auth = await requireAdmin(request, env);
+      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+      return handleNewsletterTest(request, env, auth.email);
+    }
+
+    if (url.pathname === '/api/newsletter/send' && request.method === 'POST') {
+      const auth = await requireAdmin(request, env);
+      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+      return handleNewsletterSend(request, env);
     }
 
     // Legacy login entry points are removed from static assets.
@@ -1146,5 +1222,11 @@ export default {
     // If we didn't change anything, returning the original response is fine too,
     // but this keeps header logic consistent and explicit.
     return new Response(assetRes.body, { status: assetRes.status, headers });
+  },
+
+  // Cron trigger (see wrangler.jsonc "triggers.crons") — sends any scheduled
+  // newsletters that are due, with retry-with-backoff handled inside.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(processScheduledNewsletters(env));
   }
 };

@@ -1,4 +1,5 @@
 import worker from './worker.js';
+import { isEmailInvited } from './worker-communications.js';
 
 const SESSION_COOKIE = 'mmmbc_admin_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
@@ -77,6 +78,13 @@ async function readSession(request, secret) {
 function allowedEmails(env) {
   const raw = String(env.GOOGLE_ALLOWED_EMAILS || env.ADMIN_ALLOW_EMAILS || '');
   return new Set(raw.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean));
+}
+
+async function isEmailAllowedForSignIn(env, email) {
+  const allow = allowedEmails(env);
+  if (allow.has(email)) return true;
+  // Dynamic admins granted via /api/users/invite (stored in D1).
+  return isEmailInvited(env, email);
 }
 
 async function verifyGoogleCredential(idToken, clientId) {
@@ -250,8 +258,7 @@ export default {
       try {
         const profile = await verifyGoogleCredential(idToken, clientId);
         const email = String(profile.email || '').trim().toLowerCase();
-        const allow = allowedEmails(env);
-        if (!email || !allow.has(email)) {
+        if (!email || !(await isEmailAllowedForSignIn(env, email))) {
           return json({ error: 'This Google account is not approved for admin access.' }, { status: 403 });
         }
         const token = await createSession(email, profile.name || '', sessionSecret);
@@ -291,5 +298,11 @@ export default {
       return injectLoginStyle(response);
     }
     return response;
+  },
+
+  async scheduled(event, env, ctx) {
+    if (typeof worker.scheduled === 'function') {
+      return worker.scheduled(event, env, ctx);
+    }
   }
 };

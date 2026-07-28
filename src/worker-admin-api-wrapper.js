@@ -73,10 +73,8 @@ const READ_ENDPOINTS = new Set([
   '/api/events',
   '/api/announcements',
   '/api/bulletins',
-  '/api/subscribers',
   '/api/finances',
-  '/api/profiles',
-  '/api/newsletter/records'
+  '/api/profiles'
 ]);
 
 const HEADER_BULK_BAR = `
@@ -266,15 +264,12 @@ export default {
         return json(normalizeBulletins(data));
       }
 
-      if (url.pathname === '/api/subscribers') return json({ subscribers: [] });
       if (url.pathname === '/api/finances') return json(emptyFinances());
 
       if (url.pathname === '/api/profiles') {
         const data = await readAssetJson(request, env, '/profiles.json', { profiles: [], metadata: {} });
         return json(data && typeof data === 'object' ? data : { profiles: [], metadata: {} });
       }
-
-      if (url.pathname === '/api/newsletter/records') return json({ records: [] });
     }
 
     const response = await worker.fetch(request, env, ctx);
@@ -282,5 +277,11 @@ export default {
       return transformAdminHtml(response);
     }
     return transformPublicHtml(response, url.pathname);
+  },
+
+  async scheduled(event, env, ctx) {
+    if (typeof worker.scheduled === 'function') {
+      return worker.scheduled(event, env, ctx);
+    }
   }
 };
