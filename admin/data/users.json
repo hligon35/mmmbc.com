@@ -1,22 +1,9 @@
 {
   "users": [
     {
-      "id": "347009ff-e3a4-46ae-a5ec-3f236700d52b",
-      "email": "admin@example.com",
-      "passwordHash": "$2a$12$NOXz.2p.fgIPDOHn8cRdUu/PL5kBFPVN6kjzXr89Gq3hsOGfrMSFq",
-      "role": "administrator",
-      "createdAt": "2026-07-22T15:40:17.407Z",
-      "isMaster": true,
-      "name": "Master Admin",
-      "mustOnboard": false,
-      "onboardedAt": "2026-07-22T15:40:17.408Z",
-      "twoFactorEnabled": false,
-      "twoFactorSecret": ""
-    },
-    {
       "id": "1b73e4ca-dec5-449d-a3ce-6f1c0a5e5f7e",
       "email": "hligon@getsparqd.com",
-      "passwordHash": "$2a$12$5HnsVVKhrblhfEr0JN.Z7eyHdK4Xn.O.nSvKLZZeJntif4l8Jc7FO",
+      "passwordHash": "$2a$12$o07gr92YY7X69BM7wB92POyi7qbmofeQScWiTHeDGRmHJlMgbn8GS",
       "role": "administrator",
       "createdAt": "2026-07-22T15:56:57.049Z",
       "isMaster": true,
@@ -25,38 +12,6 @@
       "onboardedAt": "2026-07-22T15:56:57.050Z",
       "twoFactorEnabled": false,
       "twoFactorSecret": ""
-    },
-    {
-      "id": "5a673ea3-8e4f-4bb0-a9c5-339aa10c9f3c",
-      "email": "hligon35@gmail.com",
-      "passwordHash": "$2a$12$2psCHhUOaJFlJSTIou.Vi.hOrzr6Qqeb52T7DK1jk0GQhaOiz6.EC",
-      "role": "website_editor",
-      "createdAt": "2026-07-28T02:19:10.608Z",
-      "isMaster": false,
-      "name": "",
-      "mustOnboard": true,
-      "onboardedAt": "",
-      "inviteTokenHash": "4c3d924a698c7a08cd7fcc7c4ba30ab4a67b22ce244c1be149849e7bc2375894",
-      "inviteExpiresAt": "2026-08-04T02:19:10.261Z",
-      "twoFactorEnabled": false,
-      "twoFactorSecret": "",
-      "twoFactorPendingSecret": ""
-    },
-    {
-      "id": "ad0033ce-955c-447f-aa1c-6c1be6a09d12",
-      "email": "ligon88harold@gmail.com",
-      "passwordHash": "$2a$12$EM0L2QIpDSnAXFBilSUaMefxcVKpoydu2VI9LgyJewoSJhPjbpcsu",
-      "role": "website_editor",
-      "createdAt": "2026-07-28T03:33:34.387Z",
-      "isMaster": false,
-      "name": "",
-      "mustOnboard": true,
-      "onboardedAt": "",
-      "inviteTokenHash": "27b304e6472958104f448f291df3bf32ece5e83d1b7c653c038c9d06a182e8ac",
-      "inviteExpiresAt": "2026-08-04T03:33:34.021Z",
-      "twoFactorEnabled": false,
-      "twoFactorSecret": "",
-      "twoFactorPendingSecret": ""
     }
   ]
 }
