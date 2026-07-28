@@ -2338,9 +2338,21 @@ function renderFinances() {
   }
   const net = income - expense;
 
-  if ($('financeIncomeTotal')) $('financeIncomeTotal').textContent = `${formatMoneyCents(income)} Money Received`;
-  if ($('financeExpenseTotal')) $('financeExpenseTotal').textContent = `${formatMoneyCents(expense)} Money Spent`;
-  if ($('financeNetTotal')) $('financeNetTotal').textContent = `${formatMoneyCents(net)} Net Total`;
+  if ($('financeIncomeTotal')) $('financeIncomeTotal').textContent = formatMoneyCents(income);
+  if ($('financeExpenseTotal')) $('financeExpenseTotal').textContent = formatMoneyCents(expense);
+  if ($('financeNetTotal')) $('financeNetTotal').textContent = formatMoneyCents(net);
+
+  const movement = income + expense;
+  const incomeMeter = $('financeIncomeMeter');
+  if (incomeMeter) incomeMeter.style.width = `${movement > 0 ? Math.round((income / movement) * 100) : 0}%`;
+  const expenseMeter = $('financeExpenseMeter');
+  if (expenseMeter) expenseMeter.style.width = `${movement > 0 ? Math.round((expense / movement) * 100) : 0}%`;
+  const netMeter = $('financeNetMeter');
+  if (netMeter) {
+    const magnitudePct = movement > 0 ? Math.min(50, Math.round((Math.abs(net) / movement) * 50)) : 0;
+    netMeter.style.width = `${magnitudePct}%`;
+    netMeter.classList.toggle('financeStatCard__meterFill--negative', net < 0);
+  }
 
   const meta = $('financePrintMeta');
   if (meta) {
@@ -2595,9 +2607,14 @@ function renderWeeklyGiving() {
   }
 
   const total = tithes + offerings;
-  if ($('financeTithesTotal')) $('financeTithesTotal').textContent = `${formatMoneyCents(tithes)} tithes`;
-  if ($('financeOfferingsTotal')) $('financeOfferingsTotal').textContent = `${formatMoneyCents(offerings)} offerings`;
-  if ($('financeGivingTotal')) $('financeGivingTotal').textContent = `${formatMoneyCents(total)} total`;
+  if ($('financeTithesTotal')) $('financeTithesTotal').textContent = formatMoneyCents(tithes);
+  if ($('financeOfferingsTotal')) $('financeOfferingsTotal').textContent = formatMoneyCents(offerings);
+  if ($('financeGivingTotal')) $('financeGivingTotal').textContent = formatMoneyCents(total);
+
+  const tithesMeter = $('financeTithesMeter');
+  if (tithesMeter) tithesMeter.style.width = `${total > 0 ? Math.round((tithes / total) * 100) : 0}%`;
+  const offeringsMeter = $('financeOfferingsMeter');
+  if (offeringsMeter) offeringsMeter.style.width = `${total > 0 ? Math.round((offerings / total) * 100) : 0}%`;
 }
 
 function setSubTab(buttonIds, panelIds, activePanelId) {

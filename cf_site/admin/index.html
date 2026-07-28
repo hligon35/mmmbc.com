@@ -7,7 +7,7 @@
   <meta name="description" content="Admin dashboard for Mt. Moriah Missionary Baptist Church website." />
   <link rel="stylesheet" href="/admin/admin.css?v=20260124" />
   <link rel="stylesheet" href="/admin/site-editor.css?v=20260124" />
-  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260728191038" />
+  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260728195314" />
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
@@ -774,63 +774,100 @@
         <div class="subTabPanel" role="tabpanel" id="panel-finances-reports" aria-labelledby="subTabBtn-finances-reports" hidden>
           <h3 class="sectionHeader__title">Reports &amp; Printing</h3>
 
-          <div class="financeTopBar noPrint" id="financeReportsTotals" aria-label="Financial summary">
-            <span class="statusChip" id="financeIncomeTotal">$0.00 Money Received</span>
-            <span class="statusChip" id="financeExpenseTotal">$0.00 Money Spent</span>
-            <span class="statusChip" id="financeNetTotal">$0.00 Net Total</span>
-          </div>
-          <div class="financePeriodTabs financeSecondaryTotals" role="tablist" aria-label="Giving period">
-            <button class="miniTab miniTab--xs" id="financePeriodWeekBtn" type="button" role="tab" aria-selected="true">This Week</button>
-            <button class="miniTab miniTab--xs" id="financePeriodMonthBtn" type="button" role="tab" aria-selected="false">This Month</button>
-            <span class="statusChip" id="financeTithesTotal">$0.00 Tithes</span>
-            <span class="statusChip" id="financeOfferingsTotal">$0.00 Offerings</span>
-            <span class="statusChip" id="financeGivingTotal">$0.00 Total</span>
-          </div>
+          <div class="financeReportsLayout">
+            <div class="financeReportsLayout__left">
+              <div class="list financeReportActions" aria-label="Reports and printing actions">
+                <div class="row">
+                  <div class="row__main">
+                    <div class="row__title">View Financial Summary</div>
+                    <div class="row__meta">Shows Money Received, Money Spent, and Net Total for the current filters.</div>
+                  </div>
+                  <div class="row__actions">
+                    <button class="btn" id="financeViewSummaryBtn" type="button" aria-expanded="false" aria-controls="financeReportsTotals">View Financial Summary</button>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="row__main">
+                    <div class="row__title">Print Transaction History</div>
+                    <div class="row__meta">Prints the transaction list using your current filters.</div>
+                  </div>
+                  <div class="row__actions">
+                    <button class="btn btn--primary" id="printFinanceLedgerBtn" type="button">Print Transaction History</button>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="row__main">
+                    <div class="row__title">Print Selected Receipts</div>
+                    <div class="row__meta">Search and select one, multiple, or all transactions to print as receipts.</div>
+                  </div>
+                  <div class="row__actions">
+                    <button class="btn btn--primary" id="printFinanceReceiptsBtn" type="button">Print Selected Receipts</button>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="row__main">
+                    <div class="row__title">Download Spreadsheet</div>
+                    <div class="row__meta">Downloads the currently filtered transactions as a spreadsheet file.</div>
+                  </div>
+                  <div class="row__actions">
+                    <button class="btn btn--primary" id="financeExportCsvBtn" type="button">Download Spreadsheet</button>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="row__main">
+                    <div class="row__title">Finance Dashboard</div>
+                    <div class="row__meta">Open fund balances, donor statements, and board reports.</div>
+                  </div>
+                  <div class="row__actions">
+                    <a class="btn" id="financeDashboardBtn" href="/admin/finances/dashboard">Finance Dashboard</a>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-          <div class="list financeReportActions" aria-label="Reports and printing actions">
-            <div class="row">
-              <div class="row__main">
-                <div class="row__title">View Financial Summary</div>
-                <div class="row__meta">Shows Money Received, Money Spent, and Net Total for the current filters.</div>
+            <div class="financeReportsLayout__right">
+              <div class="financePeriodTabs" role="tablist" aria-label="Giving period">
+                <button class="miniTab miniTab--xs" id="financePeriodWeekBtn" type="button" role="tab" aria-selected="true">This Week</button>
+                <button class="miniTab miniTab--xs" id="financePeriodMonthBtn" type="button" role="tab" aria-selected="false">This Month</button>
               </div>
-              <div class="row__actions">
-                <button class="btn" id="financeViewSummaryBtn" type="button" aria-expanded="false" aria-controls="financeReportsTotals">View Financial Summary</button>
+
+              <div class="financeStatCards" id="financeReportsTotals" aria-label="Financial summary">
+                <div class="financeStatCard" id="financeIncomeCard">
+                  <div class="financeStatCard__label">Money Received</div>
+                  <div class="financeStatCard__value" id="financeIncomeTotal">$0.00</div>
+                  <div class="financeStatCard__meter" aria-hidden="true"><span class="financeStatCard__meterFill financeStatCard__meterFill--income" id="financeIncomeMeter"></span></div>
+                </div>
+                <div class="financeStatCard" id="financeExpenseCard">
+                  <div class="financeStatCard__label">Money Spent</div>
+                  <div class="financeStatCard__value" id="financeExpenseTotal">$0.00</div>
+                  <div class="financeStatCard__meter" aria-hidden="true"><span class="financeStatCard__meterFill financeStatCard__meterFill--expense" id="financeExpenseMeter"></span></div>
+                </div>
+                <div class="financeStatCard financeStatCard--net" id="financeNetCard">
+                  <div class="financeStatCard__label">Net Total</div>
+                  <div class="financeStatCard__value" id="financeNetTotal">$0.00</div>
+                  <div class="financeStatCard__meter financeStatCard__meter--diverging" aria-hidden="true">
+                    <span class="financeStatCard__meterZero"></span>
+                    <span class="financeStatCard__meterFill financeStatCard__meterFill--net" id="financeNetMeter"></span>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div class="row">
-              <div class="row__main">
-                <div class="row__title">Print Transaction History</div>
-                <div class="row__meta">Prints the transaction list using your current filters.</div>
-              </div>
-              <div class="row__actions">
-                <button class="btn btn--primary" id="printFinanceLedgerBtn" type="button">Print Transaction History</button>
-              </div>
-            </div>
-            <div class="row">
-              <div class="row__main">
-                <div class="row__title">Print Selected Receipts</div>
-                <div class="row__meta">Search and select one, multiple, or all transactions to print as receipts.</div>
-              </div>
-              <div class="row__actions">
-                <button class="btn btn--primary" id="printFinanceReceiptsBtn" type="button">Print Selected Receipts</button>
-              </div>
-            </div>
-            <div class="row">
-              <div class="row__main">
-                <div class="row__title">Download Spreadsheet</div>
-                <div class="row__meta">Downloads the currently filtered transactions as a spreadsheet file.</div>
-              </div>
-              <div class="row__actions">
-                <button class="btn btn--primary" id="financeExportCsvBtn" type="button">Download Spreadsheet</button>
-              </div>
-            </div>
-            <div class="row">
-              <div class="row__main">
-                <div class="row__title">Finance Dashboard</div>
-                <div class="row__meta">Open fund balances, donor statements, and board reports.</div>
-              </div>
-              <div class="row__actions">
-                <a class="btn" id="financeDashboardBtn" href="/admin/finances/dashboard">Finance Dashboard</a>
+
+              <div class="financeStatCards financeStatCards--secondary" aria-label="Giving breakdown">
+                <div class="financeStatCard financeStatCard--sm" id="financeTithesCard">
+                  <div class="financeStatCard__label">Tithes</div>
+                  <div class="financeStatCard__value" id="financeTithesTotal">$0.00</div>
+                  <div class="financeStatCard__meter" aria-hidden="true"><span class="financeStatCard__meterFill financeStatCard__meterFill--tithes" id="financeTithesMeter"></span></div>
+                </div>
+                <div class="financeStatCard financeStatCard--sm" id="financeOfferingsCard">
+                  <div class="financeStatCard__label">Offerings</div>
+                  <div class="financeStatCard__value" id="financeOfferingsTotal">$0.00</div>
+                  <div class="financeStatCard__meter" aria-hidden="true"><span class="financeStatCard__meterFill financeStatCard__meterFill--offerings" id="financeOfferingsMeter"></span></div>
+                </div>
+                <div class="financeStatCard financeStatCard--sm" id="financeGivingCard">
+                  <div class="financeStatCard__label">Total Giving</div>
+                  <div class="financeStatCard__value" id="financeGivingTotal">$0.00</div>
+                  <div class="financeStatCard__meter" aria-hidden="true"><span class="financeStatCard__meterFill financeStatCard__meterFill--giving" id="financeGivingMeter"></span></div>
+                </div>
               </div>
             </div>
           </div>
@@ -1219,7 +1256,7 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="/admin/admin.js?v=20260124"></script>
   <script src="/admin/site-editor.js?v=20260124"></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260728191038" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260728195314" defer></script>
 </body>
 </html>
 

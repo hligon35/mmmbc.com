@@ -608,7 +608,97 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 /* Finance: Reports & Printing                                            */
 /* ---------------------------------------------------------------------- */
 .financeReportActions .row{align-items:center;}
-.financeSecondaryTotals{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;}
+
+.financeReportsLayout{
+  display:grid;
+  grid-template-columns:1.15fr 1fr;
+  gap:20px;
+  align-items:start;
+  margin-top:12px;
+}
+.financeReportsLayout__right{
+  display:grid;
+  gap:14px;
+  justify-items:center;
+}
+.financeReportsLayout__right .financePeriodTabs{justify-content:center;}
+
+@media (max-width:820px){
+  .financeReportsLayout{grid-template-columns:1fr;}
+}
+
+.financeStatCards{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(120px, 1fr));
+  gap:10px;
+  width:100%;
+}
+.financeStatCards--secondary{margin-top:2px;}
+
+.financeStatCard{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:12px 14px;
+  display:grid;
+  gap:8px;
+}
+.financeStatCard--sm{padding:10px 12px;}
+.financeStatCard__label{
+  font-weight:800;
+  color:var(--muted);
+  font-size:.82rem;
+  text-transform:uppercase;
+  letter-spacing:.03em;
+}
+.financeStatCard__value{font-weight:900;font-size:1.15rem;}
+
+.financeStatCard__meter{
+  position:relative;
+  height:8px;
+  border-radius:999px;
+  background:var(--bg);
+  border:1px solid var(--border);
+  overflow:hidden;
+}
+.financeStatCard__meterFill{
+  position:absolute;
+  inset:0 auto 0 0;
+  width:0%;
+  border-radius:999px;
+  background:var(--accent);
+  transition:width .25s ease;
+}
+.financeStatCard__meterFill--income{background:#2f9e44;}
+.financeStatCard__meterFill--expense{background:var(--danger);}
+.financeStatCard__meterFill--tithes{background:var(--accent);}
+.financeStatCard__meterFill--offerings{background:#2f9e44;}
+.financeStatCard__meterFill--giving{background:var(--muted);width:100%;}
+
+.financeStatCard__meter--diverging{background:var(--bg);}
+.financeStatCard__meterZero{
+  position:absolute;
+  left:50%;
+  top:-2px;
+  bottom:-2px;
+  width:2px;
+  background:var(--border);
+}
+.financeStatCard__meterFill--net{
+  left:50%;
+  right:auto;
+  width:0%;
+  background:#2f9e44;
+}
+.financeStatCard__meterFill--net.financeStatCard__meterFill--negative{
+  left:auto;
+  right:50%;
+  background:var(--danger);
+}
+
+@media (max-width:480px){
+  .financeStatCards{grid-template-columns:1fr;}
+}
 
 /* ---------------------------------------------------------------------- */
 /* Finance: dialogs (unsaved changes / delete confirmation)               */
