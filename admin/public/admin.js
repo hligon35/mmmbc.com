@@ -1990,6 +1990,10 @@ function financeGoToStep(step, { focus = true } = {}) {
       const target = btn.getAttribute('data-wizard-goto');
       const targetIdx = navSteps.indexOf(target);
       const isCurrent = target === step;
+      // Keep the chip compact (just the step number) until it becomes the active step,
+      // where it expands to show the full step name too.
+      const label = btn.getAttribute('aria-label') || '';
+      btn.textContent = isCurrent ? `${targetIdx + 1} ${label}` : String(targetIdx + 1);
       btn.classList.toggle('wizardProgress__step--current', isCurrent);
       btn.classList.toggle('wizardProgress__step--done', targetIdx < navSteps.indexOf(step) || (step === 'saved'));
       if (isCurrent) btn.setAttribute('aria-current', 'step'); else btn.removeAttribute('aria-current');
