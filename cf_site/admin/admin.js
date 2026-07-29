@@ -1450,8 +1450,35 @@ function applyHashNavigation() {
 
 // -------- Finances --------
 let finances = { entries: [], meta: { categories: [], funds: [] } };
+// Real, registered church funds (from /api/finances/funds) — the source of truth the
+// server validates against when saving an entry. Distinct from the legacy free-text
+// `finances.meta.funds` name list used only for filter-dropdown history.
+let financeFundsRegistry = [];
 let financeQuickKind = '';
 let financeGivingPeriod = 'week';
+
+async function loadFinanceFundsRegistry() {
+  try {
+    const res = await api('/api/finances/funds', { method: 'GET' });
+    financeFundsRegistry = Array.isArray(res?.funds) ? res.funds : [];
+  } catch {
+    financeFundsRegistry = [];
+  }
+}
+
+function financeActiveFunds() {
+  return (Array.isArray(financeFundsRegistry) ? financeFundsRegistry : [])
+    .filter((f) => f?.active !== false)
+    .slice()
+    .sort((a, b) => String(a?.fundName || '').localeCompare(String(b?.fundName || '')));
+}
+
+function financeFundNameById(id) {
+  const key = String(id || '').trim();
+  if (!key) return '';
+  const match = (Array.isArray(financeFundsRegistry) ? financeFundsRegistry : []).find((f) => String(f?.id || '') === key);
+  return match ? String(match.fundName || '') : '';
+}
 
 function formatMoneyCents(cents) {
   const n = Number(cents || 0) / 100;
@@ -1778,7 +1805,7 @@ function populateFinanceDatalists() {
   };
 
   setOptions(catSel, categories, { required: true, allowDelete: true });
-  setOptions(fundSel, funds, { required: false });
+  setFundSelectOptions(fundSel);
 
   const setFilterOptions = (sel, values, allLabel) => {
     if (!(sel instanceof HTMLSelectElement)) return;
@@ -1801,6 +1828,46 @@ function populateFinanceDatalists() {
 
   setFilterOptions($('financeFilterCategory'), categories, '(All categories)');
   setFilterOptions($('financeFilterFund'), funds, '(All funds)');
+}
+
+// Populates the Record Money wizard's Fund select from the real, registered fund
+// records (option value = fund id) so a save always resolves to a valid fund on
+// the server \u2014 rather than the legacy free-text `finances.meta.funds` name list,
+// which isn't guaranteed to match any actual fund and caused saves to silently fail.
+function setFundSelectOptions(sel) {
+  if (!(sel instanceof HTMLSelectElement)) return;
+  const current = String(sel.value || '');
+  sel.innerHTML = '';
+
+  const blank = document.createElement('option');
+  blank.value = '';
+  blank.textContent = '(Pick a fund)';
+  sel.appendChild(blank);
+
+  const activeFunds = financeActiveFunds();
+  for (const f of activeFunds) {
+    const opt = document.createElement('option');
+    opt.value = String(f.id);
+    opt.textContent = f.fundCode ? `${f.fundName} (${f.fundCode})` : String(f.fundName || '');
+    sel.appendChild(opt);
+  }
+
+  if (!activeFunds.length) {
+    const empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = 'No funds set up yet — add one on the Funds page';
+    empty.disabled = true;
+    sel.appendChild(empty);
+  }
+
+  const hint = $('financeFundHint');
+  if (hint) {
+    hint.textContent = activeFunds.length
+      ? 'Choose where this money should be recorded, such as General Fund or Building Fund.'
+      : 'No church funds are set up yet. Go to Church Finances → Funds to add one before recording money.';
+  }
+
+  if (current && Array.from(sel.options).some((o) => o.value === current)) sel.value = current;
 }
 
 function normalizeFinanceName(value) {
@@ -1930,7 +1997,11 @@ function financeStartEdit(entry) {
   $('financeDate').value = String(entry.date || '');
   $('financeType').value = String(entry.type || 'income');
   $('financeCategory').value = String(entry.category || '');
-  $('financeFund').value = String(entry.fund || '');
+  // The fund select's option values are fund ids; prefer the entry's stored fundId,
+  // falling back to matching by fund name for older entries saved before that field existed.
+  const entryFundId = String(entry.fundId || '');
+  const fundByName = entryFundId ? null : financeActiveFunds().find((f) => financeNormalizeKey(f.fundName) === financeNormalizeKey(entry.fund));
+  $('financeFund').value = entryFundId || (fundByName ? String(fundByName.id) : '');
   $('financeMethod').value = String(entry.method || '');
   $('financeAmount').value = (Number(entry.amountCents || 0) / 100).toFixed(2);
   $('financeParty').value = String(entry.party || '');
@@ -1951,7 +2022,7 @@ const FINANCE_WIZARD_STEPS = ['direction', 'details', 'payment', 'review', 'save
 const financeWizard = { mode: 'add', step: 'direction', maxStepIndex: 0, dirty: false, saving: false, lastSavedId: '' };
 
 function financeClearAllFieldErrors() {
-  for (const id of ['financeCategoryError', 'financeAmountError', 'financeMethodError', 'financePartyError']) {
+  for (const id of ['financeCategoryError', 'financeFundError', 'financeAmountError', 'financeMethodError', 'financePartyError']) {
     const el = $(id);
     if (el) { el.textContent = ''; el.hidden = true; }
   }
@@ -2036,6 +2107,13 @@ function financeValidateDetailsStep() {
     ok = false;
   }
 
+  const fundId = String($('financeFund')?.value || '').trim();
+  if (!fundId) {
+    financeSetFieldError('financeFundError', 'Choose which church fund this belongs to.');
+    focusEl = focusEl || $('financeFund');
+    ok = false;
+  }
+
   const amountRaw = String($('financeAmount')?.value || '').trim();
   const amount = Number(amountRaw);
   if (!amountRaw || !Number.isFinite(amount) || amount <= 0) {
@@ -2093,7 +2171,7 @@ function financeRenderReviewSummary() {
   const amount = Number($('financeAmount')?.value || 0) || 0;
   const date = financeFormatReviewDate($('financeDate')?.value);
   const category = String($('financeCategory')?.value || '').trim();
-  const fund = String($('financeFund')?.value || '').trim();
+  const fund = financeFundNameById($('financeFund')?.value);
   const method = financeMethodLabel($('financeMethod')?.value);
   const party = String($('financeParty')?.value || '').trim();
   const memo = String($('financeMemo')?.value || '').trim();
@@ -2512,7 +2590,10 @@ function renderFinances() {
 }
 
 async function loadFinances() {
-  const data = await api('/api/finances', { method: 'GET' });
+  const [data] = await Promise.all([
+    api('/api/finances', { method: 'GET' }),
+    loadFinanceFundsRegistry()
+  ]);
   finances = data;
   financeResetForm();
   // Hide custom range UI unless the user explicitly opens it.
@@ -5105,7 +5186,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         date: String($('financeDate').value || ''),
         type: String($('financeType').value || ''),
         category: String($('financeCategory').value || ''),
-        fund: String($('financeFund').value || ''),
+        fund: '',
+        fundId: String($('financeFund').value || ''),
         method: String($('financeMethod').value || ''),
         amount: String($('financeAmount').value || ''),
         party: String($('financeParty').value || ''),
@@ -5144,12 +5226,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    // “Create …” option handling for Category/Fund dropdowns
+    // “Create …” option handling for the Category dropdown. The Fund dropdown is sourced
+    // directly from the registered funds registry (see setFundSelectOptions) — funds must
+    // be created on the Funds management page so entries always save against a real fund.
     if ($('financeCategory')) {
       $('financeCategory').addEventListener('change', () => financeHandleCreateSelect('category'));
-    }
-    if ($('financeFund')) {
-      $('financeFund').addEventListener('change', () => financeHandleCreateSelect('fund'));
     }
 
     // Mark the wizard dirty on any field change so unsaved-change prompts fire correctly.

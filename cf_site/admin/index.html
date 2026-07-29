@@ -7,7 +7,7 @@
   <meta name="description" content="Admin dashboard for Mt. Moriah Missionary Baptist Church website." />
   <link rel="stylesheet" href="/admin/admin.css?v=20260124" />
   <link rel="stylesheet" href="/admin/site-editor.css?v=20260124" />
-  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260728195314" />
+  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260728201456" />
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
@@ -582,8 +582,9 @@
                 </label>
                 <label class="label">
                   <span id="financeFundLabelText">Which church fund?</span>
-                  <select class="select" id="financeFund"></select>
-                  <span class="fieldHint">Choose where this money should be recorded, such as General Fund or Building Fund.</span>
+                  <select class="select" id="financeFund" required></select>
+                  <span class="fieldHint" id="financeFundHint">Choose where this money should be recorded, such as General Fund or Building Fund.</span>
+                  <span class="fieldError" id="financeFundError" role="alert" hidden></span>
                 </label>
               </div>
               <div class="wizardNav">
@@ -1256,7 +1257,7 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="/admin/admin.js?v=20260124"></script>
   <script src="/admin/site-editor.js?v=20260124"></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260728195314" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260728201456" defer></script>
 </body>
 </html>
 

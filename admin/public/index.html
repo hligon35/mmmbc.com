@@ -581,8 +581,9 @@
                 </label>
                 <label class="label">
                   <span id="financeFundLabelText">Which church fund?</span>
-                  <select class="select" id="financeFund"></select>
-                  <span class="fieldHint">Choose where this money should be recorded, such as General Fund or Building Fund.</span>
+                  <select class="select" id="financeFund" required></select>
+                  <span class="fieldHint" id="financeFundHint">Choose where this money should be recorded, such as General Fund or Building Fund.</span>
+                  <span class="fieldError" id="financeFundError" role="alert" hidden></span>
                 </label>
               </div>
               <div class="wizardNav">
