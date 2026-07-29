@@ -3404,29 +3404,105 @@ async function syncFromR2(prefix, { confirm: shouldConfirm = true } = {}) {
 // -------- Announcements --------
 let announcementPosts = [];
 let editingAnnouncementId = null;
+let announcementPreviewDraft = null;
+let eventPreviewDraft = null;
+let bulletinPreviewDraft = null;
 
-function setSectionPreviewText(previewId, lines, fallback) {
-  const el = $(previewId);
-  if (!el) return;
-  const safe = Array.isArray(lines)
-    ? lines.map((x) => String(x || '').trim()).filter(Boolean)
-    : [];
-  el.textContent = safe.length ? `Preview: ${safe.join(' • ')}` : String(fallback || '');
+function formatPreviewDateTime(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const t = Date.parse(raw);
+  if (Number.isNaN(t)) return raw;
+  return formatDate(new Date(t).toISOString());
+}
+
+function buildPreviewRow({ title, meta, body } = {}) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  const main = document.createElement('div');
+  main.className = 'row__main';
+
+  const t = document.createElement('div');
+  t.className = 'row__title';
+  t.textContent = String(title || 'Preview item').trim() || 'Preview item';
+  main.appendChild(t);
+
+  if (meta) {
+    const m = document.createElement('div');
+    m.className = 'row__meta';
+    m.textContent = String(meta);
+    main.appendChild(m);
+  }
+  if (body) {
+    const b = document.createElement('div');
+    b.className = 'row__meta';
+    b.textContent = String(body);
+    main.appendChild(b);
+  }
+
+  row.appendChild(main);
+  return row;
+}
+
+function renderPreviewRows(listId, rows, emptyText) {
+  const root = $(listId);
+  if (!root) return;
+  root.innerHTML = '';
+  const safeRows = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  if (!safeRows.length) {
+    const empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.textContent = String(emptyText || 'Nothing to preview yet.');
+    root.appendChild(empty);
+    return;
+  }
+  for (const row of safeRows) root.appendChild(buildPreviewRow(row));
+}
+
+function getAnnouncementFormDraftPreview() {
+  const form = $('announceForm');
+  if (!(form instanceof HTMLFormElement)) return null;
+  const fd = new FormData(form);
+  const title = String(fd.get('title') || '').trim();
+  const body = String(fd.get('body') || '').trim();
+  const neverExpires = fd.get('neverExpires') === 'on';
+  const days = Number(fd.get('expiresInDays'));
+  if (!title && !body) return null;
+  const expiryText = neverExpires
+    ? 'Expires: Never'
+    : `Expires in ${Number.isFinite(days) && days > 0 ? days : 30} day(s)`;
+  return {
+    title: title || 'Announcement title',
+    meta: `Draft announcement • ${expiryText}`,
+    body: body || 'Message preview'
+  };
+}
+
+function renderAnnouncementsPreview() {
+  const rows = [];
+  const draft = announcementPreviewDraft || getAnnouncementFormDraftPreview();
+  if (draft) rows.push(draft);
+
+  for (const post of announcementPosts.slice(0, 2)) {
+    if (draft && draft.id && String(draft.id) === String(post?.id || '')) continue;
+    const created = post?.createdAt ? `Posted: ${formatDate(post.createdAt)}` : '';
+    const starts = post?.startsAt ? ` • Starts: ${formatDate(post.startsAt)}` : '';
+    const expires = post?.expiresAt ? ` • Expires: ${formatDate(post.expiresAt)}` : ' • Expires: Never';
+    rows.push({
+      id: post?.id,
+      title: post?.title || 'Announcement',
+      meta: `${created}${starts}${expires}`.trim(),
+      body: post?.body || ''
+    });
+  }
+
+  renderPreviewRows('announcePreviewList', rows, 'No announcement preview yet.');
 }
 
 function renderAnnouncements() {
   const root = $('announceList');
   root.innerHTML = '';
-
-  setSectionPreviewText(
-    'announcePreview',
-    announcementPosts.slice(0, 2).map((post) => {
-      const body = String(post?.body || '').replace(/\s+/g, ' ').trim();
-      const short = body.length > 90 ? `${body.slice(0, 90)}…` : body;
-      return `${post?.title || 'Announcement'}${short ? `: ${short}` : ''}`;
-    }),
-    'No announcement preview yet.'
-  );
+  renderAnnouncementsPreview();
 
   for (const post of announcementPosts) {
     const row = document.createElement('div');
@@ -3486,6 +3562,28 @@ function renderAnnouncements() {
       endsInput.disabled = neverInput.checked;
       neverWrap.appendChild(neverInput);
       neverWrap.appendChild(document.createTextNode('Never expires'));
+
+      const syncAnnouncementDraftPreview = () => {
+        announcementPreviewDraft = {
+          id: post.id,
+          title: String(titleInput.value || '').trim() || 'Announcement title',
+          meta: (() => {
+            const starts = String(startsInput.value || '').trim();
+            const ends = String(endsInput.value || '').trim();
+            const parts = ['Editing announcement'];
+            if (starts) parts.push(`Starts: ${formatPreviewDateTime(starts)}`);
+            parts.push(neverInput.checked ? 'Expires: Never' : `Expires: ${formatPreviewDateTime(ends) || 'Set a date'}`);
+            return parts.join(' • ');
+          })(),
+          body: String(bodyInput.value || '').trim() || 'Message preview'
+        };
+        renderAnnouncementsPreview();
+      };
+      [titleInput, bodyInput, startsInput, endsInput].forEach((el) => {
+        el.addEventListener('input', syncAnnouncementDraftPreview);
+      });
+      neverInput.addEventListener('change', syncAnnouncementDraftPreview);
+      syncAnnouncementDraftPreview();
 
       main.appendChild(titleLabel);
       main.appendChild(bodyLabel);
@@ -3547,6 +3645,7 @@ function renderAnnouncements() {
             neverExpires
           })
         });
+        announcementPreviewDraft = null;
         editingAnnouncementId = null;
         await loadAnnouncements();
       });
@@ -3556,6 +3655,7 @@ function renderAnnouncements() {
       cancel.type = 'button';
       cancel.textContent = 'Cancel';
       cancel.addEventListener('click', () => {
+        announcementPreviewDraft = null;
         editingAnnouncementId = null;
         renderAnnouncements();
       });
@@ -3568,6 +3668,7 @@ function renderAnnouncements() {
       edit.type = 'button';
       edit.textContent = 'Edit';
       edit.addEventListener('click', () => {
+        announcementPreviewDraft = null;
         editingAnnouncementId = post.id;
         renderAnnouncements();
       });
@@ -3581,6 +3682,7 @@ function renderAnnouncements() {
     del.addEventListener('click', async () => {
       if (!confirmWrite('Delete this announcement?')) return;
       await api(`/api/announcements/${post.id}`, { method: 'DELETE' });
+      announcementPreviewDraft = null;
       if (editingAnnouncementId === post.id) editingAnnouncementId = null;
       await loadAnnouncements();
     });
@@ -3599,6 +3701,7 @@ async function loadAnnouncements() {
   announcementPosts = data.posts || [];
   if (editingAnnouncementId && !announcementPosts.some((p) => p.id === editingAnnouncementId)) {
     editingAnnouncementId = null;
+    announcementPreviewDraft = null;
   }
   renderAnnouncements();
 }
@@ -4163,15 +4266,41 @@ function normalizeTimeValue(value) {
   return m ? `${m[1]}:${m[2]}` : '';
 }
 
+function getEventFormDraftPreview() {
+  const form = $('eventForm');
+  if (!(form instanceof HTMLFormElement)) return null;
+  const fd = new FormData(form);
+  const title = String(fd.get('title') || '').trim();
+  const date = String(fd.get('date') || '').trim();
+  const time = normalizeTimeValue(fd.get('time'));
+  if (!title && !date && !time) return null;
+  return {
+    title: title || 'Event title',
+    meta: [date || 'No date', formatEventTime12h(time) || 'No time'].join(' • ')
+  };
+}
+
+function renderEventsPreview() {
+  const rows = [];
+  const draft = eventPreviewDraft || getEventFormDraftPreview();
+  if (draft) rows.push(draft);
+
+  for (const ev of events.slice(0, 2)) {
+    if (draft && draft.id && String(draft.id) === String(ev?.id || '')) continue;
+    rows.push({
+      id: ev?.id,
+      title: String(ev?.title || '').trim() || 'Event',
+      meta: `${String(ev?.date || '')}${ev?.time ? ` • ${formatEventTime12h(ev.time)}` : ''}`
+    });
+  }
+
+  renderPreviewRows('eventPreviewList', rows, 'No event preview yet.');
+}
+
 function renderEvents() {
   const root = $('eventList');
   root.innerHTML = '';
-
-  setSectionPreviewText(
-    'eventPreview',
-    events.slice(0, 2).map((ev) => `${String(ev?.date || '')} ${formatEventTime12h(ev?.time)} ${String(ev?.title || '').trim()}`.trim()),
-    'No event preview yet.'
-  );
+  renderEventsPreview();
 
   for (const ev of events) {
     const row = document.createElement('div');
@@ -4206,6 +4335,17 @@ function renderEvents() {
       timeInput.type = 'time';
       timeInput.value = normalizeTimeValue(ev.time);
       timeLabel.appendChild(timeInput);
+
+      const syncEventDraftPreview = () => {
+        eventPreviewDraft = {
+          id: ev.id,
+          title: String(titleInput.value || '').trim() || 'Event title',
+          meta: `${String(dateInput.value || '').trim() || 'No date'} • ${formatEventTime12h(normalizeTimeValue(timeInput.value)) || 'No time'}`
+        };
+        renderEventsPreview();
+      };
+      [titleInput, dateInput, timeInput].forEach((el) => el.addEventListener('input', syncEventDraftPreview));
+      syncEventDraftPreview();
 
       main.appendChild(titleLabel);
       main.appendChild(dateLabel);
@@ -4242,6 +4382,7 @@ function renderEvents() {
           method: 'PUT',
           body: JSON.stringify({ title, date, time })
         });
+        eventPreviewDraft = null;
         editingEventId = null;
         await loadEvents();
       });
@@ -4251,6 +4392,7 @@ function renderEvents() {
       cancel.type = 'button';
       cancel.textContent = 'Cancel';
       cancel.addEventListener('click', () => {
+        eventPreviewDraft = null;
         editingEventId = null;
         renderEvents();
       });
@@ -4263,6 +4405,7 @@ function renderEvents() {
       edit.type = 'button';
       edit.textContent = 'Edit';
       edit.addEventListener('click', () => {
+        eventPreviewDraft = null;
         editingEventId = ev.id;
         renderEvents();
       });
@@ -4276,6 +4419,7 @@ function renderEvents() {
     del.addEventListener('click', async () => {
       if (!confirm('Delete this event?')) return;
       await api(`/api/events/${ev.id}`, { method: 'DELETE' });
+      eventPreviewDraft = null;
       if (editingEventId === ev.id) editingEventId = null;
       await loadEvents();
     });
@@ -4294,6 +4438,7 @@ async function loadEvents() {
   events = data.events || [];
   if (editingEventId && !events.some((e) => e.id === editingEventId)) {
     editingEventId = null;
+    eventPreviewDraft = null;
   }
   renderEvents();
   refreshEventsPrintOptions();
@@ -4322,18 +4467,43 @@ function isActiveBulletin(b) {
   return true;
 }
 
+function getBulletinFormDraftPreview() {
+  const form = $('bulletinForm');
+  if (!(form instanceof HTMLFormElement)) return null;
+  const fd = new FormData(form);
+  const title = String(fd.get('title') || '').trim();
+  const startsAt = String(fd.get('startsAt') || '').trim();
+  const endsAt = String(fd.get('endsAt') || '').trim();
+  const file = form.querySelector('input[name="file"]')?.files?.[0];
+  if (!title && !startsAt && !endsAt && !file) return null;
+  return {
+    title: title || 'Bulletin title',
+    meta: `${formatPreviewDateTime(startsAt) || 'No start'} → ${formatPreviewDateTime(endsAt) || 'No end'}`,
+    body: file ? `File: ${file.name}` : 'File: not selected'
+  };
+}
+
+function renderBulletinsPreview() {
+  const rows = [];
+  const draft = bulletinPreviewDraft || getBulletinFormDraftPreview();
+  if (draft) rows.push(draft);
+
+  for (const b of bulletins.slice(0, 2)) {
+    if (draft && draft.id && String(draft.id) === String(b?.id || '')) continue;
+    rows.push({
+      id: b?.id,
+      title: `${String(b?.title || 'Bulletin')}${b?.originalName ? ` • ${String(b.originalName)}` : ''}`,
+      meta: `${isActiveBulletin(b) ? 'Active now' : 'Scheduled'} • ${formatPreviewDateTime(b?.startsAt)} → ${formatPreviewDateTime(b?.endsAt)}`
+    });
+  }
+
+  renderPreviewRows('bulletinPreviewList', rows, 'No bulletin preview yet.');
+}
+
 function renderBulletins() {
   const root = $('bulletinList');
   root.innerHTML = '';
-
-  setSectionPreviewText(
-    'bulletinPreview',
-    bulletins.slice(0, 2).map((b) => {
-      const active = isActiveBulletin(b) ? 'Active now' : 'Scheduled';
-      return `${String(b?.title || 'Bulletin')} (${active})`;
-    }),
-    'No bulletin preview yet.'
-  );
+  renderBulletinsPreview();
 
   for (const b of bulletins) {
     const row = document.createElement('div');
@@ -4369,6 +4539,18 @@ function renderBulletins() {
       endsInput.type = 'datetime-local';
       endsInput.value = toLocalDateTimeValue(b.endsAt);
       endsLabel.appendChild(endsInput);
+
+      const syncBulletinDraftPreview = () => {
+        bulletinPreviewDraft = {
+          id: b.id,
+          title: String(titleInput.value || '').trim() || 'Bulletin title',
+          meta: `${formatPreviewDateTime(startsInput.value) || 'No start'} → ${formatPreviewDateTime(endsInput.value) || 'No end'}`,
+          body: `File: ${b.originalName || b.fileName || 'Bulletin file'}`
+        };
+        renderBulletinsPreview();
+      };
+      [titleInput, startsInput, endsInput].forEach((el) => el.addEventListener('input', syncBulletinDraftPreview));
+      syncBulletinDraftPreview();
 
       const fileMeta = document.createElement('div');
       fileMeta.className = 'row__meta';
@@ -4424,6 +4606,7 @@ function renderBulletins() {
           method: 'PUT',
           body: JSON.stringify({ title, startsAt, endsAt })
         });
+        bulletinPreviewDraft = null;
         editingBulletinId = null;
         await loadBulletins();
       });
@@ -4433,6 +4616,7 @@ function renderBulletins() {
       cancel.type = 'button';
       cancel.textContent = 'Cancel';
       cancel.addEventListener('click', () => {
+        bulletinPreviewDraft = null;
         editingBulletinId = null;
         renderBulletins();
       });
@@ -4446,6 +4630,7 @@ function renderBulletins() {
       edit.type = 'button';
       edit.textContent = 'Edit';
       edit.addEventListener('click', () => {
+        bulletinPreviewDraft = null;
         editingBulletinId = b.id;
         renderBulletins();
       });
@@ -4460,6 +4645,7 @@ function renderBulletins() {
     del.addEventListener('click', async () => {
       if (!confirmWrite('Delete this bulletin?')) return;
       await api(`/api/bulletins/${b.id}`, { method: 'DELETE' });
+      bulletinPreviewDraft = null;
       if (editingBulletinId === b.id) editingBulletinId = null;
       await loadBulletins();
     });
@@ -4478,6 +4664,7 @@ async function loadBulletins() {
   bulletins = data.bulletins || [];
   if (editingBulletinId && !bulletins.some((b) => b.id === editingBulletinId)) {
     editingBulletinId = null;
+    bulletinPreviewDraft = null;
   }
   renderBulletins();
 }
@@ -6831,6 +7018,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Announcements
   if ($('announceForm')) {
+    $('announceForm').addEventListener('input', () => {
+      if (!editingAnnouncementId) announcementPreviewDraft = null;
+      renderAnnouncementsPreview();
+    });
+    $('announceForm').addEventListener('change', () => {
+      if (!editingAnnouncementId) announcementPreviewDraft = null;
+      renderAnnouncementsPreview();
+    });
+
     $('announceForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const hint = $('announceHint');
@@ -6852,6 +7048,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
 
       safeResetForm(e);
+      announcementPreviewDraft = null;
       hint.textContent = 'Posted.';
       await loadAnnouncements();
       const announceForm = $('announceForm');
@@ -6866,6 +7063,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Events
   if ($('eventForm')) {
+    $('eventForm').addEventListener('input', () => {
+      if (!editingEventId) eventPreviewDraft = null;
+      renderEventsPreview();
+    });
+    $('eventForm').addEventListener('change', () => {
+      if (!editingEventId) eventPreviewDraft = null;
+      renderEventsPreview();
+    });
+
     $('eventForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const hint = $('eventHint');
@@ -6885,6 +7091,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
 
       safeResetForm(e);
+      eventPreviewDraft = null;
       hint.textContent = 'Saved.';
       await loadEvents();
       const eventForm = $('eventForm');
@@ -6894,6 +7101,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Bulletins (multipart)
   if ($('bulletinForm')) {
+    $('bulletinForm').addEventListener('input', () => {
+      if (!editingBulletinId) bulletinPreviewDraft = null;
+      renderBulletinsPreview();
+    });
+    $('bulletinForm').addEventListener('change', () => {
+      if (!editingBulletinId) bulletinPreviewDraft = null;
+      renderBulletinsPreview();
+    });
+
     $('bulletinForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.currentTarget;
@@ -6929,6 +7145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         safeResetForm(e);
+        bulletinPreviewDraft = null;
         hint.textContent = 'Uploaded.';
         await loadBulletins();
       } catch (err) {

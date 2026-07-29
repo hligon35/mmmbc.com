@@ -1507,6 +1507,19 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 .row__meta{color:var(--muted);font-weight:800;}
 .row__actions{display:flex;gap:8px;}
 
+.previewBlock{
+  margin:10px 0 14px;
+  padding:10px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:rgba(255,255,255,.02);
+}
+.previewBlock__label{
+  color:var(--muted);
+  font-weight:900;
+  margin:0 0 8px;
+}
+
 .printOnly{display:none;}
 
 .financeSummary{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0;}
