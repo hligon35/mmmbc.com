@@ -2598,10 +2598,6 @@ const galleryUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024, files: 20 }
 });
-const siteImageUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 8 * 1024 * 1024, files: 1 }
-});
 
 function proxyToWorker(req, res) {
   const base = String(process.env.WORKER_ORIGIN || '').trim().replace(/\/$/, '');
@@ -2836,37 +2832,6 @@ app.post(
   res.json({ ok: true, added });
   }
 );
-
-app.post('/api/site-editor/upload-image', requirePermission(PERMISSIONS.WEBSITE_WRITE), siteImageUpload.single('image'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No image was uploaded.' });
-  const mimeType = String(req.file.mimetype || '').trim().toLowerCase();
-  if (!isAllowedImage(mimeType)) return res.status(400).json({ error: 'Only image uploads are allowed.' });
-
-  const page = sanitizeSegment(req.body?.page || 'page').toLowerCase() || 'page';
-  const profileId = sanitizeSegment(req.body?.profileId || '') || newId();
-  const ext = mime.extension(mimeType) || 'jpg';
-  const fileName = `${new Date().toISOString().slice(0, 10)}_${page}_${profileId}_${newId()}.${ext}`;
-
-  ensureDir(WEBPAGE_IMAGES_DIR);
-  const abs = path.join(WEBPAGE_IMAGES_DIR, fileName);
-  fs.writeFileSync(abs, req.file.buffer);
-
-  // Optional optimization for large images while preserving broad format support.
-  try {
-    const isLarge = Number(req.file.size || 0) > (2 * 1024 * 1024);
-    if (isLarge && ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(mimeType)) {
-      const optimized = await sharp(req.file.buffer)
-        .rotate()
-        .resize({ width: 2400, height: 2400, fit: 'inside', withoutEnlargement: true })
-        .toBuffer();
-      fs.writeFileSync(abs, optimized);
-    }
-  } catch {
-    // Keep original upload if optimization fails.
-  }
-
-  return res.json({ ok: true, path: `/ConImg/webPages/${fileName}` });
-});
 
 app.put('/api/gallery/order', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
   if (String(process.env.WORKER_ORIGIN || '').trim()) return proxyToWorker(req, res);

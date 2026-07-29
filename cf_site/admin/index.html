@@ -6,8 +6,7 @@
   <title>Church Website Manager</title>
   <meta name="description" content="Admin dashboard for Mt. Moriah Missionary Baptist Church website." />
   <link rel="stylesheet" href="/admin/admin.css?v=20260124" />
-  <link rel="stylesheet" href="/admin/site-editor.css?v=20260124" />
-  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260728232333" />
+  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260729120655" />
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
@@ -210,7 +209,6 @@
           <p class="sideNav__groupLabel" aria-hidden="true">Website Updates</p>
           <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-content" id="tabBtn-content">Announcements</button>
           <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-events" id="tabBtn-events">Events</button>
-          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-profiles" id="tabBtn-profiles">Edit Website Pages</button>
           <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-photos" id="tabBtn-photos">Photos</button>
 
           <p class="sideNav__groupLabel" aria-hidden="true">Communication</p>
@@ -240,11 +238,6 @@
             <span class="homeTaskCard__icon" aria-hidden="true"><img class="homeTaskCard__iconImage" src="/Icons/event.png" alt="" /></span>
             <span class="homeTaskCard__title">Add or Update an Event</span>
             <span class="homeTaskCard__desc">Add service times, meetings, programs, or special events.</span>
-          </button>
-          <button class="homeTaskCard" type="button" data-section-target="tab-profiles">
-            <span class="homeTaskCard__icon" aria-hidden="true"><img class="homeTaskCard__iconImage" src="/Icons/edit.png" alt="" /></span>
-            <span class="homeTaskCard__title">Edit Website Pages</span>
-            <span class="homeTaskCard__desc">Update ministries, leadership, church history, contact information, and other website pages.</span>
           </button>
           <button class="homeTaskCard" type="button" data-section-target="tab-newsletter">
             <span class="homeTaskCard__icon" aria-hidden="true"><img class="homeTaskCard__iconImage" src="/Icons/newsletter.png" alt="" /></span>
@@ -1151,21 +1144,6 @@
         </div>
       </section>
 
-      <!-- Profiles -->
-      <section class="tabPanel" role="tabpanel" id="tab-profiles" aria-labelledby="tabBtn-profiles" hidden>
-        <div class="pageContext" id="pageContext-profiles">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Edit Website Pages</p>
-          <h2 class="pageContext__title">Edit Website Pages</h2>
-          <p class="pageContext__description">Open a page below to edit it visually, directly on the live layout.</p>
-        </div>
-
-        <div class="card">
-          <h3 class="card__subtitle">Website Pages</h3>
-          <p class="muted">Choose a page to open the full-screen visual editor. Changes save as a draft until you choose Update to publish them.</p>
-          <div class="siteEditorLauncherGrid" id="siteEditorLauncherGrid"></div>
-        </div>
-      </section>
-
       <!-- Support -->
       <section class="tabPanel" role="tabpanel" id="tab-support" aria-labelledby="tabBtn-support" hidden>
         <div class="pageContext" id="pageContext-support">
@@ -1227,90 +1205,9 @@
     </section>
   </main>
 
-  <div class="siteEditorOverlay" id="siteEditorOverlay" hidden>
-    <header class="siteEditorOverlay__header">
-      <div class="siteEditorOverlay__tabs" id="siteEditorOverlayTabs" role="tablist" aria-label="Website pages"></div>
-      <h2 class="siteEditorOverlay__title" id="siteEditorOverlayTitle">Edit Page</h2>
-      <div class="siteEditorOverlay__actions">
-        <span class="siteEditorOverlay__status" id="siteEditorOverlayStatus" aria-live="polite">Saved</span>
-        <button class="btn" id="siteEditorUndoBtn" type="button" title="Undo last change">Undo</button>
-        <button class="btn" id="siteEditorRestorePreviousBtn" type="button" title="Restore the previously published version">Restore previous version</button>
-        <button class="btn" id="siteEditorSaveBtn" type="button">Save</button>
-        <button class="btn btn--primary" id="siteEditorUpdateBtn" type="button">Update</button>
-        <button class="btn siteEditorOverlay__exitBtn" id="siteEditorExitBtn" type="button" aria-label="Exit editor">Exit</button>
-      </div>
-    </header>
-
-    <div class="siteEditorOverlay__body">
-      <iframe class="siteEditorOverlay__frame" id="siteEditorFrame" title="Page preview"></iframe>
-      <div class="siteEditorOverlay__loading" id="siteEditorOverlayLoading" aria-live="polite">Loading pageâ€¦</div>
-    </div>
-
-    <div class="siteEditorPopover" id="siteEditorPopover" role="dialog" aria-modal="false" aria-labelledby="siteEditorPopoverTitle" hidden>
-      <div class="siteEditorPopover__header">
-        <h3 class="siteEditorPopover__title" id="siteEditorPopoverTitle">Edit field</h3>
-        <button class="iconBtn siteEditorPopover__close" id="siteEditorPopoverCloseBtn" type="button" aria-label="Close editor">&times;</button>
-      </div>
-      <div class="siteEditorPopover__body" id="siteEditorPopoverBody"></div>
-      <div class="siteEditorPopover__footer">
-        <span class="hint" id="siteEditorPopoverHint" aria-live="polite"></span>
-      </div>
-    </div>
-  </div>
-
-  <dialog class="dialog" id="siteEditorExitDialog" aria-labelledby="siteEditorExitDialogTitle">
-    <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
-    <div class="card dialog__inner">
-      <h3 id="siteEditorExitDialogTitle">Exit without saving?</h3>
-      <p class="muted">You have unsaved changes on this page. Choose Save Draft to keep them for later, or Discard to exit without saving.</p>
-      <div class="toolbar">
-        <button class="btn" id="siteEditorExitDiscardBtn" type="button">Discard Changes</button>
-        <button class="btn btn--primary" id="siteEditorExitSaveBtn" type="button">Save Draft &amp; Exit</button>
-        <button class="btn" id="siteEditorExitCancelBtn" type="button">Cancel</button>
-      </div>
-    </div>
-  </dialog>
-
-  <dialog class="dialog" id="siteEditorConfirmDialog" aria-labelledby="siteEditorConfirmDialogTitle">
-    <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
-    <div class="card dialog__inner">
-      <h3 id="siteEditorConfirmDialogTitle">Are you sure?</h3>
-      <p class="muted" id="siteEditorConfirmDialogBody"></p>
-      <div class="toolbar">
-        <button class="btn btn--primary" id="siteEditorConfirmOkBtn" type="button">Confirm</button>
-        <button class="btn" id="siteEditorConfirmCancelBtn" type="button">Cancel</button>
-      </div>
-    </div>
-  </dialog>
-
-  <dialog class="dialog" id="siteEditorAlertDialog" aria-labelledby="siteEditorAlertDialogTitle">
-    <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
-    <div class="card dialog__inner">
-      <h3 id="siteEditorAlertDialogTitle">Notice</h3>
-      <p class="muted" id="siteEditorAlertDialogBody"></p>
-      <div class="toolbar">
-        <button class="btn btn--primary" id="siteEditorAlertOkBtn" type="button">OK</button>
-      </div>
-    </div>
-  </dialog>
-
-  <dialog class="dialog" id="siteEditorPublishDialog" aria-labelledby="siteEditorPublishDialogTitle">
-    <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
-    <div class="card dialog__inner">
-      <h3 id="siteEditorPublishDialogTitle">Review before publishing</h3>
-      <p class="muted">This will make the following changes visible to everyone on the live site:</p>
-      <ul class="muted" id="siteEditorPublishDialogList" style="max-height:240px;overflow:auto;"></ul>
-      <div class="toolbar">
-        <button class="btn btn--primary" id="siteEditorPublishConfirmBtn" type="button">Publish</button>
-        <button class="btn" id="siteEditorPublishCancelBtn" type="button">Cancel</button>
-      </div>
-    </div>
-  </dialog>
-
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="/admin/admin.js?v=20260124"></script>
-  <script src="/admin/site-editor.js?v=20260124"></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260728232333" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260729120655" defer></script>
 </body>
 </html>
 

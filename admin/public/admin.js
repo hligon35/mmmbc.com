@@ -395,23 +395,12 @@ const formUploadsInProgress = new Set();
 const programmaticFormUpdates = new Set();
 const PHOTO_UPLOAD_MAX_BYTES = 15 * 1024 * 1024;
 const PHOTO_UPLOAD_MAX_FILES = 20;
-const SITE_IMAGE_UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
 const BULLETIN_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
 const IMAGE_UPLOAD_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const BULLETIN_UPLOAD_MIME_TYPES = new Set(['application/pdf', ...IMAGE_UPLOAD_MIME_TYPES]);
 let adminDrawerOpen = false;
 let adminDrawerRestoreFocus = null;
 const dialogFocusRestoreTargets = new WeakMap();
-
-const sitePreviewPageMap = {
-  home: { label: 'Home', url: '/' },
-  ministries: { label: 'Ministries', url: '/Pages/ministries.html' },
-  leadership: { label: 'Leadership & Staff', url: '/Pages/leadership.html' },
-  church_history: { label: 'Church History', url: '/Pages/church_history.html' },
-  facility_rental: { label: 'Facility Rental', url: '/Pages/facility_rental.html' },
-  live_praise: { label: 'Live Praise', url: '/Pages/live_praise.html' },
-  contact: { label: 'Contact', url: '/Pages/contact.html' }
-};
 
 function updateHeaderBumper() {
   const header = document.querySelector?.('.header');
@@ -1222,7 +1211,6 @@ function setTab(activeId) {
     $('tabBtn-content'),
     $('tabBtn-finances'),
     $('tabBtn-newsletter'),
-    $('tabBtn-profiles'),
     $('tabBtn-support')
   ];
   const panels = [
@@ -1232,7 +1220,6 @@ function setTab(activeId) {
     $('tab-content'),
     $('tab-finances'),
     $('tab-newsletter'),
-    $('tab-profiles'),
     $('tab-support')
   ];
 
@@ -1299,7 +1286,6 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
     'tab-content': subTabId === 'panel-content-bulletins' ? 'bulletins' : 'announcements',
     'tab-finances': 'finances',
     'tab-newsletter': 'newsletter',
-    'tab-profiles': 'profiles',
     'tab-support': 'support'
   };
   const nextHash = hashMap[sectionId];
@@ -1436,7 +1422,6 @@ function applyHashNavigation() {
   }
   if (h === 'finances' || h === 'finance') activateMainSection('tab-finances');
   if (h === 'newsletter') activateMainSection('tab-newsletter');
-  if (h === 'profiles' || h === 'staff') activateMainSection('tab-profiles');
   if (h === 'support') activateMainSection('tab-support');
 
   if (h === 'announcements') {
@@ -5279,27 +5264,6 @@ async function loadSubscribers() {
   renderSubscribers();
 }
 
-// -------- Site Editor (visual editor launcher) --------
-// The full editing implementation (schema/draft/publish, iframe bridge, popovers)
-// lives in admin/public/site-editor.js and is exposed via window.SiteEditor.
-function renderSiteEditorLauncher() {
-  const grid = $('siteEditorLauncherGrid');
-  if (!grid) return;
-  grid.innerHTML = '';
-  for (const key of Object.keys(sitePreviewPageMap)) {
-    const cfg = sitePreviewPageMap[key];
-    const card = document.createElement('button');
-    card.type = 'button';
-    card.className = 'siteEditorLauncherCard';
-    card.setAttribute('data-site-editor-open', key);
-    card.innerHTML = `
-      <span class="siteEditorLauncherCard__title">${escapeHtml(cfg.label)}</span>
-      <span class="siteEditorLauncherCard__hint">Edit this page</span>
-    `;
-    grid.appendChild(card);
-  }
-}
-
 function renderNewsletterPreview() {
   const preview = $('newsletterLivePreview');
   if (!preview) return;
@@ -5518,7 +5482,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('tabBtn-content')) $('tabBtn-content').addEventListener('click', () => activateMainSection('tab-content', { subTabId: 'panel-content-announcements' }));
   if ($('tabBtn-finances')) $('tabBtn-finances').addEventListener('click', () => activateMainSection('tab-finances'));
   if ($('tabBtn-newsletter')) $('tabBtn-newsletter').addEventListener('click', () => activateMainSection('tab-newsletter'));
-  if ($('tabBtn-profiles')) $('tabBtn-profiles').addEventListener('click', () => activateMainSection('tab-profiles'));
   if ($('tabBtn-support')) $('tabBtn-support').addEventListener('click', () => activateMainSection('tab-support'));
 
   for (const trigger of Array.from(document.querySelectorAll('[data-section-target]'))) {
@@ -6564,19 +6527,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   wireRecordsActions('newsletterRecordsDrafts');
   wireRecordsActions('newsletterRecordsScheduled');
   wireRecordsActions('newsletterRecordsHistory');
-
-  // Site Editor launcher (opens the full-screen visual editor from site-editor.js)
-  renderSiteEditorLauncher();
-  if ($('siteEditorLauncherGrid')) {
-    $('siteEditorLauncherGrid').addEventListener('click', (e) => {
-      const btn = e.target?.closest?.('[data-site-editor-open]');
-      if (!btn) return;
-      const page = String(btn.getAttribute('data-site-editor-open') || '').trim();
-      if (page && window.SiteEditor && typeof window.SiteEditor.open === 'function') {
-        window.SiteEditor.open(page);
-      }
-    });
-  }
 
   // Forgot login (recovery)
   $('forgotToggle').addEventListener('click', () => {

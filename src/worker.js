@@ -20,12 +20,6 @@ import {
   processScheduledNewsletters
 } from './worker-communications.js';
 import {
-  handleSitePagesList,
-  handleSitePageGet,
-  handleSitePageDraftPut,
-  handleSitePagePublishPost,
-  handleSitePageRestorePreviousPost,
-  handleSitePageMediaUpload,
   handlePublicSiteContentGet
 } from './worker-site-editor.js';
 
@@ -1319,6 +1313,28 @@ export default {
       return handlePublicSiteContentGet(request, env, page);
     }
 
+    // Finance dashboard aliases map clean URLs to the shipped admin finance pages.
+    // This keeps links like /admin/finances/dashboard working in production.
+    if (request.method === 'GET' || request.method === 'HEAD') {
+      const financeRouteMap = {
+        '/admin/finances/dashboard': '/admin/finances_dashboard.html',
+        '/admin/finances/funds': '/admin/finances_funds.html',
+        '/admin/finances/donors': '/admin/finances_donors.html',
+        '/admin/finances/reports/board': '/admin/finances_reports_board.html',
+        '/admin/finances/controls': '/admin/finances_controls.html',
+        '/admin/finances/clergy-housing': '/admin/finances_clergy_housing.html'
+      };
+      const mapped = financeRouteMap[url.pathname];
+      if (mapped) {
+        const headers = new Headers({
+          Location: mapped,
+          'Cache-Control': 'no-store'
+        });
+        applySecurityHeaders(headers, { isHttps });
+        return new Response(null, { status: 302, headers });
+      }
+    }
+
     // CDN endpoint for gallery objects in R2
     if (url.pathname.startsWith('/cdn/gallery/')) {
       return handleCdn(request, env);
@@ -1499,54 +1515,6 @@ export default {
       const auth = await requireAdmin(request, env);
       if (!auth.ok) return json({ error: auth.error }, { status: 401 });
       return handleNewsletterSend(request, env);
-    }
-
-    // Visual website editor (admin only). Route shapes:
-    //   GET  /api/admin/site-pages                    -> list all pages + versions
-    //   GET  /api/admin/site-pages/:page               -> schema + draft + published
-    //   PUT  /api/admin/site-pages/:page/draft         -> save draft
-    //   POST /api/admin/site-pages/:page/publish       -> publish saved draft
-    //   POST /api/admin/site-pages/:page/media         -> upload an image, returns its URL
-    if (url.pathname === '/api/admin/site-pages' && request.method === 'GET') {
-      const auth = await requireAdmin(request, env);
-      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
-      return handleSitePagesList(request, env);
-    }
-
-    if (url.pathname.startsWith('/api/admin/site-pages/')) {
-      const rest = url.pathname.slice('/api/admin/site-pages/'.length);
-      const [rawPage, action] = rest.split('/');
-      const page = decodeURIComponent(rawPage || '');
-
-      if (!action && request.method === 'GET') {
-        const auth = await requireAdmin(request, env);
-        if (!auth.ok) return json({ error: auth.error }, { status: 401 });
-        return handleSitePageGet(request, env, page);
-      }
-
-      if (action === 'draft' && request.method === 'PUT') {
-        const auth = await requireAdmin(request, env);
-        if (!auth.ok) return json({ error: auth.error }, { status: 401 });
-        return handleSitePageDraftPut(request, env, page, auth.email);
-      }
-
-      if (action === 'publish' && request.method === 'POST') {
-        const auth = await requireAdmin(request, env);
-        if (!auth.ok) return json({ error: auth.error }, { status: 401 });
-        return handleSitePagePublishPost(request, env, page, auth.email);
-      }
-
-      if (action === 'restore-previous' && request.method === 'POST') {
-        const auth = await requireAdmin(request, env);
-        if (!auth.ok) return json({ error: auth.error }, { status: 401 });
-        return handleSitePageRestorePreviousPost(request, env, page, auth.email);
-      }
-
-      if (action === 'media' && request.method === 'POST') {
-        const auth = await requireAdmin(request, env);
-        if (!auth.ok) return json({ error: auth.error }, { status: 401 });
-        return handleSitePageMediaUpload(request, env, page);
-      }
     }
 
     // Legacy login entry points are removed from static assets.

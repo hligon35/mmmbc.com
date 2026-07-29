@@ -4,7 +4,6 @@ const path = require('path');
 describe('Admin accessibility redesign guards', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
-  const siteEditorJs = fs.readFileSync(path.join(__dirname, 'public', 'site-editor.js'), 'utf8');
 
   test('Home is the default section after authentication', () => {
     expect(indexHtml).toContain('id="tabBtn-home"');
@@ -16,7 +15,6 @@ describe('Admin accessibility redesign guards', () => {
     expect(indexHtml).toContain('data-section-target="tab-content"');
     expect(indexHtml).toContain('data-subtab-target="panel-content-announcements"');
     expect(indexHtml).toContain('data-section-target="tab-events"');
-    expect(indexHtml).toContain('data-section-target="tab-profiles"');
     expect(indexHtml).toContain('data-section-target="tab-newsletter"');
     expect(indexHtml).toContain('data-section-target="tab-photos"');
     expect(indexHtml).toContain('data-section-target="tab-finances"');
@@ -27,7 +25,7 @@ describe('Admin accessibility redesign guards', () => {
     expect(indexHtml).toContain('Website Updates');
     expect(indexHtml).toContain('Communication');
     expect(indexHtml).toContain('Administration');
-    expect(indexHtml).toContain('Edit Website Pages');
+    expect(indexHtml).not.toContain('Edit Website Pages');
     expect(indexHtml).toContain('Church Finances');
     expect(indexHtml).toContain('Help &amp; Support');
   });
@@ -93,8 +91,6 @@ describe('Admin accessibility redesign guards', () => {
   });
 
   test('Keyboard accessibility handlers remain for tabs and popovers', () => {
-    expect(siteEditorJs).toContain("const container = el('siteEditorOverlayTabs');");
-    expect(siteEditorJs).toContain("['ArrowLeft', 'ArrowRight', 'Home', 'End']");
     expect(adminJs).toContain("$('newsletterTestRecipientsInput').addEventListener('keydown'");
   });
 
