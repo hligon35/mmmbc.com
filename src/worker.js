@@ -24,6 +24,7 @@ import {
   handleSitePageGet,
   handleSitePageDraftPut,
   handleSitePagePublishPost,
+  handleSitePageRestorePreviousPost,
   handleSitePageMediaUpload,
   handlePublicSiteContentGet
 } from './worker-site-editor.js';
@@ -508,7 +509,282 @@ function guessContentType(key) {
   if (k.endsWith('.png')) return 'image/png';
   if (k.endsWith('.webp')) return 'image/webp';
   if (k.endsWith('.gif')) return 'image/gif';
+  if (k.endsWith('.pdf')) return 'application/pdf';
   return 'application/octet-stream';
+}
+
+function safeId() {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
+
+function isoOrEmpty(v) {
+  const s = String(v || '').trim();
+  if (!s) return '';
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? new Date(t).toISOString() : '';
+}
+
+function normalizeDateOnly(v) {
+  const s = String(v || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
+}
+
+function normalizeTimeHHmm(v) {
+  const s = String(v || '').trim();
+  const m = s.match(/^([01]\d|2[0-3]):([0-5]\d)/);
+  return m ? `${m[1]}:${m[2]}` : '';
+}
+
+function bulletinUrlForKey(fileKey) {
+  return `/cdn/gallery/${encodeURI(String(fileKey || ''))}`;
+}
+
+async function handleAnnouncements(request, env) {
+  const auth = await requireAdmin(request, env);
+  if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+
+  if (request.method === 'GET') {
+    const rows = await env.DB.prepare(
+      'SELECT id, title, body, created_at, expires_at FROM announcements ORDER BY created_at DESC'
+    ).all();
+    const posts = (rows.results || [])
+      .filter((r) => {
+        const exp = isoOrEmpty(r.expires_at);
+        return !exp || Date.parse(exp) > Date.now();
+      })
+      .map((r) => ({
+        id: String(r.id),
+        title: String(r.title || ''),
+        body: String(r.body || ''),
+        createdAt: String(r.created_at || ''),
+        expiresAt: isoOrEmpty(r.expires_at) || undefined
+      }));
+    return json({ posts });
+  }
+
+  if (request.method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const title = String(body?.title || '').trim().slice(0, 120);
+    const textBody = String(body?.body || '').trim().slice(0, 5000);
+    if (!title || !textBody) return json({ error: 'Title and body required' }, { status: 400 });
+
+    const neverExpires = body?.neverExpires === true || Number(body?.expiresInDays) === 0;
+    let expiresAt = '';
+    if (!neverExpires) {
+      expiresAt = isoOrEmpty(body?.expiresAt);
+      if (!expiresAt) {
+        const n = Number(body?.expiresInDays);
+        const days = Number.isFinite(n) && n > 0 ? n : 30;
+        expiresAt = new Date(Date.now() + (days * 24 * 60 * 60 * 1000)).toISOString();
+      }
+    }
+
+    const id = safeId();
+    const createdAt = new Date().toISOString();
+    await env.DB.prepare(
+      'INSERT INTO announcements (id, title, body, created_at, expires_at) VALUES (?, ?, ?, ?, ?)'
+    ).bind(id, title, textBody, createdAt, expiresAt || null).run();
+
+    return json({ ok: true, post: { id, title, body: textBody, createdAt, expiresAt: expiresAt || undefined } });
+  }
+
+  if (request.method === 'PUT') {
+    const id = decodeURIComponent(new URL(request.url).pathname.split('/').pop() || '');
+    if (!id) return json({ error: 'Missing id' }, { status: 400 });
+
+    const body = await request.json().catch(() => ({}));
+    const title = String(body?.title || '').trim().slice(0, 120);
+    const textBody = String(body?.body || '').trim().slice(0, 5000);
+    if (!title || !textBody) return json({ error: 'Title and body required' }, { status: 400 });
+
+    const neverExpires = body?.neverExpires === true || body?.expiresAt === null;
+    const expiresAt = neverExpires ? '' : isoOrEmpty(body?.expiresAt);
+
+    const found = await env.DB.prepare('SELECT id, created_at FROM announcements WHERE id = ?').bind(id).first();
+    if (!found) return json({ error: 'Not found' }, { status: 404 });
+
+    await env.DB.prepare(
+      'UPDATE announcements SET title = ?, body = ?, expires_at = ? WHERE id = ?'
+    ).bind(title, textBody, expiresAt || null, id).run();
+
+    return json({
+      ok: true,
+      post: {
+        id,
+        title,
+        body: textBody,
+        createdAt: String(found.created_at || ''),
+        expiresAt: expiresAt || undefined
+      }
+    });
+  }
+
+  if (request.method === 'DELETE') {
+    const id = decodeURIComponent(new URL(request.url).pathname.split('/').pop() || '');
+    if (!id) return json({ error: 'Missing id' }, { status: 400 });
+    await env.DB.prepare('DELETE FROM announcements WHERE id = ?').bind(id).run();
+    return json({ ok: true });
+  }
+
+  return json({ error: 'Method not allowed' }, { status: 405 });
+}
+
+async function handleEvents(request, env) {
+  const auth = await requireAdmin(request, env);
+  if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+
+  if (request.method === 'GET') {
+    const rows = await env.DB.prepare(
+      'SELECT id, title, event_date, event_time, created_at, updated_at FROM events ORDER BY event_date ASC, event_time ASC, created_at ASC'
+    ).all();
+    const events = (rows.results || []).map((r) => ({
+      id: String(r.id),
+      title: String(r.title || ''),
+      date: String(r.event_date || ''),
+      time: normalizeTimeHHmm(r.event_time),
+      createdAt: String(r.created_at || ''),
+      updatedAt: String(r.updated_at || '')
+    }));
+    return json({ events });
+  }
+
+  if (request.method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const title = String(body?.title || '').trim().slice(0, 120);
+    const date = normalizeDateOnly(body?.date);
+    const time = normalizeTimeHHmm(body?.time);
+    if (!title || !date) return json({ error: 'Title and date required' }, { status: 400 });
+
+    const id = safeId();
+    const ts = new Date().toISOString();
+    await env.DB.prepare(
+      'INSERT INTO events (id, title, event_date, event_time, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(id, title, date, time || null, ts, ts).run();
+
+    return json({ ok: true, event: { id, title, date, time, createdAt: ts, updatedAt: ts } });
+  }
+
+  if (request.method === 'PUT') {
+    const id = decodeURIComponent(new URL(request.url).pathname.split('/').pop() || '');
+    if (!id) return json({ error: 'Missing id' }, { status: 400 });
+
+    const body = await request.json().catch(() => ({}));
+    const title = String(body?.title || '').trim().slice(0, 120);
+    const date = normalizeDateOnly(body?.date);
+    const time = normalizeTimeHHmm(body?.time);
+    if (!title || !date) return json({ error: 'Title and date required' }, { status: 400 });
+
+    const existing = await env.DB.prepare('SELECT id, created_at FROM events WHERE id = ?').bind(id).first();
+    if (!existing) return json({ error: 'Not found' }, { status: 404 });
+
+    const ts = new Date().toISOString();
+    await env.DB.prepare(
+      'UPDATE events SET title = ?, event_date = ?, event_time = ?, updated_at = ? WHERE id = ?'
+    ).bind(title, date, time || null, ts, id).run();
+
+    return json({
+      ok: true,
+      event: {
+        id,
+        title,
+        date,
+        time,
+        createdAt: String(existing.created_at || ''),
+        updatedAt: ts
+      }
+    });
+  }
+
+  if (request.method === 'DELETE') {
+    const id = decodeURIComponent(new URL(request.url).pathname.split('/').pop() || '');
+    if (!id) return json({ error: 'Missing id' }, { status: 400 });
+    await env.DB.prepare('DELETE FROM events WHERE id = ?').bind(id).run();
+    return json({ ok: true });
+  }
+
+  return json({ error: 'Method not allowed' }, { status: 405 });
+}
+
+async function handleBulletins(request, env) {
+  const auth = await requireAdmin(request, env);
+  if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+
+  if (request.method === 'GET') {
+    const rows = await env.DB.prepare(
+      'SELECT id, title, file_key, original_name, starts_at, ends_at, created_at FROM bulletins ORDER BY created_at DESC'
+    ).all();
+    const bulletins = (rows.results || []).map((r) => {
+      const fileKey = String(r.file_key || '');
+      const fileName = fileKey.includes('/') ? fileKey.slice(fileKey.lastIndexOf('/') + 1) : fileKey;
+      return {
+        id: String(r.id),
+        title: String(r.title || 'Bulletin'),
+        originalName: String(r.original_name || ''),
+        fileName,
+        url: bulletinUrlForKey(fileKey),
+        startsAt: isoOrEmpty(r.starts_at),
+        endsAt: isoOrEmpty(r.ends_at),
+        createdAt: String(r.created_at || '')
+      };
+    });
+    return json({ bulletins });
+  }
+
+  if (request.method === 'PUT') {
+    const id = decodeURIComponent(new URL(request.url).pathname.split('/').pop() || '');
+    if (!id) return json({ error: 'Missing id' }, { status: 400 });
+
+    const body = await request.json().catch(() => ({}));
+    const title = String(body?.title || 'Bulletin').trim().slice(0, 120) || 'Bulletin';
+    const startsAt = isoOrEmpty(body?.startsAt);
+    const endsAt = isoOrEmpty(body?.endsAt);
+    if (!startsAt || !endsAt) return json({ error: 'Show from and show until are required' }, { status: 400 });
+    if (Date.parse(endsAt) <= Date.parse(startsAt)) return json({ error: 'Show until must be after show from' }, { status: 400 });
+
+    const existing = await env.DB.prepare(
+      'SELECT id, file_key, original_name, created_at FROM bulletins WHERE id = ?'
+    ).bind(id).first();
+    if (!existing) return json({ error: 'Not found' }, { status: 404 });
+
+    await env.DB.prepare(
+      'UPDATE bulletins SET title = ?, starts_at = ?, ends_at = ? WHERE id = ?'
+    ).bind(title, startsAt, endsAt, id).run();
+
+    const fileKey = String(existing.file_key || '');
+    const fileName = fileKey.includes('/') ? fileKey.slice(fileKey.lastIndexOf('/') + 1) : fileKey;
+    return json({
+      ok: true,
+      bulletin: {
+        id,
+        title,
+        originalName: String(existing.original_name || ''),
+        fileName,
+        url: bulletinUrlForKey(fileKey),
+        startsAt,
+        endsAt,
+        createdAt: String(existing.created_at || '')
+      }
+    });
+  }
+
+  if (request.method === 'DELETE') {
+    const id = decodeURIComponent(new URL(request.url).pathname.split('/').pop() || '');
+    if (!id) return json({ error: 'Missing id' }, { status: 400 });
+
+    const existing = await env.DB.prepare('SELECT file_key FROM bulletins WHERE id = ?').bind(id).first();
+    await env.DB.prepare('DELETE FROM bulletins WHERE id = ?').bind(id).run();
+    const fileKey = String(existing?.file_key || '').trim();
+    if (fileKey && env.GALLERY_BUCKET && typeof env.GALLERY_BUCKET.delete === 'function') {
+      try { await env.GALLERY_BUCKET.delete(fileKey); } catch { /* ignore file-delete failures */ }
+    }
+    return json({ ok: true });
+  }
+
+  return json({ error: 'Method not allowed' }, { status: 405 });
 }
 
 async function listGallery(env) {
@@ -1133,6 +1409,28 @@ export default {
       return handleGalleryDelete(request, env, id);
     }
 
+    // Announcements / Events / Bulletins (admin only)
+    if (url.pathname === '/api/announcements' && (request.method === 'GET' || request.method === 'POST')) {
+      return handleAnnouncements(request, env);
+    }
+    if (url.pathname.startsWith('/api/announcements/') && (request.method === 'PUT' || request.method === 'DELETE')) {
+      return handleAnnouncements(request, env);
+    }
+
+    if (url.pathname === '/api/events' && (request.method === 'GET' || request.method === 'POST')) {
+      return handleEvents(request, env);
+    }
+    if (url.pathname.startsWith('/api/events/') && (request.method === 'PUT' || request.method === 'DELETE')) {
+      return handleEvents(request, env);
+    }
+
+    if (url.pathname === '/api/bulletins' && request.method === 'GET') {
+      return handleBulletins(request, env);
+    }
+    if (url.pathname.startsWith('/api/bulletins/') && (request.method === 'PUT' || request.method === 'DELETE')) {
+      return handleBulletins(request, env);
+    }
+
     // Health
     if (url.pathname === '/api/admin/health') {
       const auth = await requireAdmin(request, env);
@@ -1236,6 +1534,12 @@ export default {
         const auth = await requireAdmin(request, env);
         if (!auth.ok) return json({ error: auth.error }, { status: 401 });
         return handleSitePagePublishPost(request, env, page, auth.email);
+      }
+
+      if (action === 'restore-previous' && request.method === 'POST') {
+        const auth = await requireAdmin(request, env);
+        if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+        return handleSitePageRestorePreviousPost(request, env, page, auth.email);
       }
 
       if (action === 'media' && request.method === 'POST') {

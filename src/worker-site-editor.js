@@ -57,16 +57,34 @@ async function ensurePageRow(env, page) {
   return env.DB.prepare('SELECT * FROM site_page_content WHERE page = ?').bind(page).first();
 }
 
-function rowToPageState(row) {
+// Fills in any schema field that isn't present yet in a stored fields object using its
+// INITIAL_PUBLISHED_CONTENT seed value. This lets new fields (added to the schema after
+// a page's D1 row already existed) show up immediately with the value that matches the
+// current live static HTML, without ever overwriting a value someone already edited.
+function mergeWithSeed(page, storedFields) {
+  const seed = INITIAL_PUBLISHED_CONTENT[page] || {};
+  const stored = isPlainObject(storedFields) ? storedFields : {};
+  const merged = { ...seed, ...stored };
+  for (const key of Object.keys(seed)) {
+    if (!Object.prototype.hasOwnProperty.call(stored, key)) merged[key] = seed[key];
+  }
+  return merged;
+}
+
+function isPlainObject(v) {
+  return Boolean(v) && typeof v === 'object' && !Array.isArray(v);
+}
+
+function rowToPageState(page, row) {
   return {
     draft: {
-      fields: parseJsonColumn(row.draft_fields, {}),
+      fields: mergeWithSeed(page, parseJsonColumn(row.draft_fields, {})),
       version: row.draft_version,
       updatedAt: row.draft_updated_at,
       updatedBy: row.draft_updated_by
     },
     published: {
-      fields: parseJsonColumn(row.published_fields, {}),
+      fields: mergeWithSeed(page, parseJsonColumn(row.published_fields, {})),
       version: row.published_version,
       updatedAt: row.published_updated_at,
       updatedBy: row.published_updated_by
@@ -96,7 +114,7 @@ export async function handleSitePageGet(request, env, page) {
   if (!schema) return json({ error: `Unknown page "${page}".` }, 404);
 
   const row = await ensurePageRow(env, key);
-  const state = rowToPageState(row);
+  const state = rowToPageState(key, row);
   return json({
     page: key,
     label: schema.label,
@@ -189,6 +207,42 @@ export async function handleSitePagePublishPost(request, env, page, actorEmail) 
   });
 }
 
+// One-level "undo publish": swaps the current published content back to whatever was
+// published immediately before it (stored in previous_published_* since the schema's
+// initial release). This is not full multi-revision history — only the single most
+// recent prior publish can be restored, and restoring again just toggles back and forth
+// between the two most recent published versions.
+export async function handleSitePageRestorePreviousPost(request, env, page, actorEmail) {
+  const key = normalizePageKey(page);
+  const schema = getPageSchema(key);
+  if (!schema) return json({ error: `Unknown page "${page}".` }, 404);
+
+  const row = await ensurePageRow(env, key);
+  if (!row.previous_published_fields) {
+    return json({ error: 'There is no earlier published version to restore.' }, 400);
+  }
+
+  const ts = nowIso();
+  const email = String(actorEmail || 'unknown').toLowerCase();
+  const nextPublishedVersion = row.published_version + 1;
+
+  await env.DB.prepare(
+    `UPDATE site_page_content
+       SET published_fields = ?, published_version = ?, published_updated_at = ?, published_updated_by = ?,
+           previous_published_fields = ?, previous_published_version = ?, previous_published_updated_at = ?
+     WHERE page = ?`
+  ).bind(
+    row.previous_published_fields, nextPublishedVersion, ts, email,
+    row.published_fields, row.published_version, row.published_updated_at,
+    key
+  ).run();
+
+  return json({
+    page: key,
+    published: { fields: mergeWithSeed(key, parseJsonColumn(row.previous_published_fields, {})), version: nextPublishedVersion, updatedAt: ts, updatedBy: email }
+  });
+}
+
 export async function handleSitePageMediaUpload(request, env, page) {
   const key = normalizePageKey(page);
   if (!getPageSchema(key)) return json({ error: `Unknown page "${page}".` }, 404);
@@ -242,7 +296,7 @@ export async function handlePublicSiteContentGet(request, env, page) {
         'SELECT published_fields, published_version, published_updated_at FROM site_page_content WHERE page = ?'
       ).bind(key).first();
       if (row) {
-        fields = parseJsonColumn(row.published_fields, fields);
+        fields = mergeWithSeed(key, parseJsonColumn(row.published_fields, fields));
         version = row.published_version;
         updatedAt = row.published_updated_at;
       }

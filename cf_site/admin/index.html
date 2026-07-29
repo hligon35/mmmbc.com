@@ -7,7 +7,7 @@
   <meta name="description" content="Admin dashboard for Mt. Moriah Missionary Baptist Church website." />
   <link rel="stylesheet" href="/admin/admin.css?v=20260124" />
   <link rel="stylesheet" href="/admin/site-editor.css?v=20260124" />
-  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260728201456" />
+  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260728225708" />
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
@@ -469,6 +469,8 @@
             <div class="hint" id="announceHint" aria-live="polite"></div>
           </form>
 
+          <div class="muted" id="announcePreview" aria-live="polite">No announcement preview yet.</div>
+
           <div class="list list--scroll5" id="announceList" aria-live="polite"></div>
         </div>
 
@@ -510,6 +512,8 @@
             <button class="btn btn--primary" type="submit">Upload Bulletin</button>
             <div class="hint" id="bulletinHint" aria-live="polite"></div>
           </form>
+
+          <div class="muted" id="bulletinPreview" aria-live="polite">No bulletin preview yet.</div>
 
           <div class="list list--scroll5" id="bulletinList" aria-live="polite"></div>
         </div>
@@ -952,6 +956,8 @@
           <div class="hint" id="eventHint" aria-live="polite"></div>
         </form>
 
+        <div class="muted" id="eventPreview" aria-live="polite">No event preview yet.</div>
+
         <details class="menu eventsPrintMenu noPrint" id="eventsPrintMenu">
           <summary class="btn">Print Events</summary>
           <div class="menu__panel" aria-label="Print events">
@@ -1218,6 +1224,8 @@
       <h2 class="siteEditorOverlay__title" id="siteEditorOverlayTitle">Edit Page</h2>
       <div class="siteEditorOverlay__actions">
         <span class="siteEditorOverlay__status" id="siteEditorOverlayStatus" aria-live="polite">Saved</span>
+        <button class="btn" id="siteEditorUndoBtn" type="button" title="Undo last change">Undo</button>
+        <button class="btn" id="siteEditorRestorePreviousBtn" type="button" title="Restore the previously published version">Restore previous version</button>
         <button class="btn" id="siteEditorSaveBtn" type="button">Save</button>
         <button class="btn btn--primary" id="siteEditorUpdateBtn" type="button">Update</button>
         <button class="btn siteEditorOverlay__exitBtn" id="siteEditorExitBtn" type="button" aria-label="Exit editor">Exit</button>
@@ -1254,10 +1262,46 @@
     </div>
   </dialog>
 
+  <dialog class="dialog" id="siteEditorConfirmDialog" aria-labelledby="siteEditorConfirmDialogTitle">
+    <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
+    <div class="card dialog__inner">
+      <h3 id="siteEditorConfirmDialogTitle">Are you sure?</h3>
+      <p class="muted" id="siteEditorConfirmDialogBody"></p>
+      <div class="toolbar">
+        <button class="btn btn--primary" id="siteEditorConfirmOkBtn" type="button">Confirm</button>
+        <button class="btn" id="siteEditorConfirmCancelBtn" type="button">Cancel</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="dialog" id="siteEditorAlertDialog" aria-labelledby="siteEditorAlertDialogTitle">
+    <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
+    <div class="card dialog__inner">
+      <h3 id="siteEditorAlertDialogTitle">Notice</h3>
+      <p class="muted" id="siteEditorAlertDialogBody"></p>
+      <div class="toolbar">
+        <button class="btn btn--primary" id="siteEditorAlertOkBtn" type="button">OK</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="dialog" id="siteEditorPublishDialog" aria-labelledby="siteEditorPublishDialogTitle">
+    <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
+    <div class="card dialog__inner">
+      <h3 id="siteEditorPublishDialogTitle">Review before publishing</h3>
+      <p class="muted">This will make the following changes visible to everyone on the live site:</p>
+      <ul class="muted" id="siteEditorPublishDialogList" style="max-height:240px;overflow:auto;"></ul>
+      <div class="toolbar">
+        <button class="btn btn--primary" id="siteEditorPublishConfirmBtn" type="button">Publish</button>
+        <button class="btn" id="siteEditorPublishCancelBtn" type="button">Cancel</button>
+      </div>
+    </div>
+  </dialog>
+
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="/admin/admin.js?v=20260124"></script>
   <script src="/admin/site-editor.js?v=20260124"></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260728201456" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260728225708" defer></script>
 </body>
 </html>
 

@@ -77,11 +77,11 @@
     <main>
         <section id="times">
             <div id="worship-times" class="times-column">
-                <h2>Worship Times</h2>
-                <div class="days-container"> <!-- New wrapper for all day blocks -->
+                <h2 data-cms-field="sections.worship.heading" data-cms-type="text">Worship Times</h2>
+                <div class="days-container" data-cms-collection="worship.schedule" data-cms-schedule> <!-- New wrapper for all day blocks -->
                     <div class="day sunday-schedule"> <!-- MODIFIED: Added sunday-schedule class -->
                         <div class="day-label">
-                            <p class="worship-day" data-cms-field="worship.primary.day" data-cms-type="weekday">Sunday</p>
+                            <p class="worship-day">Sunday</p>
                         </div>
                         <div class="day-events">
                             <div class="sunday-event-group">
@@ -93,10 +93,10 @@
                                 </div>
                             </div>
                             <div class="sunday-event-group">
-                                <h3 class="time-slot" data-cms-field="worship.primary.time" data-cms-type="time">11:00am</h3>
+                                <h3 class="time-slot">11:00am</h3>
                                 <div class="service-block">
                                     <div class="service-details">
-                                        <p data-cms-field="worship.primary.label" data-cms-type="text">Morning Worship</p>
+                                        <p>Morning Worship</p>
                                     </div>
                                 </div>
                             </div>
@@ -138,8 +138,8 @@
             </div>
 
             <div id="ministries" class="times-column">
-                <h2>Weekly Ministry Times</h2>
-                <div class="days-container">
+                <h2 data-cms-field="sections.ministries.heading" data-cms-type="text">Weekly Ministry Times</h2>
+                <div class="days-container" data-cms-collection="ministries.weeklySchedule" data-cms-schedule>
 
                 <!-- Tuesday -->
                 <div class="day">

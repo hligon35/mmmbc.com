@@ -9,8 +9,8 @@
 //
 // Talks to the public page rendered inside #siteEditorFrame via the postMessage
 // protocol implemented in site-content-loader.js:
-//   iframe -> parent: ready | fieldClick | navigateBlocked | error
-//   parent -> iframe: init | refresh | setField
+//   iframe -> parent: ready | fieldClick | collectionItemClick | collectionItemActions | navigateBlocked | error
+//   parent -> iframe: init | refresh | setField | setCollectionItemField | setSelection | clearSelection
 //
 // See SITE_EDITOR.md for the full architecture write-up.
 (function () {
@@ -33,6 +33,7 @@
   let draftFields = {};
   let draftVersion = 0;
   let publishedVersion = 0;
+  let publishedFieldsSnapshot = {};
   let dirty = false;
   let saving = false;
   let publishing = false;
@@ -40,7 +41,53 @@
   let lastFocusedBeforePopover = null;
   let autosaveDebounceTimer = null;
   let autosaveIntervalTimer = null;
-  let popoverMode = null; // { kind: 'field', field } | { kind: 'collection', field }
+  let popoverMode = null; // { kind: 'field', field } | { kind: 'collection', field } | { kind: 'item', collection, itemId, field } | { kind: 'itemActions', collection, itemId }
+  let lastChange = null; // single-slot undo: { kind: 'field', field, prevValue } | { kind: 'item', collection, itemId, field, prevValue }
+
+  // ---------------------------------------------------------------------
+  // Small accessible dialog helpers (replace window.confirm / window.alert, which are
+  // not screen-reader-friendly and block the whole tab). All three return promises.
+  // ---------------------------------------------------------------------
+  function showAlertDialog(message, title) {
+    return new Promise((resolve) => {
+      const dialog = el('siteEditorAlertDialog');
+      if (!(dialog instanceof HTMLDialogElement)) { resolve(); return; }
+      el('siteEditorAlertDialogTitle').textContent = title || 'Notice';
+      el('siteEditorAlertDialogBody').textContent = message || '';
+      const okBtn = el('siteEditorAlertOkBtn');
+      const onOk = () => { cleanup(); resolve(); };
+      function cleanup() {
+        okBtn.removeEventListener('click', onOk);
+        if (dialog.open) dialog.close();
+      }
+      okBtn.addEventListener('click', onOk);
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else dialog.setAttribute('open', '');
+    });
+  }
+
+  function showConfirmDialog(message, title, confirmLabel) {
+    return new Promise((resolve) => {
+      const dialog = el('siteEditorConfirmDialog');
+      if (!(dialog instanceof HTMLDialogElement)) { resolve(window.confirm(message)); return; }
+      el('siteEditorConfirmDialogTitle').textContent = title || 'Are you sure?';
+      el('siteEditorConfirmDialogBody').textContent = message || '';
+      const okBtn = el('siteEditorConfirmOkBtn');
+      const cancelBtn = el('siteEditorConfirmCancelBtn');
+      okBtn.textContent = confirmLabel || 'Confirm';
+      const onOk = () => { cleanup(); resolve(true); };
+      const onCancel = () => { cleanup(); resolve(false); };
+      function cleanup() {
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+        if (dialog.open) dialog.close();
+      }
+      okBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancel);
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else dialog.setAttribute('open', '');
+    });
+  }
 
   function el(id) { return document.getElementById(id); }
 
@@ -144,7 +191,11 @@
 
   async function switchPage(pageKey, { first = false } = {}) {
     if (dirty && !first) {
-      const proceed = window.confirm('You have unsaved changes on this page. Switch pages anyway? Unsaved edits from the last few seconds may be lost.');
+      const proceed = await showConfirmDialog(
+        'You have unsaved changes on this page. Switch pages anyway? Unsaved edits from the last few seconds may be lost.',
+        'Switch pages?',
+        'Switch pages'
+      );
       if (!proceed) return;
     }
     stopAutosaveTimers();
@@ -165,15 +216,18 @@
       draftFields = (data.draft && data.draft.fields) || {};
       draftVersion = (data.draft && data.draft.version) || 1;
       publishedVersion = (data.published && data.published.version) || 1;
+      publishedFieldsSnapshot = (data.published && data.published.fields) || {};
+      lastChange = null;
+      updateUndoButton();
       if (titleEl) titleEl.textContent = `Edit ${pageLabel}`;
-      renderCollectionButton();
+      renderCollectionButtons();
       loadFrame(pageKey);
       setStatus('Saved');
       startAutosaveInterval();
     } catch (err) {
       setLoading(false);
       setStatus('Failed to load');
-      window.alert(err && err.message ? err.message : 'Could not load this page for editing.');
+      await showAlertDialog(err && err.message ? err.message : 'Could not load this page for editing.');
     }
   }
 
@@ -190,32 +244,26 @@
   // items in the rendered page are not individually clickable — the loader only
   // renders them from a template with no top-level data-cms-field target.
   // ---------------------------------------------------------------------
-  function collectionFieldKey() {
-    for (const [key, schema] of Object.entries(fieldSchemas)) {
-      if (schema && schema.type === 'collection') return key;
-    }
-    return null;
+  function collectionFieldKeys() {
+    return Object.entries(fieldSchemas)
+      .filter(([, schema]) => schema && schema.type === 'collection')
+      .map(([key]) => key);
   }
 
-  function renderCollectionButton() {
+  function renderCollectionButtons() {
     const actions = document.querySelector('.siteEditorOverlay__actions');
     if (!actions) return;
-    let btn = el('siteEditorManageListBtn');
-    const key = collectionFieldKey();
-    if (!key) {
-      if (btn) btn.hidden = true;
-      return;
-    }
-    if (!btn) {
-      btn = document.createElement('button');
+    document.querySelectorAll('[data-site-editor-manage-list]').forEach((btn) => btn.remove());
+    const keys = collectionFieldKeys();
+    for (const key of keys) {
+      const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'btn';
-      btn.id = 'siteEditorManageListBtn';
-      btn.addEventListener('click', () => openCollectionManager(collectionFieldKey()));
+      btn.setAttribute('data-site-editor-manage-list', key);
+      btn.textContent = `Manage ${fieldSchemas[key].label || 'List'}`;
+      btn.addEventListener('click', () => openCollectionManager(key));
       actions.insertBefore(btn, el('siteEditorSaveBtn'));
     }
-    btn.hidden = false;
-    btn.textContent = `Manage ${fieldSchemas[key].label || 'List'}`;
   }
 
   // ---------------------------------------------------------------------
@@ -233,6 +281,10 @@
       postToFrame({ type: 'init', fields: draftFields });
     } else if (data.type === 'fieldClick') {
       openFieldPopover(data.field, data.fieldType, data.rect);
+    } else if (data.type === 'collectionItemClick') {
+      openCollectionItemFieldPopover(data.collection, data.itemId, data.field, data.fieldType, data.rect);
+    } else if (data.type === 'collectionItemActions') {
+      openItemActionsPopover(data.collection, data.itemId, data.rect);
     } else if (data.type === 'navigateBlocked') {
       // Intentionally ignored: editing surface must never navigate away.
     } else if (data.type === 'error') {
@@ -254,10 +306,59 @@
   // Field value commit + autosave
   // ---------------------------------------------------------------------
   function commitFieldValue(fieldKey, value) {
+    lastChange = { kind: 'field', field: fieldKey, prevValue: draftFields[fieldKey] };
+    updateUndoButton();
     draftFields[fieldKey] = value;
     dirty = true;
     setStatus('Unsaved changes');
     if (frameReady) postToFrame({ type: 'setField', field: fieldKey, value });
+    scheduleAutosave();
+  }
+
+  function findCollectionItem(collection, itemId) {
+    const items = Array.isArray(draftFields[collection]) ? draftFields[collection] : [];
+    return items.find((it) => it && it.id === itemId) || null;
+  }
+
+  function commitCollectionItemField(collection, itemId, field, value) {
+    const items = Array.isArray(draftFields[collection]) ? draftFields[collection].slice() : [];
+    const index = items.findIndex((it) => it && it.id === itemId);
+    if (index === -1) return;
+    lastChange = { kind: 'item', collection, itemId, field, prevValue: items[index][field] };
+    updateUndoButton();
+    items[index] = Object.assign({}, items[index], { [field]: value });
+    draftFields[collection] = items;
+    dirty = true;
+    setStatus('Unsaved changes');
+    if (frameReady) postToFrame({ type: 'setCollectionItemField', collection, itemId, field, value });
+    scheduleAutosave();
+  }
+
+  function updateUndoButton() {
+    const btn = el('siteEditorUndoBtn');
+    if (btn) btn.disabled = !lastChange;
+  }
+
+  function undoLastChange() {
+    if (!lastChange) return;
+    if (lastChange.kind === 'field') {
+      const { field, prevValue } = lastChange;
+      draftFields[field] = prevValue;
+      if (frameReady) postToFrame({ type: 'setField', field, value: prevValue });
+    } else if (lastChange.kind === 'item') {
+      const { collection, itemId, field, prevValue } = lastChange;
+      const items = Array.isArray(draftFields[collection]) ? draftFields[collection].slice() : [];
+      const index = items.findIndex((it) => it && it.id === itemId);
+      if (index !== -1) {
+        items[index] = Object.assign({}, items[index], { [field]: prevValue });
+        draftFields[collection] = items;
+        if (frameReady) postToFrame({ type: 'setCollectionItemField', collection, itemId, field, value: prevValue });
+      }
+    }
+    lastChange = null;
+    updateUndoButton();
+    dirty = true;
+    setStatus('Unsaved changes');
     scheduleAutosave();
   }
 
@@ -308,7 +409,7 @@
         return false;
       }
       setStatus('Save failed');
-      if (!silent) window.alert(err && err.message ? err.message : 'Could not save this page.');
+      if (!silent) await showAlertDialog(err && err.message ? err.message : 'Could not save this page.');
       return false;
     } finally {
       saving = false;
@@ -330,6 +431,8 @@
 
   async function publishDraft() {
     if (!currentPage || publishing) return;
+    const proceed = await openPublishReviewDialog();
+    if (!proceed) return;
     publishing = true;
     setStatus('Publishing…');
     try {
@@ -342,6 +445,7 @@
         body: JSON.stringify({ baseVersion: draftVersion })
       });
       publishedVersion = (data.published && data.published.version) || publishedVersion;
+      publishedFieldsSnapshot = (data.published && data.published.fields) || publishedFieldsSnapshot;
       setStatus('Published');
     } catch (err) {
       if (err && err.status === 409) {
@@ -350,10 +454,84 @@
         setStatus('Reloaded — please review and try Update again.');
       } else {
         setStatus('Publish failed');
-        window.alert(err && err.message ? err.message : 'This page could not be published. Check the fields and try again.');
+        await showAlertDialog(err && err.message ? err.message : 'This page could not be published. Check the fields and try again.');
       }
     } finally {
       publishing = false;
+    }
+  }
+
+  // Summarizes, in plain language, which fields/collections differ between the current
+  // draft and what's currently live, so the reviewer knows exactly what publishing will
+  // change before it happens. Not a byte-level diff — a friendly "what changed" summary.
+  function describeFieldChange(key, schema) {
+    const before = publishedFieldsSnapshot ? publishedFieldsSnapshot[key] : undefined;
+    const after = draftFields[key];
+    const label = (schema && schema.label) || key;
+    if (schema && schema.type === 'collection') {
+      const beforeCount = Array.isArray(before) ? before.length : 0;
+      const afterCount = Array.isArray(after) ? after.length : 0;
+      if (JSON.stringify(before || []) === JSON.stringify(after || [])) return null;
+      return `${label}: ${beforeCount} → ${afterCount} item(s), content changed`;
+    }
+    if (JSON.stringify(before === undefined ? null : before) === JSON.stringify(after === undefined ? null : after)) return null;
+    return `${label}: updated`;
+  }
+
+  function openPublishReviewDialog() {
+    return new Promise((resolve) => {
+      const dialog = el('siteEditorPublishDialog');
+      const list = el('siteEditorPublishDialogList');
+      if (!(dialog instanceof HTMLDialogElement) || !list) { resolve(true); return; }
+      list.innerHTML = '';
+      const changes = Object.keys(fieldSchemas)
+        .map((key) => describeFieldChange(key, fieldSchemas[key]))
+        .filter(Boolean);
+      if (changes.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = 'No changes detected since the last published version.';
+        list.appendChild(li);
+      } else {
+        for (const change of changes) {
+          const li = document.createElement('li');
+          li.textContent = change;
+          list.appendChild(li);
+        }
+      }
+      const confirmBtn = el('siteEditorPublishConfirmBtn');
+      const cancelBtn = el('siteEditorPublishCancelBtn');
+      const onOk = () => { cleanup(); resolve(true); };
+      const onCancel = () => { cleanup(); resolve(false); };
+      function cleanup() {
+        confirmBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+        if (dialog.open) dialog.close();
+      }
+      confirmBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancel);
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else dialog.setAttribute('open', '');
+    });
+  }
+
+  async function restorePreviousPublished() {
+    if (!currentPage) return;
+    const proceed = await showConfirmDialog(
+      'This replaces the LIVE site content for this page with the previously published version. Your current draft is not affected. Continue?',
+      'Restore previous published version?',
+      'Restore'
+    );
+    if (!proceed) return;
+    setStatus('Restoring…');
+    try {
+      const data = await api(`/api/admin/site-pages/${encodeURIComponent(currentPage)}/restore-previous`, { method: 'POST' });
+      publishedVersion = (data.published && data.published.version) || publishedVersion;
+      publishedFieldsSnapshot = (data.published && data.published.fields) || publishedFieldsSnapshot;
+      setStatus('Previous version restored');
+      await showAlertDialog('The live site now shows the previously published version of this page.', 'Restored');
+    } catch (err) {
+      setStatus('Restore failed');
+      await showAlertDialog(err && err.message ? err.message : 'Could not restore the previous version.');
     }
   }
 
@@ -411,6 +589,7 @@
     const popover = el('siteEditorPopover');
     if (popover) popover.hidden = true;
     popoverMode = null;
+    postToFrame({ type: 'clearSelection' });
     document.removeEventListener('keydown', onPopoverKeydown, true);
     if (lastFocusedBeforePopover && typeof lastFocusedBeforePopover.focus === 'function') {
       try { lastFocusedBeforePopover.focus(); } catch { /* ignore */ }
@@ -428,6 +607,16 @@
     return (schema && schema.label) || fieldKey;
   }
 
+  // Re-renders whichever popover is currently open for a given field key, after an
+  // async action (like an image upload) changes its value out from under the form.
+  function reopenCurrentFieldPopover(fieldKey) {
+    if (popoverMode && popoverMode.kind === 'item' && popoverMode.field === fieldKey) {
+      openCollectionItemFieldPopover(popoverMode.collection, popoverMode.itemId, fieldKey, 'image', null);
+    } else {
+      openFieldPopover(fieldKey, 'image', null);
+    }
+  }
+
   function openFieldPopover(fieldKey, fieldType, rect) {
     const schema = fieldSchemas[fieldKey];
     if (!schema) return;
@@ -435,7 +624,128 @@
     openPopoverShell(fieldPopoverTitle(fieldKey, schema));
     positionPopover(rect);
     renderFieldControl(schema.type || fieldType, fieldKey, schema, draftFields[fieldKey]);
+    postToFrame({ type: 'setSelection', field: fieldKey });
     focusFirstPopoverControl();
+  }
+
+  // Popover for editing ONE subfield of ONE collection item (e.g. clicking directly on a
+  // schedule activity's title or time on the rendered page). Reuses renderFieldControl by
+  // wrapping schema.itemFields[field] into a plain field schema shape.
+  function openCollectionItemFieldPopover(collectionKey, itemId, fieldKey, fieldType, rect) {
+    const schema = fieldSchemas[collectionKey];
+    const itemFieldSchema = schema && schema.itemFields && schema.itemFields[fieldKey];
+    const item = findCollectionItem(collectionKey, itemId);
+    if (!schema || !itemFieldSchema || !item) return;
+    popoverMode = { kind: 'item', collection: collectionKey, itemId, field: fieldKey };
+    openPopoverShell(`${schema.itemLabel || 'Item'}: ${itemFieldSchema.label || fieldKey}`);
+    positionPopover(rect);
+    renderFieldControl(itemFieldSchema.type || fieldType, fieldKey, itemFieldSchema, item[fieldKey], (value) => {
+      commitCollectionItemField(collectionKey, itemId, fieldKey, value);
+    });
+    postToFrame({ type: 'setSelection', collection: collectionKey, itemId, field: fieldKey });
+    focusFirstPopoverControl();
+  }
+
+  // Popover for whole-item actions on a collection item (the "⋮" handle button rendered
+  // next to each schedule activity / profile card): edit every subfield at once, add a new
+  // item right after this one, reorder, or remove.
+  function openItemActionsPopover(collectionKey, itemId, rect) {
+    const schema = fieldSchemas[collectionKey];
+    const items = Array.isArray(draftFields[collectionKey]) ? draftFields[collectionKey] : [];
+    const index = items.findIndex((it) => it && it.id === itemId);
+    if (!schema || index === -1) return;
+    popoverMode = { kind: 'itemActions', collection: collectionKey, itemId };
+    openPopoverShell(`${schema.itemLabel || 'Item'} actions`);
+    positionPopover(rect);
+    renderItemActionsBody(collectionKey, schema, itemId);
+    postToFrame({ type: 'setSelection', collection: collectionKey, itemId });
+  }
+
+  function renderItemActionsBody(collectionKey, schema, itemId) {
+    const body = el('siteEditorPopoverBody');
+    if (!body) return;
+    body.innerHTML = '';
+
+    const items = Array.isArray(draftFields[collectionKey]) ? draftFields[collectionKey] : [];
+    const index = items.findIndex((it) => it && it.id === itemId);
+    if (index === -1) return;
+    const item = items[index];
+
+    const editWrap = document.createElement('div');
+    editWrap.style.display = 'grid';
+    editWrap.style.gap = '8px';
+    editWrap.appendChild(renderCollectionItem(collectionKey, schema, items, item, index));
+    body.appendChild(editWrap);
+
+    const actionsRow = document.createElement('div');
+    actionsRow.className = 'toolbar';
+    actionsRow.style.marginTop = '8px';
+
+    const addBelowBtn = document.createElement('button');
+    addBelowBtn.type = 'button';
+    addBelowBtn.className = 'btn';
+    addBelowBtn.textContent = `Add ${schema.itemLabel || 'item'} below`;
+    addBelowBtn.addEventListener('click', () => {
+      const current = Array.isArray(draftFields[collectionKey]) ? draftFields[collectionKey].slice() : [];
+      const at = current.findIndex((it) => it && it.id === itemId);
+      const newItem = { id: makeItemId() };
+      for (const key of Object.keys(schema.itemFields || {})) {
+        newItem[key] = defaultItemFieldValue(schema.itemFields[key]);
+      }
+      current.splice(at + 1, 0, newItem);
+      commitFieldValue(collectionKey, current);
+      closePopover();
+    });
+    actionsRow.appendChild(addBelowBtn);
+
+    const moveUpBtn = document.createElement('button');
+    moveUpBtn.type = 'button';
+    moveUpBtn.className = 'btn';
+    moveUpBtn.textContent = 'Move up';
+    moveUpBtn.disabled = index === 0;
+    moveUpBtn.addEventListener('click', () => {
+      const current = draftFields[collectionKey].slice();
+      const at = current.findIndex((it) => it && it.id === itemId);
+      if (at > 0) {
+        [current[at - 1], current[at]] = [current[at], current[at - 1]];
+        commitFieldValue(collectionKey, current);
+        renderItemActionsBody(collectionKey, schema, itemId);
+      }
+    });
+    actionsRow.appendChild(moveUpBtn);
+
+    const moveDownBtn = document.createElement('button');
+    moveDownBtn.type = 'button';
+    moveDownBtn.className = 'btn';
+    moveDownBtn.textContent = 'Move down';
+    moveDownBtn.disabled = index === items.length - 1;
+    moveDownBtn.addEventListener('click', () => {
+      const current = draftFields[collectionKey].slice();
+      const at = current.findIndex((it) => it && it.id === itemId);
+      if (at !== -1 && at < current.length - 1) {
+        [current[at + 1], current[at]] = [current[at], current[at + 1]];
+        commitFieldValue(collectionKey, current);
+        renderItemActionsBody(collectionKey, schema, itemId);
+      }
+    });
+    actionsRow.appendChild(moveDownBtn);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn';
+    removeBtn.textContent = `Remove ${schema.itemLabel || 'item'}`;
+    removeBtn.addEventListener('click', async () => {
+      const proceed = await showConfirmDialog(`Remove this ${(schema.itemLabel || 'item').toLowerCase()}? This cannot be undone with the Undo button.`, 'Remove item?', 'Remove');
+      if (!proceed) return;
+      const current = draftFields[collectionKey].slice();
+      const at = current.findIndex((it) => it && it.id === itemId);
+      if (at !== -1) current.splice(at, 1);
+      commitFieldValue(collectionKey, current);
+      closePopover();
+    });
+    actionsRow.appendChild(removeBtn);
+
+    body.appendChild(actionsRow);
   }
 
   function focusFirstPopoverControl() {
@@ -462,12 +772,12 @@
     return wrap;
   }
 
-  function renderFieldControl(type, fieldKey, schema, value) {
+  function renderFieldControl(type, fieldKey, schema, value, commitOverride) {
     const body = el('siteEditorPopoverBody');
     if (!body) return;
     body.innerHTML = '';
 
-    const commit = (val) => commitFieldValue(fieldKey, val);
+    const commit = commitOverride || ((val) => commitFieldValue(fieldKey, val));
 
     if (type === 'text' || type === 'email' || type === 'telephone' || type === 'url') {
       const wrap = buildFieldWrap(schema.label);
@@ -519,6 +829,20 @@
       input.type = 'time';
       input.value = value == null ? '' : String(value);
       input.addEventListener('change', () => commit(input.value));
+      wrap.appendChild(input);
+      body.appendChild(wrap);
+      return;
+    }
+
+    if (type === 'number') {
+      const wrap = buildFieldWrap(schema.label);
+      const input = document.createElement('input');
+      input.className = 'input';
+      input.type = 'number';
+      if (typeof schema.min === 'number') input.min = String(schema.min);
+      if (typeof schema.max === 'number') input.max = String(schema.max);
+      input.value = value == null ? '' : String(value);
+      input.addEventListener('change', () => commit(Number(input.value) || 0));
       wrap.appendChild(input);
       body.appendChild(wrap);
       return;
@@ -635,7 +959,7 @@
         });
         const nextValue = { url: out.url, alt: altInput.value || current.alt || '' };
         commit(nextValue);
-        openFieldPopover(fieldKey, 'image', null);
+        reopenCurrentFieldPopover(fieldKey);
         if (hint) hint.textContent = 'Image uploaded.';
       } catch (err) {
         if (hint) hint.textContent = err && err.message ? err.message : 'Upload failed.';
@@ -652,6 +976,13 @@
   // ---------------------------------------------------------------------
   function makeItemId() {
     return `item-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  function defaultItemFieldValue(itemFieldSchema) {
+    if (itemFieldSchema.type === 'image') return { url: '', alt: '' };
+    if (itemFieldSchema.type === 'number') return typeof itemFieldSchema.min === 'number' ? itemFieldSchema.min : 0;
+    if (itemFieldSchema.type === 'weekday') return WEEKDAYS[0];
+    return '';
   }
 
   function openCollectionManager(fieldKey) {
@@ -692,7 +1023,7 @@
       const newItem = { id: makeItemId() };
       if (Array.isArray(schema.groups) && schema.groups.length) newItem.group = schema.groups[0];
       for (const key of Object.keys(schema.itemFields || {})) {
-        newItem[key] = schema.itemFields[key].type === 'image' ? { url: '', alt: '' } : '';
+        newItem[key] = defaultItemFieldValue(schema.itemFields[key]);
       }
       const next = items.concat([newItem]);
       commitFieldValue(fieldKey, next);
@@ -755,7 +1086,7 @@
             allowedMimes: IMAGE_UPLOAD_MIME_TYPES,
             label: 'image'
           });
-          if (problem) { window.alert(problem); return; }
+          if (problem) { await showAlertDialog(problem); return; }
           try {
             const fd = new FormData();
             fd.append('image', file);
@@ -763,7 +1094,7 @@
             updateItem({ [key]: { url: out.url, alt: value.alt || '' } });
             renderCollectionManager(fieldKey, schema);
           } catch (err) {
-            window.alert(err && err.message ? err.message : 'Upload failed.');
+            await showAlertDialog(err && err.message ? err.message : 'Upload failed.');
           }
         });
         imgWrap.appendChild(fileInput);
@@ -771,12 +1102,31 @@
         continue;
       }
 
-      const input = itemFieldSchema.type === 'textarea' ? document.createElement('textarea') : document.createElement('input');
-      input.className = itemFieldSchema.type === 'textarea' ? 'textarea' : 'input';
-      if (input.tagName === 'INPUT') input.type = 'text';
-      input.placeholder = itemFieldSchema.label || key;
-      input.value = item[key] || '';
-      input.addEventListener('change', () => updateItem({ [key]: input.value }));
+      const type = itemFieldSchema.type;
+      let input;
+      if (type === 'textarea') {
+        input = document.createElement('textarea');
+        input.className = 'textarea';
+      } else if (type === 'weekday') {
+        input = document.createElement('select');
+        input.className = 'select';
+        for (const day of WEEKDAYS) {
+          const opt = document.createElement('option');
+          opt.value = day;
+          opt.textContent = day;
+          if (day === item[key]) opt.selected = true;
+          input.appendChild(opt);
+        }
+      } else {
+        input = document.createElement('input');
+        input.className = 'input';
+        input.type = type === 'time' ? 'time' : type === 'number' ? 'number' : 'text';
+      }
+      if (input.tagName !== 'SELECT') {
+        input.placeholder = itemFieldSchema.label || key;
+        input.value = item[key] == null ? '' : String(item[key]);
+      }
+      input.addEventListener('change', () => updateItem({ [key]: type === 'number' ? (Number(input.value) || 0) : input.value }));
       card.appendChild(input);
     }
 
@@ -804,6 +1154,13 @@
     }
     if (el('siteEditorUpdateBtn')) {
       el('siteEditorUpdateBtn').addEventListener('click', () => publishDraft());
+    }
+    if (el('siteEditorUndoBtn')) {
+      el('siteEditorUndoBtn').disabled = true;
+      el('siteEditorUndoBtn').addEventListener('click', () => undoLastChange());
+    }
+    if (el('siteEditorRestorePreviousBtn')) {
+      el('siteEditorRestorePreviousBtn').addEventListener('click', () => restorePreviousPublished());
     }
     if (el('siteEditorExitBtn')) {
       el('siteEditorExitBtn').addEventListener('click', () => requestClose());

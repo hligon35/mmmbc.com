@@ -80,7 +80,10 @@ function validateScalarField(schema, rawValue, path, errors) {
 
   if (rawValue === undefined || rawValue === null || rawValue === '') {
     if (schema.required) errors.push(`${path} is required.`);
-    return type === 'boolean' ? false : (type === 'image' ? null : '');
+    if (type === 'boolean') return false;
+    if (type === 'image') return null;
+    if (type === 'number') return typeof schema.min === 'number' ? schema.min : 0;
+    return '';
   }
 
   switch (type) {
@@ -132,6 +135,16 @@ function validateScalarField(schema, rawValue, path, errors) {
     }
     case 'boolean': {
       return Boolean(rawValue);
+    }
+    case 'number': {
+      let value = Number(rawValue);
+      if (!Number.isFinite(value)) {
+        errors.push(`${path} must be a number.`);
+        value = 0;
+      }
+      if (typeof schema.min === 'number' && value < schema.min) value = schema.min;
+      if (typeof schema.max === 'number' && value > schema.max) value = schema.max;
+      return Math.round(value);
     }
     case 'select': {
       const value = String(rawValue).trim();

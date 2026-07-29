@@ -25,11 +25,16 @@
  * postMessage protocol (all messages are validated for shape + same-origin):
  *   iframe -> parent: { source: 'mmmbc-cms', type: 'ready', page }
  *   iframe -> parent: { source: 'mmmbc-cms', type: 'fieldClick', page, field, fieldType, rect }
+ *   iframe -> parent: { source: 'mmmbc-cms', type: 'collectionItemClick', page, collection, itemId, field, fieldType, rect }
+ *   iframe -> parent: { source: 'mmmbc-cms', type: 'collectionItemActions', page, collection, itemId, rect }
  *   iframe -> parent: { source: 'mmmbc-cms', type: 'navigateBlocked', page, href }
  *   iframe -> parent: { source: 'mmmbc-cms', type: 'error', page, message }
  *   parent -> iframe: { source: 'mmmbc-cms', type: 'init', page, fields }
  *   parent -> iframe: { source: 'mmmbc-cms', type: 'refresh', page, fields }
  *   parent -> iframe: { source: 'mmmbc-cms', type: 'setField', page, field, value }
+ *   parent -> iframe: { source: 'mmmbc-cms', type: 'setCollectionItemField', page, collection, itemId, field, value }
+ *   parent -> iframe: { source: 'mmmbc-cms', type: 'setSelection', page, collection, itemId, field }
+ *   parent -> iframe: { source: 'mmmbc-cms', type: 'clearSelection', page }
  */
 (function () {
   'use strict';
@@ -38,6 +43,7 @@
   var PAGE = CURRENT_SCRIPT ? CURRENT_SCRIPT.getAttribute('data-cms-page') : null;
   if (!PAGE) return;
 
+  var WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   var SAFE_URL_PROTOCOLS = ['http:', 'https:', 'mailto:', 'tel:'];
   var RICH_TEXT_TAGS = { B: true, STRONG: true, I: true, EM: true, BR: true, P: true, A: true };
   var RICH_TEXT_URL_PROTOCOLS = ['http:', 'https:', 'mailto:'];
@@ -221,12 +227,175 @@
     return String(value).replace(/["\\]/g, '\\$&');
   }
 
+  function addItemActionsHandle(root, label) {
+    if (!isEditorMode) return;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cms-item-actions-btn cms-editable';
+    btn.setAttribute('data-cms-item-actions', '');
+    btn.setAttribute('aria-label', 'More actions for ' + label);
+    btn.textContent = '\u22EE';
+    root.appendChild(btn);
+  }
+
+  // Groups an activity's visual classes to match the hand-tuned static layout: Sunday
+  // worship activities and Thursday ministry activities each have their own dedicated
+  // CSS (see public-components.css), everything else uses the generic row layout.
+  function scheduleGroupClasses(collectionKey, day) {
+    if (collectionKey === 'worship.schedule' && day === 'Sunday') {
+      return { dayExtra: 'sunday-schedule', groupClass: 'sunday-event-group' };
+    }
+    if (collectionKey === 'ministries.weeklySchedule' && day === 'Thursday') {
+      return { dayExtra: 'thursday-schedule', groupClass: 'thursday-event-group' };
+    }
+    return { dayExtra: '', groupClass: 'simple-event-row' };
+  }
+
+  function renderScheduleCollection(container, items, collectionKey) {
+    var byDay = {};
+    var dayOrder = [];
+    items.forEach(function (item) {
+      var day = item && item.day;
+      if (!day) return;
+      if (!(day in byDay)) { byDay[day] = []; dayOrder.push(day); }
+      byDay[day].push(item);
+    });
+    dayOrder.sort(function (a, b) { return WEEKDAYS.indexOf(a) - WEEKDAYS.indexOf(b); });
+
+    container.innerHTML = '';
+
+    dayOrder.forEach(function (day) {
+      var dayItems = byDay[day].slice().sort(function (a, b) {
+        var sa = Number(a.sortOrder) || 0;
+        var sb = Number(b.sortOrder) || 0;
+        if (sa !== sb) return sa - sb;
+        return String(a.time || '').localeCompare(String(b.time || ''));
+      });
+      var cls = scheduleGroupClasses(collectionKey, day);
+
+      var dayDiv = document.createElement('div');
+      dayDiv.className = cls.dayExtra ? ('day ' + cls.dayExtra) : 'day';
+
+      var labelDiv = document.createElement('div');
+      labelDiv.className = 'day-label';
+      var dayP = document.createElement('p');
+      dayP.className = 'worship-day';
+      dayP.textContent = day;
+      var firstItem = dayItems[0];
+      if (firstItem) {
+        dayP.setAttribute('data-cms-item-field', 'day');
+        dayP.setAttribute('data-cms-type', 'weekday');
+        dayP.setAttribute('data-cms-item-id', firstItem.id);
+        if (isEditorMode) {
+          dayP.classList.add('cms-editable');
+          dayP.setAttribute('tabindex', '0');
+          dayP.setAttribute('role', 'button');
+          dayP.setAttribute('aria-label', 'Edit day for ' + (firstItem.title || 'this activity'));
+        }
+      }
+      labelDiv.appendChild(dayP);
+      dayDiv.appendChild(labelDiv);
+
+      var eventsDiv = document.createElement('div');
+      eventsDiv.className = 'day-events';
+
+      var byTime = {};
+      var timeOrder = [];
+      dayItems.forEach(function (item) {
+        var t = item.time || '';
+        if (!(t in byTime)) { byTime[t] = []; timeOrder.push(t); }
+        byTime[t].push(item);
+      });
+
+      timeOrder.forEach(function (time) {
+        var timeItems = byTime[time];
+        var groupDiv = document.createElement('div');
+        groupDiv.className = cls.groupClass;
+
+        var timeH3 = document.createElement('h3');
+        timeH3.className = 'time-slot';
+        timeH3.textContent = formatTime12h(time);
+        var firstTimeItem = timeItems[0];
+        timeH3.setAttribute('data-cms-item-field', 'time');
+        timeH3.setAttribute('data-cms-type', 'time');
+        timeH3.setAttribute('data-cms-item-id', firstTimeItem.id);
+        if (isEditorMode) {
+          timeH3.classList.add('cms-editable');
+          timeH3.setAttribute('tabindex', '0');
+          timeH3.setAttribute('role', 'button');
+          timeH3.setAttribute('aria-label', 'Edit time for ' + (firstTimeItem.title || 'this activity'));
+        }
+        groupDiv.appendChild(timeH3);
+
+        var blocksParent = groupDiv;
+        if (timeItems.length > 1) {
+          blocksParent = document.createElement('div');
+          blocksParent.className = 'event-service-blocks-row';
+          groupDiv.appendChild(blocksParent);
+        }
+
+        timeItems.forEach(function (item) {
+          var block = document.createElement('div');
+          block.className = 'service-block';
+          block.setAttribute('data-cms-item', '');
+          block.setAttribute('data-cms-item-id', item.id);
+
+          var details = document.createElement('div');
+          details.className = 'service-details';
+
+          var titleP = document.createElement('p');
+          titleP.setAttribute('data-cms-item-field', 'title');
+          titleP.setAttribute('data-cms-type', 'text');
+          titleP.textContent = item.title || '';
+          if (isEditorMode) {
+            titleP.classList.add('cms-editable');
+            titleP.setAttribute('tabindex', '0');
+            titleP.setAttribute('role', 'button');
+            titleP.setAttribute('aria-label', 'Edit activity name: ' + (item.title || ''));
+          }
+          details.appendChild(titleP);
+
+          if (item.details || isEditorMode) {
+            var detailsP = document.createElement('p');
+            detailsP.setAttribute('data-cms-item-field', 'details');
+            detailsP.setAttribute('data-cms-type', 'textarea');
+            detailsP.textContent = item.details || '';
+            if (isEditorMode) {
+              detailsP.classList.add('cms-editable');
+              detailsP.setAttribute('tabindex', '0');
+              detailsP.setAttribute('role', 'button');
+              detailsP.setAttribute('aria-label', 'Edit details for ' + (item.title || 'this activity'));
+            }
+            details.appendChild(detailsP);
+          }
+
+          block.appendChild(details);
+          addItemActionsHandle(block, item.title || 'this activity');
+          blocksParent.appendChild(block);
+        });
+
+        eventsDiv.appendChild(groupDiv);
+      });
+
+      dayDiv.appendChild(eventsDiv);
+      container.appendChild(dayDiv);
+    });
+  }
+
   function hydrateCollectionField(fieldKey) {
     var items = state.fields[fieldKey];
-    if (!Array.isArray(items) || items.length === 0) return; // preserve existing static markup
+    if (!Array.isArray(items)) return;
 
     var containers = document.querySelectorAll('[data-cms-collection="' + cssEscape(fieldKey) + '"]');
     containers.forEach(function (container) {
+      if (container.hasAttribute('data-cms-schedule')) {
+        if (items.length === 0 && !isEditorMode) return; // preserve static markup for visitors
+        renderScheduleCollection(container, items, fieldKey);
+        return;
+      }
+
+      if (items.length === 0) return; // preserve existing static markup
+
       var template = container.querySelector('template[data-cms-item-template]');
       if (!template) return;
       var group = container.getAttribute('data-cms-collection-group');
@@ -243,11 +412,19 @@
         var root = fragment.firstElementChild;
         if (!root) return;
         root.setAttribute('data-cms-item', '');
+        root.setAttribute('data-cms-item-id', item && item.id ? item.id : '');
         root.querySelectorAll('[data-cms-item-field]').forEach(function (fieldEl) {
           var key = fieldEl.getAttribute('data-cms-item-field');
           var type = fieldEl.getAttribute('data-cms-type') || 'text';
           setElementValue(fieldEl, type, item ? item[key] : '');
+          if (isEditorMode) {
+            fieldEl.classList.add('cms-editable');
+            fieldEl.setAttribute('tabindex', '0');
+            fieldEl.setAttribute('role', 'button');
+            fieldEl.setAttribute('aria-label', 'Edit ' + key + (item && item.name ? ' for ' + item.name : ''));
+          }
         });
+        addItemActionsHandle(root, (item && item.name) || (item && item.title) || 'this item');
         container.insertBefore(root, template);
       });
     });
@@ -310,6 +487,42 @@
     return null;
   }
 
+  function findItemFieldAncestor(el) {
+    var node = el;
+    while (node && node !== document.body) {
+      if (node.hasAttribute && node.hasAttribute('data-cms-item-field')) return node;
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  function findItemActionsAncestor(el) {
+    var node = el;
+    while (node && node !== document.body) {
+      if (node.hasAttribute && node.hasAttribute('data-cms-item-actions')) return node;
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  function findCollectionAncestor(el) {
+    var node = el;
+    while (node && node !== document.body) {
+      if (node.hasAttribute && node.hasAttribute('data-cms-collection')) return node;
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  function findItemRootAncestor(el) {
+    var node = el;
+    while (node && node !== document.body) {
+      if (node.hasAttribute && node.hasAttribute('data-cms-item-id') && node.hasAttribute('data-cms-item')) return node;
+      node = node.parentElement;
+    }
+    return null;
+  }
+
   function findAnchorAncestor(el) {
     var node = el;
     while (node && node !== document.body) {
@@ -319,19 +532,112 @@
     return null;
   }
 
+  function rectOf(el) {
+    var r = el.getBoundingClientRect();
+    return { top: r.top, left: r.left, width: r.width, height: r.height };
+  }
+
+  // Injects a small stylesheet, only in editor mode, giving every editable element a
+  // visible hover / keyboard-focus / selected state so senior-friendly users can always
+  // see what is clickable before they click it. Never loaded in normal public mode.
+  function injectEditorStyles() {
+    var style = document.createElement('style');
+    style.setAttribute('data-cms-editor-styles', '');
+    style.textContent =
+      '.cms-editable{outline:2px solid transparent;outline-offset:2px;cursor:pointer;border-radius:4px;transition:outline-color .12s ease,background-color .12s ease;}' +
+      '.cms-editable:hover{outline-color:#4c8bf5;background-color:rgba(76,139,245,0.08);}' +
+      '.cms-editable:focus-visible{outline-color:#1a56db;outline-width:3px;background-color:rgba(26,86,219,0.10);}' +
+      '.cms-editable--selected{outline-color:#e08a00 !important;outline-width:3px !important;background-color:rgba(224,138,0,0.12) !important;}' +
+      '.cms-item-actions-btn{position:absolute;top:-10px;right:-10px;width:26px;height:26px;border-radius:50%;border:1px solid #ccc;background:#fff;color:#333;font-size:14px;line-height:1;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.25);opacity:0;pointer-events:none;z-index:5;}' +
+      '[data-cms-item]{position:relative;}' +
+      '[data-cms-item]:hover .cms-item-actions-btn,[data-cms-item]:focus-within .cms-item-actions-btn,.cms-item-actions-btn:focus-visible{opacity:1;pointer-events:auto;}';
+    document.head.appendChild(style);
+  }
+
+  // Marks every plain [data-cms-field] element as keyboard-focusable/hoverable. Collection
+  // item fields and schedule-rendered fields already get this treatment where they're built
+  // (hydrateCollectionField / renderScheduleCollection), since those are (re)created on the fly.
+  function markScalarFieldsEditable() {
+    document.querySelectorAll('[data-cms-field]').forEach(function (el) {
+      el.classList.add('cms-editable');
+      if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+      if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
+      if (!el.hasAttribute('aria-label')) {
+        el.setAttribute('aria-label', 'Edit ' + (el.getAttribute('data-cms-field') || 'this content'));
+      }
+    });
+  }
+
+  function clearSelectionClasses() {
+    document.querySelectorAll('.cms-editable--selected').forEach(function (el) {
+      el.classList.remove('cms-editable--selected');
+    });
+  }
+
+  function applySelection(data) {
+    clearSelectionClasses();
+    if (!data || (!data.field && !data.itemId)) return;
+    var selector;
+    if (data.collection && data.itemId && data.field) {
+      selector = '[data-cms-item-id="' + cssEscape(data.itemId) + '"][data-cms-item-field="' + cssEscape(data.field) + '"]';
+    } else if (data.field) {
+      selector = '[data-cms-field="' + cssEscape(data.field) + '"]';
+    }
+    if (!selector) return;
+    document.querySelectorAll(selector).forEach(function (el) { el.classList.add('cms-editable--selected'); });
+  }
+
+  function handleEditableActivation(target) {
+    var itemFieldEl = findItemFieldAncestor(target);
+    if (itemFieldEl) {
+      var collectionEl = findCollectionAncestor(itemFieldEl);
+      var itemRoot = findItemRootAncestor(itemFieldEl);
+      postToParent({
+        type: 'collectionItemClick',
+        collection: collectionEl ? collectionEl.getAttribute('data-cms-collection') : '',
+        itemId: itemFieldEl.getAttribute('data-cms-item-id') || (itemRoot ? itemRoot.getAttribute('data-cms-item-id') : ''),
+        field: itemFieldEl.getAttribute('data-cms-item-field'),
+        fieldType: itemFieldEl.getAttribute('data-cms-type') || 'text',
+        rect: rectOf(itemFieldEl)
+      });
+      return true;
+    }
+
+    var actionsEl = findItemActionsAncestor(target);
+    if (actionsEl) {
+      var itemRoot2 = findItemRootAncestor(actionsEl);
+      var collectionEl2 = findCollectionAncestor(actionsEl);
+      postToParent({
+        type: 'collectionItemActions',
+        collection: collectionEl2 ? collectionEl2.getAttribute('data-cms-collection') : '',
+        itemId: itemRoot2 ? itemRoot2.getAttribute('data-cms-item-id') : '',
+        rect: rectOf(actionsEl)
+      });
+      return true;
+    }
+
+    var fieldEl = findFieldAncestor(target);
+    if (fieldEl) {
+      postToParent({
+        type: 'fieldClick',
+        field: fieldEl.getAttribute('data-cms-field'),
+        fieldType: fieldEl.getAttribute('data-cms-type') || 'text',
+        rect: rectOf(fieldEl)
+      });
+      return true;
+    }
+
+    return false;
+  }
+
   function initEditorMode() {
+    injectEditorStyles();
+    markScalarFieldsEditable();
+
     document.addEventListener('click', function (event) {
-      var fieldEl = findFieldAncestor(event.target);
-      if (fieldEl) {
+      if (handleEditableActivation(event.target)) {
         event.preventDefault();
         event.stopPropagation();
-        var rect = fieldEl.getBoundingClientRect();
-        postToParent({
-          type: 'fieldClick',
-          field: fieldEl.getAttribute('data-cms-field'),
-          fieldType: fieldEl.getAttribute('data-cms-type') || 'text',
-          rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
-        });
         return;
       }
       var anchorEl = findAnchorAncestor(event.target);
@@ -342,11 +648,24 @@
       }
     }, true);
 
+    // Keyboard activation (Enter / Space) for every focusable editable element, so the
+    // editor is fully usable without a mouse.
+    document.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
+      var target = event.target;
+      if (!target || !target.classList || !target.classList.contains('cms-editable')) return;
+      if (handleEditableActivation(target)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }, true);
+
     window.addEventListener('message', function (event) {
       if (!isValidParentMessage(event)) return;
       var data = event.data;
       if (data.type === 'init' || data.type === 'refresh') {
         applyFields(data.fields);
+        markScalarFieldsEditable();
       } else if (data.type === 'setField') {
         if (typeof data.field === 'string') {
           state.fields[data.field] = data.value;
@@ -356,6 +675,19 @@
             hydrateScalarField(data.field);
           }
         }
+      } else if (data.type === 'setCollectionItemField') {
+        var items = state.fields[data.collection];
+        if (Array.isArray(items) && typeof data.itemId === 'string' && typeof data.field === 'string') {
+          var item = items.filter(function (it) { return it && it.id === data.itemId; })[0];
+          if (item) {
+            item[data.field] = data.value;
+            hydrateCollectionField(data.collection);
+          }
+        }
+      } else if (data.type === 'setSelection') {
+        applySelection(data);
+      } else if (data.type === 'clearSelection') {
+        clearSelectionClasses();
       }
     });
 

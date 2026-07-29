@@ -3079,6 +3079,64 @@ async function createAnnouncementUnified({ title, body, startsAt, expiresAt, sou
   return post;
 }
 
+async function getAnnouncementByIdUnified(id) {
+  const key = String(id);
+  if (hasPostgres()) {
+    const r = await pgQuery(
+      'SELECT id, title, body, created_at, starts_at, expires_at, source FROM announcements WHERE id = $1',
+      [key]
+    );
+    const row = r.rows?.[0];
+    return row ? mapAnnouncementRow(row) : null;
+  }
+
+  const data = loadAnnouncementsFile();
+  const posts = Array.isArray(data.posts) ? data.posts : [];
+  return posts.find((p) => String(p.id) === key) || null;
+}
+
+async function updateAnnouncementUnified(id, { title, body, startsAt, expiresAt } = {}) {
+  const key = String(id);
+  if (hasPostgres()) {
+    const r = await pgQuery(
+      `UPDATE announcements
+          SET title = $2,
+              body = $3,
+              starts_at = $4,
+              expires_at = $5
+        WHERE id = $1
+      RETURNING id, title, body, created_at, starts_at, expires_at, source`,
+      [
+        key,
+        String(title || '').trim(),
+        String(body || '').trim(),
+        startsAt || null,
+        expiresAt || null
+      ]
+    );
+    const row = r.rows?.[0];
+    return row ? mapAnnouncementRow(row) : null;
+  }
+
+  const data = loadAnnouncementsFile();
+  const posts = Array.isArray(data.posts) ? data.posts : [];
+  const idx = posts.findIndex((p) => String(p.id) === key);
+  if (idx < 0) return null;
+
+  const prev = posts[idx] || {};
+  const next = {
+    ...prev,
+    id: prev.id,
+    title: String(title || '').trim(),
+    body: String(body || '').trim(),
+    startsAt: startsAt || undefined,
+    expiresAt: expiresAt || undefined
+  };
+  posts[idx] = next;
+  saveAnnouncementsFile({ posts });
+  return next;
+}
+
 async function deleteAnnouncementUnified(id) {
   if (hasPostgres()) {
     await pgQuery('DELETE FROM announcements WHERE id = $1', [String(id)]);
@@ -3125,6 +3183,40 @@ app.post('/api/announcements', requirePermission(PERMISSIONS.COMMUNICATIONS_MANA
     res.json({ ok: true, post });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to create announcement' });
+  }
+});
+
+app.put('/api/announcements/:id', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const title = String(req.body.title || '').trim().slice(0, 120);
+    const body = String(req.body.body || '').trim().slice(0, 5000);
+    if (!title || !body) return res.status(400).json({ error: 'Title and body required' });
+
+    const startsAtRaw = req.body?.startsAt;
+    const startsAt = startsAtRaw ? parseIsoMaybe(startsAtRaw) : '';
+    if (startsAtRaw && !startsAt) return res.status(400).json({ error: 'Show from is invalid' });
+
+    const neverExpires = req.body?.neverExpires === true || String(req.body?.neverExpires || '').toLowerCase() === 'true';
+    const expiresAtRaw = req.body?.expiresAt;
+    const expiresAt = neverExpires ? '' : (expiresAtRaw ? parseIsoMaybe(expiresAtRaw) : '');
+    if (!neverExpires && expiresAtRaw && !expiresAt) return res.status(400).json({ error: 'Expires at is invalid' });
+    if (!neverExpires && startsAt && expiresAt && Date.parse(expiresAt) <= Date.parse(startsAt)) {
+      return res.status(400).json({ error: 'Expires at must be after show from' });
+    }
+
+    const updated = await updateAnnouncementUnified(id, {
+      title,
+      body,
+      startsAt: startsAt || undefined,
+      expiresAt: neverExpires ? undefined : (expiresAt || undefined)
+    });
+    if (!updated) return res.status(404).json({ error: 'Not found' });
+
+    await exportAnnouncementsUnifiedToRoot();
+    res.json({ ok: true, post: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to update announcement' });
   }
 });
 
@@ -4777,6 +4869,45 @@ async function deleteBulletinByIdUnified(id) {
   saveBulletinsFile({ bulletins: next });
 }
 
+async function updateBulletinByIdUnified(id, { title, startsAt, endsAt } = {}) {
+  const key = String(id);
+  if (hasPostgres()) {
+    const r = await pgQuery(
+      `UPDATE bulletins
+          SET title = $2,
+              starts_at = $3,
+              ends_at = $4
+        WHERE id = $1
+      RETURNING id, title, original_name, file_name, mime_type, url, starts_at, ends_at, linked_announcement_id, created_at`,
+      [
+        key,
+        String(title || 'Bulletin').trim().slice(0, 120) || 'Bulletin',
+        startsAt,
+        endsAt
+      ]
+    );
+    const row = r.rows?.[0];
+    return row ? mapBulletinRow(row) : null;
+  }
+
+  const data = loadBulletinsFile();
+  const bulletins = Array.isArray(data.bulletins) ? data.bulletins : [];
+  const idx = bulletins.findIndex((b) => String(b.id) === key);
+  if (idx < 0) return null;
+
+  const prev = bulletins[idx] || {};
+  const next = {
+    ...prev,
+    id: prev.id,
+    title: String(title || 'Bulletin').trim().slice(0, 120) || 'Bulletin',
+    startsAt,
+    endsAt
+  };
+  bulletins[idx] = next;
+  saveBulletinsFile({ bulletins });
+  return next;
+}
+
 function parseIsoMaybe(value) {
   const v = String(value || '').trim();
   if (!v) return '';
@@ -4937,6 +5068,39 @@ app.delete('/api/bulletins/:id', requirePermission(PERMISSIONS.COMMUNICATIONS_MA
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to delete bulletin' });
+  }
+});
+
+app.put('/api/bulletins/:id', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const title = String(req.body.title || 'Bulletin').trim().slice(0, 120) || 'Bulletin';
+    const startsAt = parseIsoMaybe(req.body.startsAt);
+    const endsAt = parseIsoMaybe(req.body.endsAt);
+    if (!startsAt || !endsAt) return res.status(400).json({ error: 'Show from and show until are required' });
+    if (Date.parse(endsAt) <= Date.parse(startsAt)) return res.status(400).json({ error: 'Show until must be after show from' });
+
+    const bulletin = await updateBulletinByIdUnified(id, { title, startsAt, endsAt });
+    if (!bulletin) return res.status(404).json({ error: 'Not found' });
+
+    // Keep linked bulletin announcements in sync with the active window.
+    if (bulletin.linkedAnnouncementId) {
+      const linked = await getAnnouncementByIdUnified(bulletin.linkedAnnouncementId);
+      if (linked) {
+        await updateAnnouncementUnified(linked.id, {
+          title: linked.title,
+          body: linked.body,
+          startsAt,
+          expiresAt: endsAt
+        });
+      }
+    }
+
+    await exportBulletinsUnifiedToRoot();
+    await exportAnnouncementsUnifiedToRoot();
+    res.json({ ok: true, bulletin });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to update bulletin' });
   }
 });
 

@@ -70,9 +70,6 @@ function emptyFinances() {
 }
 
 const READ_ENDPOINTS = new Set([
-  '/api/events',
-  '/api/announcements',
-  '/api/bulletins',
   '/api/finances',
   '/api/profiles'
 ]);
@@ -248,21 +245,6 @@ export default {
     if (request.method === 'GET' && READ_ENDPOINTS.has(url.pathname)) {
       const user = await requireSession(request, env, ctx);
       if (!user) return json({ error: 'Unauthorized' }, 401);
-
-      if (url.pathname === '/api/announcements') {
-        const data = await readAssetJson(request, env, '/announcements.json', { posts: [] });
-        return json(normalizeAnnouncements(data));
-      }
-
-      if (url.pathname === '/api/events') {
-        const data = await readAssetJson(request, env, '/schedule.json', { events: [] });
-        return json(normalizeEvents(data));
-      }
-
-      if (url.pathname === '/api/bulletins') {
-        const data = await readAssetJson(request, env, '/bulletins.json', { bulletins: [] });
-        return json(normalizeBulletins(data));
-      }
 
       if (url.pathname === '/api/finances') return json(emptyFinances());
 

@@ -3403,10 +3403,30 @@ async function syncFromR2(prefix, { confirm: shouldConfirm = true } = {}) {
 
 // -------- Announcements --------
 let announcementPosts = [];
+let editingAnnouncementId = null;
+
+function setSectionPreviewText(previewId, lines, fallback) {
+  const el = $(previewId);
+  if (!el) return;
+  const safe = Array.isArray(lines)
+    ? lines.map((x) => String(x || '').trim()).filter(Boolean)
+    : [];
+  el.textContent = safe.length ? `Preview: ${safe.join(' • ')}` : String(fallback || '');
+}
 
 function renderAnnouncements() {
   const root = $('announceList');
   root.innerHTML = '';
+
+  setSectionPreviewText(
+    'announcePreview',
+    announcementPosts.slice(0, 2).map((post) => {
+      const body = String(post?.body || '').replace(/\s+/g, ' ').trim();
+      const short = body.length > 90 ? `${body.slice(0, 90)}…` : body;
+      return `${post?.title || 'Announcement'}${short ? `: ${short}` : ''}`;
+    }),
+    'No announcement preview yet.'
+  );
 
   for (const post of announcementPosts) {
     const row = document.createElement('div');
@@ -3414,32 +3434,154 @@ function renderAnnouncements() {
 
     const main = document.createElement('div');
     main.className = 'row__main';
-    const t = document.createElement('div');
-    t.className = 'row__title';
-    t.textContent = post.title;
-    const meta = document.createElement('div');
-    meta.className = 'row__meta';
-    const created = post.createdAt ? `Posted: ${formatDate(post.createdAt)}` : '';
-    const expires = post.expiresAt ? ` • Expires: ${formatDate(post.expiresAt)}` : ' • Expires: Never';
-    meta.textContent = `${created}${expires}`.trim();
+    if (editingAnnouncementId === post.id) {
+      const titleLabel = document.createElement('label');
+      titleLabel.className = 'label';
+      titleLabel.textContent = 'Title';
+      const titleInput = document.createElement('input');
+      titleInput.className = 'input';
+      titleInput.type = 'text';
+      titleInput.maxLength = 120;
+      titleInput.value = String(post.title || '');
+      titleLabel.appendChild(titleInput);
 
-    const body = document.createElement('div');
-    body.className = 'row__meta';
-    body.textContent = post.body;
+      const bodyLabel = document.createElement('label');
+      bodyLabel.className = 'label';
+      bodyLabel.textContent = 'Message';
+      const bodyInput = document.createElement('textarea');
+      bodyInput.className = 'textarea';
+      bodyInput.rows = 4;
+      bodyInput.maxLength = 5000;
+      bodyInput.value = String(post.body || '');
+      bodyLabel.appendChild(bodyInput);
 
-    main.appendChild(t);
-    main.appendChild(meta);
-    main.appendChild(body);
+      const startsLabel = document.createElement('label');
+      startsLabel.className = 'label';
+      startsLabel.textContent = 'Show from (optional)';
+      const startsInput = document.createElement('input');
+      startsInput.className = 'input';
+      startsInput.type = 'datetime-local';
+      startsInput.value = toLocalDateTimeValue(post.startsAt);
+      startsLabel.appendChild(startsInput);
+
+      const endsLabel = document.createElement('label');
+      endsLabel.className = 'label';
+      endsLabel.textContent = 'Show until';
+      const endsInput = document.createElement('input');
+      endsInput.className = 'input';
+      endsInput.type = 'datetime-local';
+      endsInput.value = toLocalDateTimeValue(post.expiresAt);
+      endsLabel.appendChild(endsInput);
+
+      const neverWrap = document.createElement('label');
+      neverWrap.className = 'label label--inline';
+      const neverInput = document.createElement('input');
+      neverInput.className = 'checkbox';
+      neverInput.type = 'checkbox';
+      neverInput.checked = !post.expiresAt;
+      neverInput.addEventListener('change', () => {
+        endsInput.disabled = neverInput.checked;
+        if (neverInput.checked) endsInput.value = '';
+      });
+      endsInput.disabled = neverInput.checked;
+      neverWrap.appendChild(neverInput);
+      neverWrap.appendChild(document.createTextNode('Never expires'));
+
+      main.appendChild(titleLabel);
+      main.appendChild(bodyLabel);
+      main.appendChild(startsLabel);
+      main.appendChild(endsLabel);
+      main.appendChild(neverWrap);
+    } else {
+      const t = document.createElement('div');
+      t.className = 'row__title';
+      t.textContent = post.title;
+      const meta = document.createElement('div');
+      meta.className = 'row__meta';
+      const created = post.createdAt ? `Posted: ${formatDate(post.createdAt)}` : '';
+      const starts = post.startsAt ? ` • Starts: ${formatDate(post.startsAt)}` : '';
+      const expires = post.expiresAt ? ` • Expires: ${formatDate(post.expiresAt)}` : ' • Expires: Never';
+      meta.textContent = `${created}${starts}${expires}`.trim();
+
+      const body = document.createElement('div');
+      body.className = 'row__meta';
+      body.textContent = post.body;
+
+      main.appendChild(t);
+      main.appendChild(meta);
+      main.appendChild(body);
+    }
 
     const actions = document.createElement('div');
     actions.className = 'row__actions';
+
+    if (editingAnnouncementId === post.id) {
+      const save = document.createElement('button');
+      save.className = 'btn btn--primary';
+      save.type = 'button';
+      save.textContent = 'Save';
+      save.addEventListener('click', async () => {
+        const inputs = main.querySelectorAll('input, textarea');
+        const title = String(inputs[0]?.value || '').trim();
+        const body = String(inputs[1]?.value || '').trim();
+        const startsAt = String(inputs[2]?.value || '').trim();
+        const expiresAt = String(inputs[3]?.value || '').trim();
+        const neverExpires = Boolean(inputs[4]?.checked);
+        if (!title || !body) {
+          showToast('Title and message are required.', { variant: 'danger' });
+          return;
+        }
+        if (!neverExpires && startsAt && expiresAt && Date.parse(expiresAt) <= Date.parse(startsAt)) {
+          showToast('Show until must be after show from.', { variant: 'danger' });
+          return;
+        }
+        if (!confirmWrite('Save changes to this announcement?')) return;
+
+        await api(`/api/announcements/${post.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            title,
+            body,
+            startsAt: startsAt || null,
+            expiresAt: neverExpires ? null : (expiresAt || null),
+            neverExpires
+          })
+        });
+        editingAnnouncementId = null;
+        await loadAnnouncements();
+      });
+
+      const cancel = document.createElement('button');
+      cancel.className = 'btn';
+      cancel.type = 'button';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', () => {
+        editingAnnouncementId = null;
+        renderAnnouncements();
+      });
+
+      actions.appendChild(save);
+      actions.appendChild(cancel);
+    } else {
+      const edit = document.createElement('button');
+      edit.className = 'btn';
+      edit.type = 'button';
+      edit.textContent = 'Edit';
+      edit.addEventListener('click', () => {
+        editingAnnouncementId = post.id;
+        renderAnnouncements();
+      });
+      actions.appendChild(edit);
+    }
+
     const del = document.createElement('button');
     del.className = 'btn';
     del.type = 'button';
     del.textContent = 'Delete';
     del.addEventListener('click', async () => {
-      if (!confirm('Delete this announcement?')) return;
+      if (!confirmWrite('Delete this announcement?')) return;
       await api(`/api/announcements/${post.id}`, { method: 'DELETE' });
+      if (editingAnnouncementId === post.id) editingAnnouncementId = null;
       await loadAnnouncements();
     });
 
@@ -3455,6 +3597,9 @@ function renderAnnouncements() {
 async function loadAnnouncements() {
   const data = await api('/api/announcements', { method: 'GET' });
   announcementPosts = data.posts || [];
+  if (editingAnnouncementId && !announcementPosts.some((p) => p.id === editingAnnouncementId)) {
+    editingAnnouncementId = null;
+  }
   renderAnnouncements();
 }
 
@@ -4022,6 +4167,12 @@ function renderEvents() {
   const root = $('eventList');
   root.innerHTML = '';
 
+  setSectionPreviewText(
+    'eventPreview',
+    events.slice(0, 2).map((ev) => `${String(ev?.date || '')} ${formatEventTime12h(ev?.time)} ${String(ev?.title || '').trim()}`.trim()),
+    'No event preview yet.'
+  );
+
   for (const ev of events) {
     const row = document.createElement('div');
     row.className = 'row';
@@ -4150,6 +4301,7 @@ async function loadEvents() {
 
 // -------- Bulletins --------
 let bulletins = [];
+let editingBulletinId = null;
 
 function toLocalDateTimeValue(iso) {
   if (!iso) return '';
@@ -4174,22 +4326,70 @@ function renderBulletins() {
   const root = $('bulletinList');
   root.innerHTML = '';
 
+  setSectionPreviewText(
+    'bulletinPreview',
+    bulletins.slice(0, 2).map((b) => {
+      const active = isActiveBulletin(b) ? 'Active now' : 'Scheduled';
+      return `${String(b?.title || 'Bulletin')} (${active})`;
+    }),
+    'No bulletin preview yet.'
+  );
+
   for (const b of bulletins) {
     const row = document.createElement('div');
     row.className = 'row';
 
     const main = document.createElement('div');
     main.className = 'row__main';
-    const t = document.createElement('div');
-    t.className = 'row__title';
-    t.textContent = `${b.title || 'Bulletin'} • ${b.originalName || ''}`.trim();
-    const meta = document.createElement('div');
-    meta.className = 'row__meta';
-    const active = isActiveBulletin(b);
-    meta.textContent = `${active ? 'Active now' : ''}${active ? ' • ' : ''}${toLocalDateTimeValue(b.startsAt)} → ${toLocalDateTimeValue(b.endsAt)}`;
+    if (editingBulletinId === b.id) {
+      const titleLabel = document.createElement('label');
+      titleLabel.className = 'label';
+      titleLabel.textContent = 'Bulletin title';
+      const titleInput = document.createElement('input');
+      titleInput.className = 'input';
+      titleInput.type = 'text';
+      titleInput.maxLength = 120;
+      titleInput.value = String(b.title || 'Bulletin');
+      titleLabel.appendChild(titleInput);
 
-    main.appendChild(t);
-    main.appendChild(meta);
+      const startsLabel = document.createElement('label');
+      startsLabel.className = 'label';
+      startsLabel.textContent = 'Show from';
+      const startsInput = document.createElement('input');
+      startsInput.className = 'input';
+      startsInput.type = 'datetime-local';
+      startsInput.value = toLocalDateTimeValue(b.startsAt);
+      startsLabel.appendChild(startsInput);
+
+      const endsLabel = document.createElement('label');
+      endsLabel.className = 'label';
+      endsLabel.textContent = 'Show until';
+      const endsInput = document.createElement('input');
+      endsInput.className = 'input';
+      endsInput.type = 'datetime-local';
+      endsInput.value = toLocalDateTimeValue(b.endsAt);
+      endsLabel.appendChild(endsInput);
+
+      const fileMeta = document.createElement('div');
+      fileMeta.className = 'row__meta';
+      fileMeta.textContent = `File: ${b.originalName || b.fileName || 'Bulletin file'}`;
+
+      main.appendChild(titleLabel);
+      main.appendChild(startsLabel);
+      main.appendChild(endsLabel);
+      main.appendChild(fileMeta);
+    } else {
+      const t = document.createElement('div');
+      t.className = 'row__title';
+      t.textContent = `${b.title || 'Bulletin'} • ${b.originalName || ''}`.trim();
+      const meta = document.createElement('div');
+      meta.className = 'row__meta';
+      const active = isActiveBulletin(b);
+      meta.textContent = `${active ? 'Active now' : ''}${active ? ' • ' : ''}${toLocalDateTimeValue(b.startsAt)} → ${toLocalDateTimeValue(b.endsAt)}`;
+
+      main.appendChild(t);
+      main.appendChild(meta);
+    }
 
     const actions = document.createElement('div');
     actions.className = 'row__actions';
@@ -4201,17 +4401,68 @@ function renderBulletins() {
     open.rel = 'noopener noreferrer';
     open.textContent = 'Open';
 
+    if (editingBulletinId === b.id) {
+      const save = document.createElement('button');
+      save.className = 'btn btn--primary';
+      save.type = 'button';
+      save.textContent = 'Save';
+      save.addEventListener('click', async () => {
+        const inputs = main.querySelectorAll('input');
+        const title = String(inputs[0]?.value || '').trim();
+        const startsAt = String(inputs[1]?.value || '').trim();
+        const endsAt = String(inputs[2]?.value || '').trim();
+        if (!title || !startsAt || !endsAt) {
+          showToast('Title, show from, and show until are required.', { variant: 'danger' });
+          return;
+        }
+        if (Date.parse(endsAt) <= Date.parse(startsAt)) {
+          showToast('Show until must be after show from.', { variant: 'danger' });
+          return;
+        }
+        if (!confirmWrite('Save changes to this bulletin schedule?')) return;
+        await api(`/api/bulletins/${b.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ title, startsAt, endsAt })
+        });
+        editingBulletinId = null;
+        await loadBulletins();
+      });
+
+      const cancel = document.createElement('button');
+      cancel.className = 'btn';
+      cancel.type = 'button';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', () => {
+        editingBulletinId = null;
+        renderBulletins();
+      });
+
+      actions.appendChild(open);
+      actions.appendChild(save);
+      actions.appendChild(cancel);
+    } else {
+      const edit = document.createElement('button');
+      edit.className = 'btn';
+      edit.type = 'button';
+      edit.textContent = 'Edit';
+      edit.addEventListener('click', () => {
+        editingBulletinId = b.id;
+        renderBulletins();
+      });
+      actions.appendChild(open);
+      actions.appendChild(edit);
+    }
+
     const del = document.createElement('button');
     del.className = 'btn';
     del.type = 'button';
     del.textContent = 'Delete';
     del.addEventListener('click', async () => {
-      if (!confirm('Delete this bulletin?')) return;
+      if (!confirmWrite('Delete this bulletin?')) return;
       await api(`/api/bulletins/${b.id}`, { method: 'DELETE' });
+      if (editingBulletinId === b.id) editingBulletinId = null;
       await loadBulletins();
     });
-
-    actions.appendChild(open);
     actions.appendChild(del);
 
     row.appendChild(main);
@@ -4225,6 +4476,9 @@ function renderBulletins() {
 async function loadBulletins() {
   const data = await api('/api/bulletins', { method: 'GET' });
   bulletins = data.bulletins || [];
+  if (editingBulletinId && !bulletins.some((b) => b.id === editingBulletinId)) {
+    editingBulletinId = null;
+  }
   renderBulletins();
 }
 
