@@ -1,0 +1,294 @@
+/*
+  Canonical authenticated header layout.
+  This file is intentionally loaded after admin.css and structure overrides.
+  Keep selectors scoped to #adminHeader so we do not affect other admin sections.
+*/
+
+#adminHeader .adminHeader__logo,
+#adminHeader .adminHeader__breadcrumbs,
+#adminHeader .adminHeader__top,
+#adminHeader .adminHeader__invite,
+#adminHeader .adminHeader__tabs,
+#adminHeader .adminHeader__headline,
+#adminHeader .adminHeader__account{
+  min-width:0;
+}
+
+#adminHeader .adminHeader__breadcrumbs{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:6px;
+  margin:0;
+  font-size:.9rem;
+  line-height:1.3;
+  font-weight:700;
+}
+
+#adminHeader .adminHeader__breadcrumbs a{color:inherit;}
+
+#adminHeader .adminHeader__headline{
+  display:grid;
+  justify-items:center;
+  gap:2px;
+}
+
+#adminHeader #salutation{
+  margin:0;
+  text-align:center;
+}
+
+#adminHeader .adminHeader__contextDescription{
+  margin:0;
+  text-align:center;
+  font-size:.94rem;
+  line-height:1.25;
+  max-width:min(56vw, 760px);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+#adminHeader .adminHeader__account{
+  display:flex;
+  align-items:flex-start;
+  justify-content:flex-end;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+#adminHeader #authStatus{
+  text-align:right;
+  max-width:28ch;
+  overflow-wrap:anywhere;
+}
+
+#adminHeader .headerInviteBtn[hidden]{
+  display:none !important;
+}
+
+@media (min-width:901px){
+  html body #adminHeader.header{
+    position:fixed !important;
+    top:0 !important;
+    left:0 !important;
+    right:0 !important;
+    width:100% !important;
+    z-index:260 !important;
+
+    display:grid !important;
+    grid-template-columns:clamp(190px, 15vw, 240px) minmax(560px, 1fr) auto !important;
+    grid-template-rows:auto auto !important;
+    grid-template-areas:
+      "logo top top"
+      "breadcrumbs tabs invite" !important;
+    align-items:stretch !important;
+    gap:6px 14px !important;
+    padding:2px var(--admin-window-gutter) 0 !important;
+    overflow:visible !important;
+  }
+
+  html body #adminHeader .adminHeader__logo{
+    grid-area:logo !important;
+    display:grid !important;
+    place-items:start !important;
+    align-content:center !important;
+    padding:2px 2px 0 0 !important;
+  }
+
+  html body #adminHeader .header__logo{
+    width:min(100%, 220px) !important;
+    max-height:96px !important;
+    height:auto !important;
+    object-fit:contain !important;
+  }
+
+  html body #adminHeader .adminHeader__breadcrumbs{
+    grid-area:breadcrumbs !important;
+    align-self:end !important;
+    padding-bottom:0 !important;
+    font-size:.86rem !important;
+    font-weight:800 !important;
+  }
+
+  html body #adminHeader .adminHeader__top{
+    grid-area:top !important;
+    position:relative !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:flex-end !important;
+    padding-top:6px !important;
+    min-height:44px !important;
+  }
+
+  html body #adminHeader .adminHeader__headline{
+    position:absolute !important;
+    left:50% !important;
+    transform:translateX(calc(-50% - 150px)) !important;
+    width:max-content !important;
+    max-width:min(64vw, 920px) !important;
+    text-align:center !important;
+  }
+
+  html body #adminHeader #salutation{
+    font-size:clamp(1.2rem, 1.55vw, 1.7rem) !important;
+    line-height:1.12 !important;
+  }
+
+  html body #adminHeader .adminHeader__contextDescription{
+    font-size:1.02rem !important;
+    font-weight:900 !important;
+    max-width:min(60vw, 860px) !important;
+  }
+
+  html body #adminHeader .adminHeader__account{
+    position:relative !important;
+    z-index:2 !important;
+    width:auto !important;
+    align-items:center !important;
+    gap:12px !important;
+    flex-wrap:nowrap !important;
+  }
+
+  html body #adminHeader #authStatus{
+    font-size:1.02rem !important;
+    font-weight:900 !important;
+    white-space:nowrap !important;
+    max-width:none !important;
+  }
+
+  html body #adminHeader .headerActions{
+    justify-content:flex-end !important;
+    flex-wrap:nowrap !important;
+    gap:8px !important;
+  }
+
+  html body #adminHeader #logoutBtn{
+    min-height:40px !important;
+    padding:6px 16px !important;
+    border-radius:12px !important;
+  }
+
+  html body #adminHeader .adminHeader__invite{
+    grid-area:invite !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:flex-end !important;
+    padding-bottom:0 !important;
+    transform:translateX(-350px) !important;
+  }
+
+  html body #adminHeader .headerInviteBtn{
+    width:40px !important;
+    height:40px !important;
+    min-height:40px !important;
+    padding:0 !important;
+    display:inline-flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    gap:0 !important;
+    border:2px solid rgba(26,26,26,.35) !important;
+    border-radius:10px !important;
+    background:rgba(255,255,255,.45) !important;
+    box-shadow:0 4px 12px rgba(0,0,0,.14) !important;
+  }
+
+  html body #adminHeader .headerInviteBtn__icon{
+    width:18px !important;
+    height:18px !important;
+    padding:0 !important;
+    border-radius:0 !important;
+    background:transparent !important;
+    box-shadow:none !important;
+  }
+
+  html body #adminHeader .headerInviteBtn__label{
+    display:none !important;
+  }
+
+  html body #adminHeader .adminHeader__tabs{
+    grid-area:tabs !important;
+    position:relative !important;
+    display:block !important;
+    overflow:visible !important;
+    padding:0 !important;
+    margin:0 !important;
+    min-height:0 !important;
+    line-height:1 !important;
+  }
+
+  html body #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
+    position:absolute !important;
+    left:50% !important;
+    top:-5px !important;
+    right:auto !important;
+    bottom:auto !important;
+    z-index:auto !important;
+    transform:translateX(calc(-50% - 125px)) !important;
+    transition:none !important;
+
+    width:max-content !important;
+    min-width:0 !important;
+    margin:0 !important;
+    padding:0 !important;
+    display:flex !important;
+    flex-direction:row !important;
+    flex-wrap:nowrap !important;
+    justify-content:center !important;
+    gap:10px !important;
+
+    border:0 !important;
+    border-radius:0 !important;
+    background:transparent !important;
+    box-shadow:none !important;
+    overflow:visible !important;
+  }
+
+  html body #adminHeader .adminHeader__tabs #adminSideNav .sideNav__groupLabel{
+    display:none !important;
+  }
+
+  html body #adminHeader .adminHeader__tabs #adminSideNav .tab--nav{
+    flex:0 0 auto !important;
+    min-width:160px !important;
+    text-align:center !important;
+    margin:0 !important;
+    border-radius:16px 16px 0 0 !important;
+    border-bottom-left-radius:0 !important;
+    border-bottom-right-radius:0 !important;
+    align-self:flex-end !important;
+  }
+
+  html body #adminHeader .adminHeader__tabs #adminSideNav .tab--nav[aria-selected="true"]{
+    background:linear-gradient(180deg, #7a2f16, #c46123) !important;
+    color:#fff7ed !important;
+  }
+
+  html body.adminHomeSection #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
+    display:flex !important;
+  }
+
+  html body #app.app{
+    padding-top:calc(var(--admin-header-height) + 16px) !important;
+  }
+}
+
+@media (max-width:900px){
+  #adminHeader.header{
+    display:grid;
+    grid-template-columns:1fr;
+    grid-template-areas:
+      "logo"
+      "top"
+      "breadcrumbs"
+      "invite"
+      "tabs";
+    gap:8px;
+  }
+
+  #adminHeader .adminHeader__logo{grid-area:logo;justify-self:start;}
+  #adminHeader .adminHeader__top{grid-area:top;display:grid;gap:8px;}
+  #adminHeader .adminHeader__breadcrumbs{grid-area:breadcrumbs;}
+  #adminHeader .adminHeader__invite{grid-area:invite;}
+  #adminHeader .adminHeader__tabs{grid-area:tabs;overflow-x:auto;}
+}

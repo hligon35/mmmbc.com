@@ -1301,8 +1301,56 @@ const DONORS_DATA_PATH = path.join(DATA_DIR, 'donors.json');
 const STATEMENTS_DATA_PATH = path.join(DATA_DIR, 'contribution_statements.json');
 const CONTROLS_DATA_PATH = path.join(DATA_DIR, 'internal_controls.json');
 const HOUSING_DATA_PATH = path.join(DATA_DIR, 'housing_allowance.json');
+const FINANCE_ACCOUNTS_DATA_PATH = path.join(DATA_DIR, 'finance_accounts.json');
+const FINANCE_AUDIT_DATA_PATH = path.join(DATA_DIR, 'finance_audit.json');
 const FINANCE_MIGRATION_REPORT_PATH = path.join(DATA_DIR, 'finance_migration_report.json');
 const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+
+const FINANCE_SOURCE_MAP = Object.freeze({
+  manual: 'Manual',
+  cash: 'Cash',
+  check: 'Check',
+  stripe: 'Stripe',
+  bank_import: 'Bank Import',
+  adjustment: 'Adjustment',
+  transfer: 'Transfer',
+  deposit: 'Deposit',
+  refund: 'Refund',
+  dispute: 'Dispute'
+});
+
+const FINANCE_STATUS_SET = new Set([
+  'draft',
+  'submitted',
+  'approved',
+  'rejected',
+  'paid',
+  'deposited',
+  'pending_deposit',
+  'reconciled',
+  'unreconciled',
+  'needs_review',
+  'posted',
+  'pending',
+  'voided',
+  'reversed',
+  'closed_period',
+  'stripe_pending',
+  'stripe_available',
+  'payout_matched',
+  'exception'
+]);
+
+const FINANCE_ACCOUNT_TYPES = Object.freeze([
+  'checking',
+  'savings',
+  'cash_on_hand',
+  'undeposited_funds',
+  'stripe_clearing',
+  'credit_card',
+  'other_asset',
+  'other_liability'
+]);
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
@@ -1342,9 +1390,236 @@ function uniqNonEmptyStrings(list) {
   return out;
 }
 
+function normalizeFinanceSource(value) {
+  const key = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (FINANCE_SOURCE_MAP[key]) return key;
+  if (!key) return 'manual';
+  return 'manual';
+}
+
+function normalizeFinanceStatus(value, fallback = 'posted') {
+  const key = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (FINANCE_STATUS_SET.has(key)) return key;
+  return fallback;
+}
+
+function normalizeIsoTimestamp(value, fallbackIso) {
+  const raw = String(value || '').trim();
+  if (!raw) return fallbackIso;
+  const t = Date.parse(raw);
+  if (Number.isNaN(t)) return fallbackIso;
+  return new Date(t).toISOString();
+}
+
+function defaultFinanceAccounts() {
+  const now = new Date().toISOString();
+  return [
+    {
+      id: 'acct_checking_main',
+      name: 'Main Checking',
+      accountType: 'checking',
+      last4: '',
+      openingBalanceCents: 0,
+      active: true,
+      reconciliationEnabled: true,
+      currentSystemBalanceCents: 0,
+      lastReconciledDate: '',
+      lastReconciledBalanceCents: 0,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: 'acct_undeposited_funds',
+      name: 'Undeposited Funds',
+      accountType: 'undeposited_funds',
+      last4: '',
+      openingBalanceCents: 0,
+      active: true,
+      reconciliationEnabled: false,
+      currentSystemBalanceCents: 0,
+      lastReconciledDate: '',
+      lastReconciledBalanceCents: 0,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: 'acct_stripe_clearing',
+      name: 'Stripe Clearing',
+      accountType: 'stripe_clearing',
+      last4: '',
+      openingBalanceCents: 0,
+      active: true,
+      reconciliationEnabled: true,
+      currentSystemBalanceCents: 0,
+      lastReconciledDate: '',
+      lastReconciledBalanceCents: 0,
+      createdAt: now,
+      updatedAt: now
+    }
+  ];
+}
+
+function normalizeFinanceAccountRecord(raw) {
+  const now = new Date().toISOString();
+  const id = String(raw?.id || newId()).trim() || newId();
+  const accountTypeRaw = String(raw?.accountType || '').trim().toLowerCase();
+  const accountType = FINANCE_ACCOUNT_TYPES.includes(accountTypeRaw) ? accountTypeRaw : 'other_asset';
+  const openingBalanceCents = parseMoneyCents(raw?.openingBalanceCents ?? raw?.openingBalance ?? 0);
+  const currentSystemBalanceCents = parseMoneyCents(raw?.currentSystemBalanceCents ?? raw?.currentSystemBalance ?? openingBalanceCents);
+  const lastReconciledBalanceCents = parseMoneyCents(raw?.lastReconciledBalanceCents ?? raw?.lastReconciledBalance ?? 0);
+  return {
+    id,
+    name: String(raw?.name || '').trim().slice(0, 120),
+    accountType,
+    last4: String(raw?.last4 || '').replace(/[^0-9]/g, '').slice(-4),
+    openingBalanceCents: Number.isFinite(openingBalanceCents) ? openingBalanceCents : 0,
+    active: raw?.active !== false,
+    reconciliationEnabled: raw?.reconciliationEnabled !== false,
+    currentSystemBalanceCents: Number.isFinite(currentSystemBalanceCents) ? currentSystemBalanceCents : 0,
+    lastReconciledDate: normalizeDateOnly(raw?.lastReconciledDate),
+    lastReconciledBalanceCents: Number.isFinite(lastReconciledBalanceCents) ? lastReconciledBalanceCents : 0,
+    createdAt: normalizeIsoTimestamp(raw?.createdAt, now),
+    updatedAt: now
+  };
+}
+
+function loadFinanceAccountsData() {
+  const data = readJson(FINANCE_ACCOUNTS_DATA_PATH, { accounts: defaultFinanceAccounts() });
+  const accounts = Array.isArray(data?.accounts) ? data.accounts.map((a) => normalizeFinanceAccountRecord(a)).filter((a) => a.name) : [];
+  if (!accounts.length) return { accounts: defaultFinanceAccounts() };
+  return { accounts };
+}
+
+function saveFinanceAccountsData(data) {
+  const accounts = Array.isArray(data?.accounts) ? data.accounts.map((a) => normalizeFinanceAccountRecord(a)).filter((a) => a.name) : [];
+  writeJsonAtomic(FINANCE_ACCOUNTS_DATA_PATH, { accounts: accounts.length ? accounts : defaultFinanceAccounts() });
+}
+
+function normalizeFinanceEntryRecord(raw, { nowIso = new Date().toISOString() } = {}) {
+  const date = normalizeDateOnly(raw?.date || raw?.entryDate || raw?.entry_date);
+  const typeRaw = String(raw?.type || '').trim().toLowerCase();
+  const type = typeRaw === 'expense' ? 'expense' : 'income';
+  const amountCentsParsed = parseMoneyCents(raw?.amountCents ?? raw?.amount_cents ?? raw?.amount);
+  const amountCents = Number.isFinite(amountCentsParsed) ? Math.abs(amountCentsParsed) : 0;
+  const createdAt = normalizeIsoTimestamp(raw?.createdAt || raw?.created_at, nowIso);
+  const updatedAt = normalizeIsoTimestamp(raw?.updatedAt || raw?.updated_at, createdAt);
+  const source = normalizeFinanceSource(raw?.source);
+  const sourceLabel = FINANCE_SOURCE_MAP[source] || 'Manual';
+  const baseStatus = type === 'income' ? 'posted' : 'paid';
+  return {
+    id: String(raw?.id || newId()).trim() || newId(),
+    date,
+    type,
+    source,
+    sourceLabel,
+    amountCents,
+    category: normalizeFinanceText(raw?.category, 80),
+    fund: normalizeFinanceText(raw?.fund, 80),
+    fundId: String(raw?.fundId || '').trim(),
+    accountId: String(raw?.accountId || '').trim(),
+    accountName: normalizeFinanceText(raw?.accountName, 120),
+    donorId: String(raw?.donorId || '').trim(),
+    donorName: normalizeFinanceText(raw?.donorName, 140),
+    vendorId: String(raw?.vendorId || '').trim(),
+    vendorName: normalizeFinanceText(raw?.vendorName, 140),
+    party: normalizeFinanceText(raw?.party, 120),
+    method: normalizeFinanceText(raw?.method, 24).toLowerCase(),
+    checkNumber: normalizeFinanceText(raw?.checkNumber, 40),
+    depositBatchId: String(raw?.depositBatchId || '').trim(),
+    stripeSourceId: String(raw?.stripeSourceId || '').trim(),
+    description: normalizeFinanceText(raw?.description, 180),
+    memo: normalizeFinanceText(raw?.memo, 200),
+    note: normalizeFinanceText(raw?.note, 1000),
+    attachmentCount: Math.max(0, Number(raw?.attachmentCount || 0) || 0),
+    status: normalizeFinanceStatus(raw?.status, baseStatus),
+    reconciliationStatus: normalizeFinanceStatus(raw?.reconciliationStatus, 'unreconciled'),
+    statementReviewStatus: String(raw?.statementReviewStatus || 'needs_review').trim().toLowerCase(),
+    goodsServicesValueCents: Math.max(0, parseMoneyCents(raw?.goodsServicesValueCents ?? raw?.goodsServicesValue ?? 0) || 0),
+    createdBy: String(raw?.createdBy || raw?.created_by || '').trim().slice(0, 120),
+    createdAt,
+    lastEditedBy: String(raw?.lastEditedBy || raw?.updatedBy || raw?.updated_by || '').trim().slice(0, 120),
+    updatedAt,
+    voidedBy: String(raw?.voidedBy || '').trim().slice(0, 120),
+    voidedAt: normalizeIsoTimestamp(raw?.voidedAt, ''),
+    voidReason: normalizeFinanceText(raw?.voidReason, 500),
+    reversalTransactionId: String(raw?.reversalTransactionId || '').trim(),
+    auditVersion: Math.max(1, Number(raw?.auditVersion || 1) || 1)
+  };
+}
+
+function loadFinanceAuditLog() {
+  const data = readJson(FINANCE_AUDIT_DATA_PATH, { events: [] });
+  return Array.isArray(data?.events) ? data.events : [];
+}
+
+function saveFinanceAuditLog(events) {
+  writeJsonAtomic(FINANCE_AUDIT_DATA_PATH, { events: Array.isArray(events) ? events : [] });
+}
+
+function appendFinanceAuditEvent(event) {
+  const events = loadFinanceAuditLog();
+  const payload = {
+    eventId: String(event?.eventId || newId()),
+    entityType: String(event?.entityType || '').trim() || 'finance_entry',
+    entityId: String(event?.entityId || '').trim(),
+    userId: String(event?.userId || '').trim(),
+    userEmail: String(event?.userEmail || '').trim(),
+    occurredAt: normalizeIsoTimestamp(event?.occurredAt, new Date().toISOString()),
+    action: String(event?.action || '').trim() || 'updated',
+    previousValues: event?.previousValues && typeof event.previousValues === 'object' ? event.previousValues : {},
+    newValues: event?.newValues && typeof event.newValues === 'object' ? event.newValues : {},
+    reason: normalizeFinanceText(event?.reason, 500),
+    source: String(event?.source || 'manual').trim().toLowerCase(),
+    requestId: String(event?.requestId || '').trim(),
+    ip: String(event?.ip || '').trim()
+  };
+  events.push(payload);
+  // Keep the most recent events while remaining append-only in behavior.
+  const capped = events.length > 20000 ? events.slice(events.length - 20000) : events;
+  saveFinanceAuditLog(capped);
+}
+
+function ensureFinanceIntegrityStorage() {
+  if (!fs.existsSync(FINANCE_ACCOUNTS_DATA_PATH)) {
+    saveFinanceAccountsData({ accounts: defaultFinanceAccounts() });
+  }
+  if (!fs.existsSync(FINANCE_AUDIT_DATA_PATH)) {
+    saveFinanceAuditLog([]);
+  }
+}
+
+function migrateLegacyFinanceEntries() {
+  const data = readJson(FINANCES_DATA_PATH, { entries: [], meta: { categories: [], funds: [] } });
+  const rawEntries = Array.isArray(data?.entries) ? data.entries : [];
+  if (!rawEntries.length) return { changed: false, normalized: 0 };
+
+  let changed = false;
+  const nowIso = new Date().toISOString();
+  const normalized = rawEntries
+    .map((entry) => {
+      const before = JSON.stringify(entry || {});
+      const next = normalizeFinanceEntryRecord(entry, { nowIso });
+      if (next.reconciliationStatus === 'posted' || next.reconciliationStatus === 'paid') {
+        next.reconciliationStatus = 'unreconciled';
+      }
+      if (!next.source) next.source = 'manual';
+      if (!next.sourceLabel) next.sourceLabel = FINANCE_SOURCE_MAP[next.source] || 'Manual';
+      if (JSON.stringify(next) !== before) changed = true;
+      return next;
+    })
+    .filter((entry) => entry.date && Number.isFinite(entry.amountCents) && entry.amountCents > 0);
+
+  if (!changed) return { changed: false, normalized: normalized.length };
+  saveFinances({ entries: normalized, meta: data?.meta || { categories: [], funds: [] } });
+  return { changed: true, normalized: normalized.length };
+}
+
 function loadFinances() {
   const stored = readJson(FINANCES_DATA_PATH, { entries: [], meta: { categories: [], funds: [] } });
-  const entries = Array.isArray(stored.entries) ? stored.entries : [];
+  const nowIso = new Date().toISOString();
+  const entries = Array.isArray(stored.entries)
+    ? stored.entries.map((entry) => normalizeFinanceEntryRecord(entry, { nowIso })).filter((entry) => entry.date && Number.isFinite(entry.amountCents) && entry.amountCents > 0)
+    : [];
   const metaRaw = stored.meta && typeof stored.meta === 'object' ? stored.meta : {};
   const meta = {
     categories: uniqNonEmptyStrings(metaRaw.categories || []),
@@ -1354,7 +1629,10 @@ function loadFinances() {
 }
 
 function saveFinances(data) {
-  const entries = Array.isArray(data?.entries) ? data.entries : [];
+  const nowIso = new Date().toISOString();
+  const entries = Array.isArray(data?.entries)
+    ? data.entries.map((entry) => normalizeFinanceEntryRecord(entry, { nowIso })).filter((entry) => entry.date && Number.isFinite(entry.amountCents) && entry.amountCents > 0)
+    : [];
   const metaRaw = data?.meta && typeof data.meta === 'object' ? data.meta : {};
   const meta = {
     categories: uniqNonEmptyStrings(metaRaw.categories || []),
@@ -1542,6 +1820,7 @@ function getFundBalances() {
     if (!amount) continue;
     const type = String(e.type || '').toLowerCase();
     const status = String(e.status || 'posted').toLowerCase();
+    if (status === 'voided' || status === 'reversed') continue;
     const entryDate = normalizeDateOnly(e.date);
 
     row.assignedCount += 1;
@@ -3379,7 +3658,66 @@ app.delete('/api/events/:id', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAG
 
 // ----------------- FINANCES (internal only) -----------------
 app.get('/api/finances', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
-  res.json(loadFinances());
+  const data = loadFinances();
+  const accounts = loadFinanceAccountsData();
+  res.json({ ...data, accounts: accounts.accounts || [] });
+});
+
+app.get('/api/finances/accounts', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  const accounts = loadFinanceAccountsData();
+  res.json({ accounts: accounts.accounts || [] });
+});
+
+app.post('/api/finances/accounts', requirePermission(PERMISSIONS.FINANCE_META), (req, res) => {
+  const existing = loadFinanceAccountsData();
+  const normalized = normalizeFinanceAccountRecord(req.body || {});
+  if (!normalized.name) return res.status(400).json({ error: 'Account name is required.' });
+  if (existing.accounts.some((a) => String(a.name || '').toLowerCase() === normalized.name.toLowerCase())) {
+    return res.status(409).json({ error: 'An account with that name already exists.' });
+  }
+  existing.accounts.push(normalized);
+  saveFinanceAccountsData(existing);
+  appendFinanceAuditEvent({
+    entityType: 'finance_account',
+    entityId: normalized.id,
+    userId: req.session?.user?.id || '',
+    userEmail: req.session?.user?.email || '',
+    action: 'created',
+    newValues: normalized,
+    source: 'manual',
+    requestId: req.requestId,
+    ip: req.ip
+  });
+  res.json({ ok: true, account: normalized, accounts: existing.accounts });
+});
+
+app.put('/api/finances/accounts/:id', requirePermission(PERMISSIONS.FINANCE_META), (req, res) => {
+  const id = String(req.params.id || '').trim();
+  const existing = loadFinanceAccountsData();
+  const idx = existing.accounts.findIndex((a) => String(a.id) === id);
+  if (idx < 0) return res.status(404).json({ error: 'Account not found.' });
+  const previous = existing.accounts[idx];
+  const next = normalizeFinanceAccountRecord({ ...previous, ...(req.body || {}), id: previous.id, createdAt: previous.createdAt });
+  if (!next.name) return res.status(400).json({ error: 'Account name is required.' });
+  if (existing.accounts.some((a, i) => i !== idx && String(a.name || '').toLowerCase() === next.name.toLowerCase())) {
+    return res.status(409).json({ error: 'An account with that name already exists.' });
+  }
+  existing.accounts[idx] = next;
+  saveFinanceAccountsData(existing);
+  appendFinanceAuditEvent({
+    entityType: 'finance_account',
+    entityId: next.id,
+    userId: req.session?.user?.id || '',
+    userEmail: req.session?.user?.email || '',
+    action: 'updated',
+    previousValues: previous,
+    newValues: next,
+    reason: String(req.body?.reason || '').trim(),
+    source: 'manual',
+    requestId: req.requestId,
+    ip: req.ip
+  });
+  res.json({ ok: true, account: next, accounts: existing.accounts });
 });
 
 app.put('/api/finances/meta', requirePermission(PERMISSIONS.FINANCE_META), (req, res) => {
@@ -3395,6 +3733,7 @@ app.put('/api/finances/meta', requirePermission(PERMISSIONS.FINANCE_META), (req,
 });
 
 app.post('/api/finances/entries', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
+  const actor = sessionUser(req);
   const date = normalizeDateOnly(req.body?.date);
   const type = String(req.body?.type || '').trim().toLowerCase();
   const category = normalizeFinanceText(req.body?.category, 80);
@@ -3407,6 +3746,18 @@ app.post('/api/finances/entries', requirePermission(PERMISSIONS.FINANCE_WRITE), 
   const donorId = String(req.body?.donorId || '').trim();
   const statementReviewStatus = String(req.body?.statementReviewStatus || 'needs_review').trim().toLowerCase();
   const goodsServicesValueCents = parseMoneyCents(req.body?.goodsServicesValueCents ?? req.body?.goodsServicesValue);
+  const source = normalizeFinanceSource(req.body?.source);
+  const statusInput = normalizeFinanceStatus(req.body?.status, type === 'expense' ? 'paid' : 'posted');
+  const accountId = String(req.body?.accountId || '').trim();
+  const accountName = normalizeFinanceText(req.body?.accountName, 120);
+  const checkNumber = normalizeFinanceText(req.body?.checkNumber, 40);
+  const depositBatchId = String(req.body?.depositBatchId || '').trim();
+  const stripeSourceId = String(req.body?.stripeSourceId || '').trim();
+  const description = normalizeFinanceText(req.body?.description, 180);
+  const note = normalizeFinanceText(req.body?.note, 1000);
+  const vendorId = String(req.body?.vendorId || '').trim();
+  const vendorName = normalizeFinanceText(req.body?.vendorName, 140);
+  const reconciliationStatus = normalizeFinanceStatus(req.body?.reconciliationStatus, 'unreconciled');
 
   if (!date) return res.status(400).json({ error: 'Valid date required.' });
   if (type !== 'income' && type !== 'expense') return res.status(400).json({ error: 'Type must be income or expense.' });
@@ -3417,12 +3768,21 @@ app.post('/api/finances/entries', requirePermission(PERMISSIONS.FINANCE_WRITE), 
 
   const { fundsData, balances } = getFundBalances();
   const donorsData = loadDonorsData();
+  const accountsData = loadFinanceAccountsData();
   const selectedFund = findFundByAnyKey(fundsData.funds, fundIdInput || fund);
   if (!selectedFund) return res.status(400).json({ error: 'The selected fund could not be found. Choose a valid fund.' });
   if (selectedFund.active === false) return res.status(400).json({ error: 'This fund is archived. Reactivate it before posting transactions.' });
 
   const donorResolution = resolveEntryDonor(donorsData.donors, donorId, type, true);
   if (donorResolution.error) return res.status(400).json({ error: donorResolution.error });
+
+  let selectedAccount = null;
+  if (accountId || accountName) {
+    selectedAccount = (accountsData.accounts || []).find((a) => String(a.id) === accountId)
+      || (accountsData.accounts || []).find((a) => String(a.name || '').toLowerCase() === String(accountName || '').toLowerCase());
+    if (!selectedAccount) return res.status(400).json({ error: 'The selected financial account could not be found.' });
+    if (selectedAccount.active === false) return res.status(400).json({ error: 'The selected financial account is inactive.' });
+  }
 
   const fundBalance = balances.get(String(selectedFund.id));
   const available = Number(fundBalance?.availableBalanceCents || 0);
@@ -3441,19 +3801,39 @@ app.post('/api/finances/entries', requirePermission(PERMISSIONS.FINANCE_WRITE), 
     id: newId(),
     date,
     type,
+    source,
+    sourceLabel: FINANCE_SOURCE_MAP[source],
     category,
     fund: selectedFund.fundName,
     fundId: selectedFund.id,
+    accountId: selectedAccount ? selectedAccount.id : accountId,
+    accountName: selectedAccount ? selectedAccount.name : accountName,
     method,
+    checkNumber,
+    depositBatchId,
+    stripeSourceId,
+    description,
     party,
     memo,
+    note,
+    vendorId,
+    vendorName,
     donorId: donorResolution.donorId,
     donorName: donorResolution.donorName,
     statementReviewStatus,
     goodsServicesValueCents: Number.isFinite(goodsServicesValueCents) ? Math.max(0, goodsServicesValueCents) : 0,
-    status: String(req.body?.status || 'posted').trim().toLowerCase() === 'pending' ? 'pending' : 'posted',
+    status: statusInput,
+    reconciliationStatus,
     amountCents,
-    createdAt: new Date().toISOString()
+    createdBy: actor?.id || '',
+    createdAt: new Date().toISOString(),
+    lastEditedBy: '',
+    updatedAt: '',
+    auditVersion: 1,
+    voidedBy: '',
+    voidedAt: '',
+    voidReason: '',
+    reversalTransactionId: ''
   };
 
   entries.push(entry);
@@ -3476,10 +3856,22 @@ app.post('/api/finances/entries', requirePermission(PERMISSIONS.FINANCE_WRITE), 
       amountCents: entry.amountCents
     }
   });
+  appendFinanceAuditEvent({
+    entityType: 'finance_entry',
+    entityId: entry.id,
+    userId: actor?.id || '',
+    userEmail: actor?.email || '',
+    action: 'created',
+    newValues: entry,
+    source,
+    requestId: req.requestId,
+    ip: req.ip
+  });
   res.json({ ok: true, entry, data: next });
 });
 
 app.put('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
+  const actor = sessionUser(req);
   const id = String(req.params.id);
   const date = normalizeDateOnly(req.body?.date);
   const type = String(req.body?.type || '').trim().toLowerCase();
@@ -3493,6 +3885,18 @@ app.put('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WRITE
   const donorId = String(req.body?.donorId || '').trim();
   const statementReviewStatus = String(req.body?.statementReviewStatus || 'needs_review').trim().toLowerCase();
   const goodsServicesValueCents = parseMoneyCents(req.body?.goodsServicesValueCents ?? req.body?.goodsServicesValue);
+  const source = normalizeFinanceSource(req.body?.source);
+  const statusInput = normalizeFinanceStatus(req.body?.status, type === 'expense' ? 'paid' : 'posted');
+  const accountId = String(req.body?.accountId || '').trim();
+  const accountName = normalizeFinanceText(req.body?.accountName, 120);
+  const checkNumber = normalizeFinanceText(req.body?.checkNumber, 40);
+  const depositBatchId = String(req.body?.depositBatchId || '').trim();
+  const stripeSourceId = String(req.body?.stripeSourceId || '').trim();
+  const description = normalizeFinanceText(req.body?.description, 180);
+  const note = normalizeFinanceText(req.body?.note, 1000);
+  const vendorId = String(req.body?.vendorId || '').trim();
+  const vendorName = normalizeFinanceText(req.body?.vendorName, 140);
+  const reconciliationStatus = normalizeFinanceStatus(req.body?.reconciliationStatus, 'unreconciled');
 
   if (!date) return res.status(400).json({ error: 'Valid date required.' });
   if (type !== 'income' && type !== 'expense') return res.status(400).json({ error: 'Type must be income or expense.' });
@@ -3503,12 +3907,21 @@ app.put('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WRITE
 
   const { fundsData, balances } = getFundBalances();
   const donorsData = loadDonorsData();
+  const accountsData = loadFinanceAccountsData();
   const selectedFund = findFundByAnyKey(fundsData.funds, fundIdInput || fund);
   if (!selectedFund) return res.status(400).json({ error: 'The selected fund could not be found. Choose a valid fund.' });
   if (selectedFund.active === false) return res.status(400).json({ error: 'This fund is archived. Reactivate it before posting transactions.' });
 
   const donorResolution = resolveEntryDonor(donorsData.donors, donorId, type, true);
   if (donorResolution.error) return res.status(400).json({ error: donorResolution.error });
+
+  let selectedAccount = null;
+  if (accountId || accountName) {
+    selectedAccount = (accountsData.accounts || []).find((a) => String(a.id) === accountId)
+      || (accountsData.accounts || []).find((a) => String(a.name || '').toLowerCase() === String(accountName || '').toLowerCase());
+    if (!selectedAccount) return res.status(400).json({ error: 'The selected financial account could not be found.' });
+    if (selectedAccount.active === false) return res.status(400).json({ error: 'The selected financial account is inactive.' });
+  }
 
   const fundBalance = balances.get(String(selectedFund.id));
   const available = Number(fundBalance?.availableBalanceCents || 0);
@@ -3523,30 +3936,43 @@ app.put('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WRITE
   const entries = Array.isArray(data.entries) ? data.entries : [];
   const entry = entries.find((e) => e.id === id);
   if (!entry) return res.status(404).json({ error: 'Not found' });
+  if (entry.status === 'voided' || entry.status === 'reversed') {
+    return res.status(400).json({ error: 'This transaction is closed. Create a reversal instead of editing it.' });
+  }
 
-  const prev = {
-    date: entry.date,
-    type: entry.type,
-    category: entry.category,
-    fundId: entry.fundId || '',
-    amountCents: entry.amountCents
-  };
+  const prev = { ...entry };
 
   entry.date = date;
   entry.type = type;
+  entry.source = source;
+  entry.sourceLabel = FINANCE_SOURCE_MAP[source];
   entry.category = category;
   entry.fund = selectedFund.fundName;
   entry.fundId = selectedFund.id;
+  entry.accountId = selectedAccount ? selectedAccount.id : accountId;
+  entry.accountName = selectedAccount ? selectedAccount.name : accountName;
   entry.method = method;
+  entry.checkNumber = checkNumber;
+  entry.depositBatchId = depositBatchId;
+  entry.stripeSourceId = stripeSourceId;
+  entry.description = description;
   entry.party = party;
   entry.memo = memo;
+  entry.note = note;
+  entry.vendorId = vendorId;
+  entry.vendorName = vendorName;
   entry.donorId = donorResolution.donorId;
   entry.donorName = donorResolution.donorName;
   entry.statementReviewStatus = statementReviewStatus;
   entry.goodsServicesValueCents = Number.isFinite(goodsServicesValueCents) ? Math.max(0, goodsServicesValueCents) : 0;
-  entry.status = String(req.body?.status || entry.status || 'posted').trim().toLowerCase() === 'pending' ? 'pending' : 'posted';
+  if (entry.status !== 'voided' && entry.status !== 'reversed') {
+    entry.status = statusInput;
+  }
+  entry.reconciliationStatus = reconciliationStatus;
   entry.amountCents = amountCents;
+  entry.lastEditedBy = actor?.id || '';
   entry.updatedAt = new Date().toISOString();
+  entry.auditVersion = Math.max(1, Number(entry.auditVersion || 1) + 1);
 
   sortFinanceEntries(entries);
   const meta = data.meta && typeof data.meta === 'object' ? data.meta : { categories: [], funds: [] };
@@ -3569,13 +3995,31 @@ app.put('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WRITE
       amountCents: entry.amountCents
     }
   });
+  appendFinanceAuditEvent({
+    entityType: 'finance_entry',
+    entityId: entry.id,
+    userId: actor?.id || '',
+    userEmail: actor?.email || '',
+    action: 'updated',
+    previousValues: prev,
+    newValues: entry,
+    source,
+    requestId: req.requestId,
+    ip: req.ip
+  });
   res.json({ ok: true, entry, data: next });
 });
 
 app.delete('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
+  const actor = sessionUser(req);
+  if (!hasRole(actor, [ROLE.ADMINISTRATOR, ROLE.TREASURER])) {
+    return res.status(403).json({ error: 'Permanent deletion is restricted. Use Void Transaction instead.' });
+  }
   const id = String(req.params.id);
   const data = loadFinances();
   const entries = Array.isArray(data.entries) ? data.entries : [];
+  const target = entries.find((e) => e.id === id);
+  if (!target) return res.status(404).json({ error: 'Not found' });
   const nextEntries = entries.filter((e) => e.id !== id);
   const next = { entries: nextEntries, meta: data.meta || { categories: [], funds: [] } };
   saveFinances(next);
@@ -3584,7 +4028,181 @@ app.delete('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WR
     recordType: 'finance_entry',
     recordId: id
   });
+  appendFinanceAuditEvent({
+    entityType: 'finance_entry',
+    entityId: id,
+    userId: actor?.id || '',
+    userEmail: actor?.email || '',
+    action: 'hard_deleted_compat',
+    previousValues: target,
+    reason: String(req.body?.reason || 'Legacy compatibility delete').trim(),
+    source: 'manual',
+    requestId: req.requestId,
+    ip: req.ip
+  });
   res.json({ ok: true, data: next });
+});
+
+app.post('/api/finances/entries/:id/void', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
+  const actor = sessionUser(req);
+  const id = String(req.params.id || '').trim();
+  const reason = normalizeFinanceText(req.body?.reason, 500);
+  if (!reason) return res.status(400).json({ error: 'Void reason is required.' });
+
+  const data = loadFinances();
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+  const entry = entries.find((e) => String(e.id) === id);
+  if (!entry) return res.status(404).json({ error: 'Not found' });
+  if (entry.status === 'voided') return res.json({ ok: true, entry, data });
+  if (entry.status === 'reversed') return res.status(400).json({ error: 'This transaction is already reversed.' });
+
+  const prev = { ...entry };
+  entry.status = 'voided';
+  entry.voidedBy = actor?.id || '';
+  entry.voidedAt = new Date().toISOString();
+  entry.voidReason = reason;
+  entry.lastEditedBy = actor?.id || '';
+  entry.updatedAt = new Date().toISOString();
+  entry.auditVersion = Math.max(1, Number(entry.auditVersion || 1) + 1);
+
+  sortFinanceEntries(entries);
+  const next = { entries, meta: data.meta || { categories: [], funds: [] } };
+  saveFinances(next);
+  audit('finance_entry_voided', {
+    ...auditMetaFromRequest(req),
+    recordType: 'finance_entry',
+    recordId: entry.id,
+    previousValues: prev,
+    newValues: { status: entry.status, voidedBy: entry.voidedBy, voidedAt: entry.voidedAt, voidReason: entry.voidReason }
+  });
+  appendFinanceAuditEvent({
+    entityType: 'finance_entry',
+    entityId: entry.id,
+    userId: actor?.id || '',
+    userEmail: actor?.email || '',
+    action: 'voided',
+    previousValues: prev,
+    newValues: entry,
+    reason,
+    source: String(entry.source || 'manual'),
+    requestId: req.requestId,
+    ip: req.ip
+  });
+  res.json({ ok: true, entry, data: next });
+});
+
+app.post('/api/finances/entries/:id/reverse', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
+  const actor = sessionUser(req);
+  const id = String(req.params.id || '').trim();
+  const reason = normalizeFinanceText(req.body?.reason, 500);
+  const reverseDate = normalizeDateOnly(req.body?.date) || new Date().toISOString().slice(0, 10);
+  if (!reason) return res.status(400).json({ error: 'Reversal reason is required.' });
+
+  const data = loadFinances();
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+  const entry = entries.find((e) => String(e.id) === id);
+  if (!entry) return res.status(404).json({ error: 'Not found' });
+  if (entry.reversalTransactionId) {
+    return res.status(400).json({ error: 'This transaction already has a reversal.' });
+  }
+  if (entry.status === 'voided' || entry.status === 'reversed') {
+    return res.status(400).json({ error: 'This transaction cannot be reversed in its current state.' });
+  }
+
+  const reversalType = entry.type === 'income' ? 'expense' : 'income';
+  const source = normalizeFinanceSource(entry.source || 'adjustment');
+  const nowIso = new Date().toISOString();
+  const reversal = normalizeFinanceEntryRecord({
+    id: newId(),
+    date: reverseDate,
+    type: reversalType,
+    source,
+    amountCents: Math.abs(Number(entry.amountCents || 0)),
+    category: entry.category,
+    fund: entry.fund,
+    fundId: entry.fundId,
+    accountId: entry.accountId,
+    accountName: entry.accountName,
+    donorId: entry.donorId,
+    donorName: entry.donorName,
+    vendorId: entry.vendorId,
+    vendorName: entry.vendorName,
+    method: entry.method,
+    checkNumber: entry.checkNumber,
+    depositBatchId: '',
+    stripeSourceId: entry.stripeSourceId,
+    description: `Reversal: ${entry.description || entry.category || 'Transaction'}`,
+    memo: entry.memo,
+    note: `Reversal of ${entry.id}. ${reason}`,
+    status: 'reversed',
+    reconciliationStatus: 'unreconciled',
+    party: entry.party,
+    statementReviewStatus: 'needs_review',
+    goodsServicesValueCents: 0,
+    createdBy: actor?.id || '',
+    createdAt: nowIso,
+    lastEditedBy: '',
+    updatedAt: '',
+    voidedBy: '',
+    voidedAt: '',
+    voidReason: '',
+    reversalTransactionId: entry.id,
+    auditVersion: 1
+  }, { nowIso });
+
+  const prev = { ...entry };
+  entry.status = 'reversed';
+  entry.reversalTransactionId = reversal.id;
+  entry.lastEditedBy = actor?.id || '';
+  entry.updatedAt = new Date().toISOString();
+  entry.auditVersion = Math.max(1, Number(entry.auditVersion || 1) + 1);
+
+  entries.push(reversal);
+  sortFinanceEntries(entries);
+  const next = { entries, meta: data.meta || { categories: [], funds: [] } };
+  saveFinances(next);
+
+  audit('finance_entry_reversed', {
+    ...auditMetaFromRequest(req),
+    recordType: 'finance_entry',
+    recordId: entry.id,
+    previousValues: prev,
+    newValues: { status: entry.status, reversalTransactionId: entry.reversalTransactionId }
+  });
+  appendFinanceAuditEvent({
+    entityType: 'finance_entry',
+    entityId: entry.id,
+    userId: actor?.id || '',
+    userEmail: actor?.email || '',
+    action: 'reversed',
+    previousValues: prev,
+    newValues: entry,
+    reason,
+    source: String(entry.source || 'manual'),
+    requestId: req.requestId,
+    ip: req.ip
+  });
+  appendFinanceAuditEvent({
+    entityType: 'finance_entry',
+    entityId: reversal.id,
+    userId: actor?.id || '',
+    userEmail: actor?.email || '',
+    action: 'created_reversal',
+    newValues: reversal,
+    reason,
+    source: String(reversal.source || 'manual'),
+    requestId: req.requestId,
+    ip: req.ip
+  });
+
+  res.json({ ok: true, reversed: entry, reversal, data: next });
+});
+
+app.get('/api/finances/audit', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  const id = String(req.query?.entryId || '').trim();
+  const events = loadFinanceAuditLog();
+  if (!id) return res.json({ events });
+  res.json({ events: events.filter((ev) => String(ev?.entityId || '') === id) });
 });
 
 app.get('/api/finances/migration-report', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
@@ -5557,10 +6175,16 @@ function normalizeProfilePageMeta(raw) {
 
 function seedProfilesFromPages() {
   const ministriesPath = path.join(ROOT_DIR, 'Pages', 'ministries.html');
-  const leadershipPath = path.join(ROOT_DIR, 'Pages', 'leadership.html');
+  const associateMinistersPath = path.join(ROOT_DIR, 'Pages', 'associate_ministers.html');
+  const deaconsPath = path.join(ROOT_DIR, 'Pages', 'deacons.html');
+  const deaconessesPath = path.join(ROOT_DIR, 'Pages', 'deaconesses.html');
+  const officialTeamPath = path.join(ROOT_DIR, 'Pages', 'official_team_trustees.html');
   const seeded = [
     ...extractProfilesFromPage(ministriesPath, 'ministries'),
-    ...extractProfilesFromPage(leadershipPath, 'leadership')
+    ...extractProfilesFromPage(associateMinistersPath, 'associate_ministers'),
+    ...extractProfilesFromPage(deaconsPath, 'deacons'),
+    ...extractProfilesFromPage(deaconessesPath, 'deaconesses'),
+    ...extractProfilesFromPage(officialTeamPath, 'official_team')
   ];
   return normalizeProfiles(seeded);
 }
@@ -5905,6 +6529,15 @@ async function boot({ listen = true } = {}) {
 
   if (!fs.existsSync(NEWSLETTER_RECORDS_DATA_PATH)) {
     writeJsonAtomic(NEWSLETTER_RECORDS_DATA_PATH, { drafts: [], scheduled: [], history: [] });
+  }
+
+  ensureFinanceIntegrityStorage();
+  const financeMigrationResult = migrateLegacyFinanceEntries();
+  if (financeMigrationResult.changed) {
+    logger.info('finance_entries_normalized', {
+      normalized: financeMigrationResult.normalized,
+      at: new Date().toISOString()
+    });
   }
 
   if (process.env.NODE_ENV === 'production' && REQUIRE_POSTGRES_IN_PROD && !hasPostgres()) {

@@ -70,12 +70,16 @@ function base64Basic(user, pass) {
 }
 
 function bestImageUrl(media) {
-  // Prefer the largest available size. WP often has sizes.full and many thumbs.
+  // Always prefer the original media source when available.
+  // WP resized variants often include "-WIDTHxHEIGHT" suffixes (e.g. -2880x1800)
+  // which can be cropped/derived assets rather than the true original.
+  const source = media?.source_url ? String(media.source_url).trim() : '';
+  if (source) return source;
+
+  // Fallback: choose the largest available derivative.
   const md = media?.media_details;
   const sizes = md?.sizes && typeof md.sizes === 'object' ? md.sizes : null;
-
-  // Many installs set `source_url` to the original.
-  let best = media?.source_url ? String(media.source_url) : '';
+  let best = '';
   let bestArea = 0;
 
   if (sizes) {

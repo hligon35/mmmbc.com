@@ -178,6 +178,62 @@ body {
     border-radius: 0; /* Override previous border-radius if any, or keep if desired */
 }
 
+.nav-item-group {
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nav-parent-toggle {
+    appearance: none;
+    border: none;
+    margin: 0;
+    color: white;
+    background: transparent;
+    text-decoration: none;
+    padding: 8px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+    font-size: 1.05em;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.nav-parent-toggle:hover {
+    background-color: rgb(196, 97, 35);
+}
+
+.nav-parent-caret {
+    font-size: 0.8em;
+    line-height: 1;
+}
+
+.nav-submenu {
+    display: none;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.nav-item-group.is-open .nav-submenu {
+    display: flex;
+}
+
+.nav-submenu a {
+    justify-content: center;
+    text-align: center;
+    padding: 10px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 1em;
+    font-weight: 700;
+}
+
+.nav-submenu a:last-child {
+    border-bottom: none;
+}
+
 /* Photo gallery: center the dropdown menu and bump nav text slightly (local request). */
 @media (max-width: 1399px) {
     .page-photo-gallery .nav-links {
@@ -200,7 +256,7 @@ body {
         grid-template-rows: 1fr 56px; /* bottom row is the "piano key" tab bar */
         align-items: center;
         column-gap: 24px;
-        overflow-x: hidden;
+        overflow: visible;
     }
 
     .nav-left {
@@ -233,9 +289,14 @@ body {
         border-radius: 0;
         box-sizing: border-box;
         min-width: 0; /* allow the grid item to shrink instead of forcing overflow */
-        overflow-x: hidden;
+        overflow-x: visible;
         max-height: none;
-        overflow-y: hidden;
+        overflow-y: visible;
+        margin-bottom: 4px;
+    }
+
+    .nav-links > * + * {
+        margin-left: 2px;
     }
 
     .nav-links a {
@@ -261,6 +322,70 @@ body {
         line-height: 1.05;
         font-size: 1.02em;
         font-weight: 700;
+    }
+
+    .nav-item-group {
+        position: relative;
+        flex: 1 1 0;
+        border-bottom: none;
+        min-width: 0;
+    }
+
+    .nav-parent-toggle {
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        line-height: 1.05;
+        font-size: 1.02em;
+        padding: 2px;
+        background-color: rgba(0, 0, 0, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-bottom: none;
+        border-radius: 10px 10px 0 0;
+    }
+
+    .nav-parent-toggle:hover {
+        background-color: rgba(196, 97, 35, 0.9);
+        border-color: rgba(255, 255, 255, 0.22);
+    }
+
+    .nav-submenu {
+        position: absolute;
+        left: 50%;
+        top: calc(100% + 2px);
+        transform: translateX(-50%);
+        min-width: 260px;
+        width: max-content;
+        max-width: min(360px, 96vw);
+        background-color: rgba(0, 0, 0, 0.9);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 0 0 10px 10px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.38);
+        z-index: 1200;
+        padding: 4px 0;
+    }
+
+    .nav-item-group:hover .nav-submenu,
+    .nav-item-group:focus-within .nav-submenu,
+    .nav-item-group.is-open .nav-submenu {
+        display: flex;
+    }
+
+    .nav-submenu a {
+        height: auto;
+        padding: 11px 14px;
+        border: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 0;
+        background: transparent;
+    }
+
+    .nav-submenu a:last-child {
+        border-bottom: none;
+    }
+
+    .nav-links a + a {
+        margin-left: 0;
     }
 
     /* Keep labels centered vertically. Avoid overriding display:flex with -webkit-box here. */

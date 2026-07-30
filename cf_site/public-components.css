@@ -1013,8 +1013,16 @@ button.youtube-live-placeholder__button {
 
 .content-section--wide .leadership-profile {
     gap: 30px;
-    align-items: flex-start;
+    align-items: center;
     padding: 20px;
+}
+
+.content-section--wide .profile-details {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
 }
 
 /* SMALLER WINDOW VIEWS */

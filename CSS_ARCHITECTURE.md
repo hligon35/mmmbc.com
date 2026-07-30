@@ -68,7 +68,7 @@ This runs `scripts/build_cf_site.ps1`, which:
 4. Never copies `admin/server.js`, `admin/data/`, or secrets.
 
 Run this after any source change to `styles/`, HTML, or admin UI files,
-before deploying (`npm run deploy:prod` already calls it automatically).
+before deploying (`npm run deploy` already calls it automatically).
 
 ## 5. Adding a new component or page stylesheet
 

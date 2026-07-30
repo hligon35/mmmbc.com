@@ -14,9 +14,9 @@
 
   function restoreInviteButton() {
     const button = document.getElementById('inviteAdminBtn');
-    const headerRight = document.querySelector('#adminHeader .header__right');
-    if (!button || !headerRight) return;
-    if (button.parentElement !== headerRight) headerRight.appendChild(button);
+    const inviteSlot = document.getElementById('adminHeaderInvite');
+    if (!button || !inviteSlot) return;
+    if (button.parentElement !== inviteSlot) inviteSlot.appendChild(button);
   }
 
   function selectableValues(select) {
@@ -266,7 +266,6 @@
     style.textContent = `
       .pageContext { width: calc(100% - (2 * clamp(12px, 2vw, 30px))); margin-left: clamp(12px, 2vw, 30px) !important; margin-right: clamp(12px, 2vw, 30px) !important; }
       #tab-support > form { width: calc(100% - (2 * clamp(12px, 2vw, 30px))); margin: 0 clamp(12px, 2vw, 30px); padding: 18px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
-      .headerInviteBtn { display: grid; place-items: center; }
       .editorSplit__preview, #siteEditorPreviewPane, .previewPane { align-self: start !important; height: max-content !important; min-height: 0 !important; max-height: none !important; }
       #siteEditorPreviewPane { padding-bottom: 16px !important; }
       .sitePagePreviewFrame { height: clamp(360px, 54vh, 620px) !important; }

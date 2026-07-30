@@ -12,7 +12,7 @@ function rewriteGivingHtml(html, success = false) {
     .replaceAll('src="giving.js', 'src="/Pages/giving.js')
     .replaceAll('href="../index.html"', 'href="/index.html"')
     .replaceAll('href="ministries.html"', 'href="/Pages/ministries.html"')
-    .replaceAll('href="leadership.html"', 'href="/Pages/leadership.html"')
+    .replaceAll('href="associate_ministers.html"', 'href="/Pages/associate_ministers.html"')
     .replaceAll('href="church_history.html"', 'href="/Pages/church_history.html"')
     .replaceAll('href="facility_rental.html"', 'href="/Pages/facility_rental.html"')
     .replaceAll('href="photo_gallery.html"', 'href="/Pages/photo_gallery.html"')
@@ -71,3 +71,4 @@ export async function handleGivingPageRequest(request, env) {
 
   return null;
 }
+

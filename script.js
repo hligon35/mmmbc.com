@@ -1,6 +1,98 @@
 // Basic script for interactivity
 
 document.addEventListener('DOMContentLoaded', () => {
+    const leadershipSubpages = [
+        { file: 'associate_ministers.html', label: 'Associate Ministers' },
+        { file: 'deacons.html', label: 'Deacons' },
+        { file: 'deaconesses.html', label: 'Deaconesses' },
+        { file: 'official_team_trustees.html', label: 'Official Team & Trustees' }
+    ];
+
+    const buildLeadershipHref = (baseHref, fileName) => {
+        const href = String(baseHref || '').trim();
+        if (href) {
+            if (/(leadership|associate_ministers)\.html/i.test(href)) {
+                return href.replace(/(leadership|associate_ministers)\.html.*/i, fileName);
+            }
+            if (href.endsWith('/')) return `${href}${fileName}`;
+        }
+        const nested = String(window.location.pathname || '').toLowerCase().includes('/pages/');
+        return nested ? fileName : `Pages/${fileName}`;
+    };
+
+    const closeLeadershipMenus = () => {
+        document.querySelectorAll('.nav-item-group--leadership.is-open').forEach((group) => {
+            group.classList.remove('is-open');
+            const btn = group.querySelector('.nav-parent-toggle');
+            if (btn) btn.setAttribute('aria-expanded', 'false');
+        });
+    };
+
+    const enhanceLeadershipNav = () => {
+        document.querySelectorAll('.nav-links').forEach((nav) => {
+            if (nav.querySelector('.nav-item-group--leadership')) return;
+
+            const directAnchors = Array.from(nav.querySelectorAll(':scope > a'));
+            const leadershipLink = directAnchors.find((a) => {
+                const text = String(a.textContent || '').trim().toLowerCase();
+                const href = String(a.getAttribute('href') || '').trim().toLowerCase();
+                return text.includes('leadership') || /(leadership|associate_ministers)\.html/.test(href);
+            });
+
+            if (!leadershipLink) return;
+
+            const parentLabel = String(leadershipLink.textContent || '').trim() || 'Leadership & Staff';
+            const baseHref = leadershipLink.getAttribute('href') || '';
+
+            const group = document.createElement('div');
+            group.className = 'nav-item-group nav-item-group--leadership';
+
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'nav-parent-toggle';
+            toggle.setAttribute('aria-haspopup', 'true');
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.innerHTML = `${parentLabel}<span class="nav-parent-caret" aria-hidden="true">&#9662;</span>`;
+
+            const submenu = document.createElement('div');
+            submenu.className = 'nav-submenu';
+            submenu.setAttribute('role', 'menu');
+            submenu.setAttribute('aria-label', `${parentLabel} links`);
+
+            leadershipSubpages.forEach((item) => {
+                const a = document.createElement('a');
+                a.href = buildLeadershipHref(baseHref, item.file);
+                a.textContent = item.label;
+                a.setAttribute('role', 'menuitem');
+                submenu.appendChild(a);
+            });
+
+            group.appendChild(toggle);
+            group.appendChild(submenu);
+            leadershipLink.replaceWith(group);
+
+            toggle.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const isOpen = group.classList.contains('is-open');
+                closeLeadershipMenus();
+                if (!isOpen) {
+                    group.classList.add('is-open');
+                    toggle.setAttribute('aria-expanded', 'true');
+                }
+            });
+
+            submenu.querySelectorAll('a').forEach((a) => {
+                a.addEventListener('click', () => {
+                    closeLeadershipMenus();
+                    if (nav.classList.contains('active')) nav.classList.remove('active');
+                    const menuButton = document.getElementById('menuButton');
+                    if (menuButton) menuButton.setAttribute('aria-expanded', 'false');
+                });
+            });
+        });
+    };
+
     document.querySelectorAll('.devicon-btn').forEach((el) => el.remove());
     document.querySelectorAll('.nav-links').forEach((nav) => {
         nav.querySelectorAll('a').forEach((a) => {
@@ -87,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <ul>
                         <li><a href="${root}index.html"><img src="${root}Icons/home.png" alt="Home icon" class="link-icon"><span class="link-text">Home</span></a></li>
                         <li><a href="${page('ministries.html')}"><img src="${root}Icons/ministries.png" alt="Ministries icon" class="link-icon"><span class="link-text">Ministries</span></a></li>
-                        <li><a href="${page('leadership.html')}"><img src="${root}Icons/leadership.png" alt="Leadership icon" class="link-icon"><span class="link-text">Leadership</span></a></li>
+                        <li><a href="${page('associate_ministers.html')}"><img src="${root}Icons/leadership.png" alt="Leadership icon" class="link-icon"><span class="link-text">Leadership</span></a></li>
                         <li><a href="${page('church_history.html')}"><img src="${root}Icons/churchhistory.png" alt="Church History icon" class="link-icon"><span class="link-text">Church History</span></a></li>
                         <li><a href="${page('giving.html')}"><img src="${root}Icons/give.png" alt="Give icon" class="link-icon"><span class="link-text">Give</span></a></li>
                         <li><a href="${page('facility_rental.html')}"><img src="${root}Icons/facilityrental.png" alt="Facility Rental icon" class="link-icon"><span class="link-text">Facility Rental</span></a></li>
@@ -154,6 +246,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const menuButton = document.getElementById('menuButton');
     const navLinks = document.getElementById('navLinks');
+    enhanceLeadershipNav();
+    document.addEventListener('click', (event) => {
+        if (!event.target.closest('.nav-item-group--leadership')) closeLeadershipMenus();
+    });
     if (menuButton && navLinks) {
         const setExpanded = (expanded) => menuButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
         if (!menuButton.hasAttribute('aria-controls')) menuButton.setAttribute('aria-controls', 'navLinks');
@@ -161,11 +257,13 @@ document.addEventListener('DOMContentLoaded', () => {
         menuButton.addEventListener('click', () => {
             navLinks.classList.toggle('active');
             setExpanded(navLinks.classList.contains('active'));
+            if (!navLinks.classList.contains('active')) closeLeadershipMenus();
         });
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && navLinks.classList.contains('active')) {
                 navLinks.classList.remove('active');
                 setExpanded(false);
+                closeLeadershipMenus();
                 menuButton.focus();
             }
         });

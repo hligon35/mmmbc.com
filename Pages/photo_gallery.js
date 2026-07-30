@@ -33,17 +33,18 @@ document.addEventListener('DOMContentLoaded', () => {
   galleryStyle.textContent = `
     .photo-grid { align-items: start; }
     .gallery-item {
-      aspect-ratio: auto !important;
+      position: relative;
+      aspect-ratio: 3 / 4 !important;
       min-height: 0 !important;
       height: auto !important;
       padding: 0;
-      overflow: visible !important;
-      background: rgba(255,255,255,.96) !important;
+      overflow: hidden !important;
+      background: #101010 !important;
     }
     .gallery-item img {
       display: block !important;
       width: 100% !important;
-      height: auto !important;
+      height: 100% !important;
       max-width: 100% !important;
       max-height: none !important;
       object-fit: contain !important;
@@ -52,9 +53,16 @@ document.addEventListener('DOMContentLoaded', () => {
       scale: 1 !important;
       clip-path: none !important;
       background: #111;
-      border-radius: 8px 8px 0 0 !important;
+      border-radius: 8px !important;
     }
-    .gallery-label { margin-top: 0; }
+    .gallery-label {
+      margin-top: 0;
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 2;
+    }
     .pagination {
       display: flex !important;
       align-items: center !important;
@@ -116,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
     @media (max-width: 680px) {
       .photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; }
       .gallery-item { min-height: 0 !important; }
-      .gallery-item img { height: auto !important; max-height: none !important; }
+      .gallery-item img { height: 100% !important; max-height: none !important; }
       .gallery-label { padding: 8px 6px !important; font-size: .82rem !important; }
       .pagination { gap: 6px; }
       .pagination button { margin: 0 !important; padding: 8px 10px !important; font-size: .88rem !important; }
@@ -134,6 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentPage = 1;
   let lightboxIndex = 0;
   let assetOrigin = window.location.origin;
+  let showImageNames = true;
 
   const workerOrigin = (() => {
     const value = String(document.querySelector('meta[name="mmmbc-worker-origin"]')?.content || '').trim();
@@ -153,7 +162,12 @@ document.addEventListener('DOMContentLoaded', () => {
     try { return new URL(raw, assetOrigin).toString(); } catch { return raw; }
   };
 
-  const displayName = (item) => String(item.label || item.originalName || item.album || 'Gallery photo').trim();
+  const displayName = (item) => {
+    if (!showImageNames) return '';
+    const label = String(item?.label || '').trim();
+    if (label) return label;
+    return String(item?.originalName || item?.album || 'Gallery photo').trim();
+  };
 
   function sortItems(items) {
     const mode = String(sortBy?.value || 'date-desc');
@@ -207,9 +221,11 @@ document.addEventListener('DOMContentLoaded', () => {
       grid.innerHTML = visible.map((item, index) => {
         const src = absoluteAssetUrl(item.file || item.thumb);
         const name = displayName(item);
-        return `<button class="gallery-item" type="button" data-gallery-index="${start + index}" aria-label="Open ${escapeHtml(name)}">
-          <img src="${escapeHtml(src)}" alt="${escapeHtml(name)}" loading="lazy" decoding="async">
-          <span class="gallery-label">${escapeHtml(name)}</span>
+        const safeName = name || 'Gallery photo';
+        const labelMarkup = name ? `<span class="gallery-label">${escapeHtml(name)}</span>` : '';
+        return `<button class="gallery-item" type="button" data-gallery-index="${start + index}" aria-label="Open ${escapeHtml(safeName)}">
+          <img src="${escapeHtml(src)}" alt="${escapeHtml(safeName)}" loading="lazy" decoding="async">
+          ${labelMarkup}
         </button>`;
       }).join('');
     }
@@ -229,13 +245,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const item = filteredItems[index];
     if (!item || !overlay || !lightboxImage) return;
     lightboxIndex = index;
+    const name = displayName(item) || 'Gallery photo';
     lightboxImage.removeAttribute('width');
     lightboxImage.removeAttribute('height');
     lightboxImage.style.width = 'auto';
     lightboxImage.style.height = 'auto';
     lightboxImage.src = absoluteAssetUrl(item.file || item.thumb);
-    lightboxImage.alt = displayName(item);
-    if (lightboxCaption) lightboxCaption.textContent = `${displayName(item)} — Image ${index + 1} of ${filteredItems.length}`;
+    lightboxImage.alt = name;
+    if (lightboxCaption) {
+      lightboxCaption.textContent = displayName(item)
+        ? `${name} — Image ${index + 1} of ${filteredItems.length}`
+        : `Image ${index + 1} of ${filteredItems.length}`;
+    }
     overlay.classList.add('visible');
     document.body.style.overflow = 'hidden';
   }
@@ -264,6 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!response.ok) throw new Error(`Gallery request failed (${response.status})`);
         const data = await response.json();
         if (!Array.isArray(data?.items)) throw new Error('Gallery response did not contain an items array.');
+        showImageNames = data?.settings?.showImageNames !== false;
         assetOrigin = new URL(endpoint, window.location.href).origin;
         allItems = data.items.filter((item) => item && (item.file || item.thumb));
         const albums = [...new Set(allItems.map((item) => String(item.album || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));

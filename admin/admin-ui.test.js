@@ -177,7 +177,7 @@ describe('Church Finances wizard redesign', () => {
     expect(indexHtml).toContain('Keep Editing');
     expect(indexHtml).toContain('Discard Entry');
     expect(indexHtml).toContain('id="financeDeleteDialog"');
-    expect(indexHtml).toContain('Delete Transaction');
+    expect(indexHtml).toContain('Void Transaction');
     expect(indexHtml).toContain('Keep Transaction');
     expect(adminJs).toContain('function financeOpenUnsavedDialog(');
     expect(adminJs).toContain('function financeOpenDeleteDialog(');

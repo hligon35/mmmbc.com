@@ -1149,6 +1149,55 @@ function getInitials(user) {
   return String(email[0] || 'A').toUpperCase();
 }
 
+function formatUserRoleLabel(roleValue) {
+  const role = String(roleValue || '').trim().toLowerCase().replace(/\s+/g, '_');
+  if (role === 'administrator' || role === 'admin') return 'Administrator';
+  if (role === 'finance_entry' || role === 'financeentry' || role === 'finance') return 'Finance Entry';
+  if (role === 'treasurer') return 'Treasurer';
+  if (role === 'auditor') return 'Auditor';
+  if (role === 'website_editor' || role === 'editor' || role === 'website') return 'Website Editor';
+  return role ? role.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase()) : 'Member';
+}
+
+function isAdministratorRole(roleValue) {
+  const role = String(roleValue || '').trim().toLowerCase().replace(/\s+/g, '_');
+  return role === 'administrator' || role === 'admin';
+}
+
+function syncHeaderBreadcrumbs() {
+  const root = $('adminHeaderBreadcrumbs');
+  if (!root) return;
+
+  const activeMainTab = document.querySelector('#adminSideNav .tab--nav[aria-selected="true"]');
+  const activePanelId = String(activeMainTab?.getAttribute('aria-controls') || '').trim();
+  const activePanel = activePanelId ? document.getElementById(activePanelId) : null;
+  const crumb = activePanel?.querySelector?.('.pageContext__crumb') || document.querySelector('.tabPanel:not([hidden]) .pageContext__crumb');
+  if (crumb) {
+    root.innerHTML = crumb.innerHTML;
+    return;
+  }
+
+  root.innerHTML = '<a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a>';
+}
+
+function syncHeaderContextDescription() {
+  const root = $('headerContextDescription');
+  if (!root) return;
+
+  const activeMainTab = document.querySelector('#adminSideNav .tab--nav[aria-selected="true"]');
+  const activePanelId = String(activeMainTab?.getAttribute('aria-controls') || '').trim();
+  const panel = activePanelId ? document.getElementById(activePanelId) : document.querySelector('.tabPanel:not([hidden])');
+  const context = panel?.querySelector?.('.pageContext');
+  if (!context) {
+    root.textContent = '';
+    return;
+  }
+
+  const descriptions = Array.from(context.querySelectorAll('.pageContext__description'));
+  const preferred = descriptions.find((node) => node.id !== 'homeWelcomeLine') || descriptions[0];
+  root.textContent = String(preferred?.textContent || '').trim();
+}
+
 function passwordScore(pw) {
   const p = String(pw || '');
   let score = 0;
@@ -1292,6 +1341,9 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
   if (nextHash) {
     try { window.location.hash = nextHash; } catch { /* ignore */ }
   }
+
+  syncHeaderBreadcrumbs();
+  syncHeaderContextDescription();
 }
 
 async function refreshAuthUI() {
@@ -1303,8 +1355,10 @@ async function refreshAuthUI() {
   }
   const loggedIn = !!me.user;
   const canManageUsers = loggedIn
-    && Array.isArray(me.permissions)
-    && me.permissions.includes(USERS_MANAGE_PERMISSION);
+    && (
+      (Array.isArray(me.permissions) && me.permissions.includes(USERS_MANAGE_PERMISSION))
+      || isAdministratorRole(me?.user?.role)
+    );
 
   const inviteToken = getInviteTokenFromHash();
   const inInviteFlow = !!inviteToken;
@@ -1331,6 +1385,7 @@ async function refreshAuthUI() {
   }
 
   const nameOrEmail = String(me?.user?.name || me?.user?.email || '').trim();
+  const roleLabel = formatUserRoleLabel(me?.user?.role);
   $('authStatus').textContent = loggedIn
     ? `Signed in as ${nameOrEmail || String(me.user.email || '').trim()}`
     : '';
@@ -1338,7 +1393,7 @@ async function refreshAuthUI() {
   if (loggedIn) {
     const nowHour = new Date().getHours();
     const greeting = nowHour < 12 ? 'Good morning' : (nowHour < 18 ? 'Good afternoon' : 'Good evening');
-    $('salutation').textContent = nameOrEmail ? `${greeting}, ${nameOrEmail}` : 'Welcome';
+    $('salutation').textContent = `${greeting}, ${roleLabel}`;
     const homeWelcome = $('homeWelcomeLine');
     if (homeWelcome) homeWelcome.textContent = nameOrEmail ? `${greeting}, ${nameOrEmail}` : 'Welcome';
     const avatarText = $('avatarText');
@@ -1368,6 +1423,8 @@ async function refreshAuthUI() {
     await loadInvite(inviteToken);
   }
 
+  syncHeaderBreadcrumbs();
+  syncHeaderContextDescription();
   updateLayoutMetrics();
 }
 
@@ -2219,6 +2276,8 @@ function financeOpenDeleteDialog(entry) {
   const dialog = $('financeDeleteDialog');
   const isExpense = String(entry?.type) === 'expense';
   const body = $('financeDeleteDialogBody');
+  const reasonEl = $('financeDeleteReason');
+  if (reasonEl) reasonEl.value = '';
   if (body) {
     const amount = formatMoneyCents(Number(entry?.amountCents || 0));
     const category = String(entry?.category || '').trim();
@@ -2241,7 +2300,7 @@ function financeOpenDeleteDialog(entry) {
   }
 
   if (!(dialog instanceof HTMLDialogElement)) {
-    if (confirmWrite('Delete this transaction? This cannot be undone.')) financeDeleteEntry(entry);
+    if (confirmWrite('Void this transaction? The record stays in history.')) financeDeleteEntry(entry, 'Legacy confirmation flow');
     return;
   }
 
@@ -2252,21 +2311,34 @@ function financeOpenDeleteDialog(entry) {
     confirmBtn?.removeEventListener('click', onConfirm);
     keepBtn?.removeEventListener('click', onKeep);
   };
-  const onConfirm = () => { cleanup(); closeManagedDialog(dialog); financeDeleteEntry(entry); };
+  const onConfirm = () => {
+    const reason = String(reasonEl?.value || '').trim();
+    if (!reason) {
+      setFinanceHint('Enter a reason to void this transaction.');
+      try { reasonEl?.focus(); } catch { /* ignore */ }
+      return;
+    }
+    cleanup();
+    closeManagedDialog(dialog);
+    financeDeleteEntry(entry, reason);
+  };
   const onKeep = () => { cleanup(); closeManagedDialog(dialog); };
   confirmBtn?.addEventListener('click', onConfirm);
   keepBtn?.addEventListener('click', onKeep);
 }
 
-async function financeDeleteEntry(entry) {
+async function financeDeleteEntry(entry, reason) {
   if (!entry?.id) return;
-  setFinanceHint('Deleting…');
+  setFinanceHint('Voiding…');
   try {
-    const res = await api(`/api/finances/entries/${encodeURIComponent(String(entry.id))}`, { method: 'DELETE' });
+    const res = await api(`/api/finances/entries/${encodeURIComponent(String(entry.id))}/void`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: String(reason || '').trim() })
+    });
     finances = res.data;
     financeResetForm();
     renderFinances();
-    setFinanceHint('Deleted.');
+    setFinanceHint('Transaction voided.');
   } catch (err) {
     setFinanceHint(err.message);
   }
@@ -2320,7 +2392,9 @@ function populateFinancePartyDatalist() {
 }
 
 function financeBuildDescription(e) {
-  const category = String(e?.category || '').trim() || (String(e?.type) === 'expense' ? 'Expense' : 'Income');
+  const status = String(e?.status || '').trim().toLowerCase();
+  const baseCategory = String(e?.category || '').trim() || (String(e?.type) === 'expense' ? 'Expense' : 'Income');
+  const category = status === 'voided' ? `${baseCategory} (Voided)` : (status === 'reversed' ? `${baseCategory} (Reversed)` : baseCategory);
   const parts = [e?.fund, financeMethodLabel(e?.method), e?.party].map((v) => String(v || '').trim()).filter(Boolean);
   return { title: category, subtitle: parts.join(' · ') };
 }
@@ -2329,11 +2403,17 @@ function financeBuildDetailFields(e) {
   const isExpense = String(e?.type) === 'expense';
   const fields = [];
   fields.push(['Transaction type', isExpense ? 'Money Spent' : 'Money Received']);
+  if (e?.sourceLabel || e?.source) fields.push(['Source', String(e.sourceLabel || e.source || '').replace(/_/g, ' ')]);
+  if (e?.status) fields.push(['Status', String(e.status || '').replace(/_/g, ' ')]);
+  if (e?.reconciliationStatus) fields.push(['Reconciliation', String(e.reconciliationStatus || '').replace(/_/g, ' ')]);
   if (e?.category) fields.push(['Category', e.category]);
   if (e?.fund) fields.push(['Fund', e.fund]);
+  if (e?.accountName) fields.push(['Account', e.accountName]);
+  if (e?.checkNumber) fields.push(['Check number', e.checkNumber]);
   if (e?.method) fields.push(['Payment method', financeMethodLabel(e.method)]);
   if (e?.party) fields.push([isExpense ? 'Paid to' : 'Received from', e.party]);
   if (e?.memo) fields.push(['Note', e.memo]);
+  if (e?.voidReason) fields.push(['Void reason', e.voidReason]);
   if (e?.createdAt) fields.push(['Created', formatLocalTimestamp(new Date(e.createdAt))]);
   if (e?.updatedAt && e.updatedAt !== e.createdAt) fields.push(['Last edited', formatLocalTimestamp(new Date(e.updatedAt))]);
   return fields;
@@ -2365,7 +2445,10 @@ function financeRowActionButtons(e, { onToggle }) {
   const delBtn = document.createElement('button');
   delBtn.type = 'button';
   delBtn.className = 'btn btn--sm btn--danger';
-  delBtn.textContent = 'Delete';
+  delBtn.textContent = 'Void';
+  if (String(e?.status || '').toLowerCase() === 'voided' || String(e?.status || '').toLowerCase() === 'reversed') {
+    delBtn.disabled = true;
+  }
   delBtn.addEventListener('click', () => financeOpenDeleteDialog(e));
 
   wrap.appendChild(viewBtn);
@@ -2752,6 +2835,7 @@ let photoArrangeAlbum = '';
 let photoSelectedIds = new Set();
 let photoFilteredItems = [];
 let photoCurrentPage = 1;
+let photoGalleryDisplaySettings = { showImageNames: true };
 const PHOTO_ROWS_PER_PAGE = 6;
 
 const FIN_CREATE_VALUE = '__CREATE__';
@@ -2771,6 +2855,52 @@ function photoGetColumns() {
 
 function photoPageSize() {
   return photoGetColumns() * PHOTO_ROWS_PER_PAGE;
+}
+
+function renderPhotoDisplayNameToggle() {
+  const input = $('photoShowImageNames');
+  const hint = $('photoDisplayNameToggleHint');
+  if (!(input instanceof HTMLInputElement)) return;
+  input.checked = photoGalleryDisplaySettings.showImageNames !== false;
+  if (hint) {
+    hint.textContent = input.checked
+      ? 'Live photo names are currently visible on the public gallery page.'
+      : 'Live photo names are currently hidden on the public gallery page.';
+  }
+}
+
+async function loadPhotoDisplayNameSetting() {
+  const input = $('photoShowImageNames');
+  if (!(input instanceof HTMLInputElement)) return;
+  const data = await api('/api/gallery/settings', { method: 'GET' });
+  const current = data?.settings?.showImageNames;
+  photoGalleryDisplaySettings.showImageNames = current !== false;
+  renderPhotoDisplayNameToggle();
+}
+
+async function savePhotoDisplayNameSetting(showImageNames) {
+  const input = $('photoShowImageNames');
+  const hint = $('photoDisplayNameToggleHint');
+  if (!(input instanceof HTMLInputElement)) return;
+
+  input.disabled = true;
+  if (hint) hint.textContent = 'Saving photo display preference…';
+
+  try {
+    const data = await api('/api/gallery/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ showImageNames: Boolean(showImageNames) })
+    });
+    photoGalleryDisplaySettings.showImageNames = data?.settings?.showImageNames !== false;
+    renderPhotoDisplayNameToggle();
+    showToast('Photo gallery name display preference updated.', { variant: 'success' });
+  } catch (err) {
+    input.checked = photoGalleryDisplaySettings.showImageNames !== false;
+    if (hint) hint.textContent = err instanceof Error ? err.message : 'Unable to save photo display preference.';
+    showToast('Unable to save photo name display preference.', { variant: 'danger' });
+  } finally {
+    input.disabled = false;
+  }
 }
 
 function photoUpdateBulkBar() {
@@ -3087,6 +3217,13 @@ async function loadGallery() {
   galleryItems = data.items || [];
   renderArrangeAlbumOptions();
   applyPhotoFilters();
+  if ($('photoShowImageNames')) {
+    try {
+      await loadPhotoDisplayNameSetting();
+    } catch {
+      renderPhotoDisplayNameToggle();
+    }
+  }
 }
 
 // -------- R2 Bucket Browser (gallery/ only) --------
@@ -6692,6 +6829,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('photoSort').addEventListener('change', applyPhotoFilters);
   $('photoAlbumFilter').addEventListener('input', applyPhotoFilters);
   $('photoTagFilter').addEventListener('input', applyPhotoFilters);
+
+  if ($('photoShowImageNames')) {
+    $('photoShowImageNames').addEventListener('change', async (e) => {
+      const input = e.currentTarget;
+      const next = Boolean(input?.checked);
+      await savePhotoDisplayNameSetting(next);
+    });
+  }
 
   $('photoArrangeAlbum').addEventListener('change', (e) => {
     photoArrangeAlbum = String(e.currentTarget.value || '').trim();

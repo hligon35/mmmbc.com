@@ -5,28 +5,58 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Church Website Manager</title>
   <meta name="description" content="Admin dashboard for Mt. Moriah Missionary Baptist Church website." />
-  <link rel="stylesheet" href="/admin/admin.css?v=20260124" />
+  <link rel="stylesheet" href="/admin/admin.css?v=20260730a" />
+  <link rel="stylesheet" href="/admin/admin-header-canonical.css?v=20260730b" />
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
 
   <header class="header" id="adminHeader" hidden>
-    <div class="header__left">
+    <div class="adminHeader__logo" aria-hidden="true">
       <img class="header__logo" src="/ConImg/MtMoriahLogo-1.png" alt="Mt. Moriah Missionary Baptist Church" />
     </div>
-    <div class="header__center">
-      <div class="headerGreeting salutation salutation--header" id="salutation" aria-live="polite"></div>
-      <div class="headerSignedIn status" id="authStatus" aria-live="polite"></div>
-      <div class="headerActions">
-        <button class="btn btn--drawerToggle" id="navDrawerToggle" type="button" aria-expanded="false" aria-controls="adminSideNav" aria-label="Open Menu">Open Menu</button>
-        <button class="btn" id="logoutBtn" type="button" hidden>Log out</button>
+
+    <nav class="adminHeader__breadcrumbs" id="adminHeaderBreadcrumbs" aria-label="Current section breadcrumbs"></nav>
+
+    <div class="adminHeader__top">
+      <div class="adminHeader__headline">
+        <div class="headerGreeting salutation salutation--header" id="salutation" aria-live="polite"></div>
+        <div class="adminHeader__contextDescription" id="headerContextDescription" aria-live="polite"></div>
+      </div>
+      <div class="adminHeader__account">
+        <div class="headerSignedIn status" id="authStatus" aria-live="polite"></div>
+        <div class="headerActions">
+          <button class="btn btn--drawerToggle" id="navDrawerToggle" type="button" aria-expanded="false" aria-controls="adminSideNav" aria-label="Open Menu">Open Menu</button>
+          <button class="btn" id="logoutBtn" type="button" hidden>Log out</button>
+        </div>
       </div>
     </div>
-    <div class="header__right">
-      <button class="iconBtn headerInviteBtn noPrint" id="inviteAdminBtn" type="button" aria-label="Invite admin" title="Invite admin" hidden>
+
+    <div class="adminHeader__invite noPrint" id="adminHeaderInvite">
+      <button class="iconBtn headerInviteBtn" id="inviteAdminBtn" type="button" aria-label="Invite admin" title="Invite admin" hidden>
         <img class="iconBtn__icon headerInviteBtn__icon" src="/Icons/mailus.png" alt="" aria-hidden="true" />
+        <span class="headerInviteBtn__label">Invite Admin</span>
       </button>
     </div>
+
+    <div class="adminHeader__tabs noPrint" id="adminHeaderTabs" aria-label="Primary admin navigation">
+      <nav class="sideNav adminDrawer" id="adminSideNav" role="tablist" aria-label="Admin sections" aria-hidden="true" tabindex="-1">
+        <button class="tab tab--nav" role="tab" aria-selected="true" aria-controls="tab-home" id="tabBtn-home">Home</button>
+
+        <p class="sideNav__groupLabel" aria-hidden="true">Website Updates</p>
+        <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-content" id="tabBtn-content">Announcements</button>
+        <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-events" id="tabBtn-events">Events</button>
+        <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-photos" id="tabBtn-photos">Photos</button>
+
+        <p class="sideNav__groupLabel" aria-hidden="true">Communication</p>
+        <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-newsletter" id="tabBtn-newsletter">Newsletter</button>
+
+        <p class="sideNav__groupLabel" aria-hidden="true">Administration</p>
+        <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-finances" id="tabBtn-finances">Church Finances</button>
+        <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-support" id="tabBtn-support">Help &amp; Support</button>
+      </nav>
+    </div>
+
     <div class="adminSectionExtension noPrint" id="adminSectionExtension" hidden></div>
   </header>
   <button class="adminDrawerBackdrop" id="adminDrawerBackdrop" type="button" aria-label="Close menu" hidden></button>
@@ -202,22 +232,6 @@
 
     <section class="card" id="dashboardCard" aria-label="Admin dashboard" hidden>
       <div class="adminLayout">
-        <nav class="sideNav adminDrawer" id="adminSideNav" role="tablist" aria-label="Admin sections" aria-hidden="true" tabindex="-1">
-          <button class="tab tab--nav" role="tab" aria-selected="true" aria-controls="tab-home" id="tabBtn-home">Home</button>
-
-          <p class="sideNav__groupLabel" aria-hidden="true">Website Updates</p>
-          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-content" id="tabBtn-content">Announcements</button>
-          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-events" id="tabBtn-events">Events</button>
-          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-photos" id="tabBtn-photos">Photos</button>
-
-          <p class="sideNav__groupLabel" aria-hidden="true">Communication</p>
-          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-newsletter" id="tabBtn-newsletter">Newsletter</button>
-
-          <p class="sideNav__groupLabel" aria-hidden="true">Administration</p>
-          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-finances" id="tabBtn-finances">Church Finances</button>
-          <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-support" id="tabBtn-support">Help &amp; Support</button>
-        </nav>
-
         <div class="adminMain">
 
       <section class="tabPanel" role="tabpanel" id="tab-home" aria-labelledby="tabBtn-home">
@@ -369,7 +383,12 @@
               Search tags
               <input class="input" id="photoTagFilter" type="text" placeholder="youth" />
             </label>
+            <label class="label label--inline photoSettingToggle" for="photoShowImageNames">
+              <input class="checkbox" id="photoShowImageNames" type="checkbox" checked />
+              <span>Show image names on live gallery</span>
+            </label>
           </div>
+          <div class="hint" id="photoDisplayNameToggleHint" aria-live="polite"></div>
 
           <div class="toolbar toolbar--tightTop photoPager" id="photoPager" aria-label="Photo gallery pagination" hidden>
             <button class="btn" id="photoPrevPageBtn" type="button">Prev</button>
@@ -917,11 +936,15 @@
 
         <dialog class="dialog" id="financeDeleteDialog" aria-labelledby="financeDeleteDialogTitle" aria-modal="true">
           <div class="card dialog__inner">
-            <h3 class="sectionHeader__title" id="financeDeleteDialogTitle">Delete this transaction?</h3>
+            <h3 class="sectionHeader__title" id="financeDeleteDialogTitle">Void this transaction?</h3>
             <p id="financeDeleteDialogBody"></p>
-            <p class="muted">This cannot be undone.</p>
+            <label class="label" for="financeDeleteReason">
+              Reason for void
+              <textarea class="textarea" id="financeDeleteReason" rows="3" maxlength="500" placeholder="Briefly explain why this transaction is being voided."></textarea>
+            </label>
+            <p class="muted">The original transaction stays in history and will be marked as voided.</p>
             <div class="toolbar">
-              <button class="btn btn--danger" id="financeDeleteConfirmBtn" type="button">Delete Transaction</button>
+              <button class="btn btn--danger" id="financeDeleteConfirmBtn" type="button">Void Transaction</button>
               <button class="btn" id="financeDeleteKeepBtn" type="button">Keep Transaction</button>
             </div>
           </div>

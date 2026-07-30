@@ -813,12 +813,53 @@ async function listGallery(env) {
   return { items };
 }
 
+async function ensureGalleryPreferencesTable(env) {
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS gallery_preferences (
+      id INTEGER PRIMARY KEY,
+      show_image_names INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT NOT NULL
+    )`
+  ).run();
+}
+
+async function getGalleryPreferences(env) {
+  await ensureGalleryPreferencesTable(env);
+  const existing = await env.DB.prepare(
+    'SELECT show_image_names FROM gallery_preferences WHERE id = 1'
+  ).first();
+
+  if (!existing) {
+    const updatedAt = new Date().toISOString();
+    await env.DB.prepare(
+      'INSERT INTO gallery_preferences (id, show_image_names, updated_at) VALUES (1, 1, ?)'
+    ).bind(updatedAt).run();
+    return { showImageNames: true };
+  }
+
+  return { showImageNames: Number(existing.show_image_names) !== 0 };
+}
+
+async function setGalleryPreferences(env, { showImageNames }) {
+  await ensureGalleryPreferencesTable(env);
+  const updatedAt = new Date().toISOString();
+  await env.DB.prepare(
+    `INSERT INTO gallery_preferences (id, show_image_names, updated_at)
+     VALUES (1, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       show_image_names = excluded.show_image_names,
+       updated_at = excluded.updated_at`
+  ).bind(showImageNames ? 1 : 0, updatedAt).run();
+  return { showImageNames: Boolean(showImageNames) };
+}
+
 async function handlePublicGallery(request, env) {
   // Public endpoint: drives the public photo gallery page.
   // Note: if your Cloudflare Access policy currently protects ALL /api paths,
   // we keep this under /public so it can remain unprotected.
   const data = await listGallery(env);
-  return json(data, {
+  const settings = await getGalleryPreferences(env);
+  return json({ ...data, settings }, {
     status: 200,
     headers: {
       'Cache-Control': 'no-store',
@@ -1379,6 +1420,25 @@ export default {
       const auth = await requireAdmin(request, env);
       if (!auth.ok) return json({ error: auth.error }, { status: 401 });
       return json(await listGallery(env));
+    }
+
+    if (url.pathname === '/api/gallery/settings' && request.method === 'GET') {
+      const auth = await requireAdmin(request, env);
+      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+      return json({ settings: await getGalleryPreferences(env) });
+    }
+
+    if (url.pathname === '/api/gallery/settings' && request.method === 'PUT') {
+      const auth = await requireAdmin(request, env);
+      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body.showImageNames !== 'boolean') {
+        return json({ error: 'showImageNames boolean is required' }, { status: 400 });
+      }
+
+      const settings = await setGalleryPreferences(env, { showImageNames: body.showImageNames });
+      return json({ ok: true, settings });
     }
 
     if (url.pathname === '/api/gallery/upload' && request.method === 'POST') {
