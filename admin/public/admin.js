@@ -905,7 +905,8 @@ function initGoogleSignInButton() {
   if (!panel || !wrap || !hint) return;
 
   if (!authProviders.google.enabled || !authProviders.google.clientId) {
-    panel.hidden = true;
+    panel.hidden = false;
+    hint.textContent = 'Google sign-in is currently unavailable. Refresh and try again.';
     hideGoogleButton();
     return;
   }
@@ -1155,7 +1156,7 @@ function formatUserRoleLabel(roleValue) {
   if (role === 'finance_entry' || role === 'financeentry' || role === 'finance') return 'Finance Entry';
   if (role === 'treasurer') return 'Treasurer';
   if (role === 'auditor') return 'Auditor';
-  if (role === 'website_editor' || role === 'editor' || role === 'website') return 'Website Editor';
+  if (role === 'website_editor' || role === 'editor' || role === 'website') return 'Website Manager';
   return role ? role.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase()) : 'Member';
 }
 
@@ -1171,6 +1172,23 @@ function syncHeaderBreadcrumbs() {
   const activeMainTab = document.querySelector('#adminSideNav .tab--nav[aria-selected="true"]');
   const activePanelId = String(activeMainTab?.getAttribute('aria-controls') || '').trim();
   const activePanel = activePanelId ? document.getElementById(activePanelId) : null;
+  const crumbLabel = String(activePanel?.dataset?.headerCrumb || '').trim();
+
+  if (crumbLabel) {
+    const homeLink = document.createElement('a');
+    homeLink.href = '#home';
+    homeLink.className = 'pageContext__homeLink';
+    homeLink.setAttribute('data-section-target', 'tab-home');
+    homeLink.textContent = 'Home';
+
+    root.replaceChildren(
+      homeLink,
+      document.createTextNode(' \u203a '),
+      document.createTextNode(crumbLabel)
+    );
+    return;
+  }
+
   const crumb = activePanel?.querySelector?.('.pageContext__crumb') || document.querySelector('.tabPanel:not([hidden]) .pageContext__crumb');
   if (crumb) {
     root.innerHTML = crumb.innerHTML;
@@ -1187,6 +1205,13 @@ function syncHeaderContextDescription() {
   const activeMainTab = document.querySelector('#adminSideNav .tab--nav[aria-selected="true"]');
   const activePanelId = String(activeMainTab?.getAttribute('aria-controls') || '').trim();
   const panel = activePanelId ? document.getElementById(activePanelId) : document.querySelector('.tabPanel:not([hidden])');
+  const panelDescription = String(panel?.dataset?.headerDescription || '').trim();
+
+  if (panelDescription) {
+    root.textContent = panelDescription;
+    return;
+  }
+
   const context = panel?.querySelector?.('.pageContext');
   if (!context) {
     root.textContent = '';
@@ -1259,6 +1284,7 @@ function setTab(activeId) {
     $('tabBtn-events'),
     $('tabBtn-content'),
     $('tabBtn-finances'),
+    $('tabBtn-directory'),
     $('tabBtn-newsletter'),
     $('tabBtn-support')
   ];
@@ -1268,6 +1294,7 @@ function setTab(activeId) {
     $('tab-events'),
     $('tab-content'),
     $('tab-finances'),
+    $('tab-directory'),
     $('tab-newsletter'),
     $('tab-support')
   ];
@@ -1299,13 +1326,13 @@ function setTab(activeId) {
   updateLayoutMetrics();
 }
 
-function updateActiveSectionExtensions(activeTabId) {
+function updateActiveSectionExtensions() {
   const extension = $('adminSectionExtension');
   const financeTopBar = $('financeTopBar');
-  const showFinance = activeTabId === 'tab-finances';
 
-  if (financeTopBar) financeTopBar.hidden = !showFinance;
-  if (extension) extension.hidden = !showFinance;
+  // Legacy section extension is no longer used for finance header layout.
+  if (financeTopBar) financeTopBar.hidden = true;
+  if (extension) extension.hidden = true;
 }
 
 function activateMainSection(sectionId, { subTabId = '' } = {}) {
@@ -1327,6 +1354,9 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
   if (sectionId === 'tab-finances') {
     setFinanceSubTab(subTabId || 'panel-finances-record');
   }
+  if (sectionId === 'tab-directory') {
+    setDirectorySubTab(subTabId || 'panel-directory-contacts');
+  }
 
   const hashMap = {
     'tab-home': 'home',
@@ -1334,6 +1364,7 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
     'tab-events': 'events',
     'tab-content': subTabId === 'panel-content-bulletins' ? 'bulletins' : 'announcements',
     'tab-finances': 'finances',
+    'tab-directory': 'directory',
     'tab-newsletter': 'newsletter',
     'tab-support': 'support'
   };
@@ -1344,6 +1375,22 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
 
   syncHeaderBreadcrumbs();
   syncHeaderContextDescription();
+
+  try {
+    window.dispatchEvent(new CustomEvent('admin:section-activated', {
+      detail: { sectionId, subTabId: subTabId || '' }
+    }));
+  } catch {
+    // ignore custom-event dispatch failures
+  }
+
+  if (sectionId === 'tab-home') {
+    try {
+      window.dispatchEvent(new CustomEvent('admin:home-activated'));
+    } catch {
+      // ignore dashboard refresh signaling failures
+    }
+  }
 }
 
 async function refreshAuthUI() {
@@ -1362,16 +1409,27 @@ async function refreshAuthUI() {
 
   const inviteToken = getInviteTokenFromHash();
   const inInviteFlow = !!inviteToken;
+  const showSignInScreen = !loggedIn && !inInviteFlow;
+
+  document.body.classList.toggle('authMode', showSignInScreen);
 
   setAuthenticatedHeaderVisible(loggedIn && !inInviteFlow);
 
   $('inviteCard').hidden = !inInviteFlow;
-  $('loginCard').hidden = loggedIn || inInviteFlow;
+  $('loginCard').hidden = !showSignInScreen;
   const authShell = $('authShell');
   if (authShell) authShell.hidden = loggedIn;
   $('dashboardCard').hidden = !loggedIn || inInviteFlow;
   $('logoutBtn').hidden = !loggedIn;
-  if ($('inviteAdminBtn')) $('inviteAdminBtn').hidden = !canManageUsers || inInviteFlow;
+  if ($('inviteAdminBtn')) {
+    const inviteButton = $('inviteAdminBtn');
+    inviteButton.hidden = !canManageUsers || inInviteFlow;
+    inviteButton.disabled = !canManageUsers || inInviteFlow;
+    inviteButton.style.display = 'inline-flex';
+    inviteButton.style.pointerEvents = 'auto';
+    inviteButton.style.position = 'relative';
+    inviteButton.style.zIndex = '20';
+  }
   if ($('adminStorageHealthCard')) $('adminStorageHealthCard').hidden = !canManageUsers || inInviteFlow;
 
   if (!loggedIn && !inInviteFlow) {
@@ -1381,6 +1439,7 @@ async function refreshAuthUI() {
     if (form) form.hidden = false;
     if (forgotToggle) forgotToggle.hidden = false;
     if (forgotPanel) forgotPanel.hidden = true;
+    await loadAuthProviders();
     initGoogleSignInButton();
   }
 
@@ -1478,6 +1537,7 @@ function applyHashNavigation() {
     activateMainSection('tab-content', { subTabId: 'panel-content-announcements' });
   }
   if (h === 'finances' || h === 'finance') activateMainSection('tab-finances');
+  if (h === 'directory') activateMainSection('tab-directory', { subTabId: 'panel-directory-contacts' });
   if (h === 'newsletter') activateMainSection('tab-newsletter');
   if (h === 'support') activateMainSection('tab-support');
 
@@ -1902,6 +1962,18 @@ function setFundSelectOptions(sel) {
     sel.appendChild(empty);
   }
 
+  const createOpt = document.createElement('option');
+  createOpt.value = FIN_CREATE_VALUE;
+  createOpt.textContent = 'Create…';
+  sel.appendChild(createOpt);
+
+  if (activeFunds.length) {
+    const deleteOpt = document.createElement('option');
+    deleteOpt.value = FIN_DELETE_VALUE;
+    deleteOpt.textContent = 'Delete…';
+    sel.appendChild(deleteOpt);
+  }
+
   const hint = $('financeFundHint');
   if (hint) {
     hint.textContent = activeFunds.length
@@ -1916,6 +1988,28 @@ function normalizeFinanceName(value) {
   return String(value || '').trim().replace(/\s+/g, ' ');
 }
 
+function financePromptDeleteTarget(kindLabel, names) {
+  const options = Array.from(new Set((Array.isArray(names) ? names : [])
+    .map((name) => normalizeFinanceName(name))
+    .filter(Boolean)));
+  if (!options.length) return '';
+
+  options.sort((a, b) => a.localeCompare(b));
+  const numbered = options.map((name, index) => `${index + 1}. ${name}`).join('\n');
+  const raw = prompt(`Type the ${kindLabel} name or number to delete:\n${numbered}`);
+  if (raw === null) return null;
+  const typed = normalizeFinanceName(raw);
+  if (!typed) return '';
+
+  const asNumber = Number(typed);
+  if (Number.isInteger(asNumber) && asNumber >= 1 && asNumber <= options.length) {
+    return options[asNumber - 1];
+  }
+
+  const matched = options.find((name) => financeNormalizeKey(name) === financeNormalizeKey(typed));
+  return matched || '';
+}
+
 async function financeHandleCreateSelect(kind) {
   const sel = kind === 'fund' ? $('financeFund') : $('financeCategory');
   if (!(sel instanceof HTMLSelectElement)) return;
@@ -1924,6 +2018,43 @@ async function financeHandleCreateSelect(kind) {
 
   if (selected === FIN_DELETE_VALUE) {
     sel.value = '';
+    if (kind === 'fund') {
+      const activeFunds = financeActiveFunds();
+      if (!activeFunds.length) {
+        setFinanceHint('There are no funds to delete.');
+        return;
+      }
+
+      const typed = financePromptDeleteTarget('fund', activeFunds.map((fund) => fund?.fundName));
+      if (typed === null) return;
+      if (!typed) {
+        setFinanceHint('Fund not found. Enter an existing fund name.');
+        return;
+      }
+
+      const matched = activeFunds.find((fund) => financeNormalizeKey(fund?.fundName) === financeNormalizeKey(typed));
+      if (!matched) {
+        setFinanceHint('Fund not found. Enter an existing fund name.');
+        return;
+      }
+
+      if (!confirmWrite(`Delete fund "${matched.fundName}"?`)) return;
+
+      setFinanceHint('Deleting fund…');
+      try {
+        await api(`/api/finances/funds/${encodeURIComponent(String(matched.id || ''))}/archive`, {
+          method: 'POST',
+          body: '{}'
+        });
+        await loadFinanceFundsRegistry();
+        populateFinanceDatalists();
+        setFinanceHint('Fund deleted.');
+      } catch (e) {
+        setFinanceHint(String(e?.message || e || 'Unable to delete fund.'));
+      }
+      return;
+    }
+
     if (kind !== 'category') return;
 
     const currentCats = Array.isArray(finances?.meta?.categories) ? finances.meta.categories : [];
@@ -1932,8 +2063,12 @@ async function financeHandleCreateSelect(kind) {
       return;
     }
 
-    const typed = normalizeFinanceName(prompt('Type the category name you want to delete'));
-    if (!typed) return;
+    const typed = financePromptDeleteTarget('category', currentCats);
+    if (typed === null) return;
+    if (!typed) {
+      setFinanceHint('Category not found. Enter an existing category name.');
+      return;
+    }
 
     const matched = currentCats.find((name) => financeNormalizeKey(name) === financeNormalizeKey(typed));
     if (!matched) {
@@ -1974,6 +2109,31 @@ async function financeHandleCreateSelect(kind) {
   const label = kind === 'fund' ? 'fund' : 'category';
   const next = normalizeFinanceName(prompt(`Create new ${label} name`));
   if (!next) return;
+
+  if (kind === 'fund') {
+    const activeFunds = financeActiveFunds();
+    const exists = activeFunds.some((fund) => financeNormalizeKey(fund?.fundName) === financeNormalizeKey(next));
+    if (exists) {
+      setFinanceHint('That fund already exists.');
+      return;
+    }
+
+    setFinanceHint('Saving…');
+    try {
+      const res = await api('/api/finances/funds', {
+        method: 'POST',
+        body: JSON.stringify({ fundName: next })
+      });
+      await loadFinanceFundsRegistry();
+      populateFinanceDatalists();
+      const newId = String(res?.fund?.id || '');
+      if (newId && $('financeFund')) $('financeFund').value = newId;
+      setFinanceHint('Saved.');
+    } catch (e) {
+      setFinanceHint(String(e?.message || e || 'Unable to save.'));
+    }
+    return;
+  }
 
   const currentCats = Array.isArray(finances?.meta?.categories) ? finances.meta.categories : [];
   const currentFunds = Array.isArray(finances?.meta?.funds) ? finances.meta.funds : [];
@@ -2486,19 +2646,17 @@ function renderFinances() {
 
   if ($('financeIncomeTotal')) $('financeIncomeTotal').textContent = formatMoneyCents(income);
   if ($('financeExpenseTotal')) $('financeExpenseTotal').textContent = formatMoneyCents(expense);
-  if ($('financeNetTotal')) $('financeNetTotal').textContent = formatMoneyCents(net);
-
-  const movement = income + expense;
-  const incomeMeter = $('financeIncomeMeter');
-  if (incomeMeter) incomeMeter.style.width = `${movement > 0 ? Math.round((income / movement) * 100) : 0}%`;
-  const expenseMeter = $('financeExpenseMeter');
-  if (expenseMeter) expenseMeter.style.width = `${movement > 0 ? Math.round((expense / movement) * 100) : 0}%`;
-  const netMeter = $('financeNetMeter');
-  if (netMeter) {
-    const magnitudePct = movement > 0 ? Math.min(50, Math.round((Math.abs(net) / movement) * 50)) : 0;
-    netMeter.style.width = `${magnitudePct}%`;
-    netMeter.classList.toggle('financeStatCard__meterFill--negative', net < 0);
+  const netEl = $('financeNetTotal');
+  if (netEl) {
+    netEl.textContent = formatMoneyCents(net);
+    netEl.classList.toggle('financeAmt--income', net > 0);
+    netEl.classList.toggle('financeAmt--expense', net < 0);
   }
+
+  renderFinancePieChart('financeFlowPie', [
+    { label: 'Money Received', value: income, color: '#2f9e44' },
+    { label: 'Money Spent', value: expense, color: 'var(--danger)' }
+  ], 'No money movement for the selected filters.');
 
   const meta = $('financePrintMeta');
   if (meta) {
@@ -2756,14 +2914,53 @@ function renderWeeklyGiving() {
   }
 
   const total = tithes + offerings;
+  const periodLabel = $('financeGivingPeriodLabel');
+  if (periodLabel) periodLabel.textContent = financeGivingPeriod === 'month' ? '(This Month)' : '(This Week)';
   if ($('financeTithesTotal')) $('financeTithesTotal').textContent = formatMoneyCents(tithes);
   if ($('financeOfferingsTotal')) $('financeOfferingsTotal').textContent = formatMoneyCents(offerings);
   if ($('financeGivingTotal')) $('financeGivingTotal').textContent = formatMoneyCents(total);
 
-  const tithesMeter = $('financeTithesMeter');
-  if (tithesMeter) tithesMeter.style.width = `${total > 0 ? Math.round((tithes / total) * 100) : 0}%`;
-  const offeringsMeter = $('financeOfferingsMeter');
-  if (offeringsMeter) offeringsMeter.style.width = `${total > 0 ? Math.round((offerings / total) * 100) : 0}%`;
+  renderFinancePieChart('financeGivingPie', [
+    { label: 'Tithes', value: tithes, color: 'var(--accent)' },
+    { label: 'Offerings', value: offerings, color: '#2f9e44' }
+  ], 'No giving entries in the selected period.');
+}
+
+function renderFinancePieChart(pieId, slices, emptyLabel) {
+  const pie = $(pieId);
+  if (!pie) return;
+
+  const normalized = Array.isArray(slices)
+    ? slices.map((slice) => ({
+      label: String(slice?.label || '').trim(),
+      color: String(slice?.color || 'rgba(255,255,255,.2)'),
+      value: Math.max(0, Number(slice?.value || 0))
+    }))
+    : [];
+
+  const total = normalized.reduce((sum, slice) => sum + slice.value, 0);
+  if (!(total > 0)) {
+    pie.style.background = 'conic-gradient(rgba(255,255,255,.18) 0deg 360deg)';
+    pie.setAttribute('aria-label', String(emptyLabel || 'No data available.'));
+    return;
+  }
+
+  let start = 0;
+  const parts = [];
+  const labels = [];
+
+  for (const slice of normalized) {
+    if (!(slice.value > 0)) continue;
+    const degrees = (slice.value / total) * 360;
+    const end = start + degrees;
+    parts.push(`${slice.color} ${start}deg ${end}deg`);
+    const pct = Math.round((slice.value / total) * 1000) / 10;
+    labels.push(`${slice.label} ${pct}%`);
+    start = end;
+  }
+
+  pie.style.background = `conic-gradient(${parts.join(', ')})`;
+  pie.setAttribute('aria-label', labels.join(', '));
 }
 
 function setSubTab(buttonIds, panelIds, activePanelId) {
@@ -2800,6 +2997,14 @@ function setPhotosSubTab(panelId) {
   setSubTab(
     ['subTabBtn-photos-manage', 'subTabBtn-photos-bucket'],
     ['panel-photos-manage', 'panel-photos-bucket'],
+    panelId
+  );
+}
+
+function setDirectorySubTab(panelId) {
+  setSubTab(
+    ['subTabBtn-directory-contacts', 'subTabBtn-directory-subscribers', 'subTabBtn-directory-groups'],
+    ['panel-directory-contacts', 'panel-directory-subscribers', 'panel-directory-groups'],
     panelId
   );
 }
@@ -3050,6 +3255,34 @@ async function saveManualOrder(album, orderedIds) {
   });
 }
 
+function openPhotoViewDialog(item) {
+  const dlg = $('photoViewDialog');
+  if (!(dlg instanceof HTMLElement)) return;
+
+  const src = String(item?.file || item?.thumb || '').trim();
+  if (!src) return;
+
+  const img = $('photoViewImage');
+  const name = $('photoViewName');
+  const details = $('photoViewDetails');
+
+  if (img instanceof HTMLImageElement) {
+    img.src = src;
+    img.alt = String(item?.label || item?.album || 'Photo preview').trim();
+  }
+  if (name) {
+    name.textContent = String(item?.label || item?.originalName || item?.album || 'Photo').trim();
+  }
+  if (details) {
+    const album = String(item?.album || 'General').trim();
+    const created = formatDate(item?.createdAt);
+    const tags = Array.isArray(item?.tags) && item.tags.length ? `Tags: ${item.tags.join(', ')}` : '';
+    details.textContent = [album, created, tags].filter(Boolean).join(' • ');
+  }
+
+  openManagedDialog(dlg, { initialFocusId: 'photoViewCloseBtn' });
+}
+
 function renderPhotoGrid(items) {
   const grid = $('photoGrid');
   grid.innerHTML = '';
@@ -3114,12 +3347,13 @@ function renderPhotoGrid(items) {
     const actions = document.createElement('div');
     actions.className = 'row__actions';
 
-    const view = document.createElement('a');
+    const view = document.createElement('button');
     view.className = 'btn';
-    view.href = item.file || item.thumb || '#';
-    view.target = '_blank';
-    view.rel = 'noopener noreferrer';
+    view.type = 'button';
     view.textContent = 'View';
+    view.addEventListener('click', () => {
+      openPhotoViewDialog(item);
+    });
     actions.appendChild(view);
 
     const edit = document.createElement('button');
@@ -5481,6 +5715,14 @@ async function loadAll() {
   for (const r of results) {
     if (r.status === 'rejected') throw r.reason;
   }
+
+  if (window.AdminDashboard && typeof window.AdminDashboard.refresh === 'function') {
+    try {
+      await window.AdminDashboard.refresh();
+    } catch {
+      // Dashboard should not block admin boot if overview data is unavailable.
+    }
+  }
 }
 
 function renderStorageHealthStatus(data) {
@@ -5618,6 +5860,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('tabBtn-events')) $('tabBtn-events').addEventListener('click', () => activateMainSection('tab-events'));
   if ($('tabBtn-content')) $('tabBtn-content').addEventListener('click', () => activateMainSection('tab-content', { subTabId: 'panel-content-announcements' }));
   if ($('tabBtn-finances')) $('tabBtn-finances').addEventListener('click', () => activateMainSection('tab-finances'));
+  if ($('tabBtn-directory')) $('tabBtn-directory').addEventListener('click', () => activateMainSection('tab-directory', { subTabId: 'panel-directory-contacts' }));
   if ($('tabBtn-newsletter')) $('tabBtn-newsletter').addEventListener('click', () => activateMainSection('tab-newsletter'));
   if ($('tabBtn-support')) $('tabBtn-support').addEventListener('click', () => activateMainSection('tab-support'));
 
@@ -5653,6 +5896,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('subTabBtn-settings-theme')) {
     $('subTabBtn-settings-theme').addEventListener('click', () => setSettingsSubTab('panel-settings-theme'));
   }
+  if ($('subTabBtn-directory-contacts')) {
+    $('subTabBtn-directory-contacts').addEventListener('click', () => setDirectorySubTab('panel-directory-contacts'));
+  }
+  if ($('subTabBtn-directory-subscribers')) {
+    $('subTabBtn-directory-subscribers').addEventListener('click', () => setDirectorySubTab('panel-directory-subscribers'));
+  }
+  if ($('subTabBtn-directory-groups')) {
+    $('subTabBtn-directory-groups').addEventListener('click', () => setDirectorySubTab('panel-directory-groups'));
+  }
 
   applyDetectedNewsletterTimezone();
   ensureNewsletterBodyTemplate();
@@ -5667,7 +5919,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     'financeEntryForm',
     'newsletterForm',
     'photoUploadForm',
-    'supportForm'
+    'supportForm',
+    'directoryContactForm'
   ];
   for (const formId of unsavedFormIds) {
     const form = $(formId);
@@ -5767,11 +6020,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    // “Create …” option handling for the Category dropdown. The Fund dropdown is sourced
-    // directly from the registered funds registry (see setFundSelectOptions) — funds must
-    // be created on the Funds management page so entries always save against a real fund.
+    // “Create … / Delete …” option handling for Category and Fund dropdowns.
+    // Funds use the real fund registry APIs, while categories use finance meta.
     if ($('financeCategory')) {
       $('financeCategory').addEventListener('change', () => financeHandleCreateSelect('category'));
+    }
+    if ($('financeFund')) {
+      $('financeFund').addEventListener('change', () => financeHandleCreateSelect('fund'));
     }
 
     // Mark the wizard dirty on any field change so unsaved-change prompts fire correctly.
@@ -6255,7 +6510,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   if ($('inviteAdminBtn')) {
-    $('inviteAdminBtn').addEventListener('click', () => openInviteAdminDialog());
+    $('inviteAdminBtn').addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openInviteAdminDialog();
+    });
   }
   if ($('inviteAdminCloseBtn')) {
     $('inviteAdminCloseBtn').addEventListener('click', () => closeInviteAdminDialog());
@@ -6291,6 +6550,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           hint.textContent = out?.emailSent
             ? 'Invite email sent successfully.'
             : 'Invite created, but email sending is unavailable. Share the invite link manually.';
+          if (!out?.emailSent && out?.emailError) {
+            hint.textContent += ` (${String(out.emailError)})`;
+          }
         }
 
         if (!out?.emailSent && out?.inviteLink) {
@@ -7054,6 +7316,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if ($('photoHelpCloseBtn')) {
       $('photoHelpCloseBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        closeDlg();
+      });
+    }
+
+    wireDialogDismissBehavior(dlg, { onClose: closeDlg });
+  }
+
+  if ($('photoViewDialog')) {
+    const dlg = $('photoViewDialog');
+    const closeDlg = () => {
+      const img = $('photoViewImage');
+      if (img instanceof HTMLImageElement) img.removeAttribute('src');
+      closeManagedDialog(dlg);
+    };
+
+    if ($('photoViewCloseBtn')) {
+      $('photoViewCloseBtn').addEventListener('click', (e) => {
         e.preventDefault();
         closeDlg();
       });

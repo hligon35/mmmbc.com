@@ -287,6 +287,19 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     };
 
+    const postJson = async (url, payload) => {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload || {})
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            throw new Error(String(data?.error || `Request failed (${res.status})`));
+        }
+        return data;
+    };
+
     const applySiteSettings = (settings) => {
         if (!settings || typeof settings !== 'object') return;
         const subscribers = Array.isArray(settings.subscribers)
@@ -308,7 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
             list.appendChild(option);
         });
         document.querySelectorAll('[data-subscriber-form]').forEach((form) => {
-            form.addEventListener('submit', (e) => {
+            form.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const emailInput = form.querySelector('input[type="email"]');
                 const help = form.querySelector('[data-subscriber-help]');
@@ -318,8 +331,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 const to = String(settings.email || 'mtmoriahmbc1201@gmail.com').trim();
-                window.location.href = `mailto:${to}?subject=${encodeURIComponent('Newsletter Subscription Request')}&body=${encodeURIComponent(`Please add ${email} to the church newsletter list.`)}`;
-                if (help) help.textContent = `Preparing email subscription request for ${email}.`;
+                if (help) help.textContent = `Adding ${email} to the newsletter list...`;
+                try {
+                    await postJson('/api/public/newsletter/subscribe', { email });
+                    if (help) help.textContent = `${email} has been added to the newsletter list.`;
+                } catch {
+                    window.location.href = `mailto:${to}?subject=${encodeURIComponent('Newsletter Subscription Request')}&body=${encodeURIComponent(`Please add ${email} to the church newsletter list.`)}`;
+                    if (help) help.textContent = `Preparing email subscription request for ${email}.`;
+                }
             });
         });
         const connect = document.getElementById('connect-us');
@@ -342,8 +361,58 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    const wireContactForm = (settings) => {
+        if (!contactForm) return;
+        const submitBtn = contactForm.querySelector('button[type="submit"]');
+        contactForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const payload = {
+                name: String(contactForm.querySelector('#contactName')?.value || '').trim(),
+                phone: String(contactForm.querySelector('#contactPhone')?.value || '').trim(),
+                address: String(contactForm.querySelector('#contactAddress')?.value || '').trim(),
+                email: String(contactForm.querySelector('#contactEmail')?.value || '').trim(),
+                message: String(contactForm.querySelector('#contactMessage')?.value || '').trim()
+            };
+
+            if (!payload.name || !payload.email || !payload.message) {
+                alert('Please complete your name, email, and message.');
+                return;
+            }
+
+            const submitLabel = submitBtn ? submitBtn.textContent : '';
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Sending...';
+            }
+
+            try {
+                await postJson('/api/public/contact-message', payload);
+                alert('Thank you. Your message has been sent.');
+                contactForm.reset();
+            } catch {
+                const to = String(settings?.email || 'info@mmmbc.com').trim();
+                const body = [
+                    `Name: ${payload.name}`,
+                    `Phone: ${payload.phone || ''}`,
+                    `Address: ${payload.address || ''}`,
+                    `Email: ${payload.email}`,
+                    '',
+                    payload.message
+                ].join('\n');
+                window.location.href = `mailto:${to}?subject=${encodeURIComponent('New Contact Message')}&body=${encodeURIComponent(body)}`;
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = submitLabel || 'Send Message';
+                }
+            }
+        });
+    };
+
     (async () => {
-        const settings = await tryFetchJson(['site-settings.json', '../site-settings.json', '/site-settings.json']);
+        const settings = await tryFetchJson(['/api/public/site-settings', 'site-settings.json', '../site-settings.json', '/site-settings.json']);
         if (settings) applySiteSettings(settings);
+        wireContactForm(settings || {});
     })();
 });

@@ -592,7 +592,7 @@ function roleDisplayName(role) {
   if (normalized === ROLE.FINANCE_ENTRY) return 'Finance Entry';
   if (normalized === ROLE.TREASURER) return 'Treasurer';
   if (normalized === ROLE.AUDITOR) return 'Auditor';
-  return 'Website Editor';
+  return 'Website Manager';
 }
 
 function buildAdminInviteEmailTemplate({ inviteLink, expiresAt, role }) {
@@ -865,7 +865,7 @@ function normalizeRole(inputRole) {
   const raw = String(inputRole || '').trim().toLowerCase();
   if (!raw) return ROLE.WEBSITE_EDITOR;
   if (raw === 'admin') return ROLE.ADMINISTRATOR;
-  if (raw === 'website' || raw === 'editor' || raw === 'website editor') return ROLE.WEBSITE_EDITOR;
+  if (raw === 'website' || raw === 'editor' || raw === 'website manager') return ROLE.WEBSITE_EDITOR;
   if (raw === 'finance' || raw === 'financeentry' || raw === 'finance_entry') return ROLE.FINANCE_ENTRY;
   if (raw === 'treasurer') return ROLE.TREASURER;
   if (raw === 'auditor' || raw === 'read-only' || raw === 'readonly') return ROLE.AUDITOR;
@@ -2254,6 +2254,300 @@ app.get('/api/me', (req, res) => {
     twoFactorEnabled: !!user.twoFactorEnabled
   };
   res.json({ user: req.session.user, permissions: permissionsForRole(req.session.user.role) });
+});
+
+function dashboardEventTimeMs(eventItem) {
+  const date = String(eventItem?.date || '').trim();
+  const time = String(eventItem?.time || '').trim() || '00:00';
+  const ms = Date.parse(`${date}T${time}`);
+  return Number.isFinite(ms) ? ms : Number.NaN;
+}
+
+function dashboardAnnouncementIsActiveNow(post, nowMs) {
+  const startsMs = post?.startsAt ? Date.parse(post.startsAt) : Number.NaN;
+  const expiresMs = post?.expiresAt ? Date.parse(post.expiresAt) : Number.NaN;
+  if (Number.isFinite(startsMs) && startsMs > nowMs) return false;
+  if (Number.isFinite(expiresMs) && expiresMs <= nowMs) return false;
+  return true;
+}
+
+function dashboardRecentActivity(limit = 10) {
+  const safeLimit = Number.isFinite(Number(limit)) ? Math.max(1, Math.min(25, Number(limit))) : 10;
+  try {
+    const files = fs.readdirSync(LOG_DIR)
+      .filter((name) => /^app-\d{4}-\d{2}-\d{2}\.log$/i.test(String(name || '')))
+      .map((name) => ({
+        name,
+        path: path.join(LOG_DIR, name),
+        mtimeMs: fs.statSync(path.join(LOG_DIR, name)).mtimeMs
+      }))
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+    if (!files.length) return [];
+
+    const recentLines = tailFile(files[0].path, 500)
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .slice(-300)
+      .reverse();
+
+    const out = [];
+    for (const line of recentLines) {
+      if (out.length >= safeLimit) break;
+      let row;
+      try {
+        row = JSON.parse(line);
+      } catch {
+        continue;
+      }
+
+      const at = String(row?.timestamp || row?.at || '').trim();
+      const pathValue = String(row?.path || row?.message || '').trim();
+      if (!at && !pathValue) continue;
+
+      if (String(row?.message || '') === 'request') {
+        out.push({
+          title: `${String(row?.method || 'GET')} ${pathValue}`,
+          detail: `${String(row?.status || '')} • ${at || 'Unknown time'}`
+        });
+        continue;
+      }
+
+      out.push({
+        title: String(row?.message || 'System event'),
+        detail: at || 'Unknown time'
+      });
+    }
+
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+app.get('/api/dashboard/overview', requireAuth, async (req, res) => {
+  const user = sessionUser(req);
+  if (!user) {
+    return sendApiError(res, 401, 'Session expired. Sign in again.', {
+      code: 'SESSION_EXPIRED',
+      requestId: req.requestId
+    });
+  }
+
+  const role = normalizeRole(user.role);
+  const permissions = permissionsForRole(role);
+  const canManageComms = hasPermission(role, PERMISSIONS.COMMUNICATIONS_MANAGE);
+  const canViewWebsite = hasPermission(role, PERMISSIONS.WEBSITE_WRITE);
+  const canViewFinance = hasPermission(role, PERMISSIONS.FINANCE_READ);
+
+  const status = {
+    announcements: { ok: false },
+    events: { ok: false },
+    newsletter: { ok: false },
+    subscribers: { ok: false },
+    gallery: { ok: false },
+    finances: { ok: false }
+  };
+
+  const nowMs = Date.now();
+  let events = [];
+  let announcements = [];
+  let newsletter = { drafts: [], scheduled: [], history: [] };
+  let subscribers = [];
+  let galleryItems = [];
+  let financesData = { entries: [] };
+
+  if (canManageComms) {
+    try {
+      const data = loadEvents();
+      events = Array.isArray(data?.events) ? data.events : [];
+      status.events = { ok: true };
+    } catch (err) {
+      status.events = { ok: false, error: String(err?.message || 'Unable to load events.') };
+    }
+
+    try {
+      const data = await loadAnnouncementsUnified();
+      announcements = Array.isArray(data?.posts) ? data.posts : [];
+      status.announcements = { ok: true };
+    } catch (err) {
+      status.announcements = { ok: false, error: String(err?.message || 'Unable to load announcements.') };
+    }
+
+    try {
+      newsletter = loadNewsletterRecords();
+      status.newsletter = { ok: true };
+    } catch (err) {
+      status.newsletter = { ok: false, error: String(err?.message || 'Unable to load newsletter records.') };
+    }
+
+    try {
+      subscribers = loadSubscribers();
+      status.subscribers = { ok: true };
+    } catch (err) {
+      status.subscribers = { ok: false, error: String(err?.message || 'Unable to load subscribers.') };
+    }
+  }
+
+  if (canViewWebsite) {
+    try {
+      const gallery = loadGallery();
+      galleryItems = Array.isArray(gallery?.items) ? gallery.items : [];
+      status.gallery = { ok: true };
+    } catch (err) {
+      status.gallery = { ok: false, error: String(err?.message || 'Unable to load gallery data.') };
+    }
+  }
+
+  if (canViewFinance) {
+    try {
+      financesData = loadFinances();
+      status.finances = { ok: true };
+    } catch (err) {
+      status.finances = { ok: false, error: String(err?.message || 'Unable to load finances.') };
+    }
+  }
+
+  const upcomingEvents = events
+    .map((ev) => ({
+      id: String(ev?.id || ''),
+      title: String(ev?.title || '').trim() || 'Event',
+      date: String(ev?.date || '').trim(),
+      time: String(ev?.time || '').trim(),
+      ms: dashboardEventTimeMs(ev)
+    }))
+    .filter((ev) => Number.isFinite(ev.ms) && ev.ms >= nowMs)
+    .sort((a, b) => a.ms - b.ms);
+
+  const upcoming14d = upcomingEvents.filter((ev) => ev.ms <= nowMs + (14 * 24 * 60 * 60 * 1000));
+  const todayIso = new Date(nowMs).toISOString().slice(0, 10);
+  const todayEvents = upcomingEvents.filter((ev) => String(ev.date).slice(0, 10) === todayIso).length;
+
+  const activeAnnouncements = announcements.filter((post) => dashboardAnnouncementIsActiveNow(post, nowMs));
+
+  const scheduledNewsletters = Array.isArray(newsletter?.scheduled) ? newsletter.scheduled : [];
+  const nextScheduledAt = scheduledNewsletters
+    .map((rec) => String(rec?.scheduleAt || '').trim())
+    .filter(Boolean)
+    .sort((a, b) => Date.parse(a) - Date.parse(b))[0] || '';
+
+  const albums = new Set(
+    galleryItems
+      .map((item) => String(item?.album || '').trim())
+      .filter(Boolean)
+  );
+
+  const summary = {
+    upcomingEvents14d: canManageComms ? upcoming14d.length : 0,
+    todayEvents: canManageComms ? todayEvents : 0,
+    activeAnnouncements: canManageComms ? activeAnnouncements.length : 0,
+    totalAnnouncements: canManageComms ? announcements.length : 0,
+    subscribers: canManageComms ? (Array.isArray(subscribers) ? subscribers.length : 0) : 0,
+    scheduledNewsletters: canManageComms ? scheduledNewsletters.length : 0,
+    galleryItems: canViewWebsite ? galleryItems.length : 0,
+    galleryAlbums: canViewWebsite ? albums.size : 0
+  };
+
+  const needsAttention = [];
+  if (canManageComms && summary.activeAnnouncements === 0) {
+    needsAttention.push({
+      title: 'No active announcements',
+      detail: 'Post an announcement so homepage updates stay current.',
+      action: { label: 'Open Announcements', sectionTarget: 'tab-content', subTabTarget: 'panel-content-announcements' }
+    });
+  }
+  if (canManageComms && summary.upcomingEvents14d === 0) {
+    needsAttention.push({
+      title: 'No upcoming events in next 14 days',
+      detail: 'Add events so members can see the latest schedule.',
+      action: { label: 'Open Events', sectionTarget: 'tab-events' }
+    });
+  }
+  if (canManageComms && scheduledNewsletters.some((rec) => Date.parse(String(rec?.scheduleAt || '')) <= nowMs)) {
+    needsAttention.push({
+      title: 'Scheduled newsletter may be overdue',
+      detail: 'Review scheduled newsletters and retry failed sends.',
+      action: { label: 'Open Newsletter', sectionTarget: 'tab-newsletter' }
+    });
+  }
+
+  let giving = null;
+  if (canViewFinance) {
+    const entries = Array.isArray(financesData?.entries) ? financesData.entries : [];
+    const start30dMs = nowMs - (30 * 24 * 60 * 60 * 1000);
+    const currentMonth = new Date(nowMs).toISOString().slice(0, 7);
+
+    let last30dIncomeCents = 0;
+    let last30dExpenseCents = 0;
+    let pendingReviewCount = 0;
+    let currentMonthEntries = 0;
+
+    for (const entry of entries) {
+      const entryDateMs = Date.parse(`${String(entry?.date || '').trim()}T00:00:00`);
+      const amount = Number(entry?.amountCents || 0);
+      const type = String(entry?.type || '').trim().toLowerCase();
+      const reviewStatus = String(entry?.statementReviewStatus || '').trim().toLowerCase();
+      const statusText = String(entry?.status || '').trim().toLowerCase();
+
+      if (String(entry?.date || '').slice(0, 7) === currentMonth) currentMonthEntries += 1;
+      if (reviewStatus === 'needs_review' || statusText === 'pending') pendingReviewCount += 1;
+
+      if (Number.isFinite(entryDateMs) && entryDateMs >= start30dMs) {
+        if (type === 'expense') last30dExpenseCents += amount;
+        else last30dIncomeCents += amount;
+      }
+    }
+
+    giving = {
+      last30dIncomeCents,
+      last30dExpenseCents,
+      pendingReviewCount,
+      currentMonthEntries
+    };
+  }
+
+  const newsletterSummary = canManageComms ? {
+    drafts: Array.isArray(newsletter?.drafts) ? newsletter.drafts.length : 0,
+    scheduled: scheduledNewsletters.length,
+    history: Array.isArray(newsletter?.history) ? newsletter.history.length : 0,
+    nextScheduledAt: nextScheduledAt || ''
+  } : null;
+
+  const websiteStatus = {
+    degraded: Object.values(status).some((s) => !s.ok),
+    storageMode: storageModeInfo().mode,
+    announcementsStorage: storageModeInfo().announcementsStorage,
+    schedulerRunning: true,
+    generatedBy: 'admin-server'
+  };
+
+  return res.json({
+    ok: true,
+    generatedAt: new Date().toISOString(),
+    user: {
+      id: user.id,
+      role
+    },
+    permissions: {
+      canManageComms,
+      canViewWebsite,
+      canViewFinance,
+      all: permissions
+    },
+    summary,
+    needsAttention,
+    upcomingEvents: canManageComms ? upcomingEvents.slice(0, 8).map((ev) => ({
+      id: ev.id,
+      title: ev.title,
+      date: ev.date,
+      time: ev.time
+    })) : [],
+    giving,
+    newsletter: newsletterSummary,
+    websiteStatus,
+    recentActivity: dashboardRecentActivity(10),
+    status
+  });
 });
 
 // ----------------- ADMIN DEBUG (secured) -----------------

@@ -80,9 +80,19 @@
 
   async function loadBulletin() {
     try {
-      const res = await fetch('bulletins.json', { cache: 'no-store' });
-      if (!res.ok) throw new Error('Failed to load bulletins');
-      const data = await res.json();
+      let data = null;
+      const endpoints = ['/api/public/bulletins', 'bulletins.json'];
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint, { cache: 'no-store' });
+          if (!res.ok) continue;
+          data = await res.json();
+          break;
+        } catch {
+          // Continue trying fallbacks.
+        }
+      }
+      if (!data) throw new Error('Failed to load bulletins');
       const all = Array.isArray(data?.bulletins) ? data.bulletins : [];
       const active = all.filter(isActive).sort((a, b) => (parseTime(b.startsAt) || 0) - (parseTime(a.startsAt) || 0));
       renderBulletin(active[0] || null);

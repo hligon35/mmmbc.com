@@ -41,6 +41,24 @@ async function sendgridSend(env, payload) {
   return { status: res.status, body };
 }
 
+function normalizedSendgridBody(rawBody) {
+  const text = String(rawBody || '').trim();
+  if (!text) return '';
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed?.errors) && parsed.errors.length) {
+      const msg = parsed.errors
+        .map((item) => String(item?.message || '').trim())
+        .filter(Boolean)
+        .join('; ');
+      return msg || text;
+    }
+    return text;
+  } catch {
+    return text;
+  }
+}
+
 // ---------------- Admin users / invites ----------------
 
 function staticAllowList(env) {
@@ -74,6 +92,14 @@ function buildAdminInviteEmailTemplate({ inviteUrl, role }) {
   const roleLabel = roleDisplayName(role);
   const safeRoleLabel = escapeHtml(roleLabel);
   const safeInviteUrl = escapeHtml(inviteUrl);
+  let logoUrl = 'https://mmmbc.alphazonelabs.com/ConImg/MtMoriahLogo-1.png';
+  try {
+    const origin = new URL(inviteUrl).origin;
+    logoUrl = `${origin}/ConImg/MtMoriahLogo-1.png`;
+  } catch {
+    // Keep fallback logo URL when inviteUrl cannot be parsed.
+  }
+  const safeLogoUrl = escapeHtml(logoUrl);
   return {
     text: [
       'Mt. Moriah Missionary Baptist Church Admin Access',
@@ -86,6 +112,7 @@ function buildAdminInviteEmailTemplate({ inviteUrl, role }) {
       <div style="font-family:Arial,sans-serif;line-height:1.6;color:#1f2937;background:#f8fafc;padding:24px">
         <div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden">
           <div style="padding:24px 28px;background:linear-gradient(135deg,#7a2f16,#c46123);color:#ffffff">
+            <img src="${safeLogoUrl}" alt="Mt. Moriah Missionary Baptist Church" width="120" style="display:block;width:120px;max-width:42%;height:auto;margin:0 auto 10px;object-fit:contain" />
             <div style="font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.92">Mt. Moriah MBC</div>
             <h1 style="margin:10px 0 0;font-size:28px;line-height:1.15">You've been granted Admin access</h1>
           </div>
@@ -155,11 +182,14 @@ async function handleUsersInvite(request, env, actorEmail) {
 
   const canonical = String(env.CANONICAL_HOST || '').trim();
   const inviteUrl = canonical ? `https://${canonical}/admin/` : 'https://mmmbc.alphazonelabs.com/admin/';
-  const fromEmail = String(env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
+  const fromEmail = String(
+    env.SENDGRID_FROM_EMAIL || env.SUPPORT_FROM_EMAIL || env.SUPPORT_EMAIL_DESTINATION || 'no-reply@mmmbc.com'
+  ).trim();
+  const fallbackFromEmail = String(env.SUPPORT_EMAIL_DESTINATION || '').trim();
   const fromName = String(env.SUPPORT_FROM_NAME || 'MMMBC Admin').trim() || 'MMMBC Admin';
   const template = buildAdminInviteEmailTemplate({ inviteUrl, role });
 
-  const out = await sendgridSend(env, {
+  let out = await sendgridSend(env, {
     personalizations: [{ to: [{ email }], subject: `MMMBC Admin Access (${roleDisplayName(role)})` }],
     from: { email: fromEmail, name: fromName },
     content: [
@@ -168,8 +198,35 @@ async function handleUsersInvite(request, env, actorEmail) {
     ]
   });
 
+  const firstAttemptFailed = out.status < 200 || out.status >= 300;
+  const shouldRetryWithFallback = firstAttemptFailed
+    && fallbackFromEmail
+    && fallbackFromEmail.toLowerCase() !== fromEmail.toLowerCase()
+    && (out.status === 400 || out.status === 401 || out.status === 403);
+
+  if (shouldRetryWithFallback) {
+    out = await sendgridSend(env, {
+      personalizations: [{ to: [{ email }], subject: `MMMBC Admin Access (${roleDisplayName(role)})` }],
+      from: { email: fallbackFromEmail, name: fromName },
+      content: [
+        { type: 'text/plain', value: template.text },
+        { type: 'text/html', value: template.html }
+      ]
+    });
+  }
+
   const emailSent = out.status >= 200 && out.status < 300;
-  return json({ ok: true, email, role, emailSent });
+  const emailError = emailSent
+    ? ''
+    : normalizedSendgridBody(out.body).slice(0, 500) || `Invite email failed (${out.status || 'unknown'}).`;
+  return json({
+    ok: true,
+    email,
+    role,
+    inviteLink: inviteUrl,
+    emailSent,
+    emailError
+  });
 }
 
 async function handleUsersRevoke(request, env, id) {

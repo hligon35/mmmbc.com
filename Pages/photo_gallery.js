@@ -275,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadGallery() {
     grid.innerHTML = '<p class="gallery-loading">Loading photos…</p>';
-    const endpoints = ['/public/gallery.json'];
+    const endpoints = ['/api/public/gallery', '/public/gallery.json'];
     if (workerOrigin && workerOrigin !== window.location.origin) endpoints.push(`${workerOrigin}/public/gallery.json`);
     let lastError = null;
 

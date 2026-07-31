@@ -1,0 +1,372 @@
+.directoryHeaderActions {
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 6px 0 12px;
+}
+
+.directorySummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.directorySummaryCard {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.directorySummaryCard__label {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 0.84rem;
+}
+
+.directorySummaryCard__value {
+  margin: 6px 0 0;
+  font-size: 1.35rem;
+  font-weight: 1000;
+}
+
+.directorySummaryCard__meta {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.directoryToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+}
+
+.directoryToolbar .label--inline {
+  min-width: 170px;
+}
+
+.directoryToolbar__search {
+  min-width: min(460px, 100%);
+  flex: 1 1 320px;
+}
+
+.directoryListMeta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+
+.directoryTableWrap {
+  margin-bottom: 10px;
+}
+
+.directoryTable {
+  min-width: 1200px;
+}
+
+.directoryTable th,
+.directoryTable td {
+  vertical-align: top;
+}
+
+.directoryPersonCell {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.directoryAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 900;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.directoryPersonText {
+  display: grid;
+  gap: 2px;
+}
+
+.directoryPersonName {
+  margin: 0;
+  font-weight: 900;
+}
+
+.directoryPersonMeta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.directoryInfoStack {
+  display: grid;
+  gap: 4px;
+  min-width: 200px;
+}
+
+.directoryMuted {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.directoryChip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  padding: 4px 9px;
+  font-weight: 800;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.directoryChip--ok {
+  color: #7cffb2;
+  border-color: rgba(124, 255, 178, 0.45);
+  background: rgba(124, 255, 178, 0.08);
+}
+
+.directoryChip--warn {
+  color: #ffd88a;
+  border-color: rgba(255, 216, 138, 0.45);
+  background: rgba(255, 216, 138, 0.1);
+}
+
+.directoryChip--danger {
+  color: #ffb0b0;
+  border-color: rgba(255, 176, 176, 0.45);
+  background: rgba(255, 176, 176, 0.1);
+}
+
+.directoryActionGroup {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.directoryCardList {
+  display: none;
+  gap: 10px;
+}
+
+.directoryCard {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  display: grid;
+  gap: 8px;
+}
+
+.directoryState {
+  margin: 8px 0;
+  padding: 10px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  color: var(--muted);
+}
+
+.directoryState--error {
+  border-style: solid;
+  border-color: rgba(255, 176, 176, 0.4);
+  color: #ffd5d5;
+}
+
+.directoryPager {
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.directorySummaryInline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.directorySummaryInline__item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.directorySummaryInline__label {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.directoryGroupsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.directoryDrawer .dialog__inner {
+  max-width: min(920px, calc(100vw - 24px));
+}
+
+.directoryDrawer[open] {
+  justify-content: flex-end;
+  padding: 0;
+}
+
+.directoryDrawer__inner {
+  height: 100vh;
+  max-height: 100vh;
+  width: min(620px, 100vw);
+  border-radius: 0;
+  overflow: auto;
+}
+
+.directoryDrawerSection {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
+.directoryPersonHeader {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.directoryDrawerName {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.directoryInfoList {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  gap: 6px 10px;
+  margin: 0;
+}
+
+.directoryInfoList dt {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.directoryInfoList dd {
+  margin: 0;
+}
+
+.directoryFormDialog__inner {
+  max-width: min(980px, calc(100vw - 24px));
+}
+
+.directoryDuplicateBox {
+  border: 1px dashed rgba(255, 216, 138, 0.45);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 216, 138, 0.07);
+}
+
+.directoryDuplicateBox__title {
+  margin: 0 0 8px;
+  font-weight: 900;
+}
+
+.directoryWorkflowList {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+
+.directoryFiltersDrawer {
+  display: none;
+  margin: 0 0 10px;
+}
+
+.directoryFiltersDrawer > summary {
+  list-style: none;
+}
+
+.directoryFiltersDrawer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.directoryFilterPanel {
+  padding-top: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .directoryDrawer,
+  .directoryDrawer__inner {
+    transition: none !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  .directorySummaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .directorySummaryInline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .directoryGroupsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .directoryHeaderActions {
+    justify-content: stretch;
+  }
+
+  #directoryAddContactBtn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .directoryToolbar--desktop {
+    display: none;
+  }
+
+  .directoryFiltersDrawer {
+    display: block;
+  }
+
+  .directoryTableWrap {
+    display: none;
+  }
+
+  .directoryCardList {
+    display: grid;
+  }
+
+  .directoryDrawer[open] {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .directoryDrawer__inner {
+    width: 100vw;
+    max-width: 100vw;
+  }
+
+  .directoryInfoList {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 540px) {
+  .directorySummaryGrid,
+  .directorySummaryInline {
+    grid-template-columns: 1fr;
+  }
+}

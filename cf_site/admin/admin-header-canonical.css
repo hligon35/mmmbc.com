@@ -14,6 +14,7 @@
   min-width:0;
 }
 
+/* Breadcrumb trail shown beneath the logo */
 #adminHeader .adminHeader__breadcrumbs{
   display:flex;
   align-items:center;
@@ -27,17 +28,20 @@
 
 #adminHeader .adminHeader__breadcrumbs a{color:inherit;}
 
+/* Centered greeting block with salutation and context description */
 #adminHeader .adminHeader__headline{
   display:grid;
   justify-items:center;
   gap:2px;
 }
 
+/* Greeting text shown in the header */
 #adminHeader #salutation{
   margin:0;
   text-align:center;
 }
 
+/* Supporting context description under the greeting */
 #adminHeader .adminHeader__contextDescription{
   margin:0;
   text-align:center;
@@ -49,6 +53,7 @@
   text-overflow:ellipsis;
 }
 
+/* Signed-in account area with status and logout controls */
 #adminHeader .adminHeader__account{
   display:flex;
   align-items:flex-start;
@@ -57,16 +62,19 @@
   flex-wrap:wrap;
 }
 
+/* Signed-in account status text */
 #adminHeader #authStatus{
   text-align:right;
   max-width:28ch;
   overflow-wrap:anywhere;
 }
 
+/* Invite admin button visibility state */
 #adminHeader .headerInviteBtn[hidden]{
   display:none !important;
 }
 
+/* Desktop header layout for the authenticated admin shell */
 @media (min-width:901px){
   html body #adminHeader.header{
     position:fixed !important;
@@ -88,12 +96,15 @@
     overflow:visible !important;
   }
 
+  /* Header logo placement */
   html body #adminHeader .adminHeader__logo{
     grid-area:logo !important;
     display:grid !important;
     place-items:start !important;
-    align-content:center !important;
-    padding:2px 2px 0 0 !important;
+    align-items:start !important;
+    align-content:start !important;
+    justify-content:start !important;
+    padding:12px 2px 0 0 !important;
   }
 
   html body #adminHeader .header__logo{
@@ -111,6 +122,7 @@
     font-weight:800 !important;
   }
 
+  /* Top-right header cluster containing the greeting, account area, and actions */
   html body #adminHeader .adminHeader__top{
     grid-area:top !important;
     position:relative !important;
@@ -121,6 +133,7 @@
     min-height:44px !important;
   }
 
+  /* Centered headline block inside the top area */
   html body #adminHeader .adminHeader__headline{
     position:absolute !important;
     left:50% !important;
@@ -141,6 +154,7 @@
     max-width:min(60vw, 860px) !important;
   }
 
+  /* Account controls and auth status aligned on the right */
   html body #adminHeader .adminHeader__account{
     position:relative !important;
     z-index:2 !important;
@@ -169,13 +183,16 @@
     border-radius:12px !important;
   }
 
+  /* Invite admin button placement on the right side */
   html body #adminHeader .adminHeader__invite{
     grid-area:invite !important;
     display:flex !important;
     align-items:center !important;
     justify-content:flex-end !important;
     padding-bottom:0 !important;
-    transform:translateX(-350px) !important;
+    transform:translateX(-200px) !important;
+    pointer-events:auto !important;
+    z-index:10 !important;
   }
 
   html body #adminHeader .headerInviteBtn{
@@ -191,6 +208,10 @@
     border-radius:10px !important;
     background:rgba(255,255,255,.45) !important;
     box-shadow:0 4px 12px rgba(0,0,0,.14) !important;
+    pointer-events:auto !important;
+    cursor:pointer !important;
+    position:relative !important;
+    z-index:20 !important;
   }
 
   html body #adminHeader .headerInviteBtn__icon{
@@ -206,6 +227,7 @@
     display:none !important;
   }
 
+  /* Main navigation tabs for the admin sections */
   html body #adminHeader .adminHeader__tabs{
     grid-area:tabs !important;
     position:relative !important;
@@ -215,6 +237,7 @@
     margin:0 !important;
     min-height:0 !important;
     line-height:1 !important;
+    top:-3px !important;
   }
 
   html body #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
@@ -273,6 +296,7 @@
   }
 }
 
+/* Mobile stacked layout for smaller screens */
 @media (max-width:900px){
   #adminHeader.header{
     display:grid;
@@ -286,6 +310,7 @@
     gap:8px;
   }
 
+  /* Mobile layout: logo, top cluster, breadcrumbs, invite button, then tabs */
   #adminHeader .adminHeader__logo{grid-area:logo;justify-self:start;}
   #adminHeader .adminHeader__top{grid-area:top;display:grid;gap:8px;}
   #adminHeader .adminHeader__breadcrumbs{grid-area:breadcrumbs;}

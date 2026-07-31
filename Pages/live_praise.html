@@ -72,7 +72,7 @@
             <div class="youtube-section" aria-label="Recent YouTube videos">
                 <h2 class="youtube-section__title">Recent Videos</h2>
                 <p class="youtube-section__status" id="youtubeFeedStatus">Loading latest videos…</p>
-                <p class="youtube-section__status youtube-section__status--tight"><a id="youtubeFeedLink" href="/public/youtube.json" rel="noopener noreferrer" target="_blank">Open the live feed JSON</a></p>
+                <p class="youtube-section__status youtube-section__status--tight"><a id="youtubeFeedLink" href="/api/public/youtube" rel="noopener noreferrer" target="_blank">Open the live feed JSON</a></p>
                 <div class="youtube-grid" id="recentVideosGrid">
                     <div class="youtube-card">
                         <div class="youtube-embed">
@@ -274,7 +274,7 @@
                 // - If you are LIVE right now, show the live video.
                 // - Otherwise, show the most recent upload.
                 // - Always show a most-to-least-recent list below.
-                fetch('/public/youtube.json', { cache: 'no-store' })
+                fetch('/api/public/youtube', { cache: 'no-store' })
                     .then(function (r) { return r.ok ? r.json() : null; })
                     .then(function (data) {
                         if (!data || !data.ok) return;

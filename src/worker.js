@@ -22,6 +22,28 @@ import {
 import {
   handlePublicSiteContentGet
 } from './worker-site-editor.js';
+import {
+  resolveDirectoryAccessContext,
+  handleDirectoryOverview,
+  handleDirectoryContactsList,
+  handleDirectoryContactGet,
+  handleDirectoryContactCreate,
+  handleDirectoryContactUpdate,
+  handleDirectoryContactArchive,
+  handleDirectoryContactDuplicateCheck,
+  handleDirectorySubscribersList,
+  handleDirectorySubscriberGet,
+  handleDirectorySubscriberCreate,
+  handleDirectorySubscriberUpdate,
+  handleDirectorySubscriberUnsubscribe,
+  handleDirectorySubscriberResendConfirmation,
+  handleDirectoryGroupsGet,
+  handleDirectoryGroupsCreate,
+  handleDirectoryGroupsUpdate,
+  handleDirectoryListsGet,
+  handleDirectoryListsCreate,
+  handleDirectoryListsUpdate
+} from './worker-directory.js';
 
 function applySecurityHeaders(headers, { isHttps = true } = {}) {
   const setIfMissing = (k, v) => {
@@ -102,6 +124,337 @@ function decodeHtmlEntities(input) {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'");
+}
+
+async function readAssetJson(request, env, pathname, fallback) {
+  if (!env.ASSETS || typeof env.ASSETS.fetch !== 'function') return fallback;
+  try {
+    const url = new URL(request.url);
+    url.pathname = pathname;
+    url.search = '';
+    const response = await env.ASSETS.fetch(new Request(url.toString(), { method: 'GET' }));
+    if (!response.ok) return fallback;
+    return await response.json();
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizePublicSiteSettings(raw, env) {
+  const data = (raw && typeof raw === 'object') ? raw : {};
+  const subscribers = Array.isArray(data.subscribers)
+    ? data.subscribers
+      .map((entry) => {
+        if (typeof entry === 'string') {
+          const email = entry.trim().toLowerCase();
+          return { email, name: '', group: 'general' };
+        }
+        const email = String(entry?.email || '').trim().toLowerCase();
+        return {
+          email,
+          name: String(entry?.name || '').trim().slice(0, 120),
+          group: String(entry?.group || 'general').trim().slice(0, 80) || 'general'
+        };
+      })
+      .filter((entry) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(entry.email))
+    : [];
+
+  return {
+    address: String(data.address || '').trim().slice(0, 300),
+    phone: String(data.phone || '').trim().slice(0, 80),
+    email: String(data.email || env.SUPPORT_TO_EMAIL || 'mtmoriahmbc1201@gmail.com').trim().slice(0, 200),
+    facebook: String(data.facebook || '').trim().slice(0, 300),
+    youtube: String(data.youtube || '').trim().slice(0, 300),
+    subscribers
+  };
+}
+
+function normalizeLivestreamData(raw) {
+  const data = (raw && typeof raw === 'object') ? raw : {};
+  const active = (data.active && typeof data.active === 'object') ? data.active : {};
+  const embeds = (data.embeds && typeof data.embeds === 'object') ? data.embeds : {};
+  const recurringRaw = Array.isArray(data.recurring) ? data.recurring : [];
+  const recurring = recurringRaw
+    .map((entry) => ({
+      id: String(entry?.id || '').trim().slice(0, 120),
+      title: String(entry?.title || '').trim().slice(0, 180),
+      platform: String(entry?.platform || '').trim().slice(0, 60),
+      startsAt: isoOrEmpty(entry?.startsAt),
+      timezone: String(entry?.timezone || '').trim().slice(0, 80)
+    }))
+    .filter((entry) => entry.id || entry.title || entry.platform || entry.startsAt);
+
+  return {
+    active: {
+      platform: String(active.platform || 'website').trim().slice(0, 60) || 'website',
+      status: String(active.status || 'offline').trim().toLowerCase() === 'live' ? 'live' : 'offline'
+    },
+    embeds: {
+      youtube: String(embeds.youtube || '').trim().slice(0, 500),
+      facebook: String(embeds.facebook || '').trim().slice(0, 500),
+      website: String(embeds.website || '').trim().slice(0, 500)
+    },
+    recurring
+  };
+}
+
+async function sendSupportEmailMessage(env, {
+  subject,
+  textBody,
+  replyTo = '',
+  fromNameOverride = ''
+} = {}) {
+  const toEmail = String(env.SUPPORT_TO_EMAIL || 'support@hldesignedit.com').trim();
+  const deliveryToEmail = String(env.SUPPORT_EMAIL_DESTINATION || toEmail).trim();
+  const fromEmail = String(env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
+  const fromName = String(fromNameOverride || env.SUPPORT_FROM_NAME || 'MMMBC Website').trim() || 'MMMBC Website';
+
+  if (!env.SUPPORT_EMAIL || typeof env.SUPPORT_EMAIL.send !== 'function') {
+    throw new Error('Email send is not configured. SUPPORT_EMAIL binding is missing.');
+  }
+
+  const escapeQuotes = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/\"/g, '\\"');
+  const fromHeaderName = fromName ? `"${escapeQuotes(fromName)}" ` : '';
+  const fromHeader = `${fromHeaderName}<${fromEmail}>`;
+  const replyToHeader = replyTo ? `Reply-To: ${replyTo}\r\n` : '';
+  const safeSubject = String(subject || '').trim().slice(0, 180);
+  const safeBody = String(textBody || '').trim().slice(0, 12000);
+
+  const messageIdDomain = (() => {
+    const pick = (addr) => {
+      const m = String(addr || '').match(/@([^>\s]+)$/);
+      return m ? m[1] : '';
+    };
+    return pick(toEmail) || pick(fromEmail) || 'mmmbc.local';
+  })();
+
+  const messageId = (() => {
+    try {
+      return `<${crypto.randomUUID()}@${messageIdDomain}>`;
+    } catch {
+      const rand = Math.random().toString(16).slice(2);
+      return `<${Date.now().toString(16)}.${rand}@${messageIdDomain}>`;
+    }
+  })();
+
+  const raw = [
+    `To: ${toEmail}`,
+    `From: ${fromHeader}`,
+    replyToHeader.trimEnd(),
+    `Subject: ${safeSubject}`,
+    `Date: ${new Date().toUTCString()}`,
+    `Message-ID: ${messageId}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=utf-8',
+    '',
+    safeBody
+  ].filter(Boolean).join('\r\n');
+
+  const msg = new EmailMessage(fromEmail, deliveryToEmail, raw);
+  await env.SUPPORT_EMAIL.send(msg);
+}
+
+async function handlePublicAnnouncements(request, env) {
+  const rows = await env.DB.prepare(
+    'SELECT id, title, body, created_at, expires_at FROM announcements ORDER BY created_at DESC LIMIT 100'
+  ).all();
+  const posts = (rows?.results || [])
+    .filter((r) => {
+      const exp = isoOrEmpty(r.expires_at);
+      return !exp || Date.parse(exp) > Date.now();
+    })
+    .map((r) => ({
+      id: String(r.id || ''),
+      title: String(r.title || ''),
+      body: String(r.body || ''),
+      createdAt: String(r.created_at || ''),
+      expiresAt: isoOrEmpty(r.expires_at) || undefined
+    }));
+  return json({ posts }, {
+    headers: {
+      'Cache-Control': 'public, max-age=60'
+    }
+  });
+}
+
+async function handlePublicEvents(request, env) {
+  const rows = await env.DB.prepare(
+    'SELECT id, title, event_date, event_time, created_at, updated_at FROM events ORDER BY event_date ASC, event_time ASC, created_at ASC'
+  ).all();
+  const events = (rows?.results || []).map((r) => ({
+    id: String(r.id || ''),
+    title: String(r.title || ''),
+    date: String(r.event_date || ''),
+    time: normalizeTimeHHmm(r.event_time),
+    createdAt: String(r.created_at || ''),
+    updatedAt: String(r.updated_at || '')
+  }));
+  return json({ events }, {
+    headers: {
+      'Cache-Control': 'public, max-age=60'
+    }
+  });
+}
+
+async function handlePublicBulletins(request, env) {
+  const rows = await env.DB.prepare(
+    'SELECT id, title, file_key, original_name, starts_at, ends_at, created_at FROM bulletins ORDER BY created_at DESC LIMIT 120'
+  ).all();
+
+  const now = Date.now();
+  const bulletins = (rows?.results || [])
+    .map((r) => {
+      const startsAt = isoOrEmpty(r.starts_at);
+      const endsAt = isoOrEmpty(r.ends_at);
+      return {
+        id: String(r.id || ''),
+        title: String(r.title || 'Bulletin'),
+        originalName: String(r.original_name || ''),
+        url: bulletinUrlForKey(String(r.file_key || '')),
+        startsAt,
+        endsAt,
+        createdAt: String(r.created_at || '')
+      };
+    })
+    .filter((entry) => {
+      if (!entry.startsAt || !entry.endsAt) return false;
+      const s = Date.parse(entry.startsAt);
+      const e = Date.parse(entry.endsAt);
+      return Number.isFinite(s) && Number.isFinite(e) && now >= s && now < e;
+    });
+
+  return json({ bulletins }, {
+    headers: {
+      'Cache-Control': 'public, max-age=60'
+    }
+  });
+}
+
+async function handlePublicSiteSettings(request, env) {
+  const raw = await readAssetJson(request, env, '/site-settings.json', {});
+  const settings = normalizePublicSiteSettings(raw, env);
+  return json(settings, {
+    headers: {
+      'Cache-Control': 'public, max-age=300'
+    }
+  });
+}
+
+async function handlePublicLivestream(request, env) {
+  const raw = await readAssetJson(request, env, '/livestream.json', {
+    active: { platform: 'website', status: 'offline' },
+    embeds: { youtube: '', facebook: '', website: '' },
+    recurring: []
+  });
+  return json(normalizeLivestreamData(raw), {
+    headers: {
+      'Cache-Control': 'public, max-age=60'
+    }
+  });
+}
+
+async function handlePublicNewsletterSubscribe(request, env) {
+  if (!env.DB) return json({ error: 'Database is unavailable.' }, { status: 503 });
+
+  const body = await request.json().catch(() => ({}));
+  const email = String(body?.email || '').trim().toLowerCase();
+  const name = String(body?.name || '').trim().slice(0, 120);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({ error: 'A valid email is required.' }, { status: 400 });
+  }
+
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `INSERT INTO subscribers (id, email, name, status, created_at)
+     VALUES (?, ?, ?, 'active', ?)
+     ON CONFLICT(email) DO UPDATE SET
+       name = CASE WHEN excluded.name <> '' THEN excluded.name ELSE subscribers.name END,
+       status = 'active'`
+  ).bind(safeId(), email, name, now).run();
+
+  return json({ ok: true, email });
+}
+
+async function handlePublicContactMessage(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const name = String(body?.name || '').trim().slice(0, 120);
+  const email = String(body?.email || '').trim().toLowerCase();
+  const phone = String(body?.phone || '').trim().slice(0, 80);
+  const address = String(body?.address || '').trim().slice(0, 240);
+  const message = String(body?.message || '').trim().slice(0, 4000);
+
+  if (!name || !message) return json({ error: 'Name and message are required.' }, { status: 400 });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: 'A valid email is required.' }, { status: 400 });
+
+  const textBody = [
+    'Public website contact form submission',
+    `Name: ${name}`,
+    `Email: ${email}`,
+    `Phone: ${phone || '(not provided)'}`,
+    `Address: ${address || '(not provided)'}`,
+    '',
+    'Message:',
+    message
+  ].join('\n');
+
+  try {
+    await sendSupportEmailMessage(env, {
+      subject: '[MMMBC Contact] New Website Message',
+      textBody,
+      replyTo: email,
+      fromNameOverride: 'MMMBC Public Contact'
+    });
+    return json({ ok: true });
+  } catch (e) {
+    return json({ error: `Unable to send message. ${String(e?.message || e)}`.slice(0, 500) }, { status: 502 });
+  }
+}
+
+async function handlePublicFacilityRentalRequest(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const audience = String(body?.audience || '').trim().toLowerCase() === 'non_member' ? 'non_member' : 'member';
+  const form = (body?.form && typeof body.form === 'object') ? body.form : {};
+
+  const personResponsible = String(form.personResponsible || '').trim().slice(0, 140);
+  const phone = String(form.phone || '').trim().slice(0, 80);
+  const purpose = String(form.purpose || '').trim().slice(0, 240);
+  const dateOfUse = String(form.dateOfUse || '').trim().slice(0, 40);
+  const timeFrom = String(form.timeFrom || '').trim().slice(0, 20);
+  const timeTo = String(form.timeTo || '').trim().slice(0, 20);
+  const contactEmail = String(form.contactEmail || '').trim().toLowerCase().slice(0, 200);
+
+  if (!personResponsible || !phone || !purpose || !dateOfUse || !timeFrom || !timeTo) {
+    return json({ error: 'Please complete all required rental fields.' }, { status: 400 });
+  }
+
+  const formLines = [];
+  for (const [key, value] of Object.entries(form)) {
+    if (value == null) continue;
+    if (Array.isArray(value)) {
+      formLines.push(`${key}: ${value.join(', ')}`);
+      continue;
+    }
+    formLines.push(`${key}: ${String(value).trim()}`);
+  }
+
+  const textBody = [
+    `Facility rental request (${audience === 'non_member' ? 'Non-member' : 'Member'})`,
+    `Submitted at: ${new Date().toISOString()}`,
+    '',
+    ...formLines
+  ].join('\n');
+
+  try {
+    await sendSupportEmailMessage(env, {
+      subject: `[MMMBC Facility Rental] ${audience === 'non_member' ? 'Non-member' : 'Member'} Request`,
+      textBody,
+      replyTo: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail) ? contactEmail : '',
+      fromNameOverride: 'MMMBC Public Facility Rental'
+    });
+    return json({ ok: true });
+  } catch (e) {
+    return json({ error: `Unable to send request. ${String(e?.message || e)}`.slice(0, 500) }, { status: 502 });
+  }
 }
 
 async function fetchYoutubeFeed(channelId) {
@@ -1297,6 +1650,85 @@ async function handleCdn(request, env) {
   return new Response(obj.body, { status: 200, headers });
 }
 
+async function handleAdminIntegrationHealth(request, env) {
+  const auth = await requireAdmin(request, env);
+  if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+
+  const checks = {
+    dbBinding: Boolean(env.DB),
+    assetsBinding: Boolean(env.ASSETS && typeof env.ASSETS.fetch === 'function'),
+    galleryBucketBinding: Boolean(env.GALLERY_BUCKET),
+    supportEmailBinding: Boolean(env.SUPPORT_EMAIL && typeof env.SUPPORT_EMAIL.send === 'function')
+  };
+
+  const tableCounts = {};
+  const tableChecks = [
+    'announcements',
+    'events',
+    'bulletins',
+    'gallery_items',
+    'subscribers',
+    'site_page_content'
+  ];
+
+  for (const tableName of tableChecks) {
+    try {
+      const row = await env.DB.prepare(`SELECT COUNT(*) AS total FROM ${tableName}`).first();
+      tableCounts[tableName] = Number(row?.total || 0);
+    } catch (e) {
+      tableCounts[tableName] = { error: String(e?.message || e).slice(0, 220) };
+    }
+  }
+
+  const assetChecks = {};
+  if (checks.assetsBinding) {
+    const assetsToCheck = [
+      '/index.html',
+      '/Pages/contact.html',
+      '/Pages/photo_gallery.html',
+      '/Pages/live_praise.html',
+      '/admin/index.html'
+    ];
+    for (const pathname of assetsToCheck) {
+      try {
+        const u = new URL(request.url);
+        u.pathname = pathname;
+        u.search = '';
+        const res = await env.ASSETS.fetch(new Request(u.toString(), { method: 'GET' }));
+        assetChecks[pathname] = res.ok;
+      } catch {
+        assetChecks[pathname] = false;
+      }
+    }
+  }
+
+  return json({
+    ok: true,
+    checkedAt: new Date().toISOString(),
+    actor: auth.email,
+    checks,
+    tableCounts,
+    assetChecks,
+    routeCoverage: {
+      publicFeeds: [
+        '/api/public/announcements',
+        '/api/public/events',
+        '/api/public/bulletins',
+        '/api/public/gallery',
+        '/api/public/youtube',
+        '/api/public/site-settings',
+        '/api/public/livestream'
+      ],
+      publicSubmissions: [
+        '/api/public/newsletter/subscribe',
+        '/api/public/contact-message',
+        '/api/public/facility-rental-request'
+      ],
+      adminHealth: '/api/admin/integration-health'
+    }
+  });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -1342,9 +1774,49 @@ export default {
       return handlePublicGallery(request, env);
     }
 
+    if ((url.pathname === '/api/public/gallery' || url.pathname === '/api/public/gallery.json') && request.method === 'GET') {
+      return handlePublicGallery(request, env);
+    }
+
     // Public YouTube status/feed (used by Live Praise page)
     if ((url.pathname === '/public/youtube.json' || url.pathname === '/public/youtube') && request.method === 'GET') {
       return handlePublicYoutube(request, env);
+    }
+
+    if ((url.pathname === '/api/public/youtube' || url.pathname === '/api/public/youtube.json') && request.method === 'GET') {
+      return handlePublicYoutube(request, env);
+    }
+
+    if ((url.pathname === '/api/public/announcements' || url.pathname === '/api/public/announcements.json') && request.method === 'GET') {
+      return handlePublicAnnouncements(request, env);
+    }
+
+    if ((url.pathname === '/api/public/events' || url.pathname === '/api/public/events.json') && request.method === 'GET') {
+      return handlePublicEvents(request, env);
+    }
+
+    if ((url.pathname === '/api/public/bulletins' || url.pathname === '/api/public/bulletins.json') && request.method === 'GET') {
+      return handlePublicBulletins(request, env);
+    }
+
+    if (url.pathname === '/api/public/site-settings' && request.method === 'GET') {
+      return handlePublicSiteSettings(request, env);
+    }
+
+    if (url.pathname === '/api/public/livestream' && request.method === 'GET') {
+      return handlePublicLivestream(request, env);
+    }
+
+    if (url.pathname === '/api/public/newsletter/subscribe' && request.method === 'POST') {
+      return handlePublicNewsletterSubscribe(request, env);
+    }
+
+    if (url.pathname === '/api/public/contact-message' && request.method === 'POST') {
+      return handlePublicContactMessage(request, env);
+    }
+
+    if (url.pathname === '/api/public/facility-rental-request' && request.method === 'POST') {
+      return handlePublicFacilityRentalRequest(request, env);
     }
 
     // Public published site-editor content (used by the public-page hydration loader).
@@ -1414,6 +1886,135 @@ export default {
       const email = getAccessEmail(request);
       if (!email && !isDevBypass(env)) return json({ user: null });
       return json({ user: { id: email || 'dev', email: email || 'dev@local', role: 'admin', name: '', isMaster: false, mustOnboard: false, twoFactorEnabled: false } });
+    }
+
+    if (url.pathname.startsWith('/api/directory/')) {
+      const auth = await requireAdmin(request, env);
+      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+      const directoryAuth = await resolveDirectoryAccessContext(env, auth.email);
+
+      if (url.pathname === '/api/directory/overview' && request.method === 'GET') {
+        return handleDirectoryOverview(request, env, directoryAuth);
+      }
+
+      if (url.pathname === '/api/directory/contacts' && request.method === 'GET') {
+        return handleDirectoryContactsList(request, env, directoryAuth);
+      }
+
+      if (url.pathname === '/api/directory/contacts' && request.method === 'POST') {
+        return handleDirectoryContactCreate(request, env, directoryAuth);
+      }
+
+      if (url.pathname === '/api/directory/contacts/duplicate-check' && request.method === 'POST') {
+        return handleDirectoryContactDuplicateCheck(request, env, directoryAuth);
+      }
+
+      if (url.pathname === '/api/directory/contacts/check-duplicates' && request.method === 'POST') {
+        return handleDirectoryContactDuplicateCheck(request, env, directoryAuth);
+      }
+
+      if (url.pathname.startsWith('/api/directory/contacts/') && request.method === 'GET') {
+        const parts = url.pathname.split('/').filter(Boolean);
+        const contactId = parts[3] || '';
+        if (contactId && parts.length === 4) {
+          return handleDirectoryContactGet(request, env, directoryAuth, decodeURIComponent(contactId));
+        }
+      }
+
+      if (url.pathname.startsWith('/api/directory/contacts/') && request.method === 'PUT') {
+        const parts = url.pathname.split('/').filter(Boolean);
+        const contactId = parts[3] || '';
+        if (contactId && parts.length === 4) {
+          return handleDirectoryContactUpdate(request, env, directoryAuth, decodeURIComponent(contactId));
+        }
+      }
+
+      if (url.pathname.startsWith('/api/directory/contacts/') && request.method === 'POST') {
+        const parts = url.pathname.split('/').filter(Boolean);
+        const contactId = parts[3] || '';
+        const action = parts[4] || '';
+        if (contactId && action === 'archive') {
+          return handleDirectoryContactArchive(request, env, directoryAuth, decodeURIComponent(contactId));
+        }
+      }
+
+      if (url.pathname.startsWith('/api/directory/contacts/') && request.method === 'DELETE') {
+        const parts = url.pathname.split('/').filter(Boolean);
+        const contactId = parts[3] || '';
+        if (contactId && parts.length === 4) {
+          return handleDirectoryContactArchive(request, env, directoryAuth, decodeURIComponent(contactId));
+        }
+      }
+
+      if (url.pathname === '/api/directory/subscribers' && request.method === 'GET') {
+        return handleDirectorySubscribersList(request, env, directoryAuth);
+      }
+
+      if (url.pathname === '/api/directory/subscribers' && request.method === 'POST') {
+        return handleDirectorySubscriberCreate(request, env, directoryAuth);
+      }
+
+      if (url.pathname.startsWith('/api/directory/subscribers/') && request.method === 'GET') {
+        const parts = url.pathname.split('/').filter(Boolean);
+        const subscriberId = parts[3] || '';
+        if (subscriberId && parts.length === 4) {
+          return handleDirectorySubscriberGet(request, env, directoryAuth, decodeURIComponent(subscriberId));
+        }
+      }
+
+      if (url.pathname.startsWith('/api/directory/subscribers/') && request.method === 'PUT') {
+        const parts = url.pathname.split('/').filter(Boolean);
+        const subscriberId = parts[3] || '';
+        if (subscriberId && parts.length === 4) {
+          return handleDirectorySubscriberUpdate(request, env, directoryAuth, decodeURIComponent(subscriberId));
+        }
+      }
+
+      if (url.pathname.startsWith('/api/directory/subscribers/') && request.method === 'POST') {
+        const parts = url.pathname.split('/').filter(Boolean);
+        const subscriberId = parts[3] || '';
+        const action = parts[4] || '';
+        if (subscriberId && action === 'unsubscribe') {
+          return handleDirectorySubscriberUnsubscribe(request, env, directoryAuth, decodeURIComponent(subscriberId));
+        }
+        if (subscriberId && action === 'resend-confirmation') {
+          return handleDirectorySubscriberResendConfirmation(request, env, directoryAuth, decodeURIComponent(subscriberId));
+        }
+      }
+
+      if (url.pathname === '/api/directory/groups' && request.method === 'GET') {
+        return handleDirectoryGroupsGet(request, env, directoryAuth);
+      }
+
+      if (url.pathname === '/api/directory/groups' && request.method === 'POST') {
+        return handleDirectoryGroupsCreate(request, env, directoryAuth);
+      }
+
+      if (url.pathname.startsWith('/api/directory/groups/') && request.method === 'PUT') {
+        const parts = url.pathname.split('/').filter(Boolean);
+        const groupId = parts[3] || '';
+        if (groupId && parts.length === 4) {
+          return handleDirectoryGroupsUpdate(request, env, directoryAuth, decodeURIComponent(groupId));
+        }
+      }
+
+      if (url.pathname === '/api/directory/lists' && request.method === 'GET') {
+        return handleDirectoryListsGet(request, env, directoryAuth);
+      }
+
+      if (url.pathname === '/api/directory/lists' && request.method === 'POST') {
+        return handleDirectoryListsCreate(request, env, directoryAuth);
+      }
+
+      if (url.pathname.startsWith('/api/directory/lists/') && request.method === 'PUT') {
+        const parts = url.pathname.split('/').filter(Boolean);
+        const listId = parts[3] || '';
+        if (listId && parts.length === 4) {
+          return handleDirectoryListsUpdate(request, env, directoryAuth, decodeURIComponent(listId));
+        }
+      }
+
+      return json({ error: 'Directory endpoint not found.' }, { status: 404 });
     }
 
     if (url.pathname === '/api/gallery' && request.method === 'GET') {
@@ -1514,28 +2115,33 @@ export default {
       return json({ ok: true, time: new Date().toISOString() });
     }
 
+    if (url.pathname === '/api/admin/integration-health' && request.method === 'GET') {
+      return handleAdminIntegrationHealth(request, env);
+    }
+
     // Support messages (admin only)
     if (url.pathname === '/api/support/message' && request.method === 'POST') {
       return handleSupportMessage(request, env);
     }
 
     // Admin users / invites (admin only)
-    if (url.pathname === '/api/users' && request.method === 'GET') {
+    const usersPath = url.pathname.replace(/\/+$/, '') || '/';
+    if (usersPath === '/api/users' && request.method === 'GET') {
       const auth = await requireAdmin(request, env);
       if (!auth.ok) return json({ error: auth.error }, { status: 401 });
       return handleUsersList(request, env);
     }
 
-    if (url.pathname === '/api/users/invite' && request.method === 'POST') {
+    if (usersPath === '/api/users/invite' && request.method === 'POST') {
       const auth = await requireAdmin(request, env);
       if (!auth.ok) return json({ error: auth.error }, { status: 401 });
       return handleUsersInvite(request, env, auth.email);
     }
 
-    if (url.pathname.startsWith('/api/users/') && request.method === 'DELETE') {
+    if (usersPath.startsWith('/api/users/') && request.method === 'DELETE') {
       const auth = await requireAdmin(request, env);
       if (!auth.ok) return json({ error: auth.error }, { status: 401 });
-      const id = decodeURIComponent(url.pathname.split('/').pop());
+      const id = decodeURIComponent(usersPath.split('/').pop());
       return handleUsersRevoke(request, env, id);
     }
 
@@ -1592,6 +2198,11 @@ export default {
       });
       applySecurityHeaders(headers, { isHttps });
       return new Response(null, { status: 302, headers });
+    }
+
+    // Unknown API route guard: return JSON, never static HTML fallback.
+    if (url.pathname.startsWith('/api/')) {
+      return json({ error: 'API endpoint not found.' }, { status: 404 });
     }
 
     // Static assets (public site + admin UI) from ./cf_site

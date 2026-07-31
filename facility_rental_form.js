@@ -67,6 +67,28 @@
     return lines.join("\n");
   }
 
+  function getPayload(form) {
+    return {
+      eventGroup: form.querySelector("#eventGroup")?.value || "",
+      personResponsible: form.querySelector("#personResponsible")?.value || "",
+      address: form.querySelector("#address")?.value || "",
+      phone: form.querySelector("#phone")?.value || "",
+      purpose: form.querySelector("#purpose")?.value || "",
+      dateOfUse: form.querySelector("#dateOfUse")?.value || "",
+      timeFrom: form.querySelector("#timeFrom")?.value || "",
+      timeTo: form.querySelector("#timeTo")?.value || "",
+      numberOfPeople: form.querySelector("#numberOfPeople")?.value || "",
+      facilities: getCheckedValues(form, "facility"),
+      avUtilized: getRadioValue(form, "avUtilized"),
+      responsibleSignature: form.querySelector("#responsibleSignature")?.value || "",
+      responsibleSignatureDate: form.querySelector("#responsibleSignatureDate")?.value || "",
+      churchSignature: form.querySelector("#churchSignature")?.value || "",
+      churchSignatureDate: form.querySelector("#churchSignatureDate")?.value || "",
+      notes: form.querySelector("#notes")?.value || "",
+      contactEmail: form.querySelector("#emailTo")?.value || ""
+    };
+  }
+
   function validateRequired(form) {
     const requiredIds = [
       "eventGroup",
@@ -96,7 +118,7 @@
 
     const copyBtn = document.getElementById("copySummaryBtn");
 
-    form.addEventListener("submit", function (e) {
+    form.addEventListener("submit", async function (e) {
       e.preventDefault();
 
       const missing = validateRequired(form);
@@ -125,12 +147,26 @@
       const to = document.getElementById("emailTo")?.value || "mtmoriahmbc@comcast.net";
       const subject = "Facility Reservation Request (Members Only)";
       const body = buildSummary(form);
+      const payload = {
+        audience: 'member',
+        form: getPayload(form)
+      };
 
-      const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
-        body
-      )}`;
-
-      window.location.href = mailto;
+      try {
+        const res = await fetch('/api/public/facility-rental-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('submit failed');
+        alert('Your facility rental request has been sent.');
+        form.reset();
+      } catch {
+        const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
+          body
+        )}`;
+        window.location.href = mailto;
+      }
     });
 
     if (copyBtn) {

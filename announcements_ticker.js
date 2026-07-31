@@ -98,9 +98,19 @@
     };
 
     try {
-      const res = await fetch('announcements.json', { cache: 'no-store' });
-      if (!res.ok) throw new Error('Failed to load announcements');
-      const data = await res.json();
+      let data = null;
+      const endpoints = ['/api/public/announcements', 'announcements.json'];
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint, { cache: 'no-store' });
+          if (!res.ok) continue;
+          data = await res.json();
+          break;
+        } catch {
+          // Continue trying fallbacks.
+        }
+      }
+      if (!data) throw new Error('Failed to load announcements');
       const posts = Array.isArray(data?.posts) ? data.posts : [];
 
       const active = posts

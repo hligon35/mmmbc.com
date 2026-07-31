@@ -202,17 +202,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // INITIAL RENDERS
     async function loadDefaultSchedule() {
-        try {
-            const response = await fetch('schedule.json', { cache: 'no-store' });
-            if (!response.ok) return;
+        const endpoints = ['/api/public/events', 'schedule.json'];
+        for (const endpoint of endpoints) {
+            try {
+                const response = await fetch(endpoint, { cache: 'no-store' });
+                if (!response.ok) continue;
 
-            const loaded = await response.json();
-            if (!Array.isArray(loaded)) return;
+                const loaded = await response.json();
+                const events = Array.isArray(loaded)
+                    ? loaded
+                    : (Array.isArray(loaded?.events) ? loaded.events : []);
+                if (!events.length) continue;
 
-            liveEvents = normalizeAndSortEvents(loaded);
-            managedEvents = JSON.parse(JSON.stringify(liveEvents));
-        } catch (e) {
-            // Ignore: schedule.json is optional
+                liveEvents = normalizeAndSortEvents(events);
+                managedEvents = JSON.parse(JSON.stringify(liveEvents));
+                return;
+            } catch (e) {
+                // Try next endpoint.
+            }
         }
     }
 

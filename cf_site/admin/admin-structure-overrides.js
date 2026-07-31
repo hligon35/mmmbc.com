@@ -224,41 +224,6 @@
     eventsTab.remove();
   }
 
-  function moveSubscriberDropdown() {
-    const context = document.getElementById('pageContext-newsletter');
-    const select = document.getElementById('subscriberList');
-    if (!context || !select || context.querySelector('.newsletterSubscriberContext')) return;
-    select.removeAttribute('size');
-    select.setAttribute('aria-label', 'Current subscribers');
-    const holder = document.createElement('div');
-    holder.className = 'newsletterSubscriberContext';
-    const label = document.createElement('label');
-    label.className = 'label newsletterSubscriberContext__label';
-    label.append('Current subscribers', select);
-    holder.appendChild(label);
-    context.appendChild(holder);
-    const oldLabel = document.querySelector('#subscriberPanel .formRow > .label');
-    if (oldLabel && !oldLabel.querySelector('select')) oldLabel.remove();
-  }
-
-  function moveFinanceActions() {
-    const context = document.getElementById('pageContext-finances');
-    const title = context?.querySelector('.pageContext__title');
-    const dashboard = document.getElementById('financeDashboardBtn');
-    const actions = document.querySelector('.financeActionButtons');
-    if (!context || !title || context.querySelector('.financePageContextTitleRow')) return;
-    const row = document.createElement('div');
-    row.className = 'financePageContextTitleRow';
-    title.parentNode.insertBefore(row, title);
-    row.appendChild(title);
-    const controls = document.createElement('div');
-    controls.className = 'financePageContextActions noPrint';
-    if (dashboard) controls.appendChild(dashboard);
-    if (actions) controls.appendChild(actions);
-    row.appendChild(controls);
-    document.querySelector('#tab-finances .financeHeaderTitleRow .sectionHeader__title')?.remove();
-  }
-
   function injectStyles() {
     if (document.getElementById('adminLayoutRefinementStyles')) return;
     const style = document.createElement('style');
@@ -266,10 +231,6 @@
     style.textContent = `
       .pageContext { width: calc(100% - (2 * clamp(12px, 2vw, 30px))); margin-left: clamp(12px, 2vw, 30px) !important; margin-right: clamp(12px, 2vw, 30px) !important; }
       #tab-support > form { width: calc(100% - (2 * clamp(12px, 2vw, 30px))); margin: 0 clamp(12px, 2vw, 30px); padding: 18px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
-      .editorSplit__preview, #siteEditorPreviewPane, .previewPane { align-self: start !important; height: max-content !important; min-height: 0 !important; max-height: none !important; }
-      #siteEditorPreviewPane { padding-bottom: 16px !important; }
-      .sitePagePreviewFrame { height: clamp(360px, 54vh, 620px) !important; }
-      #siteEditorLivePreview { min-height: 0 !important; }
 
       #tab-photos #pageContext-photos { display: grid !important; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 18px; }
       #tab-photos #pageContext-photos > .pageContext__crumb,
@@ -329,8 +290,6 @@
     addFinanceCategoryDelete();
     repairPhotoWorkspace();
     combineAnnouncementsAndEvents();
-    moveSubscriberDropdown();
-    moveFinanceActions();
     fixBreadcrumbs();
   }
 

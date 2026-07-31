@@ -1,9 +1,32 @@
 const fs = require('fs');
 const path = require('path');
+const { describe, test } = require('node:test');
+const assert = require('node:assert/strict');
+
+function expect(actual) {
+  return {
+    toContain(expected) {
+      assert.ok(String(actual).includes(expected), `${String(actual)} does not contain ${expected}`);
+    },
+    toMatch(pattern) {
+      assert.match(String(actual), pattern);
+    },
+    not: {
+      toContain(expected) {
+        assert.ok(!String(actual).includes(expected), `${String(actual)} unexpectedly contains ${expected}`);
+      },
+      toBeNull() {
+        assert.notStrictEqual(actual, null);
+      }
+    }
+  };
+}
 
 describe('Admin accessibility redesign guards', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin.css'), 'utf8');
+  const canonicalCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-header-canonical.css'), 'utf8');
 
   test('Home is the default section after authentication', () => {
     expect(indexHtml).toContain('id="tabBtn-home"');
@@ -12,12 +35,11 @@ describe('Admin accessibility redesign guards', () => {
   });
 
   test('Home task cards map to expected sections', () => {
-    expect(indexHtml).toContain('data-section-target="tab-content"');
-    expect(indexHtml).toContain('data-subtab-target="panel-content-announcements"');
-    expect(indexHtml).toContain('data-section-target="tab-events"');
-    expect(indexHtml).toContain('data-section-target="tab-newsletter"');
-    expect(indexHtml).toContain('data-section-target="tab-photos"');
-    expect(indexHtml).toContain('data-section-target="tab-finances"');
+    expect(indexHtml).toContain('id="tabBtn-content"');
+    expect(indexHtml).toContain('id="tabBtn-events"');
+    expect(indexHtml).toContain('id="tabBtn-newsletter"');
+    expect(indexHtml).toContain('id="tabBtn-photos"');
+    expect(indexHtml).toContain('id="tabBtn-finances"');
     expect(adminJs).toContain("for (const trigger of Array.from(document.querySelectorAll('[data-section-target]'))) {");
   });
 
@@ -107,6 +129,16 @@ describe('Admin accessibility redesign guards', () => {
     expect(adminJs).toContain("await api('/api/me', { method: 'GET' })");
     expect(adminJs).toContain("await api('/api/auth/logout', { method: 'POST', body: '{}' });");
   });
+
+  test('Invite admin button is positioned and wired for interaction', () => {
+    expect(adminJs).toContain("$('inviteAdminBtn').addEventListener('click', (event) => {");
+    expect(adminJs).toContain('openInviteAdminDialog();');
+    expect(adminJs).toContain("event.preventDefault();");
+    expect(adminCss).toContain('.headerInviteBtn{');
+    expect(canonicalCss).toContain('transform:translateX(-200px) !important;');
+    expect(canonicalCss).toContain('pointer-events:auto !important;');
+    expect(canonicalCss).toContain('html body #adminHeader .headerInviteBtn{');
+  });
 });
 
 describe('Church Finances wizard redesign', () => {
@@ -115,7 +147,8 @@ describe('Church Finances wizard redesign', () => {
   const serverJs = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
 
   test('Finance section keeps its section target and heading', () => {
-    expect(indexHtml).toContain('data-section-target="tab-finances"');
+    expect(indexHtml).toContain('id="tabBtn-finances"');
+    expect(indexHtml).toContain('aria-controls="tab-finances"');
     expect(indexHtml).toMatch(/Church Finances/);
   });
 

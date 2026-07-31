@@ -5,61 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Church Website Manager</title>
   <meta name="description" content="Admin dashboard for Mt. Moriah Missionary Baptist Church website." />
-  <link rel="stylesheet" href="/admin/admin.css?v=20260730a" />
-  <link rel="stylesheet" href="/admin/admin-header-canonical.css?v=20260730b" />
-  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260730000715" />
+  <link rel="stylesheet" href="/admin/admin.css?v=20260730k" />
+  <link rel="stylesheet" href="/admin/admin-dashboard.css?v=20260730a" />
+  <link rel="stylesheet" href="/admin/admin-directory.css?v=20260730a" />
+  <link rel="stylesheet" href="/admin/admin-header-canonical.css?v=20260730d" />
+  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260730233250" />
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
 
-  <header class="header" id="adminHeader" hidden>
-    <div class="adminHeader__logo" aria-hidden="true">
-      <img class="header__logo" src="/ConImg/MtMoriahLogo-1.png" alt="Mt. Moriah Missionary Baptist Church" />
-    </div>
-
-    <nav class="adminHeader__breadcrumbs" id="adminHeaderBreadcrumbs" aria-label="Current section breadcrumbs"></nav>
-
-    <div class="adminHeader__top">
-      <div class="adminHeader__headline">
-        <div class="headerGreeting salutation salutation--header" id="salutation" aria-live="polite"></div>
-        <div class="adminHeader__contextDescription" id="headerContextDescription" aria-live="polite"></div>
-      </div>
-      <div class="adminHeader__account">
-        <div class="headerSignedIn status" id="authStatus" aria-live="polite"></div>
-        <div class="headerActions">
-          <button class="btn btn--drawerToggle" id="navDrawerToggle" type="button" aria-expanded="false" aria-controls="adminSideNav" aria-label="Open Menu">Open Menu</button>
-          <button class="btn" id="logoutBtn" type="button" hidden>Log out</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="adminHeader__invite noPrint" id="adminHeaderInvite">
-      <button class="iconBtn headerInviteBtn" id="inviteAdminBtn" type="button" aria-label="Invite admin" title="Invite admin" hidden>
-        <img class="iconBtn__icon headerInviteBtn__icon" src="/Icons/mailus.png" alt="" aria-hidden="true" />
-        <span class="headerInviteBtn__label">Invite Admin</span>
-      </button>
-    </div>
-
-    <div class="adminHeader__tabs noPrint" id="adminHeaderTabs" aria-label="Primary admin navigation">
-      <nav class="sideNav adminDrawer" id="adminSideNav" role="tablist" aria-label="Admin sections" aria-hidden="true" tabindex="-1">
-        <button class="tab tab--nav" role="tab" aria-selected="true" aria-controls="tab-home" id="tabBtn-home">Home</button>
-
-        <p class="sideNav__groupLabel" aria-hidden="true">Website Updates</p>
-        <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-content" id="tabBtn-content">Announcements</button>
-        <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-events" id="tabBtn-events">Events</button>
-        <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-photos" id="tabBtn-photos">Photos</button>
-
-        <p class="sideNav__groupLabel" aria-hidden="true">Communication</p>
-        <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-newsletter" id="tabBtn-newsletter">Newsletter</button>
-
-        <p class="sideNav__groupLabel" aria-hidden="true">Administration</p>
-        <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-finances" id="tabBtn-finances">Church Finances</button>
-        <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-support" id="tabBtn-support">Help &amp; Support</button>
-      </nav>
-    </div>
-
-    <div class="adminSectionExtension noPrint" id="adminSectionExtension" hidden></div>
-  </header>
   <button class="adminDrawerBackdrop" id="adminDrawerBackdrop" type="button" aria-label="Close menu" hidden></button>
 
   <dialog class="dialog" id="inviteAdminDialog" aria-labelledby="inviteAdminDialogTitle" aria-modal="true">
@@ -78,7 +32,7 @@
         <label class="label">
           Role
           <select class="select" id="inviteAdminRole" name="role" required>
-            <option value="website_editor">Website Editor</option>
+            <option value="website_editor">Website Manager</option>
             <option value="administrator">Administrator</option>
             <option value="finance_entry">Finance Entry</option>
             <option value="treasurer">Treasurer</option>
@@ -102,7 +56,7 @@
       </div>
 
       <div class="loginStage">
-    <section class="card loginCard" id="loginCard" aria-label="Login">
+        <section class="card loginCard" id="loginCard" aria-label="Login">
       <h1 class="card__title">Sign in</h1>
       <p class="muted">Use your approved Google account to sign in.</p>
 
@@ -230,59 +184,132 @@
     </section>
       </div>
     </section>
-
     <section class="card" id="dashboardCard" aria-label="Admin dashboard" hidden>
+      <header class="header" id="adminHeader" hidden>
+        <div class="adminHeader__logo" aria-hidden="true">
+          <img class="header__logo" src="/ConImg/MtMoriahLogo-1.png" alt="Mt. Moriah Missionary Baptist Church" />
+        </div>
+
+        <nav class="adminHeader__breadcrumbs" id="adminHeaderBreadcrumbs" aria-label="Current section breadcrumbs"></nav>
+
+        <div class="adminHeader__top">
+          <div class="adminHeader__headline">
+            <div class="headerGreeting salutation salutation--header" id="salutation" aria-live="polite"></div>
+            <div class="adminHeader__contextDescription" id="headerContextDescription" aria-live="polite"></div>
+          </div>
+          <div class="adminHeader__account">
+            <div class="headerSignedIn status" id="authStatus" aria-live="polite"></div>
+            <div class="headerActions">
+              <button class="btn btn--drawerToggle" id="navDrawerToggle" type="button" aria-expanded="false" aria-controls="adminSideNav" aria-label="Open Menu">Open Menu</button>
+              <button class="btn" id="logoutBtn" type="button" hidden>Log out</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="adminHeader__invite noPrint" id="adminHeaderInvite">
+          <button class="iconBtn headerInviteBtn" id="inviteAdminBtn" type="button" aria-label="Invite admin" title="Invite admin" hidden>
+            <img class="iconBtn__icon headerInviteBtn__icon" src="/Icons/mailus.png" alt="" aria-hidden="true" />
+            <span class="headerInviteBtn__label">Invite Admin</span>
+          </button>
+        </div>
+
+        <div class="adminHeader__tabs noPrint" id="adminHeaderTabs" aria-label="Primary admin navigation">
+          <nav class="sideNav adminDrawer" id="adminSideNav" role="tablist" aria-label="Admin sections" aria-hidden="true" tabindex="-1">
+            <button class="tab tab--nav" role="tab" aria-selected="true" aria-controls="tab-home" id="tabBtn-home">Home</button>
+
+            <p class="sideNav__groupLabel" aria-hidden="true">Website Updates</p>
+            <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-content" id="tabBtn-content">Announcements</button>
+            <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-events" id="tabBtn-events">Events</button>
+            <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-photos" id="tabBtn-photos">Photos</button>
+
+            <p class="sideNav__groupLabel" aria-hidden="true">Communication</p>
+            <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-newsletter" id="tabBtn-newsletter">Newsletter</button>
+
+            <p class="sideNav__groupLabel" aria-hidden="true">Administration</p>
+            <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-finances" id="tabBtn-finances">Church Finances</button>
+            <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-directory" id="tabBtn-directory">Directory</button>
+            <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-support" id="tabBtn-support">Help &amp; Support</button>
+          </nav>
+        </div>
+
+        <div class="adminSectionExtension noPrint" id="adminSectionExtension" hidden></div>
+      </header>
       <div class="adminLayout">
         <div class="adminMain">
 
-      <section class="tabPanel" role="tabpanel" id="tab-home" aria-labelledby="tabBtn-home">
-        <div class="pageContext" id="pageContext-home">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a></p>
-          <h2 class="pageContext__title">Church Website Manager</h2>
-          <p class="pageContext__description" id="homeWelcomeLine">Welcome</p>
-          <p class="pageContext__description">What would you like to update today?</p>
-        </div>
-        <div class="homeTaskGrid" aria-label="Quick tasks">
-          <button class="homeTaskCard" type="button" data-section-target="tab-content" data-subtab-target="panel-content-announcements">
-            <span class="homeTaskCard__icon" aria-hidden="true"><img class="homeTaskCard__iconImage" src="/Icons/announcement.png" alt="" /></span>
-            <span class="homeTaskCard__title">Post an Announcement</span>
-            <span class="homeTaskCard__desc">Share an important message on the church website.</span>
-          </button>
-          <button class="homeTaskCard" type="button" data-section-target="tab-events">
-            <span class="homeTaskCard__icon" aria-hidden="true"><img class="homeTaskCard__iconImage" src="/Icons/event.png" alt="" /></span>
-            <span class="homeTaskCard__title">Add or Update an Event</span>
-            <span class="homeTaskCard__desc">Add service times, meetings, programs, or special events.</span>
-          </button>
-          <button class="homeTaskCard" type="button" data-section-target="tab-newsletter">
-            <span class="homeTaskCard__icon" aria-hidden="true"><img class="homeTaskCard__iconImage" src="/Icons/newsletter.png" alt="" /></span>
-            <span class="homeTaskCard__title">Send a Newsletter</span>
-            <span class="homeTaskCard__desc">Email church members and subscriber groups.</span>
-          </button>
-          <button class="homeTaskCard" type="button" data-section-target="tab-photos" data-subtab-target="panel-photos-manage">
-            <span class="homeTaskCard__icon" aria-hidden="true"><img class="homeTaskCard__iconImage" src="/Icons/photos.png" alt="" /></span>
-            <span class="homeTaskCard__title">Add Photos</span>
-            <span class="homeTaskCard__desc">Upload church photos and organize them into albums.</span>
-          </button>
-          <button class="homeTaskCard" type="button" data-section-target="tab-finances">
-            <span class="homeTaskCard__icon" aria-hidden="true"><img class="homeTaskCard__iconImage" src="/Icons/finances.png" alt="" /></span>
-            <span class="homeTaskCard__title">Manage Church Finances</span>
-            <span class="homeTaskCard__desc">Record income and expenses or prepare church financial reports.</span>
-          </button>
+      <section class="tabPanel" role="tabpanel" id="tab-home" aria-labelledby="tabBtn-home" data-header-description="Overview of website, communications, and operations at a glance.">
+        <div class="dashboardHome" id="dashboardOverviewRoot" aria-live="polite" aria-busy="false">
+          <div class="dashboardHome__top">
+            <div>
+              <h2 class="dashboardHome__title">Overview Dashboard</h2>
+              <p class="dashboardHome__subtitle" id="dashboardGeneratedAt">Loading current status...</p>
+            </div>
+            <div class="dashboardHome__actions">
+              <button class="btn" id="dashboardRefreshBtn" type="button">Refresh</button>
+            </div>
+          </div>
+
+          <div class="dashboardSummaryGrid" id="dashboardSummaryGrid" aria-label="Summary metrics"></div>
+
+          <div class="dashboardColumns">
+            <section class="card dashboardCard" aria-labelledby="dashboardNeedsAttentionTitle">
+              <div class="dashboardCard__head">
+                <h3 class="card__subtitle" id="dashboardNeedsAttentionTitle">Needs Attention</h3>
+              </div>
+              <div class="dashboardList" id="dashboardNeedsAttentionList"></div>
+            </section>
+
+            <section class="card dashboardCard" aria-labelledby="dashboardUpcomingEventsTitle">
+              <div class="dashboardCard__head">
+                <h3 class="card__subtitle" id="dashboardUpcomingEventsTitle">Upcoming Events</h3>
+              </div>
+              <div class="dashboardList" id="dashboardUpcomingEventsList"></div>
+            </section>
+          </div>
+
+          <div class="dashboardColumns">
+            <section class="card dashboardCard" aria-labelledby="dashboardGivingTitle" id="dashboardGivingCard">
+              <div class="dashboardCard__head">
+                <h3 class="card__subtitle" id="dashboardGivingTitle">Giving Snapshot</h3>
+              </div>
+              <div class="dashboardStats" id="dashboardGivingStats"></div>
+            </section>
+
+            <section class="card dashboardCard" aria-labelledby="dashboardNewsletterTitle">
+              <div class="dashboardCard__head">
+                <h3 class="card__subtitle" id="dashboardNewsletterTitle">Newsletter Overview</h3>
+              </div>
+              <div class="dashboardStats" id="dashboardNewsletterStats"></div>
+            </section>
+          </div>
+
+          <div class="dashboardColumns">
+            <section class="card dashboardCard" aria-labelledby="dashboardWebsiteStatusTitle">
+              <div class="dashboardCard__head">
+                <h3 class="card__subtitle" id="dashboardWebsiteStatusTitle">Website Status</h3>
+              </div>
+              <div class="dashboardStats" id="dashboardWebsiteStatusList"></div>
+            </section>
+
+            <section class="card dashboardCard" aria-labelledby="dashboardRecentActivityTitle">
+              <div class="dashboardCard__head">
+                <h3 class="card__subtitle" id="dashboardRecentActivityTitle">Recent Activity</h3>
+              </div>
+              <div class="dashboardList" id="dashboardRecentActivityList"></div>
+            </section>
+          </div>
+
+          <div class="dashboardStatus" id="dashboardOverviewStatus" role="status" aria-live="polite"></div>
         </div>
       </section>
 
       <!-- Photos -->
-      <section class="tabPanel" role="tabpanel" id="tab-photos" aria-labelledby="tabBtn-photos" hidden>
-        <div class="pageContext" id="pageContext-photos">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Photos</p>
-          <h2 class="pageContext__title">Photos</h2>
-          <p class="pageContext__description">Upload, organize, and refresh website photo galleries.</p>
-        </div>
+      <section class="tabPanel" role="tabpanel" id="tab-photos" aria-labelledby="tabBtn-photos" hidden data-header-crumb="Photos" data-header-description="Upload, organize, and refresh website photo galleries.">
         <div class="sectionHeader">
           <div class="sectionHeader__left">
-            <h2 class="sectionHeader__title">Photos</h2>
-            <div class="tabs subTabs photoSubTabs" role="tablist" aria-label="Photo gallery sections">
-              <button class="tab tab--sub" role="tab" aria-selected="true" aria-controls="panel-photos-manage" id="subTabBtn-photos-manage" type="button">Add Photos</button>
+            <div class="photoHeaderUploadRow" aria-label="Add photos quick actions">
+              <button class="btn btn--primary" type="submit" form="photoUploadForm">Add Photos</button>
+              <p class="hint photoUploadAccepted">Accepted: JPG, PNG, WEBP, GIF. Maximum 15 MB per image, up to 20 files. Recommended: at least 1600 &#x00d7; 1200.</p>
             </div>
           </div>
           <div class="iconGroup" aria-label="Photo gallery actions">
@@ -332,7 +359,24 @@
           </div>
         </dialog>
 
-        <div class="subTabPanel" role="tabpanel" id="panel-photos-manage" aria-labelledby="subTabBtn-photos-manage">
+        <dialog class="dialog" id="photoViewDialog" aria-labelledby="photoViewDialogTitle" aria-modal="true">
+          <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
+          <div class="card dialog__inner photoViewDialog__inner">
+            <div class="sectionHeader sectionHeader--compact">
+              <h3 class="sectionHeader__title" id="photoViewDialogTitle">Photo preview</h3>
+              <button class="btn" id="photoViewCloseBtn" type="button">Close</button>
+            </div>
+            <div class="photoViewDialog__body">
+              <img class="photoViewDialog__image" id="photoViewImage" alt="Photo preview" />
+              <div class="photoViewDialog__meta">
+                <div class="photoViewDialog__name" id="photoViewName"></div>
+                <div class="photoViewDialog__details muted" id="photoViewDetails"></div>
+              </div>
+            </div>
+          </div>
+        </dialog>
+
+        <div class="subTabPanel" role="tabpanel" id="panel-photos-manage" aria-labelledby="tabBtn-photos">
           <p class="muted">Add photos, group them by album, and use tags so the library stays easy to browse.</p>
 
           <form id="photoUploadForm" class="form form--row" enctype="multipart/form-data">
@@ -352,10 +396,6 @@
               Choose photos
               <input class="input" name="images" type="file" accept="image/*" multiple required />
             </label>
-            <div class="photoUploadSubmitRow" aria-label="Upload actions">
-              <button class="btn btn--primary" type="submit">Add Photos</button>
-              <p class="hint photoUploadAccepted">Accepted: JPG, PNG, WEBP, GIF. Maximum 15 MB per image, up to 20 files. Recommended: at least 1600 Ã— 1200.</p>
-            </div>
             <div class="hint" id="photoUploadHint" aria-live="polite"></div>
           </form>
 
@@ -437,16 +477,11 @@
           </details>
         </div>
 
-        <div class="subTabPanel" role="tabpanel" id="panel-photos-bucket" aria-labelledby="subTabBtn-photos-manage" hidden></div>
+        <div class="subTabPanel" role="tabpanel" id="panel-photos-bucket" aria-labelledby="tabBtn-photos" hidden></div>
       </section>
 
       <!-- Announcements -->
-      <section class="tabPanel" role="tabpanel" id="tab-content" aria-labelledby="tabBtn-content" hidden>
-        <div class="pageContext" id="pageContext-content">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Announcements</p>
-          <h2 class="pageContext__title">Announcements</h2>
-          <p class="pageContext__description">Share updates and publish bulletins for the church website.</p>
-        </div>
+      <section class="tabPanel" role="tabpanel" id="tab-content" aria-labelledby="tabBtn-content" hidden data-header-crumb="Announcements" data-header-description="Share updates and publish bulletins for the church website.">
         <div class="sectionHeader">
           <h2 class="sectionHeader__title">Announcements</h2>
           <div class="tabs subTabs" role="tablist" aria-label="Announcements and bulletins tabs">
@@ -538,13 +573,7 @@
       </section>
 
       <!-- Finances -->
-      <section class="tabPanel" role="tabpanel" id="tab-finances" aria-labelledby="tabBtn-finances" hidden>
-        <div class="pageContext" id="pageContext-finances">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Church Finances</p>
-          <h2 class="pageContext__title">Church Finances</h2>
-          <p class="pageContext__description">Record giving and expenses, then review and print reports.</p>
-        </div>
-
+      <section class="tabPanel" role="tabpanel" id="tab-finances" aria-labelledby="tabBtn-finances" hidden data-header-crumb="Church Finances" data-header-description="Record gifts, review transactions, and generate reports.">
         <div class="tabs subTabs financeMainTabs" role="tablist" aria-label="Church Finances views">
           <button class="tab tab--sub" role="tab" aria-selected="true" aria-controls="panel-finances-record" id="subTabBtn-finances-record" type="button">Record Money</button>
           <button class="tab tab--sub" role="tab" aria-selected="false" aria-controls="panel-finances-review" id="subTabBtn-finances-review" type="button">Review Transactions</button>
@@ -854,43 +883,26 @@
                 <button class="miniTab miniTab--xs" id="financePeriodMonthBtn" type="button" role="tab" aria-selected="false">This Month</button>
               </div>
 
-              <div class="financeStatCards" id="financeReportsTotals" aria-label="Financial summary">
-                <div class="financeStatCard" id="financeIncomeCard">
-                  <div class="financeStatCard__label">Money Received</div>
-                  <div class="financeStatCard__value" id="financeIncomeTotal">$0.00</div>
-                  <div class="financeStatCard__meter" aria-hidden="true"><span class="financeStatCard__meterFill financeStatCard__meterFill--income" id="financeIncomeMeter"></span></div>
-                </div>
-                <div class="financeStatCard" id="financeExpenseCard">
-                  <div class="financeStatCard__label">Money Spent</div>
-                  <div class="financeStatCard__value" id="financeExpenseTotal">$0.00</div>
-                  <div class="financeStatCard__meter" aria-hidden="true"><span class="financeStatCard__meterFill financeStatCard__meterFill--expense" id="financeExpenseMeter"></span></div>
-                </div>
-                <div class="financeStatCard financeStatCard--net" id="financeNetCard">
-                  <div class="financeStatCard__label">Net Total</div>
-                  <div class="financeStatCard__value" id="financeNetTotal">$0.00</div>
-                  <div class="financeStatCard__meter financeStatCard__meter--diverging" aria-hidden="true">
-                    <span class="financeStatCard__meterZero"></span>
-                    <span class="financeStatCard__meterFill financeStatCard__meterFill--net" id="financeNetMeter"></span>
-                  </div>
-                </div>
-              </div>
+              <div class="financeCharts" id="financeReportsTotals" aria-label="Financial summary charts">
+                <section class="financeChartCard" aria-label="Money flow">
+                  <h4 class="financeChartCard__title">Money Flow</h4>
+                  <div class="financePie" id="financeFlowPie" role="img" aria-label="Money flow chart"></div>
+                  <ul class="financePieLegend" aria-label="Money flow values">
+                    <li class="financePieLegend__item"><span class="financePieLegend__dot financePieLegend__dot--income" aria-hidden="true"></span><span class="financePieLegend__label">Money Received</span><span class="financePieLegend__value" id="financeIncomeTotal">$0.00</span></li>
+                    <li class="financePieLegend__item"><span class="financePieLegend__dot financePieLegend__dot--expense" aria-hidden="true"></span><span class="financePieLegend__label">Money Spent</span><span class="financePieLegend__value" id="financeExpenseTotal">$0.00</span></li>
+                    <li class="financePieLegend__item financePieLegend__item--net"><span class="financePieLegend__label">Net Total</span><span class="financePieLegend__value" id="financeNetTotal">$0.00</span></li>
+                  </ul>
+                </section>
 
-              <div class="financeStatCards financeStatCards--secondary" aria-label="Giving breakdown">
-                <div class="financeStatCard financeStatCard--sm" id="financeTithesCard">
-                  <div class="financeStatCard__label">Tithes</div>
-                  <div class="financeStatCard__value" id="financeTithesTotal">$0.00</div>
-                  <div class="financeStatCard__meter" aria-hidden="true"><span class="financeStatCard__meterFill financeStatCard__meterFill--tithes" id="financeTithesMeter"></span></div>
-                </div>
-                <div class="financeStatCard financeStatCard--sm" id="financeOfferingsCard">
-                  <div class="financeStatCard__label">Offerings</div>
-                  <div class="financeStatCard__value" id="financeOfferingsTotal">$0.00</div>
-                  <div class="financeStatCard__meter" aria-hidden="true"><span class="financeStatCard__meterFill financeStatCard__meterFill--offerings" id="financeOfferingsMeter"></span></div>
-                </div>
-                <div class="financeStatCard financeStatCard--sm" id="financeGivingCard">
-                  <div class="financeStatCard__label">Total Giving</div>
-                  <div class="financeStatCard__value" id="financeGivingTotal">$0.00</div>
-                  <div class="financeStatCard__meter" aria-hidden="true"><span class="financeStatCard__meterFill financeStatCard__meterFill--giving" id="financeGivingMeter"></span></div>
-                </div>
+                <section class="financeChartCard" aria-label="Giving breakdown">
+                  <h4 class="financeChartCard__title">Giving Breakdown <span class="financeChartCard__period" id="financeGivingPeriodLabel">(This Week)</span></h4>
+                  <div class="financePie" id="financeGivingPie" role="img" aria-label="Giving breakdown chart"></div>
+                  <ul class="financePieLegend" aria-label="Giving values">
+                    <li class="financePieLegend__item"><span class="financePieLegend__dot financePieLegend__dot--tithes" aria-hidden="true"></span><span class="financePieLegend__label">Tithes</span><span class="financePieLegend__value" id="financeTithesTotal">$0.00</span></li>
+                    <li class="financePieLegend__item"><span class="financePieLegend__dot financePieLegend__dot--offerings" aria-hidden="true"></span><span class="financePieLegend__label">Offerings</span><span class="financePieLegend__value" id="financeOfferingsTotal">$0.00</span></li>
+                    <li class="financePieLegend__item"><span class="financePieLegend__dot financePieLegend__dot--giving" aria-hidden="true"></span><span class="financePieLegend__label">Total Giving</span><span class="financePieLegend__value" id="financeGivingTotal">$0.00</span></li>
+                  </ul>
+                </section>
               </div>
             </div>
           </div>
@@ -952,13 +964,503 @@
         </dialog>
       </section>
 
-      <!-- Events -->
-      <section class="tabPanel" role="tabpanel" id="tab-events" aria-labelledby="tabBtn-events" hidden>
-        <div class="pageContext" id="pageContext-events">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Events</p>
-          <h2 class="pageContext__title">Events</h2>
-          <p class="pageContext__description">Add service times, meetings, and church programs.</p>
+      <!-- Directory -->
+      <section class="tabPanel" role="tabpanel" id="tab-directory" aria-labelledby="tabBtn-directory" hidden data-header-crumb="Directory" data-header-description="Manage church contacts, households, communication preferences, and newsletter subscribers.">
+        <div class="sectionHeader sectionHeader--compact directoryHeaderActions" aria-label="Directory actions">
+          <button class="btn" id="directoryImportBtn" type="button">Import Contacts</button>
+          <button class="btn" id="directoryExportBtn" type="button">Export</button>
+          <button class="btn btn--primary" id="directoryAddContactBtn" type="button">Add Contact</button>
         </div>
+
+        <div class="directorySummaryGrid" id="directorySummaryGrid" aria-label="Directory summary">
+          <article class="directorySummaryCard" aria-labelledby="directorySummaryContactsTitle">
+            <p class="directorySummaryCard__label" id="directorySummaryContactsTitle">Directory Contacts</p>
+            <p class="directorySummaryCard__value" id="directorySummaryContacts">0</p>
+            <p class="directorySummaryCard__meta">Total active contacts</p>
+          </article>
+          <article class="directorySummaryCard" aria-labelledby="directorySummarySubscribersTitle">
+            <p class="directorySummaryCard__label" id="directorySummarySubscribersTitle">Newsletter Subscribers</p>
+            <p class="directorySummaryCard__value" id="directorySummarySubscribers">0</p>
+            <p class="directorySummaryCard__meta">Total active subscribers</p>
+          </article>
+          <article class="directorySummaryCard" aria-labelledby="directorySummaryMissingTitle">
+            <p class="directorySummaryCard__label" id="directorySummaryMissingTitle">Missing Information</p>
+            <p class="directorySummaryCard__value" id="directorySummaryMissing">0</p>
+            <p class="directorySummaryCard__meta">Missing primary email, phone, or both</p>
+          </article>
+          <article class="directorySummaryCard" aria-labelledby="directorySummaryNewTitle">
+            <p class="directorySummaryCard__label" id="directorySummaryNewTitle">New Contacts This Month</p>
+            <p class="directorySummaryCard__value" id="directorySummaryNew">0</p>
+            <p class="directorySummaryCard__meta">Created in the current month</p>
+          </article>
+        </div>
+
+        <div class="tabs subTabs" role="tablist" aria-label="Directory views">
+          <button class="tab tab--sub" role="tab" aria-selected="true" aria-controls="panel-directory-contacts" id="subTabBtn-directory-contacts" type="button">Contacts</button>
+          <button class="tab tab--sub" role="tab" aria-selected="false" aria-controls="panel-directory-subscribers" id="subTabBtn-directory-subscribers" type="button">Subscribers</button>
+          <button class="tab tab--sub" role="tab" aria-selected="false" aria-controls="panel-directory-groups" id="subTabBtn-directory-groups" type="button">Groups</button>
+        </div>
+
+        <div class="subTabPanel" role="tabpanel" id="panel-directory-contacts" aria-labelledby="subTabBtn-directory-contacts">
+          <details class="directoryFiltersDrawer" id="directoryContactsFiltersDrawer">
+            <summary class="btn" id="directoryContactsFiltersToggle">Filters</summary>
+            <div class="directoryFilterPanel">
+              <div class="toolbar directoryToolbar" aria-label="Directory contact filters">
+                <label class="label label--inline directoryToolbar__search">
+                  Search
+                  <input class="input" id="directoryContactsSearch" type="search" placeholder="Search by name, email, or phone" autocomplete="off" />
+                </label>
+                <label class="label label--inline">
+                  Status
+                  <select class="select" id="directoryContactsStatus">
+                    <option value="all">All</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </label>
+                <label class="label label--inline">
+                  Contact type
+                  <select class="select" id="directoryContactsType">
+                    <option value="all">All</option>
+                    <option value="member">Member</option>
+                    <option value="visitor">Visitor</option>
+                    <option value="staff">Staff</option>
+                    <option value="ministry_leader">Ministry Leader</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+                <label class="label label--inline">
+                  Group
+                  <select class="select" id="directoryContactsGroup">
+                    <option value="all">All</option>
+                  </select>
+                </label>
+                <label class="label label--inline">
+                  Newsletter
+                  <select class="select" id="directoryContactsNewsletter">
+                    <option value="all">All</option>
+                    <option value="subscribed">Subscribed</option>
+                    <option value="pending">Pending</option>
+                    <option value="unsubscribed">Unsubscribed</option>
+                    <option value="not_subscribed">Not Subscribed</option>
+                  </select>
+                </label>
+                <label class="label label--inline">
+                  Missing information
+                  <select class="select" id="directoryContactsMissing">
+                    <option value="all">All</option>
+                    <option value="missing_email">Missing Email</option>
+                    <option value="missing_phone">Missing Phone</option>
+                    <option value="missing_both">Missing Email and Phone</option>
+                  </select>
+                </label>
+                <button class="btn" id="directoryContactsClearFiltersBtn" type="button">Clear filters</button>
+              </div>
+            </div>
+          </details>
+
+          <div class="directoryToolbar directoryToolbar--desktop" aria-label="Directory contact filters">
+            <label class="label label--inline directoryToolbar__search">
+              Search
+              <input class="input" id="directoryContactsSearchDesktop" type="search" placeholder="Search by name, email, or phone" autocomplete="off" />
+            </label>
+            <label class="label label--inline">
+              Status
+              <select class="select" id="directoryContactsStatusDesktop">
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="archived">Archived</option>
+              </select>
+            </label>
+            <label class="label label--inline">
+              Contact type
+              <select class="select" id="directoryContactsTypeDesktop">
+                <option value="all">All</option>
+                <option value="member">Member</option>
+                <option value="visitor">Visitor</option>
+                <option value="staff">Staff</option>
+                <option value="ministry_leader">Ministry Leader</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <label class="label label--inline">
+              Group
+              <select class="select" id="directoryContactsGroupDesktop">
+                <option value="all">All</option>
+              </select>
+            </label>
+            <label class="label label--inline">
+              Newsletter
+              <select class="select" id="directoryContactsNewsletterDesktop">
+                <option value="all">All</option>
+                <option value="subscribed">Subscribed</option>
+                <option value="pending">Pending</option>
+                <option value="unsubscribed">Unsubscribed</option>
+                <option value="not_subscribed">Not Subscribed</option>
+              </select>
+            </label>
+            <label class="label label--inline">
+              Missing information
+              <select class="select" id="directoryContactsMissingDesktop">
+                <option value="all">All</option>
+                <option value="missing_email">Missing Email</option>
+                <option value="missing_phone">Missing Phone</option>
+                <option value="missing_both">Missing Email and Phone</option>
+              </select>
+            </label>
+            <button class="btn" id="directoryContactsClearFiltersBtnDesktop" type="button">Clear filters</button>
+          </div>
+
+          <div class="directoryListMeta">
+            <p class="muted" id="directoryContactsResultCount" aria-live="polite">0 contacts</p>
+            <p class="muted" id="directoryContactsStatusText" aria-live="polite">Ready.</p>
+          </div>
+
+          <div class="tableWrap directoryTableWrap" id="directoryContactsTableWrap" aria-label="Directory contacts table">
+            <table class="financeTable directoryTable" aria-describedby="directoryContactsResultCount">
+              <thead>
+                <tr>
+                  <th scope="col">Select</th>
+                  <th scope="col">Contact</th>
+                  <th scope="col">Contact Information</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Ministry / Role</th>
+                  <th scope="col">Newsletter</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Updated</th>
+                  <th scope="col">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="directoryContactsTableBody"></tbody>
+            </table>
+          </div>
+
+          <div class="directoryCardList" id="directoryContactsCardList" aria-label="Directory contacts"></div>
+
+          <div class="directoryState" id="directoryContactsLoading" hidden>Loading directory contacts...</div>
+          <div class="directoryState" id="directoryContactsEmpty" hidden>No directory contacts found.</div>
+          <div class="directoryState directoryState--error" id="directoryContactsError" hidden></div>
+
+          <div class="toolbar directoryPager" id="directoryContactsPager" aria-label="Directory contacts pagination">
+            <button class="btn" id="directoryContactsPrevBtn" type="button">Prev</button>
+            <span class="muted" id="directoryContactsPageInfo" aria-live="polite">Page 1 of 1</span>
+            <button class="btn" id="directoryContactsNextBtn" type="button">Next</button>
+          </div>
+        </div>
+
+        <div class="subTabPanel" role="tabpanel" id="panel-directory-subscribers" aria-labelledby="subTabBtn-directory-subscribers" hidden>
+          <div class="directorySummaryInline" id="directorySubscribersSummary" aria-label="Subscriber summary">
+            <div class="directorySummaryInline__item"><span class="directorySummaryInline__label">Active</span><strong id="directorySubscribersCountActive">0</strong></div>
+            <div class="directorySummaryInline__item"><span class="directorySummaryInline__label">Pending</span><strong id="directorySubscribersCountPending">0</strong></div>
+            <div class="directorySummaryInline__item"><span class="directorySummaryInline__label">Unsubscribed</span><strong id="directorySubscribersCountUnsubscribed">0</strong></div>
+            <div class="directorySummaryInline__item"><span class="directorySummaryInline__label">Bounced / Suppressed</span><strong id="directorySubscribersCountSuppressed">0</strong></div>
+          </div>
+
+          <div class="toolbar directoryToolbar" aria-label="Subscriber filters">
+            <label class="label label--inline directoryToolbar__search">
+              Search
+              <input class="input" id="directorySubscribersSearch" type="search" placeholder="Search by email or name" autocomplete="off" />
+            </label>
+            <label class="label label--inline">
+              Status
+              <select class="select" id="directorySubscribersStatus">
+                <option value="all">All</option>
+                <option value="active">active</option>
+                <option value="pending">pending</option>
+                <option value="unsubscribed">unsubscribed</option>
+                <option value="bounced">bounced</option>
+                <option value="complained">complained</option>
+                <option value="suppressed">suppressed</option>
+              </select>
+            </label>
+            <label class="label label--inline">
+              Source
+              <select class="select" id="directorySubscribersSource">
+                <option value="all">All</option>
+                <option value="website_signup">Website Signup</option>
+                <option value="written_form">Written Form</option>
+                <option value="verbal_permission">Verbal Permission</option>
+                <option value="event_registration">Event Registration</option>
+                <option value="imported_documented_consent">Imported with Documented Consent</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <label class="label label--inline">
+              Email list
+              <select class="select" id="directorySubscribersList">
+                <option value="all">All</option>
+              </select>
+            </label>
+            <button class="btn" id="directorySubscribersClearFiltersBtn" type="button">Clear filters</button>
+          </div>
+
+          <div class="directoryListMeta">
+            <p class="muted" id="directorySubscribersResultCount" aria-live="polite">0 subscribers</p>
+            <p class="muted" id="directorySubscribersStatusText" aria-live="polite">Ready.</p>
+          </div>
+
+          <div class="tableWrap directoryTableWrap" aria-label="Newsletter subscribers table">
+            <table class="financeTable directoryTable">
+              <thead>
+                <tr>
+                  <th scope="col">Select</th>
+                  <th scope="col">Subscriber</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Source</th>
+                  <th scope="col">Email Lists</th>
+                  <th scope="col">Consent Date</th>
+                  <th scope="col">Last Emailed</th>
+                  <th scope="col">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="directorySubscribersTableBody"></tbody>
+            </table>
+          </div>
+
+          <div class="directoryCardList" id="directorySubscribersCardList" aria-label="Newsletter subscribers"></div>
+
+          <div class="directoryState" id="directorySubscribersLoading" hidden>Loading newsletter subscribers...</div>
+          <div class="directoryState" id="directorySubscribersEmpty" hidden>No newsletter subscribers found.</div>
+          <div class="directoryState directoryState--error" id="directorySubscribersError" hidden></div>
+
+          <div class="toolbar directoryPager" id="directorySubscribersPager" aria-label="Subscriber pagination">
+            <button class="btn" id="directorySubscribersPrevBtn" type="button">Prev</button>
+            <span class="muted" id="directorySubscribersPageInfo" aria-live="polite">Page 1 of 1</span>
+            <button class="btn" id="directorySubscribersNextBtn" type="button">Next</button>
+          </div>
+        </div>
+
+        <div class="subTabPanel" role="tabpanel" id="panel-directory-groups" aria-labelledby="subTabBtn-directory-groups" hidden>
+          <div class="sectionHeader sectionHeader--compact">
+            <h3 class="sectionHeader__title">Directory Groups and Email Lists</h3>
+            <div class="toolbar">
+              <button class="btn" id="directoryAddGroupBtn" type="button">Add Directory Group</button>
+              <button class="btn" id="directoryAddListBtn" type="button">Add Email List</button>
+            </div>
+          </div>
+
+          <div class="directoryGroupsGrid">
+            <section class="card" aria-labelledby="directoryGroupsTitle">
+              <h4 class="card__subtitle" id="directoryGroupsTitle">Directory Groups</h4>
+              <div class="list" id="directoryGroupsList"></div>
+              <div class="directoryState" id="directoryGroupsEmpty" hidden>No directory groups found.</div>
+            </section>
+            <section class="card" aria-labelledby="directoryListsTitle">
+              <h4 class="card__subtitle" id="directoryListsTitle">Email Lists</h4>
+              <div class="list" id="directoryListsList"></div>
+              <div class="directoryState" id="directoryListsEmpty" hidden>No email lists found.</div>
+            </section>
+          </div>
+        </div>
+
+        <dialog class="dialog directoryDrawer" id="directoryContactDrawer" aria-labelledby="directoryContactDrawerTitle" aria-modal="true">
+          <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
+          <div class="card dialog__inner directoryDrawer__inner">
+            <div class="sectionHeader sectionHeader--compact">
+              <h3 class="sectionHeader__title" id="directoryContactDrawerTitle">Contact details</h3>
+              <button class="btn" id="directoryContactDrawerCloseBtn" type="button">Close</button>
+            </div>
+
+            <section class="directoryDrawerSection" aria-label="Contact Header">
+              <div class="directoryPersonHeader">
+                <div class="directoryAvatar" id="directoryDrawerAvatar">--</div>
+                <div>
+                  <h4 class="directoryDrawerName" id="directoryDrawerName">Contact</h4>
+                  <p class="muted" id="directoryDrawerTypeStatus">Type | Status</p>
+                </div>
+              </div>
+              <div class="toolbar">
+                <button class="btn" id="directoryDrawerEditBtn" type="button">Edit</button>
+              </div>
+            </section>
+
+            <section class="directoryDrawerSection" aria-labelledby="directoryDrawerPersonalTitle">
+              <h4 class="card__subtitle" id="directoryDrawerPersonalTitle">Personal Information</h4>
+              <dl class="directoryInfoList" id="directoryDrawerPersonal"></dl>
+            </section>
+
+            <section class="directoryDrawerSection" aria-labelledby="directoryDrawerContactInfoTitle">
+              <h4 class="card__subtitle" id="directoryDrawerContactInfoTitle">Contact Information</h4>
+              <dl class="directoryInfoList" id="directoryDrawerContactInfo"></dl>
+            </section>
+
+            <section class="directoryDrawerSection" aria-labelledby="directoryDrawerChurchInfoTitle">
+              <h4 class="card__subtitle" id="directoryDrawerChurchInfoTitle">Church Information</h4>
+              <dl class="directoryInfoList" id="directoryDrawerChurchInfo"></dl>
+            </section>
+
+            <section class="directoryDrawerSection" aria-labelledby="directoryDrawerCommPrefsTitle">
+              <h4 class="card__subtitle" id="directoryDrawerCommPrefsTitle">Communication Preferences</h4>
+              <dl class="directoryInfoList" id="directoryDrawerCommPrefs"></dl>
+            </section>
+
+            <section class="directoryDrawerSection" aria-labelledby="directoryDrawerRecentActivityTitle">
+              <h4 class="card__subtitle" id="directoryDrawerRecentActivityTitle">Recent Activity</h4>
+              <div class="list" id="directoryDrawerRecentActivity"></div>
+            </section>
+          </div>
+        </dialog>
+
+        <dialog class="dialog" id="directoryContactDialog" aria-labelledby="directoryContactDialogTitle" aria-modal="true">
+          <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
+          <div class="card dialog__inner directoryFormDialog__inner">
+            <div class="sectionHeader sectionHeader--compact">
+              <h3 class="sectionHeader__title" id="directoryContactDialogTitle">Add Contact</h3>
+              <button class="btn" id="directoryContactDialogCloseBtn" type="button">Close</button>
+            </div>
+
+            <form id="directoryContactForm" class="form" novalidate>
+              <input type="hidden" id="directoryContactId" />
+
+              <h4 class="card__subtitle">Basic Information</h4>
+              <div class="formRow">
+                <label class="label">First name<input class="input" id="directoryContactFirstName" type="text" required /></label>
+                <label class="label">Last name<input class="input" id="directoryContactLastName" type="text" required /></label>
+                <label class="label">Preferred name<input class="input" id="directoryContactPreferredName" type="text" /></label>
+                <label class="label">Contact type
+                  <select class="select" id="directoryContactType" required>
+                    <option value="member">Member</option>
+                    <option value="visitor">Visitor</option>
+                    <option value="staff">Staff</option>
+                    <option value="ministry_leader">Ministry Leader</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+                <label class="label">Status
+                  <select class="select" id="directoryContactStatus" required>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </label>
+              </div>
+
+              <h4 class="card__subtitle">Contact Information</h4>
+              <div class="formRow">
+                <label class="label">Primary email<input class="input" id="directoryContactPrimaryEmail" type="email" /></label>
+                <label class="label">Secondary email<input class="input" id="directoryContactSecondaryEmail" type="email" /></label>
+                <label class="label">Mobile phone<input class="input" id="directoryContactMobilePhone" type="tel" /></label>
+                <label class="label">Home phone<input class="input" id="directoryContactHomePhone" type="tel" /></label>
+                <label class="label">Preferred contact method
+                  <select class="select" id="directoryContactPreferredMethod">
+                    <option value="">Not set</option>
+                    <option value="email">Email</option>
+                    <option value="mobile_phone">Mobile phone</option>
+                    <option value="home_phone">Home phone</option>
+                    <option value="mail">Mail</option>
+                  </select>
+                </label>
+              </div>
+
+              <h4 class="card__subtitle">Church Information</h4>
+              <div class="formRow">
+                <label class="label">Membership status<input class="input" id="directoryContactMembershipStatus" type="text" /></label>
+                <label class="label">Member since<input class="input" id="directoryContactMemberSince" type="date" /></label>
+                <label class="label">Ministry or group<input class="input" id="directoryContactMinistry" type="text" /></label>
+                <label class="label">Role<input class="input" id="directoryContactRole" type="text" /></label>
+              </div>
+
+              <h4 class="card__subtitle">Address and Dates</h4>
+              <div class="formRow">
+                <label class="label">Address line 1<input class="input" id="directoryContactAddress1" type="text" /></label>
+                <label class="label">Address line 2<input class="input" id="directoryContactAddress2" type="text" /></label>
+                <label class="label">City<input class="input" id="directoryContactCity" type="text" /></label>
+                <label class="label">State<input class="input" id="directoryContactState" type="text" /></label>
+                <label class="label">Postal code<input class="input" id="directoryContactPostalCode" type="text" /></label>
+                <label class="label">Birth month<input class="input" id="directoryContactBirthMonth" type="number" min="1" max="12" /></label>
+                <label class="label">Birth day<input class="input" id="directoryContactBirthDay" type="number" min="1" max="31" /></label>
+                <label class="label">Anniversary month<input class="input" id="directoryContactAnniversaryMonth" type="number" min="1" max="12" /></label>
+                <label class="label">Anniversary day<input class="input" id="directoryContactAnniversaryDay" type="number" min="1" max="31" /></label>
+              </div>
+
+              <label class="label">Internal notes<textarea class="textarea" id="directoryContactNotes" rows="4" maxlength="2500"></textarea></label>
+
+              <h4 class="card__subtitle">Newsletter Preferences</h4>
+              <div class="formRow">
+                <label class="label">Newsletter status
+                  <select class="select" id="directoryContactNewsletterStatus">
+                    <option value="not_subscribed">Not Subscribed</option>
+                    <option value="pending">Pending</option>
+                    <option value="subscribed">Subscribed with Recorded Consent</option>
+                    <option value="unsubscribed">Unsubscribed</option>
+                  </select>
+                </label>
+                <label class="label">Consent source
+                  <select class="select" id="directoryContactConsentSource">
+                    <option value="">Not set</option>
+                    <option value="website_signup">Website Signup</option>
+                    <option value="written_form">Written Form</option>
+                    <option value="verbal_permission">Verbal Permission</option>
+                    <option value="event_registration">Event Registration</option>
+                    <option value="imported_documented_consent">Imported with Documented Consent</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+                <label class="label">Consent date<input class="input" id="directoryContactConsentDate" type="date" /></label>
+              </div>
+
+              <div class="directoryDuplicateBox" id="directoryDuplicateBox" hidden>
+                <p class="directoryDuplicateBox__title">Possible duplicates found</p>
+                <div class="list" id="directoryDuplicateList"></div>
+              </div>
+
+              <div class="toolbar">
+                <button class="btn btn--primary" id="directoryContactSaveBtn" type="submit">Save Contact</button>
+                <button class="btn" id="directoryContactCancelBtn" type="button">Cancel</button>
+              </div>
+              <div class="hint" id="directoryContactFormHint" aria-live="polite"></div>
+              <div class="error" id="directoryContactFormError" role="alert" hidden></div>
+            </form>
+          </div>
+        </dialog>
+
+        <dialog class="dialog" id="directoryImportDialog" aria-labelledby="directoryImportDialogTitle" aria-modal="true">
+          <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
+          <div class="card dialog__inner">
+            <div class="sectionHeader sectionHeader--compact">
+              <h3 class="sectionHeader__title" id="directoryImportDialogTitle">Import Contacts</h3>
+              <button class="btn" id="directoryImportCloseBtn" type="button">Close</button>
+            </div>
+            <ol class="directoryWorkflowList">
+              <li>Upload file</li>
+              <li>Map columns</li>
+              <li>Duplicate review</li>
+              <li>Consent handling</li>
+              <li>Import review</li>
+            </ol>
+            <label class="label">Choose file<input class="input" id="directoryImportFile" type="file" accept=".csv,.xlsx,.xls,.json" /></label>
+            <div class="hint" id="directoryImportHint" aria-live="polite">Import CSV contacts with consent metadata. Duplicate rows are skipped.</div>
+          </div>
+        </dialog>
+
+        <dialog class="dialog" id="directoryExportDialog" aria-labelledby="directoryExportDialogTitle" aria-modal="true">
+          <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
+          <div class="card dialog__inner">
+            <div class="sectionHeader sectionHeader--compact">
+              <h3 class="sectionHeader__title" id="directoryExportDialogTitle">Export Directory</h3>
+              <button class="btn" id="directoryExportCloseBtn" type="button">Close</button>
+            </div>
+            <form id="directoryExportForm" class="form">
+              <label class="label label--inline"><input class="checkbox" type="radio" name="scope" value="all_contacts" checked /> All contacts</label>
+              <label class="label label--inline"><input class="checkbox" type="radio" name="scope" value="filtered_contacts" /> Current filtered contacts</label>
+              <label class="label label--inline"><input class="checkbox" type="radio" name="scope" value="selected_contacts" /> Selected contacts</label>
+              <label class="label label--inline"><input class="checkbox" type="radio" name="scope" value="subscribers_only" /> Subscribers only</label>
+              <p class="muted">Private notes are excluded by default.</p>
+              <div class="toolbar">
+                <button class="btn btn--primary" id="directoryExportGenerateBtn" type="button">Generate Export</button>
+              </div>
+              <div class="hint" id="directoryExportHint" aria-live="polite">Choose a scope, then generate a CSV export.</div>
+            </form>
+          </div>
+        </dialog>
+
+        <div class="srOnly" id="directoryLiveRegion" aria-live="polite" aria-atomic="true"></div>
+      </section>
+
+      <!-- Events -->
+      <section class="tabPanel" role="tabpanel" id="tab-events" aria-labelledby="tabBtn-events" hidden data-header-crumb="Events" data-header-description="Add service times, meetings, and church programs.">
         <p class="muted">Add, edit, and delete events. This exports to the website's existing schedule format when exports are enabled.</p>
 
         <form id="eventForm" class="form form--row">
@@ -1012,12 +1514,7 @@
       </section>
 
       <!-- Newsletter -->
-      <section class="tabPanel" role="tabpanel" id="tab-newsletter" aria-labelledby="tabBtn-newsletter" hidden>
-        <div class="pageContext" id="pageContext-newsletter">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Newsletter</p>
-          <h2 class="pageContext__title">Newsletter</h2>
-          <p class="pageContext__description">Write and send church newsletters in three clear steps.</p>
-        </div>
+      <section class="tabPanel" role="tabpanel" id="tab-newsletter" aria-labelledby="tabBtn-newsletter" hidden data-header-crumb="Newsletter" data-header-description="Create and send church updates to your congregation.">
 
         <div class="newsletterBuilder card--spacedTop">
           <div class="card newsletterBuilder__compose">
@@ -1168,12 +1665,7 @@
       </section>
 
       <!-- Support -->
-      <section class="tabPanel" role="tabpanel" id="tab-support" aria-labelledby="tabBtn-support" hidden>
-        <div class="pageContext" id="pageContext-support">
-          <p class="pageContext__crumb"><a href="#home" class="pageContext__homeLink" data-section-target="tab-home">Home</a> â€º Help &amp; Support</p>
-          <h2 class="pageContext__title">Help &amp; Support</h2>
-          <p class="pageContext__description">Send a support request if you need help with the website manager.</p>
-        </div>
+      <section class="tabPanel" role="tabpanel" id="tab-support" aria-labelledby="tabBtn-support" hidden data-header-crumb="Help &amp; Support" data-header-description="Send a support request if you need help with the website manager.">
         <div class="card supportFormShell">
           <p class="muted">Send a message to <strong>support@alphazonelabs.com</strong>.</p>
 
@@ -1229,8 +1721,10 @@
   </main>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="/admin/admin.js?v=20260124"></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260730000715" defer></script>
+  <script src="/admin/admin.js?v=20260730k" defer></script>
+  <script src="/admin/admin-directory.js?v=20260730a" defer></script>
+  <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260730233250" defer></script>
 </body>
 </html>
 
