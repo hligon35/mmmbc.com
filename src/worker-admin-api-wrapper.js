@@ -1,6 +1,7 @@
 import worker from './worker-auth-wrapper.js';
 import { handleGivingRequest } from './worker-giving.js';
 import { handleGivingPageRequest } from './worker-giving-pages.js';
+import { maybeHandleFinanceReconciliationRequest } from './worker-finance-reconciliation.js';
 import { EmailMessage } from 'cloudflare:email';
 
 function json(body, status = 200) {
@@ -986,6 +987,10 @@ export default {
 
     if (url.pathname.startsWith('/api/directory/')) {
       return worker.fetch(request, env, ctx);
+    }
+
+    if (url.pathname.startsWith('/api/finances/donors') || url.pathname.startsWith('/api/finances/collections')) {
+      return maybeHandleFinanceReconciliationRequest(request, env, ctx, requireSession);
     }
 
     if (

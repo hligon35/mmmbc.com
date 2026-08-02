@@ -41,27 +41,169 @@
     </div>
 
     <section class="panel">
-      <h2>Control Summary</h2>
-      <p class="help">Shows items awaiting verification, exceptions, and unsafe duty combinations.</p>
-      <pre id="controlsDash" class="card preBlock"></pre>
-    </section>
-
-    <section class="panel">
-      <h2>Record Sunday Collection</h2>
-      <p class="help">At least two counters are required when two-person verification is enabled.</p>
-      <form id="collectionForm" class="grid">
+      <h2>Collection Batch</h2>
+      <p class="help">Start a service batch, then scan envelope codes and reconcile before verification.</p>
+      <form id="collectionBatchForm" class="grid">
+        <label class="label">Existing batch
+          <select id="collectionBatchSelect" class="select">
+            <option value="">Start new batch</option>
+          </select>
+        </label>
         <label class="label">Service date<input id="collectionDate" class="input" type="date" required /></label>
-        <label class="label">Collection amount<input id="collectionAmount" class="input" type="number" step="0.01" required /></label>
-        <label class="label fullSpan">Counters (comma separated user IDs)<input id="collectionCounters" class="input" placeholder="counter_one_id, counter_two_id" required /></label>
-        <label class="label fullSpan">Count-sheet attachment path<input id="collectionAttachment" class="input" placeholder="/admin-uploads/docs/count-sheet.pdf" /></label>
+        <label class="label">Service name<input id="collectionServiceName" class="input" placeholder="Sunday Morning Worship" /></label>
+        <label class="label">Declared physical cash
+          <input id="collectionDeclaredCash" class="input" type="number" step="0.01" min="0" value="0.00" />
+        </label>
+        <label class="label">Declared checks
+          <input id="collectionDeclaredChecks" class="input" type="number" step="0.01" min="0" value="0.00" />
+        </label>
+        <label class="label fullSpan">Count-sheet attachment path
+          <input id="collectionAttachment" class="input" placeholder="/admin-uploads/docs/count-sheet.pdf" />
+        </label>
         <div class="btnRow fullSpan">
-          <button class="btn btnPrimary" type="submit">Save Collection</button>
-          <button class="btn" type="reset">Cancel</button>
-          <a class="btn" href="#controlsDash">Review</a>
+          <button class="btn btnPrimary" type="submit">Create or Update Batch</button>
+          <button class="btn" id="collectionStartBtn" type="button">Start/Resume Counting</button>
+          <button class="btn" id="collectionRefreshBtn" type="button">Refresh Batch</button>
           <a class="btn" href="/admin/">Back</a>
         </div>
       </form>
-      <p id="controlsMsg" class="help"></p>
+      <p id="controlsMsg" class="help" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="panel">
+      <h2>Counter Assignment</h2>
+      <p class="help">Assign at least two counters. Approvals are reset whenever financial entries change.</p>
+      <form id="collectionCountersForm" class="grid">
+        <label class="label fullSpan">Counter emails (comma-separated)
+          <input id="collectionCounters" class="input" placeholder="counter1@example.com, counter2@example.com" />
+        </label>
+        <div class="btnRow fullSpan">
+          <button class="btn btnPrimary" type="submit">Save Counter Assignments</button>
+          <button class="btn" id="collectionApproveBtn" type="button">Submit My Approval</button>
+          <button class="btn" id="collectionFinalizeBtn" type="button">Finalize Batch</button>
+        </div>
+      </form>
+      <div id="collectionCounterState" class="card preBlock" aria-live="polite"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Envelope Scanner Workspace</h2>
+      <p class="help">Use a USB/Bluetooth scanner that ends with Enter, or camera scan if available.</p>
+      <form id="collectionEntryForm" class="grid">
+        <label class="label fullSpan">Scanner input
+          <input id="collectionScannerInput" class="input" autocomplete="off" placeholder="MMMBC-ENV-V1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" required />
+        </label>
+        <div class="btnRow fullSpan">
+          <button class="btn btnPrimary" id="collectionResolveBtn" type="button">Resolve Envelope</button>
+          <button class="btn" id="collectionCameraBtn" type="button">Camera Scan</button>
+        </div>
+        <div id="collectionCameraWrap" class="fullSpan" hidden>
+          <video id="collectionCameraVideo" class="scannerVideo" autoplay muted playsinline></video>
+          <div class="btnRow">
+            <button class="btn" id="collectionCameraStopBtn" type="button">Stop Camera</button>
+          </div>
+        </div>
+
+        <div id="collectionDonorConfirm" class="card fullSpan" aria-live="polite">
+          <strong>No donor resolved.</strong>
+        </div>
+
+        <label class="label">Payment method
+          <select id="collectionPaymentMethod" class="select">
+            <option value="cash">Cash Envelope</option>
+            <option value="check">Check Envelope</option>
+          </select>
+        </label>
+        <label class="label">Check number (if check)
+          <input id="collectionCheckNumber" class="input" autocomplete="off" />
+        </label>
+        <label class="label">Envelope total
+          <input id="collectionAmount" class="input" type="number" step="0.01" min="0.01" required />
+        </label>
+
+        <div class="fullSpan">
+          <h3>Fund Allocations</h3>
+          <p class="help">Allocation totals must match the envelope total exactly.</p>
+          <div id="collectionAllocations" class="stackList" aria-live="polite"></div>
+          <div class="btnRow">
+            <button class="btn" id="collectionAddAllocationBtn" type="button">Add Allocation</button>
+          </div>
+          <p id="collectionAllocationTotals" class="help"></p>
+        </div>
+
+        <div id="collectionDuplicateWarning" class="warn fullSpan" hidden>
+          Duplicate envelope detected in this batch. Use Update Existing Entry only after confirming physical records.
+        </div>
+
+        <div class="btnRow fullSpan">
+          <button class="btn btnPrimary" id="collectionSaveNextBtn" type="submit">Save and Scan Next</button>
+          <button class="btn" id="collectionUpdateBtn" type="button">Update Existing Entry</button>
+          <button class="btn" type="reset">Clear Entry</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Loose Giving</h2>
+      <p class="help">Loose giving is anonymous and excluded from donor statements.</p>
+      <form id="collectionLooseForm" class="grid">
+        <label class="label">Fund
+          <select id="collectionLooseFund" class="select"></select>
+        </label>
+        <label class="label">Payment method
+          <select id="collectionLooseMethod" class="select">
+            <option value="cash">Loose Cash</option>
+            <option value="check">Loose Check</option>
+          </select>
+        </label>
+        <label class="label">Amount
+          <input id="collectionLooseAmount" class="input" type="number" step="0.01" min="0.01" required />
+        </label>
+        <label class="label fullSpan">Note
+          <input id="collectionLooseNote" class="input" placeholder="Optional collection note" />
+        </label>
+        <div class="btnRow fullSpan">
+          <button class="btn btnPrimary" type="submit">Add Loose Giving</button>
+        </div>
+      </form>
+      <pre id="collectionLooseState" class="card preBlock"></pre>
+    </section>
+
+    <section class="panel">
+      <h2>Recent Entries</h2>
+      <div class="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Donor</th>
+              <th>Envelope #</th>
+              <th>Method</th>
+              <th>Total</th>
+              <th>Allocations</th>
+              <th>Entered</th>
+            </tr>
+          </thead>
+          <tbody id="collectionEntryTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Reconciliation & Deposit</h2>
+      <pre id="controlsDash" class="card preBlock"></pre>
+      <form id="collectionDepositForm" class="grid">
+        <label class="label">Deposit date<input id="collectionDepositDate" class="input" type="date" /></label>
+        <label class="label">Deposit amount<input id="collectionDepositAmount" class="input" type="number" step="0.01" min="0.01" /></label>
+        <label class="label">Deposit reference/slip<input id="collectionDepositRef" class="input" placeholder="Bank slip #" /></label>
+        <label class="label fullSpan">Internal-control exception note (required only if verifier is creator)
+          <input id="collectionDepositException" class="input" placeholder="Explain exception if needed" />
+        </label>
+        <div class="btnRow fullSpan">
+          <button class="btn btnPrimary" type="submit">Confirm Deposit</button>
+          <button class="btn" id="collectionReopenBtn" type="button">Reopen Batch</button>
+          <button class="btn btnWarn" id="collectionVoidBtn" type="button">Void Batch</button>
+        </div>
+      </form>
     </section>
     <p id="pageError" class="error"></p>
   </main>

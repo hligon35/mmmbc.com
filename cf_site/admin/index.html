@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Church Website Manager</title>
   <meta name="description" content="Admin dashboard for Mt. Moriah Missionary Baptist Church website." />
-  <link rel="stylesheet" href="/admin/admin.css?v=20260730k" />
+  <link rel="stylesheet" href="/admin/admin.css?v=20260802a" />
   <link rel="stylesheet" href="/admin/admin-dashboard.css?v=20260730a" />
   <link rel="stylesheet" href="/admin/admin-directory.css?v=20260730a" />
   <link rel="stylesheet" href="/admin/admin-header-canonical.css?v=20260730d" />
-  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260801003944" />
+  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260802005913" />
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
@@ -574,6 +574,11 @@
 
       <!-- Finances -->
       <section class="tabPanel" role="tabpanel" id="tab-finances" aria-labelledby="tabBtn-finances" hidden data-header-crumb="Church Finances" data-header-description="Record gifts, review transactions, and generate reports.">
+        <div class="toolbar noPrint" aria-label="Finance workflow navigation">
+          <a class="btn" href="/admin/finances/controls">Open Envelope Reconciliation Workspace</a>
+          <a class="btn" href="/admin/finances/donors">Open Donor Envelope Administration</a>
+        </div>
+
         <div class="tabs subTabs financeMainTabs" role="tablist" aria-label="Church Finances views">
           <button class="tab tab--sub" role="tab" aria-selected="true" aria-controls="panel-finances-record" id="subTabBtn-finances-record" type="button">Record Money</button>
           <button class="tab tab--sub" role="tab" aria-selected="false" aria-controls="panel-finances-review" id="subTabBtn-finances-review" type="button">Review Transactions</button>
@@ -1739,7 +1744,7 @@
   <script src="/admin/admin.js?v=20260730k" defer></script>
   <script src="/admin/admin-directory.js?v=20260730a" defer></script>
   <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260801003944" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260802005913" defer></script>
 </body>
 </html>
 

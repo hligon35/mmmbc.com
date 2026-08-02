@@ -52,7 +52,7 @@
       <p id="donorMsg" class="help"></p>
       <div class="tableWrap">
         <table>
-          <thead><tr><th>Name</th><th>Household</th><th>Envelope</th><th>Email</th><th>Phone</th><th>Status</th></tr></thead>
+          <thead><tr><th>Name</th><th>Household</th><th>Envelope</th><th>Code Status</th><th>Email</th><th>Phone</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody id="donorTableBody"></tbody>
         </table>
       </div>
@@ -85,6 +85,46 @@
           <a class="btn" href="/admin/">Back</a>
         </div>
       </form>
+    </section>
+
+    <section class="panel" id="donorEnvelopeLabelPanel">
+      <h2>Envelope Code Administration</h2>
+      <p class="help">Issue opaque envelope codes only. No donor identity is embedded in the scannable payload.</p>
+      <form id="donorEnvelopeAdminForm" class="grid">
+        <label class="label">Selected donor
+          <input id="donorEnvelopeSelected" class="input" placeholder="Select from donor list actions" readonly />
+        </label>
+        <label class="label">Envelope number
+          <input id="donorEnvelopeNumberEdit" class="input" placeholder="e.g., 0104" />
+        </label>
+        <label class="label fullSpan">Reason / note
+          <input id="donorEnvelopeReason" class="input" placeholder="Reason for issue/replace/deactivate" />
+        </label>
+        <div class="btnRow fullSpan">
+          <button class="btn" id="donorEnvelopeSaveBtn" type="button">Save Envelope Number</button>
+          <button class="btn btnPrimary" id="donorEnvelopeIssueBtn" type="button">Issue Code</button>
+          <button class="btn" id="donorEnvelopeReplaceBtn" type="button">Replace Code</button>
+          <button class="btn btnWarn" id="donorEnvelopeDeactivateBtn" type="button">Deactivate Code</button>
+          <button class="btn" id="donorEnvelopePrintBtn" type="button">Print Label</button>
+        </div>
+      </form>
+      <p id="donorEnvelopeMsg" class="help" role="status" aria-live="polite"></p>
+      <div id="donorEnvelopeLabelPreview" class="card"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Donor Giving History</h2>
+      <p class="help">Includes Stripe, cash-envelope, and check-envelope records. Loose cash is excluded by design.</p>
+      <div class="btnRow">
+        <button class="btn" id="donorHistoryLoadBtn" type="button">Load Selected Donor History</button>
+      </div>
+      <p id="donorHistoryMsg" class="help"></p>
+      <div class="tableWrap">
+        <table>
+          <thead><tr><th>Date</th><th>Source</th><th>Fund</th><th>Amount</th><th>Method</th><th>Reference</th></tr></thead>
+          <tbody id="donorHistoryTableBody"></tbody>
+        </table>
+      </div>
     </section>
     <p id="pageError" class="error"></p>
   </main>

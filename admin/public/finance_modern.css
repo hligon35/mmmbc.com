@@ -95,10 +95,49 @@ th,td{border:1px solid #455163;padding:10px;vertical-align:top;}
 th{background:#0f141c;text-align:left;}
 .fullSpan{grid-column:1/-1;}
 .preBlock{white-space:pre-wrap;max-height:480px;overflow:auto;}
+.stackList{display:grid;gap:10px;}
+.stackListRow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:10px;align-items:end;}
+.scannerVideo{
+  width:min(540px, 100%);
+  max-height:320px;
+  border:2px solid #586274;
+  border-radius:12px;
+  background:#0a0f16;
+}
+.selectedHint{color:#ffd7ad;font-weight:700;}
+
+#donorEnvelopeLabelPreview svg{
+  width:min(380px, 100%);
+  height:auto;
+  border:1px solid #3a414d;
+  background:#fff;
+}
+
+@media print{
+  body.printEnvelopeLabel .topBar,
+  body.printEnvelopeLabel .panel:not(#donorEnvelopeLabelPanel),
+  body.printEnvelopeLabel .btn,
+  body.printEnvelopeLabel .help,
+  body.printEnvelopeLabel .warn,
+  body.printEnvelopeLabel .error,
+  body.printEnvelopeLabel .ok{
+    display:none !important;
+  }
+
+  body.printEnvelopeLabel #donorEnvelopeLabelPanel{
+    display:block !important;
+    border:0 !important;
+    padding:0 !important;
+    margin:0 !important;
+    background:#fff !important;
+  }
+}
+
 @media (max-width:700px){
   .wrap{padding:14px;}
   .topBar h1{font-size:1.6rem;}
   .financeNavGrid{grid-template-columns:repeat(2, minmax(0, 1fr));}
+  .stackListRow{grid-template-columns:1fr;}
 }
 
 @media (max-width:520px){
