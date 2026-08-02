@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Envelope Designer</title>
+  <link rel="stylesheet" href="/admin/finance_modern.css" />
+</head>
+<body data-page="envelope-designer">
+  <main class="wrap">
+    <div class="topBar">
+      <h1>Design &amp; Print Envelopes</h1>
+      <div class="navLinks">
+        <div class="financeNavGrid">
+          <a class="financeNavBtn" href="/admin/finances/donors">
+            <span class="financeNavBtn__title">Donors</span>
+            <span class="financeNavBtn__desc">Search members by name, account number, or envelope number.</span>
+          </a>
+          <a class="financeNavBtn" href="/admin/finances/controls">
+            <span class="financeNavBtn__title">Controls</span>
+            <span class="financeNavBtn__desc">Return to collection batches and reconciliation.</span>
+          </a>
+          <a class="financeNavBtn" href="/admin/">
+            <span class="financeNavBtn__title">Admin Home</span>
+            <span class="financeNavBtn__desc">Return to the main admin dashboard.</span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <section class="panel">
+      <h2>Envelope Setup</h2>
+      <form id="envelopeDesignerForm" class="grid">
+        <label class="label fullSpan">Search donor
+          <input id="envelopeDesignerSearch" class="input" placeholder="Name, account number, or envelope number" autocomplete="off" />
+        </label>
+        <div class="btnRow fullSpan">
+          <button class="btn btnPrimary" id="envelopeDesignerSearchBtn" type="button">Search</button>
+          <button class="btn" id="envelopeDesignerIssueCodeBtn" type="button">Issue or Reuse Member Code</button>
+          <button class="btn" id="envelopeDesignerOneTimeBtn" type="button">Generate Reusable One-Time Code</button>
+          <button class="btn" id="envelopeDesignerPrintBtn" type="button">Print Envelope</button>
+        </div>
+        <p id="envelopeDesignerMsg" class="help" role="status" aria-live="polite"></p>
+
+        <div class="tableWrap fullSpan">
+          <table>
+            <thead><tr><th>Name</th><th>Account #</th><th>Envelope #</th><th>Code Status</th><th>Action</th></tr></thead>
+            <tbody id="envelopeDesignerResults"></tbody>
+          </table>
+        </div>
+
+        <label class="label">Selected member
+          <input id="envelopeDesignerSelected" class="input" readonly />
+        </label>
+        <label class="label">Envelope size
+          <select id="envelopeDesignerSize" class="select">
+            <option value="a2">A2 · 4.375 × 5.75 in</option>
+            <option value="a7">A7 · 5.25 × 7.25 in</option>
+            <option value="a9">A9 · 5.75 × 8.75 in</option>
+            <option value="10">#10 · 4.125 × 9.5 in</option>
+          </select>
+        </label>
+        <label class="label">Church heading
+          <input id="envelopeDesignerHeading" class="input" value="Mt. Moriah Missionary Baptist Church" />
+        </label>
+        <label class="label fullSpan">Giving message
+          <textarea id="envelopeDesignerMessage" class="textarea" rows="3">Thank you for your faithful giving. Please complete the lines below.</textarea>
+        </label>
+        <label class="label">Background image
+          <input id="envelopeDesignerBackground" class="input" type="file" accept="image/png,image/jpeg,image/webp" />
+        </label>
+        <label class="label">Background opacity
+          <input id="envelopeDesignerOpacity" class="input" type="range" min="0" max="100" value="24" />
+        </label>
+      </form>
+    </section>
+
+    <section class="panel" id="envelopeDesignerPrintPanel">
+      <h2>Live Preview</h2>
+      <div id="envelopeDesignerPreview" class="card"></div>
+    </section>
+    <p id="pageError" class="error"></p>
+  </main>
+  <script src="/admin/finance_envelope_designer.js"></script>
+</body>
+</html>

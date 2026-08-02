@@ -377,6 +377,7 @@
   function csvFromContacts(items) {
     const headers = [
       'id', 'first_name', 'last_name', 'preferred_name', 'contact_type', 'status',
+      'account_number',
       'primary_email', 'secondary_email', 'mobile_phone', 'home_phone', 'preferred_contact_method',
       'membership_status', 'member_since', 'ministry', 'leadership_role', 'newsletter_status',
       'newsletter_email', 'consent_source', 'consent_date', 'updated_at'
@@ -390,6 +391,7 @@
         item?.preferredName,
         item?.contactType,
         item?.status,
+        item?.accountNumber,
         item?.primaryEmail,
         item?.secondaryEmail,
         item?.mobilePhone,
@@ -465,6 +467,7 @@
       firstName,
       lastName,
       preferredName: getImportCell(rowObj, ['preferred_name', 'nickname']),
+      accountNumber: getImportCell(rowObj, ['account_number', 'account_id', 'member_number', 'donor_number']),
       contactType: getImportCell(rowObj, ['contact_type', 'type']).toLowerCase() || 'member',
       status: getImportCell(rowObj, ['status']).toLowerCase() || 'active',
       primaryEmail: getImportCell(rowObj, ['primary_email', 'email']).toLowerCase(),
@@ -665,6 +668,7 @@
     write('directoryContactFirstName', contact?.firstName || contact?.first_name || '');
     write('directoryContactLastName', contact?.lastName || contact?.last_name || '');
     write('directoryContactPreferredName', contact?.preferredName || contact?.preferred_name || '');
+    write('directoryContactAccountNumber', contact?.accountNumber || contact?.account_number || '');
     ensureSelectValueExists('directoryContactType', contact?.contactType || contact?.contact_type || 'member');
     write('directoryContactType', contact?.contactType || contact?.contact_type || 'member');
     write('directoryContactStatus', contact?.status || 'active');
@@ -739,6 +743,7 @@
       firstName: get('directoryContactFirstName'),
       lastName: get('directoryContactLastName'),
       preferredName: get('directoryContactPreferredName'),
+      accountNumber: get('directoryContactAccountNumber'),
       contactType: get('directoryContactType').toLowerCase(),
       status: get('directoryContactStatus').toLowerCase(),
       primaryEmail: get('directoryContactPrimaryEmail').toLowerCase(),
@@ -896,6 +901,7 @@
       const pref = preferredLabel(item);
       const email = maybeText(item.primaryEmail, 'Not set');
       const phone = formatPhone(item.mobilePhone || item.homePhone);
+      const accountNumber = maybeText(item.accountNumber, 'Not set');
       const newsletter = String(item.newsletterStatus || 'not_subscribed').replace(/_/g, ' ');
       return `
         <tr>
@@ -911,6 +917,7 @@
           </td>
           <td>
             <div class="directoryInfoStack">
+              <span>${escapeHtml(accountNumber)}</span>
               <span>${escapeHtml(email)}</span>
               <span class="directoryMuted">${escapeHtml(phone)}</span>
             </div>
@@ -934,6 +941,7 @@
     cardList.innerHTML = items.map((item) => {
       const name = contactDisplayName(item);
       const pref = preferredLabel(item);
+      const accountNumber = maybeText(item.accountNumber, 'Not set');
       return `
         <article class="directoryCard">
           <div class="directoryPersonCell">
@@ -944,6 +952,7 @@
             </div>
           </div>
           <div class="directoryInfoStack">
+            <span>${escapeHtml(accountNumber)}</span>
             <span>${escapeHtml(maybeText(item.primaryEmail, 'Not set'))}</span>
             <span class="directoryMuted">${escapeHtml(formatPhone(item.mobilePhone || item.homePhone))}</span>
             <span>${statusChip(item.newsletterStatus || 'not_subscribed')} ${statusChip(item.status)}</span>
@@ -1298,6 +1307,7 @@
       ];
 
       const church = [
+        ['Account number', maybeText(item.accountNumber, 'Not set')],
         ['Membership status', maybeText(item.membershipStatus, 'Not set')],
         ['Member since', formatDateOnly(item.memberSince)],
         ['Ministry assignments', maybeText(item.ministry, 'Not set')],

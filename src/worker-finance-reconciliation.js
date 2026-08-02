@@ -5,6 +5,7 @@ const CODE_STATUSES = new Set(['active', 'replaced', 'inactive']);
 const PAYMENT_METHODS = new Set(['cash', 'check']);
 const MAX_AMOUNT_CENTS = 500_000_000;
 const ENVELOPE_CODE_PREFIX = 'MMMBC-ENV-V1:';
+const ONE_TIME_CODE_PREFIX = 'MMMBC-ONETIME-V1:';
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -46,6 +47,28 @@ function normalizeCode(value) {
   const suffix = upper.slice(ENVELOPE_CODE_PREFIX.length);
   if (!/^[0-9A-F-]{36}$/.test(suffix)) return '';
   return `${ENVELOPE_CODE_PREFIX}${suffix.toLowerCase()}`;
+}
+
+function normalizeOneTimeCode(value) {
+  const code = normalizeText(value, 120);
+  if (!code) return '';
+  const upper = code.toUpperCase();
+  if (!upper.startsWith(ONE_TIME_CODE_PREFIX)) return '';
+  const suffix = upper.slice(ONE_TIME_CODE_PREFIX.length);
+  if (!/^[0-9A-F-]{36}$/.test(suffix)) return '';
+  return `${ONE_TIME_CODE_PREFIX}${suffix.toLowerCase()}`;
+}
+
+function normalizeScanCode(value) {
+  const memberCode = normalizeCode(value);
+  if (memberCode) return { codeValue: memberCode, codeFamily: 'member_envelope' };
+  const oneTimeCode = normalizeOneTimeCode(value);
+  if (oneTimeCode) return { codeValue: oneTimeCode, codeFamily: 'one_time' };
+  return null;
+}
+
+function todayServiceDate() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function toCents(value, { allowZero = false } = {}) {
@@ -164,6 +187,7 @@ async function ensureSchema(env) {
       donor_id TEXT NOT NULL REFERENCES finance_donors(id),
       envelope_code_snapshot TEXT,
       envelope_number_snapshot TEXT,
+      transaction_kind TEXT NOT NULL DEFAULT 'registered_envelope',
       payment_method TEXT NOT NULL,
       check_number TEXT,
       envelope_total_cents INTEGER NOT NULL,
@@ -207,10 +231,24 @@ async function ensureSchema(env) {
       metadata_json TEXT,
       created_at TEXT NOT NULL
     )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS finance_scan_codes (
+      id TEXT PRIMARY KEY,
+      code_value TEXT NOT NULL,
+      code_family TEXT NOT NULL,
+      donor_id TEXT REFERENCES finance_donors(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      issued_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      replaced_by_code_value TEXT,
+      note TEXT,
+      created_by TEXT
+    )`),
     env.DB.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_finance_envelope_unique_batch_code ON finance_collection_envelopes(batch_id, envelope_code_snapshot)'),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_finance_donors_name ON finance_donors(last_name, first_name)'),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_finance_donors_envelope_number ON finance_donors(envelope_number)'),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_finance_donor_codes_code ON finance_donor_envelope_codes(envelope_code)'),
+    env.DB.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_finance_scan_codes_value ON finance_scan_codes(code_value)'),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_finance_scan_codes_family_status ON finance_scan_codes(code_family, status)'),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_finance_batch_service_date ON finance_collection_batches(service_date)'),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_finance_batch_status ON finance_collection_batches(status)'),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_finance_envelope_batch ON finance_collection_envelopes(batch_id, created_at)'),
@@ -219,6 +257,20 @@ async function ensureSchema(env) {
     env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_finance_loose_batch ON finance_collection_loose_giving(batch_id, created_at)'),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_finance_audit_batch_time ON finance_collection_audit_events(batch_id, created_at)')
   ]);
+
+  const donorColumns = new Set(((await env.DB.prepare('PRAGMA table_info(finance_donors)').all().catch(() => ({ results: [] })))?.results || []).map((row) => String(row.name || '').toLowerCase()));
+  const envelopeColumns = new Set(((await env.DB.prepare('PRAGMA table_info(finance_collection_envelopes)').all().catch(() => ({ results: [] })))?.results || []).map((row) => String(row.name || '').toLowerCase()));
+
+  const maybeRun = async (condition, sql) => {
+    if (condition) return;
+    await env.DB.prepare(sql).run().catch(() => null);
+  };
+
+  await maybeRun(donorColumns.has('directory_contact_id'), 'ALTER TABLE finance_donors ADD COLUMN directory_contact_id TEXT REFERENCES directory_contacts(id) ON DELETE SET NULL');
+  await maybeRun(donorColumns.has('account_number'), 'ALTER TABLE finance_donors ADD COLUMN account_number TEXT');
+  await maybeRun(donorColumns.has('donor_kind'), "ALTER TABLE finance_donors ADD COLUMN donor_kind TEXT NOT NULL DEFAULT 'member'");
+  await maybeRun(donorColumns.has('merged_into_donor_id'), 'ALTER TABLE finance_donors ADD COLUMN merged_into_donor_id TEXT REFERENCES finance_donors(id) ON DELETE SET NULL');
+  await maybeRun(envelopeColumns.has('transaction_kind'), "ALTER TABLE finance_collection_envelopes ADD COLUMN transaction_kind TEXT NOT NULL DEFAULT 'registered_envelope'");
 }
 
 async function resolveFinanceAccess(env, email) {
@@ -349,6 +401,10 @@ async function getActiveFund(env, { fundId = '', fundCode = '' } = {}) {
 
 async function getBatch(env, batchId) {
   return env.DB.prepare('SELECT * FROM finance_collection_batches WHERE id = ? LIMIT 1').bind(batchId).first().catch(() => null);
+}
+
+async function getDonorById(env, donorId) {
+  return env.DB.prepare('SELECT * FROM finance_donors WHERE id = ? LIMIT 1').bind(donorId).first().catch(() => null);
 }
 
 function batchIsLocked(status) {
@@ -599,6 +655,7 @@ async function getBatchDetails(env, batchId, access) {
         donorDisplayName,
         envelopeCodeSnapshot: normalizeText(row.envelope_code_snapshot, 120),
         envelopeNumberSnapshot: normalizeText(row.envelope_number_snapshot, 60),
+        transactionKind: normalizeText(row.transaction_kind, 40) || 'registered_envelope',
         paymentMethod: normalizeText(row.payment_method, 20),
         checkNumber: access.permissions.canViewSensitiveChecks ? normalizeText(row.check_number, 60) : '',
         envelopeTotalCents: Number(row.envelope_total_cents || 0),
@@ -665,6 +722,400 @@ async function resolveEnvelope(env, envelopeCode) {
   };
 }
 
+async function resolveRegisteredScanCode(env, rawCodeValue) {
+  const parsed = normalizeScanCode(rawCodeValue);
+  if (!parsed) return { status: 400, error: 'QR code format is invalid.' };
+
+  const scanRow = await env.DB.prepare(
+    `SELECT s.*, d.first_name, d.last_name, d.preferred_name, d.envelope_number,
+            d.account_number, d.active, d.donor_kind
+     FROM finance_scan_codes s
+     LEFT JOIN finance_donors d ON d.id = s.donor_id
+     WHERE s.code_value = ?
+     LIMIT 1`
+  ).bind(parsed.codeValue).first().catch(() => null);
+
+  if (!scanRow && parsed.codeFamily === 'member_envelope') {
+    const fallback = await resolveEnvelope(env, parsed.codeValue);
+    if (fallback.status !== 200) return fallback;
+    return {
+      status: 200,
+      code: {
+        codeValue: parsed.codeValue,
+        codeFamily: parsed.codeFamily,
+        status: 'active',
+        donorId: fallback.donor.donorId,
+        donor: {
+          donorId: fallback.donor.donorId,
+          displayName: fallback.donor.displayName,
+          envelopeNumber: fallback.donor.envelopeNumber,
+          accountNumber: '',
+          donorKind: 'member',
+          active: fallback.donor.active
+        }
+      }
+    };
+  }
+
+  if (!scanRow) return { status: 404, error: 'QR code was not recognized.' };
+
+  const status = normalizeText(scanRow.status, 20).toLowerCase() || 'inactive';
+  if (status !== 'active') {
+    return { status: 409, error: `QR code is ${status}.`, code: { codeValue: parsed.codeValue, codeFamily: parsed.codeFamily, status } };
+  }
+
+  return {
+    status: 200,
+    code: {
+      codeValue: parsed.codeValue,
+      codeFamily: normalizeText(scanRow.code_family, 40) || parsed.codeFamily,
+      status,
+      donorId: normalizeText(scanRow.donor_id, 80),
+      donor: scanRow.donor_id ? {
+        donorId: normalizeText(scanRow.donor_id, 80),
+        displayName: normalizeText(scanRow.preferred_name, 120) || `${normalizeText(scanRow.first_name, 120)} ${normalizeText(scanRow.last_name, 120)}`.trim(),
+        envelopeNumber: normalizeText(scanRow.envelope_number, 60),
+        accountNumber: normalizeText(scanRow.account_number, 80),
+        donorKind: normalizeText(scanRow.donor_kind, 40) || 'member',
+        active: Number(scanRow.active || 0) === 1
+      } : null
+    }
+  };
+}
+
+async function createOrReuseCurrentBatch(env, access, { serviceDate = '', serviceName = '' } = {}) {
+  const targetDate = normalizeDate(serviceDate) || todayServiceDate();
+  const targetName = normalizeText(serviceName, 120) || 'QR Scan Intake';
+  const existing = await env.DB.prepare(
+    `SELECT * FROM finance_collection_batches
+     WHERE service_date = ? AND status IN ('draft', 'counting')
+     ORDER BY updated_at DESC, created_at DESC
+     LIMIT 1`
+  ).bind(targetDate).first().catch(() => null);
+  if (existing?.id) return { batch: existing, created: false };
+
+  const created = await createBatch(env, access, {
+    serviceDate: targetDate,
+    serviceName: targetName,
+    declaredPhysicalCashCents: 0,
+    declaredCheckCents: 0,
+    discrepancyExplanation: '',
+    countSheetAttachmentRef: ''
+  });
+  if (created?.error) return created;
+  const batch = await getBatch(env, created.id) || {
+    id: created.id,
+    service_date: targetDate,
+    service_name: targetName,
+    status: 'draft',
+    declared_physical_cash_cents: 0,
+    declared_check_cents: 0,
+    approval_version: 0
+  };
+  return { batch, created: true };
+}
+
+async function matchExistingDonor(env, { accountNumber = '', donorName = '' } = {}) {
+  const normalizedAccount = normalizeText(accountNumber, 80).toUpperCase();
+  const normalizedName = normalizeText(donorName, 160).toLowerCase();
+
+  if (normalizedAccount) {
+    const row = await env.DB.prepare(
+      `SELECT * FROM finance_donors
+       WHERE upper(coalesce(account_number, '')) = upper(?)
+         AND coalesce(merged_into_donor_id, '') = ''
+       LIMIT 1`
+    ).bind(normalizedAccount).first().catch(() => null);
+    if (!row?.id) {
+      return { error: financeError(404, 'ACCOUNT_NUMBER_NOT_FOUND', 'No donor matches that account number.') };
+    }
+    return { donor: row };
+  }
+
+  if (!normalizedName) return { donor: null };
+
+  const rows = await env.DB.prepare(
+    `SELECT * FROM finance_donors
+     WHERE coalesce(merged_into_donor_id, '') = ''
+       AND lower(trim(
+         CASE
+           WHEN trim(coalesce(preferred_name, '')) <> '' THEN preferred_name
+           ELSE first_name || ' ' || last_name
+         END
+       )) = ?`
+  ).bind(normalizedName).all().catch(() => ({ results: [] }));
+
+  const matches = rows?.results || [];
+  if (matches.length > 1) {
+    return { error: financeError(409, 'AMBIGUOUS_DONOR_NAME', 'Multiple donors share that exact name. Enter the account number instead.') };
+  }
+  if (matches.length === 1) return { donor: matches[0] };
+  return { donor: null };
+}
+
+async function createTemporaryOneTimeDonor(env, { donorName = '' } = {}) {
+  const name = normalizeText(donorName, 160);
+  const parts = name ? name.split(/\s+/).filter(Boolean) : [];
+  const firstName = parts[0] || 'One-Time';
+  const lastName = parts.length > 1 ? parts.slice(1).join(' ').slice(0, 120) : 'Donor';
+  const now = new Date().toISOString();
+  const donorId = crypto.randomUUID();
+
+  await env.DB.prepare(
+    `INSERT INTO finance_donors (
+      id, first_name, middle_name, last_name, preferred_name,
+      household_id, mailing_address, email, phone, statement_delivery,
+      active, statement_eligible, directory_contact_id, account_number,
+      donor_kind, merged_into_donor_id,
+      envelope_number, envelope_code, envelope_code_status,
+      envelope_code_issued_at, envelope_code_updated_at,
+      created_at, updated_at
+    ) VALUES (?, ?, NULL, ?, ?, NULL, NULL, NULL, NULL, 'mail', 1, 0, NULL, NULL, 'one_time', NULL, NULL, '', 'inactive', NULL, NULL, ?, ?)`
+  ).bind(
+    donorId,
+    firstName,
+    lastName,
+    name || null,
+    now,
+    now
+  ).run();
+
+  return await getDonorById(env, donorId) || {
+    id: donorId,
+    first_name: firstName,
+    last_name: lastName,
+    preferred_name: name,
+    donor_kind: 'one_time',
+    account_number: ''
+  };
+}
+
+async function recordScannedGift(env, access, payload) {
+  const resolved = await resolveRegisteredScanCode(env, payload?.codeValue || payload?.scanCode || payload?.envelopeCode);
+  if (resolved.status !== 200) {
+    return { error: financeError(resolved.status, 'SCAN_CODE_INVALID', resolved.error || 'QR code could not be resolved.') };
+  }
+
+  const batchResult = await createOrReuseCurrentBatch(env, access, {
+    serviceDate: payload?.serviceDate,
+    serviceName: payload?.serviceName
+  });
+  if (batchResult?.error) return batchResult;
+  const batchId = String(batchResult?.batch?.id || '');
+  if (!batchId) return { error: financeError(500, 'BATCH_CREATE_FAILED', 'Unable to create or reuse a collection batch.') };
+
+  const paymentMethod = normalizeText(payload?.paymentMethod, 20).toLowerCase();
+  const checkNumber = normalizeText(payload?.checkNumber, 60);
+  const amountCents = toCents(payload?.amountCents ?? payload?.amount, { allowZero: false });
+  const fundId = normalizeText(payload?.fundId, 80);
+  const fundCode = normalizeText(payload?.fundCode, 80);
+  if (!PAYMENT_METHODS.has(paymentMethod)) {
+    return { error: financeError(400, 'INVALID_PAYMENT_METHOD', 'Payment method must be cash or check.') };
+  }
+  if (paymentMethod === 'check' && !checkNumber) {
+    return { error: financeError(400, 'CHECK_NUMBER_REQUIRED', 'Check number is required for check gifts.') };
+  }
+  if (!Number.isInteger(amountCents) || amountCents <= 0) {
+    return { error: financeError(400, 'INVALID_AMOUNT', 'Gift amount must be a positive integer amount in cents.') };
+  }
+
+  const fund = await getActiveFund(env, { fundId, fundCode });
+  if (!fund) {
+    return { error: financeError(400, 'INVALID_FUND', 'Choose a valid active fund before recording the gift.') };
+  }
+
+  if (resolved.code.codeFamily === 'member_envelope') {
+    const entry = await upsertEnvelopeEntry(env, access, batchId, {
+      envelopeCode: resolved.code.codeValue,
+      paymentMethod,
+      checkNumber,
+      envelopeTotalCents: amountCents,
+      allocations: [{ fundId: fund.id, amountCents, note: normalizeText(payload?.note, 240) }]
+    });
+    if (entry?.error) return entry;
+    await env.DB.prepare(
+      'UPDATE finance_collection_envelopes SET transaction_kind = ?, updated_at = ? WHERE id = ?'
+    ).bind('registered_envelope', new Date().toISOString(), entry.entryId).run();
+    return { batchId, entryId: entry.entryId, donor: entry.donor, codeFamily: resolved.code.codeFamily, createdBatch: Boolean(batchResult.created) };
+  }
+
+  const matched = await matchExistingDonor(env, {
+    accountNumber: payload?.accountNumber,
+    donorName: payload?.donorName
+  });
+  if (matched?.error) return matched;
+
+  const donor = matched?.donor || await createTemporaryOneTimeDonor(env, { donorName: payload?.donorName });
+  const batch = await getBatch(env, batchId);
+  if (!batch) return { error: financeError(404, 'BATCH_NOT_FOUND', 'Collection batch was not found.') };
+  if (batchIsLocked(batch.status)) {
+    return { error: financeError(409, 'BATCH_LOCKED', 'This batch is locked and cannot be edited.') };
+  }
+
+  const entryId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO finance_collection_envelopes
+       (id, batch_id, donor_id, envelope_code_snapshot, envelope_number_snapshot, transaction_kind, payment_method,
+        check_number, envelope_total_cents, entry_status, created_by, updated_by, created_at, updated_at)
+       VALUES (?, ?, ?, NULL, '', 'one_time', ?, ?, ?, 'active', ?, ?, ?, ?)`
+    ).bind(
+      entryId,
+      batchId,
+      donor.id,
+      paymentMethod,
+      checkNumber,
+      amountCents,
+      access.email,
+      access.email,
+      now,
+      now
+    ),
+    env.DB.prepare(
+      `INSERT INTO finance_collection_allocations
+       (id, envelope_entry_id, fund_id, fund_code, amount_cents, note, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      crypto.randomUUID(),
+      entryId,
+      fund.id,
+      fund.fundCode,
+      amountCents,
+      normalizeText(payload?.note, 240),
+      now,
+      now
+    )
+  ]);
+
+  await invalidateApprovals(env, batchId, access.email, 'Financial entries changed.');
+  await recalcBatch(env, batchId);
+  await writeAudit(env, {
+    batchId,
+    donorId: donor.id,
+    envelopeEntryId: entryId,
+    eventType: 'scan_entry',
+    eventAction: 'one_time_recorded',
+    actorEmail: access.email,
+    metadata: {
+      batchId,
+      codeFamily: resolved.code.codeFamily,
+      codeValue: resolved.code.codeValue,
+      matchedExistingDonor: Boolean(matched?.donor?.id),
+      amountCents,
+      fundId: fund.id,
+      paymentMethod
+    }
+  });
+
+  return {
+    batchId,
+    entryId,
+    donor: {
+      donorId: String(donor.id || ''),
+      displayName: normalizeText(donor.preferred_name, 120) || `${normalizeText(donor.first_name, 120)} ${normalizeText(donor.last_name, 120)}`.trim(),
+      envelopeNumber: '',
+      accountNumber: normalizeText(donor.account_number, 80),
+      donorKind: normalizeText(donor.donor_kind, 40) || 'one_time'
+    },
+    codeFamily: resolved.code.codeFamily,
+    createdBatch: Boolean(batchResult.created)
+  };
+}
+
+async function identifyScannedEntry(env, access, entryId, payload) {
+  const entry = await env.DB.prepare(
+    `SELECT e.id, e.batch_id, e.donor_id, e.transaction_kind, b.status
+     FROM finance_collection_envelopes e
+     INNER JOIN finance_collection_batches b ON b.id = e.batch_id
+     WHERE e.id = ?
+     LIMIT 1`
+  ).bind(entryId).first().catch(() => null);
+  if (!entry?.id) return { error: financeError(404, 'ENTRY_NOT_FOUND', 'Collection entry was not found.') };
+  if (batchIsLocked(entry.status)) return { error: financeError(409, 'BATCH_LOCKED', 'This batch is locked and cannot be edited.') };
+
+  const matched = await matchExistingDonor(env, {
+    accountNumber: payload?.accountNumber,
+    donorName: payload?.donorName
+  });
+  if (matched?.error) return matched;
+  if (!matched?.donor?.id) {
+    return { error: financeError(404, 'DONOR_NOT_FOUND', 'Enter an exact donor name or account number to identify this gift.') };
+  }
+
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `UPDATE finance_collection_envelopes
+     SET donor_id = ?, updated_by = ?, updated_at = ?
+     WHERE id = ?`
+  ).bind(matched.donor.id, access.email, now, entryId).run();
+
+  const previousDonor = await getDonorById(env, entry.donor_id);
+  if (previousDonor?.id && normalizeText(previousDonor.donor_kind, 40) === 'one_time' && String(previousDonor.id) !== String(matched.donor.id)) {
+    const remaining = await env.DB.prepare(
+      `SELECT count(*) AS c FROM finance_collection_envelopes WHERE donor_id = ?`
+    ).bind(previousDonor.id).first().catch(() => ({ c: 0 }));
+    if (Number(remaining?.c || 0) === 0) {
+      await env.DB.prepare(
+        `UPDATE finance_donors
+         SET active = 0, merged_into_donor_id = ?, updated_at = ?
+         WHERE id = ?`
+      ).bind(matched.donor.id, now, previousDonor.id).run();
+    }
+  }
+
+  await invalidateApprovals(env, entry.batch_id, access.email, 'Financial entries changed.');
+  await recalcBatch(env, entry.batch_id);
+  await writeAudit(env, {
+    batchId: entry.batch_id,
+    donorId: matched.donor.id,
+    envelopeEntryId: entryId,
+    eventType: 'scan_entry',
+    eventAction: 'identified_donor',
+    actorEmail: access.email,
+    metadata: {
+      entryId,
+      previousDonorId: normalizeText(entry.donor_id, 80),
+      nextDonorId: normalizeText(matched.donor.id, 80)
+    }
+  });
+
+  return {
+    ok: true,
+    donor: {
+      donorId: normalizeText(matched.donor.id, 80),
+      displayName: normalizeText(matched.donor.preferred_name, 120) || `${normalizeText(matched.donor.first_name, 120)} ${normalizeText(matched.donor.last_name, 120)}`.trim(),
+      accountNumber: normalizeText(matched.donor.account_number, 80)
+    }
+  };
+}
+
+async function issueOneTimeScanCode(env, access, payload) {
+  const codeValue = `${ONE_TIME_CODE_PREFIX}${crypto.randomUUID()}`;
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `INSERT INTO finance_scan_codes
+     (id, code_value, code_family, donor_id, status, issued_at, updated_at, replaced_by_code_value, note, created_by)
+     VALUES (?, ?, 'one_time', NULL, 'active', ?, ?, '', ?, ?)`
+  ).bind(
+    crypto.randomUUID(),
+    codeValue,
+    now,
+    now,
+    normalizeText(payload?.note, 240),
+    access.email
+  ).run();
+
+  await writeAudit(env, {
+    eventType: 'scan_code',
+    eventAction: 'one_time_issued',
+    actorEmail: access.email,
+    metadata: { codeValue }
+  });
+
+  return { codeValue, codeFamily: 'one_time', status: 'active', issuedAt: now };
+}
+
 async function donorList(env, query) {
   const q = normalizeText(query, 140);
   const like = `%${q.toLowerCase()}%`;
@@ -675,10 +1126,11 @@ async function donorList(env, query) {
        WHERE lower(first_name || ' ' || last_name) LIKE ?
           OR lower(coalesce(email, '')) LIKE ?
           OR lower(coalesce(phone, '')) LIKE ?
+          OR lower(coalesce(account_number, '')) LIKE ?
           OR lower(coalesce(household_id, '')) LIKE ?
           OR lower(coalesce(envelope_number, '')) LIKE ?
        ORDER BY last_name ASC, first_name ASC LIMIT 200`
-    ).bind(like, like, like, like, like).all().catch(() => ({ results: [] }))
+    ).bind(like, like, like, like, like, like).all().catch(() => ({ results: [] }))
     : await env.DB.prepare(
       `SELECT * FROM finance_donors ORDER BY last_name ASC, first_name ASC LIMIT 200`
     ).all().catch(() => ({ results: [] }));
@@ -698,9 +1150,13 @@ async function donorList(env, query) {
       lastName: normalizeText(row.last_name, 120),
       preferredName: normalizeText(row.preferred_name, 120),
       householdId: normalizeText(row.household_id, 120),
+      directoryContactId: normalizeText(row.directory_contact_id, 80),
+      accountNumber: normalizeText(row.account_number, 80),
+      envelopeCode: normalizeText(row.envelope_code, 120),
       mailingAddress: normalizeText(row.mailing_address, 500),
       email: normalizeText(row.email, 254),
       phone: normalizeText(row.phone, 80),
+      donorKind: normalizeText(row.donor_kind, 40) || 'member',
       envelopeNumber: normalizeText(row.envelope_number, 60),
       envelopeCodeStatus: normalizeText(row.envelope_code_status, 20) || 'inactive',
       statementDelivery: normalizeText(row.statement_delivery, 40) || 'mail',
@@ -770,6 +1226,13 @@ async function setDonorEnvelopeCode(env, donorId, {
          WHERE donor_id = ? AND envelope_code = ?`
       ).bind(now, nextCode, donorId, replacedCode)
     );
+    statements.push(
+      env.DB.prepare(
+        `UPDATE finance_scan_codes
+         SET status = 'replaced', updated_at = ?, replaced_by_code_value = ?
+         WHERE code_value = ?`
+      ).bind(now, nextCode, replacedCode)
+    );
   }
 
   if (mode === 'deactivate' && currentCode) {
@@ -779,6 +1242,13 @@ async function setDonorEnvelopeCode(env, donorId, {
          SET status = 'inactive', updated_at = ?, note = ?
          WHERE donor_id = ? AND envelope_code = ? AND status = 'active'`
       ).bind(now, normalizeText(note, 240), donorId, currentCode)
+    );
+    statements.push(
+      env.DB.prepare(
+        `UPDATE finance_scan_codes
+         SET status = 'inactive', updated_at = ?, note = ?
+         WHERE code_value = ? AND status = 'active'`
+      ).bind(now, normalizeText(note, 240), currentCode)
     );
   }
 
@@ -796,6 +1266,21 @@ async function setDonorEnvelopeCode(env, donorId, {
         now,
         now,
         normalizeText(note, 240)
+      )
+    );
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO finance_scan_codes
+         (id, code_value, code_family, donor_id, status, issued_at, updated_at, replaced_by_code_value, note, created_by)
+         VALUES (?, ?, 'member_envelope', ?, 'active', ?, ?, '', ?, ?)`
+      ).bind(
+        crypto.randomUUID(),
+        nextCode,
+        donorId,
+        now,
+        now,
+        normalizeText(note, 240),
+        actorEmail
       )
     );
   }
@@ -920,6 +1405,7 @@ async function upsertEnvelopeEntry(env, access, batchId, payload) {
   const actorEmail = access.email;
   let effectiveEntryId = entryId;
   let action = 'envelope_created';
+  const transactionKind = normalizeText(payload?.transactionKind, 40) || 'registered_envelope';
 
   if (entryId) {
     const existing = await env.DB.prepare(
@@ -932,13 +1418,14 @@ async function upsertEnvelopeEntry(env, access, batchId, payload) {
     statements.push(
       env.DB.prepare(
         `UPDATE finance_collection_envelopes
-         SET donor_id = ?, envelope_code_snapshot = ?, envelope_number_snapshot = ?, payment_method = ?,
+         SET donor_id = ?, envelope_code_snapshot = ?, envelope_number_snapshot = ?, transaction_kind = ?, payment_method = ?,
              check_number = ?, envelope_total_cents = ?, updated_by = ?, updated_at = ?
          WHERE id = ?`
       ).bind(
         donor.donorId,
         donor.envelopeCode,
         donor.envelopeNumber,
+        transactionKind,
         paymentMethod,
         checkNumber,
         envelopeTotalCents,
@@ -954,15 +1441,16 @@ async function upsertEnvelopeEntry(env, access, batchId, payload) {
     statements.push(
       env.DB.prepare(
         `INSERT INTO finance_collection_envelopes
-         (id, batch_id, donor_id, envelope_code_snapshot, envelope_number_snapshot, payment_method,
+         (id, batch_id, donor_id, envelope_code_snapshot, envelope_number_snapshot, transaction_kind, payment_method,
           check_number, envelope_total_cents, entry_status, created_by, updated_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)`
       ).bind(
         effectiveEntryId,
         batchId,
         donor.donorId,
         donor.envelopeCode,
         donor.envelopeNumber,
+        transactionKind,
         paymentMethod,
         checkNumber,
         envelopeTotalCents,
@@ -1487,6 +1975,17 @@ async function buildLabelSvg({ churchName, envelopeNumber, envelopeCode }) {
 </svg>`;
 }
 
+async function buildQrSvg(codeValue) {
+  const parsed = normalizeScanCode(codeValue);
+  if (!parsed) return '';
+  return QRCode.toString(parsed.codeValue, {
+    type: 'svg',
+    margin: 0,
+    width: 180,
+    color: { dark: '#000000', light: '#ffffff' }
+  });
+}
+
 async function createBatch(env, access, payload) {
   const serviceDate = normalizeDate(payload?.serviceDate);
   if (!serviceDate) return { error: financeError(400, 'INVALID_SERVICE_DATE', 'Service date is required.') };
@@ -1632,13 +2131,22 @@ function wantsLabelSvg(url) {
 
 export const __financeTestHooks = {
   normalizeCode,
+  normalizeOneTimeCode,
+  normalizeScanCode,
   toCents,
   parseAllocations,
   batchIsLocked,
   normalizeDate,
   normalizeEmail,
   resolveEnvelope,
+  resolveRegisteredScanCode,
+  createOrReuseCurrentBatch,
+  matchExistingDonor,
+  createTemporaryOneTimeDonor,
   upsertEnvelopeEntry,
+  recordScannedGift,
+  identifyScannedEntry,
+  issueOneTimeScanCode,
   finalizeBatch,
   confirmDeposit,
   donorHistory
@@ -1648,7 +2156,7 @@ export async function maybeHandleFinanceReconciliationRequest(request, env, ctx,
   const url = new URL(request.url);
   const pathname = url.pathname;
 
-  if (!(pathname.startsWith('/api/finances/donors') || pathname.startsWith('/api/finances/collections'))) {
+  if (!(pathname.startsWith('/api/finances/donors') || pathname.startsWith('/api/finances/collections') || pathname.startsWith('/api/finances/scans') || pathname.startsWith('/api/finances/scan-codes'))) {
     return null;
   }
 
@@ -1685,6 +2193,7 @@ export async function maybeHandleFinanceReconciliationRequest(request, env, ctx,
     }
 
     const envelopeNumber = normalizeText(body.envelopeNumber, 60);
+    const accountNumber = normalizeText(body.accountNumber, 80).toUpperCase();
     if (envelopeNumber) {
       const duplicate = await env.DB.prepare(
         'SELECT id FROM finance_donors WHERE lower(coalesce(envelope_number, \"\")) = lower(?) LIMIT 1'
@@ -1694,15 +2203,25 @@ export async function maybeHandleFinanceReconciliationRequest(request, env, ctx,
       }
     }
 
+    if (accountNumber) {
+      const duplicateAccount = await env.DB.prepare(
+        'SELECT id FROM finance_donors WHERE upper(coalesce(account_number, "")) = upper(?) LIMIT 1'
+      ).bind(accountNumber).first().catch(() => null);
+      if (duplicateAccount?.id) {
+        return financeError(409, 'DUPLICATE_ACCOUNT_NUMBER', 'Account number is already assigned to another donor.');
+      }
+    }
+
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     await env.DB.prepare(
       `INSERT INTO finance_donors (
         id, first_name, middle_name, last_name, preferred_name, household_id,
         mailing_address, email, phone, statement_delivery, active, statement_eligible,
+        directory_contact_id, account_number, donor_kind, merged_into_donor_id,
         envelope_number, envelope_code, envelope_code_status, envelope_code_issued_at,
         envelope_code_updated_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 'inactive', NULL, NULL, ?, ?)`
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, '', 'inactive', NULL, NULL, ?, ?)`
     ).bind(
       id,
       firstName,
@@ -1716,6 +2235,9 @@ export async function maybeHandleFinanceReconciliationRequest(request, env, ctx,
       normalizeText(body.preferredStatementDelivery || 'mail', 40) || 'mail',
       body.active === false ? 0 : 1,
       body.statementEligible === false ? 0 : 1,
+      normalizeText(body.directoryContactId, 80) || null,
+      accountNumber || null,
+      normalizeText(body.donorKind, 40) || 'member',
       envelopeNumber,
       now,
       now
@@ -1741,6 +2263,7 @@ export async function maybeHandleFinanceReconciliationRequest(request, env, ctx,
     if (!body || typeof body !== 'object') return financeError(400, 'INVALID_JSON', 'Request body must be valid JSON.');
 
     const envelopeNumber = normalizeText(body.envelopeNumber, 60);
+    const accountNumber = normalizeText(body.accountNumber, 80).toUpperCase();
     if (envelopeNumber) {
       const duplicate = await env.DB.prepare(
         'SELECT id FROM finance_donors WHERE lower(coalesce(envelope_number, \"\")) = lower(?) AND id <> ? LIMIT 1'
@@ -1750,9 +2273,21 @@ export async function maybeHandleFinanceReconciliationRequest(request, env, ctx,
       }
     }
 
+    if (accountNumber) {
+      const duplicateAccount = await env.DB.prepare(
+        'SELECT id FROM finance_donors WHERE upper(coalesce(account_number, "")) = upper(?) AND id <> ? LIMIT 1'
+      ).bind(accountNumber, donorId).first().catch(() => null);
+      if (duplicateAccount?.id) {
+        return financeError(409, 'DUPLICATE_ACCOUNT_NUMBER', 'Account number is already assigned to another donor.');
+      }
+    }
+
     await env.DB.prepare(
       `UPDATE finance_donors
        SET envelope_number = ?,
+           account_number = ?,
+           directory_contact_id = coalesce(?, directory_contact_id),
+           donor_kind = coalesce(?, donor_kind),
            first_name = coalesce(?, first_name),
            middle_name = coalesce(?, middle_name),
            last_name = coalesce(?, last_name),
@@ -1768,6 +2303,9 @@ export async function maybeHandleFinanceReconciliationRequest(request, env, ctx,
        WHERE id = ?`
     ).bind(
       envelopeNumber,
+      accountNumber || null,
+      normalizeText(body.directoryContactId, 80) || null,
+      normalizeText(body.donorKind, 40) || null,
       normalizeText(body.firstName, 120) || null,
       normalizeText(body.middleName, 120) || null,
       normalizeText(body.lastName, 120) || null,
@@ -1891,6 +2429,72 @@ export async function maybeHandleFinanceReconciliationRequest(request, env, ctx,
     }
 
     return json({ donor: resolved.donor, duplicateEntry });
+  }
+
+  if (pathname === '/api/finances/scans/resolve' && request.method === 'POST') {
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') return financeError(400, 'INVALID_JSON', 'Request body must be valid JSON.');
+    const resolved = await resolveRegisteredScanCode(env, body.codeValue || body.scanCode || body.envelopeCode);
+    if (resolved.status !== 200) return financeError(resolved.status, 'SCAN_CODE_INVALID', resolved.error);
+    const batchResult = await createOrReuseCurrentBatch(env, access, {
+      serviceDate: body.serviceDate,
+      serviceName: body.serviceName
+    });
+    if (batchResult?.error) return batchResult.error;
+    const duplicateEntry = resolved.code.codeFamily === 'member_envelope'
+      ? await env.DB.prepare(
+        `SELECT id, envelope_total_cents, payment_method
+         FROM finance_collection_envelopes
+         WHERE batch_id = ? AND envelope_code_snapshot = ? AND entry_status = 'active'
+         LIMIT 1`
+      ).bind(String(batchResult.batch.id || ''), resolved.code.codeValue).first().catch(() => null)
+      : null;
+    return json({
+      batchId: String(batchResult.batch.id || ''),
+      createdBatch: Boolean(batchResult.created),
+      code: resolved.code,
+      duplicateEntry: duplicateEntry ? {
+        entryId: String(duplicateEntry.id || ''),
+        amountCents: Number(duplicateEntry.envelope_total_cents || 0),
+        paymentMethod: normalizeText(duplicateEntry.payment_method, 20)
+      } : null
+    });
+  }
+
+  if (pathname === '/api/finances/scans/record' && request.method === 'POST') {
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') return financeError(400, 'INVALID_JSON', 'Request body must be valid JSON.');
+    const result = await recordScannedGift(env, access, body);
+    if (result?.error) return result.error;
+    return json({ ok: true, ...result }, 201);
+  }
+
+  if (/^\/api\/finances\/scans\/entries\/[^/]+\/identify$/.test(pathname) && request.method === 'POST') {
+    const entryId = decodeURIComponent(pathname.split('/')[5] || '');
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') return financeError(400, 'INVALID_JSON', 'Request body must be valid JSON.');
+    const result = await identifyScannedEntry(env, access, entryId, body);
+    if (result?.error) return result.error;
+    return json(result);
+  }
+
+  if (pathname === '/api/finances/scan-codes/one-time' && request.method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const result = await issueOneTimeScanCode(env, access, body);
+    return json({ ok: true, code: result }, 201);
+  }
+
+  if (pathname === '/api/finances/scan-codes/render' && request.method === 'GET') {
+    const codeValue = url.searchParams.get('code');
+    const svg = await buildQrSvg(codeValue);
+    if (!svg) return financeError(400, 'INVALID_SCAN_CODE', 'QR code format is invalid.');
+    return new Response(svg, {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/svg+xml; charset=utf-8',
+        'Cache-Control': 'no-store'
+      }
+    });
   }
 
   if (/^\/api\/finances\/collections\/[^/]+$/.test(pathname) && request.method === 'GET') {

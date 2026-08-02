@@ -1893,6 +1893,7 @@ export default {
         '/admin/finances/dashboard': '/admin/finances_dashboard.html',
         '/admin/finances/funds': '/admin/finances_funds.html',
         '/admin/finances/donors': '/admin/finances_donors.html',
+        '/admin/finances/envelopes': '/admin/finance_envelope_designer.html',
         '/admin/finances/reports/board': '/admin/finances_reports_board.html',
         '/admin/finances/controls': '/admin/finances_controls.html',
         '/admin/finances/clergy-housing': '/admin/finances_clergy_housing.html'

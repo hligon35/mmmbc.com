@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Scan Giving Envelope</title>
+  <link rel="stylesheet" href="/scan.css" />
+</head>
+<body>
+  <main class="scanShell" aria-labelledby="scanTitle">
+    <section class="scanCard">
+      <p class="scanEyebrow">Mt. Moriah Missionary Baptist Church</p>
+      <h1 id="scanTitle">Scan QR Code</h1>
+      <p class="scanLead">Scan a registered church envelope or one-time donor code, record the gift, and move to the next giver.</p>
+
+      <p id="scanStatus" class="scanStatus" role="status" aria-live="polite">Ready.</p>
+
+      <div class="scanStage">
+        <div id="scanCameraRegion" class="scanCameraRegion">
+          <video id="scanCamera" class="scanCamera" autoplay muted playsinline></video>
+          <div class="scanCameraOverlay" aria-hidden="true"></div>
+        </div>
+        <div class="scanButtonRow">
+          <button class="scanBtn scanBtn--primary" id="scanStartCameraBtn" type="button">Start Camera</button>
+          <button class="scanBtn" id="scanStopCameraBtn" type="button">Stop Camera</button>
+        </div>
+      </div>
+
+      <form id="scanResolveForm" class="scanForm" novalidate>
+        <label class="scanLabel" for="scanCodeInput">QR code or scanner input</label>
+        <input id="scanCodeInput" class="scanInput" type="text" autocomplete="off" placeholder="MMMBC-ENV-V1:... or MMMBC-ONETIME-V1:..." />
+        <div class="scanButtonRow">
+          <button class="scanBtn scanBtn--primary" type="submit">Validate Code</button>
+        </div>
+      </form>
+
+      <section class="scanPanel" aria-labelledby="scanDonorTitle">
+        <h2 id="scanDonorTitle">Donor Confirmation</h2>
+        <div id="scanDonorSummary" class="scanSummary">No code resolved yet.</div>
+      </section>
+
+      <form id="scanGiftForm" class="scanForm" novalidate>
+        <label class="scanLabel" for="scanAccountNumber">Account number for one-time donor lookup</label>
+        <input id="scanAccountNumber" class="scanInput" type="text" placeholder="MM-XXXXXXXXXX" />
+
+        <label class="scanLabel" for="scanDonorName">Donor name for one-time gift</label>
+        <input id="scanDonorName" class="scanInput" type="text" placeholder="Exact name for returning donor match" />
+
+        <label class="scanLabel" for="scanFund">Fund</label>
+        <select id="scanFund" class="scanInput" required></select>
+
+        <label class="scanLabel" for="scanAmount">Amount</label>
+        <input id="scanAmount" class="scanInput" type="number" inputmode="decimal" min="0.01" step="0.01" required />
+
+        <label class="scanLabel" for="scanPaymentMethod">Payment method</label>
+        <select id="scanPaymentMethod" class="scanInput">
+          <option value="cash">Cash</option>
+          <option value="check">Check</option>
+        </select>
+
+        <label class="scanLabel" for="scanCheckNumber">Check number</label>
+        <input id="scanCheckNumber" class="scanInput" type="text" autocomplete="off" />
+
+        <label class="scanLabel" for="scanNote">Note</label>
+        <input id="scanNote" class="scanInput" type="text" maxlength="240" />
+
+        <div class="scanButtonRow">
+          <button class="scanBtn scanBtn--primary" id="scanSaveBtn" type="submit">Save Gift and Scan Next</button>
+        </div>
+      </form>
+    </section>
+  </main>
+  <script src="/scan.js"></script>
+</body>
+</html>

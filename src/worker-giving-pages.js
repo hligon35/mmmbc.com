@@ -61,6 +61,16 @@ export async function handleGivingPageRequest(request, env) {
   if (request.method !== 'GET') return null;
 
   const url = new URL(request.url);
+  if (url.pathname === '/scan') {
+    if (!env.ASSETS || typeof env.ASSETS.fetch !== 'function') {
+      return new Response('Scan page is unavailable.', { status: 503 });
+    }
+    const assetUrl = new URL(request.url);
+    assetUrl.pathname = '/scan.html';
+    assetUrl.search = '';
+    return env.ASSETS.fetch(new Request(assetUrl.toString(), { method: 'GET', headers: request.headers }));
+  }
+
   if (url.pathname === '/giving.html' || url.pathname === '/giving') {
     return serveAssetAsRootPage(request, env, '/Pages/giving.html', false);
   }

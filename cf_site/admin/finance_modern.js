@@ -506,6 +506,9 @@
       if (entryTable) {
         entryTable.innerHTML = (detail.entries || []).map((e) => {
           const allocationSummary = (e.allocations || []).map((a) => `${a.fundCode || a.fundId}: ${money(a.amountCents)}`).join('; ');
+          const identifyAction = e.transactionKind === 'one_time'
+            ? `<button class="btn" type="button" data-identify-entry="${escapeHtml(e.id)}">Identify Donor</button>`
+            : '';
           return `
             <tr>
               <td>${escapeHtml(e.donorDisplayName || '')}</td>
@@ -513,7 +516,7 @@
               <td>${escapeHtml(e.paymentMethod || '')}</td>
               <td>${money(e.envelopeTotalCents)}</td>
               <td>${escapeHtml(allocationSummary)}</td>
-              <td>${escapeHtml(e.createdAt || '')}</td>
+              <td>${escapeHtml(e.createdAt || '')}<div class="btnRow">${identifyAction}</div></td>
             </tr>
           `;
         }).join('');
@@ -870,6 +873,28 @@
     if ($('collectionAmount')) $('collectionAmount').addEventListener('input', updateAllocationTotals);
     if ($('collectionCameraBtn')) $('collectionCameraBtn').addEventListener('click', startCameraScan);
     if ($('collectionCameraStopBtn')) $('collectionCameraStopBtn').addEventListener('click', stopCameraScan);
+
+    if (entryTable) {
+      entryTable.addEventListener('click', async (event) => {
+        const btn = event.target.closest('[data-identify-entry]');
+        if (!btn) return;
+        const entryId = String(btn.getAttribute('data-identify-entry') || '');
+        if (!entryId) return;
+        const accountNumber = window.prompt('Enter the donor account number if known:', '') || '';
+        const donorName = window.prompt('If no account number is available, enter the exact donor name:', '') || '';
+        if (!accountNumber.trim() && !donorName.trim()) return;
+        try {
+          await api(`/api/finances/scans/entries/${encodeURIComponent(entryId)}/identify`, {
+            method:'POST',
+            body: JSON.stringify({ accountNumber, donorName })
+          });
+          setMsg(msg, 'Entry donor identified and reassigned.', 'ok');
+          await loadCurrentBatch();
+        } catch (err) {
+          setMsg(msg, err.message, 'error');
+        }
+      });
+    }
 
     if (looseForm) {
       looseForm.addEventListener('submit', async (e) => {

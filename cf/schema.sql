@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS directory_contacts (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   archived_at TEXT,
+  account_number TEXT,
   normalized_primary_phone TEXT,
   normalized_home_phone TEXT
 );
@@ -215,6 +216,10 @@ CREATE INDEX IF NOT EXISTS idx_directory_contacts_mobile_norm
 CREATE INDEX IF NOT EXISTS idx_directory_contacts_home_norm
   ON directory_contacts(normalized_home_phone);
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_directory_contacts_account_number_unique
+  ON directory_contacts(account_number)
+  WHERE account_number IS NOT NULL AND trim(account_number) <> '';
+
 CREATE INDEX IF NOT EXISTS idx_directory_group_members_group
   ON directory_group_members(group_id, ended_at);
 
@@ -255,6 +260,10 @@ CREATE TABLE IF NOT EXISTS finance_donors (
   statement_delivery TEXT NOT NULL DEFAULT 'mail',
   active INTEGER NOT NULL DEFAULT 1,
   statement_eligible INTEGER NOT NULL DEFAULT 1,
+  directory_contact_id TEXT REFERENCES directory_contacts(id) ON DELETE SET NULL,
+  account_number TEXT,
+  donor_kind TEXT NOT NULL DEFAULT 'member',
+  merged_into_donor_id TEXT REFERENCES finance_donors(id) ON DELETE SET NULL,
   envelope_number TEXT UNIQUE,
   envelope_code TEXT UNIQUE,
   envelope_code_status TEXT NOT NULL DEFAULT 'inactive',
@@ -330,6 +339,7 @@ CREATE TABLE IF NOT EXISTS finance_collection_envelopes (
   donor_id TEXT NOT NULL REFERENCES finance_donors(id),
   envelope_code_snapshot TEXT,
   envelope_number_snapshot TEXT,
+  transaction_kind TEXT NOT NULL DEFAULT 'registered_envelope',
   payment_method TEXT NOT NULL,
   check_number TEXT,
   envelope_total_cents INTEGER NOT NULL,
@@ -377,6 +387,19 @@ CREATE TABLE IF NOT EXISTS finance_collection_audit_events (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS finance_scan_codes (
+  id TEXT PRIMARY KEY,
+  code_value TEXT NOT NULL,
+  code_family TEXT NOT NULL,
+  donor_id TEXT REFERENCES finance_donors(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  issued_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  replaced_by_code_value TEXT,
+  note TEXT,
+  created_by TEXT
+);
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_finance_envelope_unique_batch_code
   ON finance_collection_envelopes(batch_id, envelope_code_snapshot);
 
@@ -386,8 +409,31 @@ CREATE INDEX IF NOT EXISTS idx_finance_donors_name
 CREATE INDEX IF NOT EXISTS idx_finance_donors_envelope_number
   ON finance_donors(envelope_number);
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_finance_donors_directory_contact_unique
+  ON finance_donors(directory_contact_id)
+  WHERE directory_contact_id IS NOT NULL AND trim(directory_contact_id) <> '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_finance_donors_account_number_unique
+  ON finance_donors(account_number)
+  WHERE account_number IS NOT NULL AND trim(account_number) <> '';
+
+CREATE INDEX IF NOT EXISTS idx_finance_donors_account_number
+  ON finance_donors(account_number);
+
+CREATE INDEX IF NOT EXISTS idx_finance_donors_kind
+  ON finance_donors(donor_kind, active);
+
+CREATE INDEX IF NOT EXISTS idx_finance_donors_merged_into
+  ON finance_donors(merged_into_donor_id);
+
 CREATE INDEX IF NOT EXISTS idx_finance_donor_codes_code
   ON finance_donor_envelope_codes(envelope_code);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_finance_scan_codes_value
+  ON finance_scan_codes(code_value);
+
+CREATE INDEX IF NOT EXISTS idx_finance_scan_codes_family_status
+  ON finance_scan_codes(code_family, status);
 
 CREATE INDEX IF NOT EXISTS idx_finance_batch_service_date
   ON finance_collection_batches(service_date);

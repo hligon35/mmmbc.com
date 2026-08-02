@@ -989,7 +989,7 @@ export default {
       return worker.fetch(request, env, ctx);
     }
 
-    if (url.pathname.startsWith('/api/finances/donors') || url.pathname.startsWith('/api/finances/collections')) {
+    if (url.pathname.startsWith('/api/finances/donors') || url.pathname.startsWith('/api/finances/collections') || url.pathname.startsWith('/api/finances/scans') || url.pathname.startsWith('/api/finances/scan-codes')) {
       return maybeHandleFinanceReconciliationRequest(request, env, ctx, requireSession);
     }
 
