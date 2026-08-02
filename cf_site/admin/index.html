@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/admin/admin-dashboard.css?v=20260730a" />
   <link rel="stylesheet" href="/admin/admin-directory.css?v=20260730a" />
   <link rel="stylesheet" href="/admin/admin-header-canonical.css?v=20260730d" />
-  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260802005913" />
+  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260802194605" />
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
@@ -62,7 +62,7 @@
 
       <div class="card" id="googleLoginPanel">
         <div class="card__subtitle">Google sign-in</div>
-        <p class="muted" id="googleLoginHint">Loading Google sign-inâ€¦</p>
+        <p class="muted" id="googleLoginHint">Loading Google sign-in…</p>
         <div id="googleSignInBtn" aria-label="Google sign-in button"></div>
       </div>
 
@@ -138,7 +138,7 @@
 
     <section class="card loginCard" id="inviteCard" aria-label="Account setup" hidden>
       <h1 class="card__title">Finish account setup</h1>
-      <p class="muted" id="inviteEmail">Loading inviteâ€¦</p>
+      <p class="muted" id="inviteEmail">Loading invite…</p>
 
       <form id="inviteForm" class="form">
         <label class="label">
@@ -405,8 +405,8 @@
               <select class="select" id="photoSort">
                 <option value="date-desc">Date (newest)</option>
                 <option value="date-asc">Date (oldest)</option>
-                <option value="name-asc">Name (Aâ€“Z)</option>
-                <option value="name-desc">Name (Zâ€“A)</option>
+                <option value="name-asc">Name (A–Z)</option>
+                <option value="name-desc">Name (Z–A)</option>
                 <option value="manual">Manual (arranged)</option>
               </select>
             </label>
@@ -574,11 +574,6 @@
 
       <!-- Finances -->
       <section class="tabPanel" role="tabpanel" id="tab-finances" aria-labelledby="tabBtn-finances" hidden data-header-crumb="Church Finances" data-header-description="Record gifts, review transactions, and generate reports.">
-        <div class="toolbar noPrint" aria-label="Finance workflow navigation">
-          <a class="btn" href="/admin/finances/controls">Open Envelope Reconciliation Workspace</a>
-          <a class="btn" href="/admin/finances/donors">Open Donor Envelope Administration</a>
-        </div>
-
         <div class="tabs subTabs financeMainTabs" role="tablist" aria-label="Church Finances views">
           <button class="tab tab--sub" role="tab" aria-selected="true" aria-controls="panel-finances-record" id="subTabBtn-finances-record" type="button">Record Money</button>
           <button class="tab tab--sub" role="tab" aria-selected="false" aria-controls="panel-finances-review" id="subTabBtn-finances-review" type="button">Review Transactions</button>
@@ -587,13 +582,17 @@
 
         <div class="printOnly" id="adminPrintBody" aria-label="Print report body"></div>
         <div class="financePrintHeader printOnly" aria-label="Print header">
-          <div class="financePrintHeader__title" id="financePrintTitle">Mt. Moriah Missionary Baptist Church â€” Finance</div>
+          <div class="financePrintHeader__title" id="financePrintTitle">Mt. Moriah Missionary Baptist Church — Finance</div>
           <div class="financePrintHeader__meta" id="financePrintMeta"></div>
         </div>
 
         <!-- Record Money -->
         <div class="subTabPanel financeWizardPanel noPrint" role="tabpanel" id="panel-finances-record" aria-labelledby="subTabBtn-finances-record">
           <h3 class="wizard__heading" id="financeWizardHeading">Record Money</h3>
+          <div class="toolbar" aria-label="Finance QR workflow actions">
+            <a class="btn" id="financeScanQrBtn" href="/scan">Scan QR Code</a>
+            <a class="btn" id="financeEnvelopeDesignerBtn" href="/admin/finances/envelopes">Design &amp; Print Envelopes</a>
+          </div>
 
           <ol class="wizardProgress" id="financeWizardProgress" aria-label="Entry steps">
             <li><button class="wizardProgress__step" type="button" data-wizard-goto="direction" aria-current="step" aria-label="Money Type">1 Money Type</button></li>
@@ -924,8 +923,8 @@
 
             <div class="toolbarGroup">
               <div class="inputGroup financeReceiptsSearchGroup">
-                <input class="input" id="financeReceiptsSearch" type="search" placeholder="Search entriesâ€¦" autocomplete="off" />
-                <button class="inputIconBtn" id="financeReceiptsSearchClear" type="button" aria-label="Clear search" title="Clear">Ã—</button>
+                <input class="input" id="financeReceiptsSearch" type="search" placeholder="Search entries…" autocomplete="off" />
+                <button class="inputIconBtn" id="financeReceiptsSearchClear" type="button" aria-label="Clear search" title="Clear">×</button>
               </div>
               <button class="btn" id="financeReceiptsSelectAllBtn" type="button">Select all</button>
               <button class="btn" id="financeReceiptsClearBtn" type="button">Clear</button>
@@ -1013,7 +1012,7 @@
               <div class="toolbar directoryToolbar" aria-label="Directory contact filters">
                 <label class="label label--inline directoryToolbar__search">
                   Search
-                  <input class="input" id="directoryContactsSearch" type="search" placeholder="Search by name, email, or phone" autocomplete="off" />
+                  <input class="input" id="directoryContactsSearch" type="search" placeholder="Search by name, account number, email, or phone" autocomplete="off" />
                 </label>
                 <label class="label label--inline">
                   Status
@@ -1072,7 +1071,7 @@
           <div class="directoryToolbar directoryToolbar--desktop" aria-label="Directory contact filters">
             <label class="label label--inline directoryToolbar__search">
               Search
-              <input class="input" id="directoryContactsSearchDesktop" type="search" placeholder="Search by name, email, or phone" autocomplete="off" />
+              <input class="input" id="directoryContactsSearchDesktop" type="search" placeholder="Search by name, account number, email, or phone" autocomplete="off" />
             </label>
             <label class="label label--inline">
               Status
@@ -1332,6 +1331,7 @@
                 <label class="label">First name<input class="input" id="directoryContactFirstName" type="text" required /></label>
                 <label class="label">Last name<input class="input" id="directoryContactLastName" type="text" required /></label>
                 <label class="label">Preferred name<input class="input" id="directoryContactPreferredName" type="text" /></label>
+                <label class="label">Account number<input class="input" id="directoryContactAccountNumber" type="text" placeholder="MM-XXXXXXXXXX" /></label>
                 <label class="label">Contact type
                   <select class="select" id="directoryContactType" required>
                     <option value="member">Member</option>
@@ -1694,7 +1694,7 @@
               </label>
               <label class="label">
                 Message
-                <textarea class="textarea" name="message" rows="6" maxlength="5000" placeholder="Share the details and any error message you seeâ€¦" required></textarea>
+                <textarea class="textarea" name="message" rows="6" maxlength="5000" placeholder="Share the details and any error message you see…" required></textarea>
               </label>
               <label class="label">
                 Your email address (optional)
@@ -1709,7 +1709,7 @@
           <section class="card" id="adminStorageHealthCard" hidden aria-labelledby="adminStorageHealthTitle">
             <h3 class="card__subtitle" id="adminStorageHealthTitle">Admin Diagnostics</h3>
             <p class="muted">Shows current storage mode and backend availability for production troubleshooting.</p>
-            <div class="hint" id="adminStorageHealthSummary" aria-live="polite">Checking storage healthâ€¦</div>
+            <div class="hint" id="adminStorageHealthSummary" aria-live="polite">Checking storage health…</div>
             <div class="hint" id="adminStorageHealthDetails"></div>
             <div class="toolbar">
               <button class="btn" id="adminStorageHealthRefreshBtn" type="button">Refresh Diagnostics</button>
@@ -1744,7 +1744,6 @@
   <script src="/admin/admin.js?v=20260730k" defer></script>
   <script src="/admin/admin-directory.js?v=20260730a" defer></script>
   <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260802005913" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260802194605" defer></script>
 </body>
 </html>
-

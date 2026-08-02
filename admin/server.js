@@ -1260,6 +1260,14 @@ app.get('/admin/finances/clergy-housing', requirePermission(PERMISSIONS.HOUSING_
   return sendAdminFinancePage(res, 'finances_clergy_housing.html');
 });
 
+app.get('/admin/finances/envelopes', requirePermission(PERMISSIONS.DONOR_READ), (req, res) => {
+  return sendAdminFinancePage(res, 'finance_envelope_designer.html');
+});
+
+app.get('/scan', (req, res) => {
+  return res.sendFile(path.join(ROOT_DIR, 'scan.html'));
+});
+
 app.use('/admin', express.static(path.join(ADMIN_DIR, 'public'), {
   extensions: ['html'],
   setHeaders: (res) => {

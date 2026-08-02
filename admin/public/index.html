@@ -573,11 +573,6 @@
 
       <!-- Finances -->
       <section class="tabPanel" role="tabpanel" id="tab-finances" aria-labelledby="tabBtn-finances" hidden data-header-crumb="Church Finances" data-header-description="Record gifts, review transactions, and generate reports.">
-        <div class="toolbar noPrint" aria-label="Finance workflow navigation">
-          <a class="btn" href="/admin/finances/controls">Open Envelope Reconciliation Workspace</a>
-          <a class="btn" href="/admin/finances/donors">Open Donor Envelope Administration</a>
-        </div>
-
         <div class="tabs subTabs financeMainTabs" role="tablist" aria-label="Church Finances views">
           <button class="tab tab--sub" role="tab" aria-selected="true" aria-controls="panel-finances-record" id="subTabBtn-finances-record" type="button">Record Money</button>
           <button class="tab tab--sub" role="tab" aria-selected="false" aria-controls="panel-finances-review" id="subTabBtn-finances-review" type="button">Review Transactions</button>
@@ -593,6 +588,10 @@
         <!-- Record Money -->
         <div class="subTabPanel financeWizardPanel noPrint" role="tabpanel" id="panel-finances-record" aria-labelledby="subTabBtn-finances-record">
           <h3 class="wizard__heading" id="financeWizardHeading">Record Money</h3>
+          <div class="toolbar" aria-label="Finance QR workflow actions">
+            <a class="btn" id="financeScanQrBtn" href="/scan">Scan QR Code</a>
+            <a class="btn" id="financeEnvelopeDesignerBtn" href="/admin/finances/envelopes">Design &amp; Print Envelopes</a>
+          </div>
 
           <ol class="wizardProgress" id="financeWizardProgress" aria-label="Entry steps">
             <li><button class="wizardProgress__step" type="button" data-wizard-goto="direction" aria-current="step" aria-label="Money Type">1 Money Type</button></li>
@@ -1012,7 +1011,7 @@
               <div class="toolbar directoryToolbar" aria-label="Directory contact filters">
                 <label class="label label--inline directoryToolbar__search">
                   Search
-                  <input class="input" id="directoryContactsSearch" type="search" placeholder="Search by name, email, or phone" autocomplete="off" />
+                  <input class="input" id="directoryContactsSearch" type="search" placeholder="Search by name, account number, email, or phone" autocomplete="off" />
                 </label>
                 <label class="label label--inline">
                   Status
@@ -1071,7 +1070,7 @@
           <div class="directoryToolbar directoryToolbar--desktop" aria-label="Directory contact filters">
             <label class="label label--inline directoryToolbar__search">
               Search
-              <input class="input" id="directoryContactsSearchDesktop" type="search" placeholder="Search by name, email, or phone" autocomplete="off" />
+              <input class="input" id="directoryContactsSearchDesktop" type="search" placeholder="Search by name, account number, email, or phone" autocomplete="off" />
             </label>
             <label class="label label--inline">
               Status
@@ -1331,6 +1330,7 @@
                 <label class="label">First name<input class="input" id="directoryContactFirstName" type="text" required /></label>
                 <label class="label">Last name<input class="input" id="directoryContactLastName" type="text" required /></label>
                 <label class="label">Preferred name<input class="input" id="directoryContactPreferredName" type="text" /></label>
+                <label class="label">Account number<input class="input" id="directoryContactAccountNumber" type="text" placeholder="MM-XXXXXXXXXX" /></label>
                 <label class="label">Contact type
                   <select class="select" id="directoryContactType" required>
                     <option value="member">Member</option>

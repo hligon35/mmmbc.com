@@ -133,6 +133,62 @@ test('invalid, inactive, and replaced codes are rejected correctly', async () =>
   assert.equal(replacedRes.status, 409);
 });
 
+test('registered one-time code resolution succeeds', async () => {
+  const { env } = createMockEnv(({ sql }) => {
+    if (sql.includes('SELECT role FROM admin_invites')) return null;
+    if (sql.includes('FROM finance_scan_codes')) {
+      return {
+        code_family: 'one_time',
+        code_value: 'MMMBC-ONETIME-V1:123e4567-e89b-12d3-a456-426614174999',
+        status: 'active',
+        donor_id: null
+      };
+    }
+    if (sql.includes('FROM finance_collection_batches')) {
+      return null;
+    }
+    return null;
+  });
+
+  const req = new Request('https://example.test/api/finances/scans/resolve', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ codeValue: 'MMMBC-ONETIME-V1:123e4567-e89b-12d3-a456-426614174999' })
+  });
+
+  const res = await maybeHandleFinanceReconciliationRequest(req, env, {}, async () => ({ email: 'finance@example.com' }));
+  assert.equal(res.status, 200);
+  const payload = await responseJson(res);
+  assert.equal(payload.code.codeFamily, 'one_time');
+});
+
+test('unknown one-time code rejection returns 404', async () => {
+  const { env } = createMockEnv(({ sql }) => {
+    if (sql.includes('SELECT role FROM admin_invites')) return null;
+    return null;
+  });
+
+  const req = new Request('https://example.test/api/finances/scans/resolve', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ codeValue: 'MMMBC-ONETIME-V1:123e4567-e89b-12d3-a456-426614174aaa' })
+  });
+
+  const res = await maybeHandleFinanceReconciliationRequest(req, env, {}, async () => ({ email: 'finance@example.com' }));
+  assert.equal(res.status, 404);
+});
+
+test('invalid code family rejection returns 400', async () => {
+  const { env } = createMockEnv(() => null);
+  const req = new Request('https://example.test/api/finances/scans/resolve', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ codeValue: 'EXTSYS:12345' })
+  });
+  const res = await maybeHandleFinanceReconciliationRequest(req, env, {}, async () => ({ email: 'finance@example.com' }));
+  assert.equal(res.status, 400);
+});
+
 test('unauthorized resolution and mutations return 401', async () => {
   const { env } = createMockEnv(() => null);
 
@@ -198,6 +254,173 @@ test('duplicate scan in one batch is blocked', async () => {
   assert.ok(result.error);
   const payload = await responseJson(result.error);
   assert.equal(financeErrorCode(payload), 'DUPLICATE_ENVELOPE_IN_BATCH');
+});
+
+test('automatic current-day batch creation or reuse happens during scan resolution', async () => {
+  const { env, runLog } = createMockEnv(({ sql, kind }) => {
+    if (sql.includes('SELECT role FROM admin_invites')) return null;
+    if (sql.includes('FROM finance_scan_codes')) {
+      return {
+        code_family: 'one_time',
+        code_value: 'MMMBC-ONETIME-V1:123e4567-e89b-12d3-a456-426614174001',
+        status: 'active',
+        donor_id: null
+      };
+    }
+    if (sql.includes('FROM finance_collection_batches') && kind === 'first') return null;
+    if (kind === 'run') return { success: true };
+    return null;
+  });
+
+  const req = new Request('https://example.test/api/finances/scans/resolve', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ codeValue: 'MMMBC-ONETIME-V1:123e4567-e89b-12d3-a456-426614174001' })
+  });
+  const res = await maybeHandleFinanceReconciliationRequest(req, env, {}, async () => ({ email: 'finance@example.com' }));
+  assert.equal(res.status, 200);
+  assert.equal(runLog.some((entry) => entry.sql.includes('INSERT INTO finance_collection_batches')), true);
+});
+
+test('reusable one-time code behavior allows multiple recordings in one batch', async () => {
+  const { env, runLog } = createMockEnv(({ sql, kind }) => {
+    if (sql.includes('FROM finance_scan_codes')) {
+      return {
+        code_family: 'one_time',
+        code_value: 'MMMBC-ONETIME-V1:123e4567-e89b-12d3-a456-426614174002',
+        status: 'active',
+        donor_id: null
+      };
+    }
+    if (sql.includes('FROM finance_collection_batches')) {
+      return { id: 'batch-ot', status: 'counting', declared_physical_cash_cents: 0, declared_check_cents: 0, approval_version: 0 };
+    }
+    if (sql.includes('FROM finance_funds')) {
+      return { id: 'fund-1', fund_name: 'General', fund_code: 'GEN', active: 1 };
+    }
+    if (sql.includes('SELECT * FROM finance_donors WHERE directory_contact_id')) return null;
+    if (sql.includes('SELECT * FROM finance_donors') && kind === 'all') return { results: [] };
+    if (sql.includes('sum(envelope_total_cents)')) return { envelope_total: 1000, cash_envelope_total: 1000, check_envelope_total: 0 };
+    if (sql.includes('sum(amount_cents) AS loose_total')) return { loose_total: 0, loose_cash_total: 0, loose_check_total: 0 };
+    if (sql.includes('GROUP BY fund_id, fund_code')) return { results: [] };
+    if (kind === 'run') return { success: true };
+    return null;
+  });
+
+  const first = await __financeTestHooks.recordScannedGift(env, { email: 'finance@example.com' }, {
+    codeValue: 'MMMBC-ONETIME-V1:123e4567-e89b-12d3-a456-426614174002',
+    fundId: 'fund-1',
+    amountCents: 500,
+    paymentMethod: 'cash'
+  });
+  const second = await __financeTestHooks.recordScannedGift(env, { email: 'finance@example.com' }, {
+    codeValue: 'MMMBC-ONETIME-V1:123e4567-e89b-12d3-a456-426614174002',
+    fundId: 'fund-1',
+    amountCents: 500,
+    paymentMethod: 'cash'
+  });
+  assert.equal(Boolean(first.error), false);
+  assert.equal(Boolean(second.error), false);
+  assert.equal(runLog.filter((entry) => entry.sql.includes('INSERT INTO finance_collection_envelopes')).length, 2);
+});
+
+test('existing donor matching by account number wins for one-time scans', async () => {
+  const { env } = createMockEnv(({ sql, kind }) => {
+    if (sql.includes('FROM finance_scan_codes')) {
+      return {
+        code_family: 'one_time',
+        code_value: 'MMMBC-ONETIME-V1:123e4567-e89b-12d3-a456-426614174003',
+        status: 'active',
+        donor_id: null
+      };
+    }
+    if (sql.includes('FROM finance_collection_batches')) {
+      return { id: 'batch-acc', status: 'counting', declared_physical_cash_cents: 0, declared_check_cents: 0, approval_version: 0 };
+    }
+    if (sql.includes('FROM finance_funds')) {
+      return { id: 'fund-1', fund_name: 'General', fund_code: 'GEN', active: 1 };
+    }
+    if (sql.includes('WHERE upper(coalesce(account_number')) {
+      return { id: 'donor-account', first_name: 'Ada', last_name: 'Brown', account_number: 'MM-12345678', donor_kind: 'member' };
+    }
+    if (sql.includes('sum(envelope_total_cents)')) return { envelope_total: 700, cash_envelope_total: 700, check_envelope_total: 0 };
+    if (sql.includes('sum(amount_cents) AS loose_total')) return { loose_total: 0, loose_cash_total: 0, loose_check_total: 0 };
+    if (sql.includes('GROUP BY fund_id, fund_code')) return { results: [] };
+    if (kind === 'run') return { success: true };
+    return null;
+  });
+
+  const result = await __financeTestHooks.recordScannedGift(env, { email: 'finance@example.com' }, {
+    codeValue: 'MMMBC-ONETIME-V1:123e4567-e89b-12d3-a456-426614174003',
+    accountNumber: 'MM-12345678',
+    fundId: 'fund-1',
+    amountCents: 700,
+    paymentMethod: 'cash'
+  });
+  assert.equal(result.donor.donorId, 'donor-account');
+});
+
+test('exact-name matching works and duplicate-name ambiguity is rejected', async () => {
+  const exact = await __financeTestHooks.matchExistingDonor({
+    DB: {
+      prepare(sql) {
+        return {
+          bind() { return this; },
+          async first() { return null; },
+          async all() {
+            if (sql.includes('lower(trim(')) {
+              return { results: [{ id: 'donor-name', first_name: 'Ada', last_name: 'Brown' }] };
+            }
+            return { results: [] };
+          }
+        };
+      }
+    }
+  }, { donorName: 'Ada Brown' });
+  assert.equal(exact.donor.id, 'donor-name');
+
+  const ambiguous = await __financeTestHooks.matchExistingDonor({
+    DB: {
+      prepare(sql) {
+        return {
+          bind() { return this; },
+          async first() { return null; },
+          async all() {
+            if (sql.includes('lower(trim(')) {
+              return { results: [{ id: 'a' }, { id: 'b' }] };
+            }
+            return { results: [] };
+          }
+        };
+      }
+    }
+  }, { donorName: 'Ada Brown' });
+  assert.ok(ambiguous.error);
+});
+
+test('creation of unnamed temporary donors and later identification writes audit and reassigns', async () => {
+  const { env, runLog } = createMockEnv(({ sql, kind }) => {
+    if (sql.includes('FROM finance_donors WHERE id = ? LIMIT 1') && kind === 'first') {
+      return { id: 'temp-donor', donor_kind: 'one_time', first_name: 'One-Time', last_name: 'Donor' };
+    }
+    if (sql.includes('FROM finance_collection_envelopes e') && sql.includes('WHERE e.id = ?')) {
+      return { id: 'entry-1', batch_id: 'batch-1', donor_id: 'temp-donor', transaction_kind: 'one_time', status: 'counting' };
+    }
+    if (sql.includes('account_number')) {
+      return { id: 'returning-donor', first_name: 'Ada', last_name: 'Brown', account_number: 'MM-44556677' };
+    }
+    if (sql.includes('SELECT count(*) AS c FROM finance_collection_envelopes WHERE donor_id = ?')) return { c: 0 };
+    if (sql.includes('sum(envelope_total_cents)')) return { envelope_total: 900, cash_envelope_total: 900, check_envelope_total: 0 };
+    if (sql.includes('sum(amount_cents) AS loose_total')) return { loose_total: 0, loose_cash_total: 0, loose_check_total: 0 };
+    if (sql.includes('GROUP BY fund_id, fund_code')) return { results: [] };
+    if (kind === 'run') return { success: true };
+    return null;
+  });
+
+  const result = await __financeTestHooks.identifyScannedEntry(env, { email: 'finance@example.com' }, 'entry-1', { accountNumber: 'MM-44556677' });
+  assert.equal(result.ok, true);
+  assert.equal(runLog.some((entry) => entry.sql.includes('UPDATE finance_collection_envelopes')), true);
+  assert.equal(runLog.some((entry) => entry.sql.includes('INSERT INTO finance_collection_audit_events')), true);
 });
 
 test('multiple allocations are accepted and mismatch is rejected', async () => {

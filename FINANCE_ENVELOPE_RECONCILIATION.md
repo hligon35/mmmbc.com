@@ -1,18 +1,20 @@
 # Envelope Scan & Sunday Collection Reconciliation
 
-This project now includes a finance workflow for Sunday/service collection batches with envelope scanning, two-person verification, reconciliation, and deposit confirmation.
+This project now includes a finance workflow for Sunday/service collection batches with QR scanning, two-person verification, reconciliation, donor reassignment, printable envelope design, and deposit confirmation.
 
 ## Canonical Source and Build
 
 - Canonical admin source files are under `admin/public/`.
 - Cloudflare-deployed static mirror is generated into `cf_site/` by `npm run build:cf`.
 - Do not hand-edit `cf_site/`; regenerate it.
+- `npm run build:cf` now uses the cross-platform Node script `scripts/build_cf_site.mjs`.
 
 ## Schema and Migration
 
 Added migration:
 
 - `migrations/0005_add_envelope_collection_reconciliation.sql`
+- `migrations/0006_add_account_numbers_and_scan_codes.sql`
 
 Updated canonical schema:
 
@@ -22,6 +24,7 @@ New tables include:
 
 - `finance_donors`
 - `finance_donor_envelope_codes`
+- `finance_scan_codes`
 - `finance_collection_batches`
 - `finance_collection_counters`
 - `finance_collection_counter_approvals`
@@ -52,15 +55,40 @@ No new secrets are required for scanning/reconciliation.
 
 ## Envelope Code Format and Generation
 
-Envelope payload format:
+Registered payload formats:
 
 - `MMMBC-ENV-V1:<uuid>`
+- `MMMBC-ONETIME-V1:<uuid>`
 
 Design decisions:
 
 - Contains opaque random identifier only.
 - Contains no donor name, email, address, phone, or internal numeric ID.
 - Replaced/deactivated codes are invalid for future scans but historical entries remain intact.
+- One-time donor codes are church-issued reusable guest codes and may be used more than once, including in the same batch.
+
+## Mobile `/scan` Workflow
+
+Route:
+
+- `/scan`
+
+Workflow:
+
+1. Authenticated finance user opens `/scan`.
+2. User scans with the rear camera when supported, or with a keyboard-style USB/Bluetooth scanner.
+3. Server validates that the code is an MMMBC registered code and that it is still active.
+4. Server creates or reuses the current day’s editable collection batch.
+5. Registered member codes show minimal donor confirmation only.
+6. One-time codes allow anonymous or identified guest gifts.
+7. User enters fund, amount, payment method, and optional check number.
+8. Gift is saved in integer cents and the form resets for the next scan.
+
+Browser behavior:
+
+- Uses `BarcodeDetector` and `getUserMedia` when supported.
+- Falls back to manual entry or keyboard-scanner input when camera detection is unavailable.
+- Stops all camera tracks when scanning completes or the page unloads.
 
 ## API Surface (Authenticated Finance)
 
@@ -94,18 +122,27 @@ Collection batches:
 - `POST /api/finances/collections/:batchId/void`
 - `POST /api/finances/collections/resolve-envelope`
 
+Scan workflow:
+
+- `POST /api/finances/scans/resolve`
+- `POST /api/finances/scans/record`
+- `POST /api/finances/scans/entries/:entryId/identify`
+- `POST /api/finances/scan-codes/one-time`
+- `GET /api/finances/scan-codes/render?code=...`
+
 ## Sunday Workflow
 
-1. Create/select a service batch.
-2. Assign at least two counters.
-3. Scan envelope code (USB/Bluetooth scanner input with Enter, or camera fallback).
-4. Confirm donor, set payment method, amount, and one or more fund allocations.
-5. Save and scan next.
-6. Record loose giving separately (anonymous).
-7. Review reconciliation totals and discrepancy.
-8. Submit distinct counter approvals.
-9. Finalize batch (discrepancy explanation required if nonzero).
-10. Confirm bank deposit after finalization.
+1. Use Finance → Record Money → `Scan QR Code` or open `/scan` directly.
+2. Scan a registered member or one-time donor code.
+3. Server creates or reuses the current day’s draft/counting batch.
+4. Registered member gifts keep duplicate protection per batch.
+5. One-time donor gifts may be unnamed or matched by account number or exact name.
+6. Save the gift and continue scanning.
+7. Later, use Internal Controls → Recent Entries → `Identify Donor` to reassign one-time gifts when needed.
+8. Review reconciliation totals and discrepancy.
+9. Submit distinct counter approvals.
+10. Finalize batch (discrepancy explanation required if nonzero).
+11. Confirm bank deposit after finalization.
 
 ## Scanner Setup
 
@@ -120,6 +157,56 @@ Collection batches:
 - Uses browser `BarcodeDetector` + `getUserMedia` if available.
 - No remote CDN dependency is required.
 - If unavailable, manual/scanner input remains fully functional.
+
+## One-Time Donor Behavior
+
+- One-time donor QR codes are issued by the church and validated server-side.
+- Gifts may be recorded without a donor name.
+- Temporary one-time donor records are created when no returning donor match is supplied.
+- Matching order is:
+	1. exact account number
+	2. exact normalized donor name
+- If multiple donors share the same name, the system rejects the match and requires an account number.
+- Later identification safely reassigns the collection entry and writes an audit record.
+- Temporary donor records are never silently deleted; they are deactivated/merged when no longer referenced.
+
+## Directory Account Numbers
+
+- `directory_contacts.account_number` is now the canonical directory member/account identifier.
+- Format is normalized to `MM-XXXXXXXXXX` style opaque church account numbering.
+- Blank values are auto-generated for new contacts and backfilled contacts.
+- Manual or imported values are preserved after normalization.
+- Uniqueness is enforced in D1 with partial unique indexes.
+- CSV import aliases supported:
+	- `account_number`
+	- `account_id`
+	- `member_number`
+	- `donor_number`
+- Directory create/update flows synchronize linked `finance_donors` records.
+
+## Envelope Designer
+
+Admin route:
+
+- `/admin/finances/envelopes`
+
+Supported sizes:
+
+- `A2` — `4.375 × 5.75 in`
+- `A7` — `5.25 × 7.25 in`
+- `A9` — `5.75 × 8.75 in`
+- `#10` — `4.125 × 9.5 in`
+
+Features:
+
+- Search by donor name, account number, or envelope number.
+- Issue or reuse an active registered member QR code.
+- Generate reusable one-time donor QR codes for blank visitor envelopes.
+- Visible member name, account number, and envelope number on the print layout.
+- Live preview with optional local-only background image.
+- Background opacity adjustment.
+- Print-friendly popup output with admin controls removed from print view.
+- QR payloads remain opaque and contain no PII.
 
 ## Label Printing
 
@@ -148,18 +235,47 @@ Server-side controls include:
 - Reopen/void requires explicit reason and audit.
 - Finalized/deposited/voided batches are locked from normal edits.
 
+Gift source and transaction-kind values now distinguish:
+
+- `stripe`
+- `registered_envelope`
+- `one_time`
+- `cash_envelope`
+- `check_envelope`
+- `loose_cash`
+
 ## Security and Privacy Decisions
 
 - Envelope code payload is opaque and versioned.
+- Both member and one-time codes are validated against server-side registration records.
 - Resolution APIs are authenticated admin finance endpoints.
 - All writes use server-side authenticated identity; no client user-id trust.
 - Parameterized D1 statements are used.
 - Check numbers are treated as sensitive and only returned to finance users.
 - No cash/check images are stored.
 - No bank-account details are stored.
+- Background images selected in the envelope designer stay in the browser unless future persistence is explicitly added.
+- QR payloads are never combined with donor PII in logs.
+
+## Build and Preview Commands
+
+```powershell
+npm run build:cf
+npx wrangler d1 migrations apply mmdb --local
+npx wrangler deploy --env preview --dry-run
+```
+
+## Production Rollout Order
+
+1. Deploy code to a preview environment and validate `/scan` and `/admin/finances/envelopes`.
+2. Apply the next migration set to the target D1 database.
+3. Verify account-number backfill and finance-donor links.
+4. Verify one registered member scan, one reusable one-time scan, and one donor-identification correction.
+5. Deploy the updated Worker and static assets to production.
+6. Train finance users on duplicate protection, one-time donor identification, and printed envelope issuance.
 
 ## Rollback Considerations
 
-- Revert UI changes by restoring `admin/public/finances_controls.html`, `admin/public/finances_donors.html`, `admin/public/finance_modern.js`, and `admin/public/finance_modern.css`.
+- Revert UI changes by restoring `admin/public/index.html`, `admin/public/finances_controls.html`, `admin/public/finances_donors.html`, `admin/public/finance_modern.js`, `admin/public/finance_modern.css`, `scan.html`, `scan.css`, `scan.js`, and `admin/public/finance_envelope_designer.*`.
 - Keep migration history immutable; if rollback is needed in data model, create a forward migration that deprecates features safely.
 - Regenerate `cf_site/` with `npm run build:cf` after any rollback.

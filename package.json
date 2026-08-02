@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:cf": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build_cf_site.ps1",
-    "test": "node --test src/site-editor.test.mjs src/finance-envelope-reconciliation.test.mjs",
+    "build:cf": "node ./scripts/build_cf_site.mjs",
+    "test": "node --test src/site-editor.test.mjs src/finance-envelope-reconciliation.test.mjs src/worker-directory.test.mjs",
     "verify:integrations": "node ./scripts/verify_integrations.mjs",
     "deploy": "npm run build:cf && npx wrangler deploy --env production"
   },

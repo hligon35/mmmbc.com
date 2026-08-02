@@ -134,7 +134,10 @@
 				"ALLOW_SERVICE_TOKEN_ADMIN": "true",
 				"DEV_BYPASS_AUTH": "false",
 				"SUPPORT_TO_EMAIL": "support@hldesignedit.com",
-				"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com"
+				"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
+				"SUPPORT_FROM_EMAIL": "needhelp@mmmbc.com",
+				"SUPPORT_FROM_NAME": "Mount Moriah Admin",
+				"PUBLIC_SITE_URL": "https://mmmbc-preview.alphazonelabs.com"
 			}
 		},
 		"migrate": {
