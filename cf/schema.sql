@@ -9,11 +9,13 @@ CREATE TABLE IF NOT EXISTS gallery_items (
   thumb_key TEXT,
   original_name TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  position INTEGER
+  position INTEGER,
+  is_hidden INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_gallery_album ON gallery_items(album);
 CREATE INDEX IF NOT EXISTS idx_gallery_created_at ON gallery_items(created_at);
+CREATE INDEX IF NOT EXISTS idx_gallery_is_hidden_created_at ON gallery_items(is_hidden, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS giving_donations (
   id TEXT PRIMARY KEY,

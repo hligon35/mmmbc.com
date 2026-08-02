@@ -574,6 +574,50 @@
     apply(b);
   }
 
+  function formatTypeLabel(value) {
+    return String(value || '')
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (ch) => ch.toUpperCase()) || 'Other';
+  }
+
+  function ensureSelectValueExists(selectId, value, fallbackLabel) {
+    const select = $(selectId);
+    const nextValue = String(value || '').trim();
+    if (!(select instanceof HTMLSelectElement) || !nextValue) return;
+    const exists = Array.from(select.options).some((option) => String(option.value) === nextValue);
+    if (!exists) {
+      const option = document.createElement('option');
+      option.value = nextValue;
+      option.textContent = fallbackLabel || formatTypeLabel(nextValue);
+      select.appendChild(option);
+    }
+  }
+
+  function syncContactTypeOptions(types) {
+    const normalized = Array.isArray(types)
+      ? types.map((item) => String(item || '').trim().toLowerCase()).filter(Boolean)
+      : [];
+    const uniqueTypes = Array.from(new Set(normalized));
+    if (!uniqueTypes.length) return;
+
+    const filterOptions = [{ value: 'all', label: 'All' }, ...uniqueTypes.map((value) => ({ value, label: formatTypeLabel(value) }))];
+    syncSelectOptions('directoryContactsTypeDesktop', 'directoryContactsType', filterOptions);
+
+    const contactTypeSelect = $('directoryContactType');
+    if (contactTypeSelect instanceof HTMLSelectElement) {
+      const current = String(contactTypeSelect.value || 'member').trim().toLowerCase();
+      contactTypeSelect.innerHTML = '';
+      for (const typeValue of uniqueTypes) {
+        const opt = document.createElement('option');
+        opt.value = typeValue;
+        opt.textContent = formatTypeLabel(typeValue);
+        contactTypeSelect.appendChild(opt);
+      }
+      const fallback = uniqueTypes.includes('member') ? 'member' : uniqueTypes[0];
+      contactTypeSelect.value = uniqueTypes.includes(current) ? current : fallback;
+    }
+  }
+
   function activeDirectorySubTab() {
     const selected = document.querySelector('#tab-directory .tab--sub[aria-selected="true"]');
     return String(selected?.getAttribute('aria-controls') || '').trim() || 'panel-directory-contacts';
@@ -621,6 +665,7 @@
     write('directoryContactFirstName', contact?.firstName || contact?.first_name || '');
     write('directoryContactLastName', contact?.lastName || contact?.last_name || '');
     write('directoryContactPreferredName', contact?.preferredName || contact?.preferred_name || '');
+    ensureSelectValueExists('directoryContactType', contact?.contactType || contact?.contact_type || 'member');
     write('directoryContactType', contact?.contactType || contact?.contact_type || 'member');
     write('directoryContactStatus', contact?.status || 'active');
     write('directoryContactPrimaryEmail', contact?.primaryEmail || contact?.primary_email || '');
@@ -1117,6 +1162,7 @@
         : [];
       const options = [{ value: 'all', label: 'All' }, ...groups];
       syncSelectOptions('directoryContactsGroupDesktop', 'directoryContactsGroup', options);
+      syncContactTypeOptions(data?.filters?.types);
 
       setText('directoryContactsStatusText', 'Contacts loaded.');
     } catch (error) {

@@ -48,6 +48,56 @@
     margin: 0 0 16px;
 }
 
+.facility-heading-row {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    column-gap: 12px;
+    margin-bottom: 12px;
+}
+
+.facility-heading-row h1 {
+    grid-column: 2;
+    justify-self: center;
+    margin-bottom: 0;
+}
+
+.facility-booking-picker {
+    grid-column: 3;
+    justify-self: end;
+    display: inline-flex;
+    align-items: center;
+}
+
+.facility-booking-picker select {
+    min-height: 40px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid #c46123;
+    background-color: rgba(196, 97, 35, 0.2);
+    color: #ffffff;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.facility-booking-picker select:focus-visible {
+    outline: 2px solid rgba(196, 97, 35, 0.9);
+    outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+    .facility-heading-row {
+        grid-template-columns: 1fr;
+        row-gap: 10px;
+    }
+
+    .facility-heading-row h1,
+    .facility-booking-picker {
+        grid-column: 1;
+        justify-self: center;
+    }
+}
+
 
 .content-subnav {
     list-style: none;
@@ -570,6 +620,19 @@
     font-weight: 700;
 }
 
+.platform-link-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.platform-icon {
+    width: 1.05em;
+    height: 1.05em;
+    fill: currentColor;
+    flex: 0 0 auto;
+}
+
 .live-player-actions {
     display: flex;
     flex-wrap: wrap;
@@ -670,6 +733,7 @@ button.youtube-live-placeholder__button {
     font-weight: 700;
     border-top: 1px solid rgba(196, 97, 35, 0.35);
     background: rgba(0, 0, 0, 0.22);
+    text-align: center;
 }
 
 .youtube-card__link:hover {

@@ -170,6 +170,49 @@ function parsePositiveInt(value, fallback, { min = 1, max = 100 } = {}) {
   return intVal;
 }
 
+const DEFAULT_CONTACT_TYPES = [
+  'member',
+  'visitor',
+  'one_time_donor',
+  'repeat_donor',
+  'sponsor',
+  'volunteer',
+  'staff',
+  'ministry_leader',
+  'other'
+];
+
+function normalizeContactType(value, fallback = 'member') {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s_-]/g, '')
+    .replace(/[\s-]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return normalized || fallback;
+}
+
+async function listDirectoryContactTypes(env) {
+  if (!env?.DB) return [...DEFAULT_CONTACT_TYPES];
+
+  try {
+    const rows = await env.DB.prepare(
+      `SELECT DISTINCT lower(trim(contact_type)) AS contact_type
+       FROM directory_contacts
+       WHERE trim(coalesce(contact_type, '')) != ''`
+    ).all();
+
+    const discovered = (rows?.results || [])
+      .map((row) => normalizeContactType(row?.contact_type, ''))
+      .filter(Boolean);
+
+    const merged = [...new Set([...DEFAULT_CONTACT_TYPES, ...discovered])];
+    return merged.sort((a, b) => a.localeCompare(b));
+  } catch {
+    return [...DEFAULT_CONTACT_TYPES];
+  }
+}
+
 function paginationFromRequest(url, defaultPageSize = 25) {
   const page = parsePositiveInt(url.searchParams.get('page'), 1, { min: 1, max: 1000000 });
   const pageSize = parsePositiveInt(url.searchParams.get('pageSize'), defaultPageSize, { min: 1, max: 100 });
@@ -400,7 +443,7 @@ function buildContactsWhere(url, schema = {}) {
     }
   }
 
-  const contactType = cleanStatus(url.searchParams.get('contactType'), 'all');
+  const contactType = normalizeContactType(url.searchParams.get('contactType'), 'all');
   if (contactType !== 'all') {
     clauses.push('lower(c.contact_type) = ?');
     params.push(contactType);
@@ -516,12 +559,13 @@ async function handleDirectoryContactsList(request, env, authCtx) {
   const pagination = paginationFromRequest(url, 25);
   const schema = await getDirectorySchemaFlags(env);
   if (!schema.hasContacts) {
+    const fallbackTypes = [...DEFAULT_CONTACT_TYPES];
     return json({
       items: [],
       pagination: { page: pagination.page, pageSize: pagination.pageSize, total: 0, totalPages: 0 },
       filters: {
         statuses: ['active', 'inactive', 'archived'],
-        types: ['member', 'visitor', 'staff', 'ministry_leader', 'other'],
+        types: fallbackTypes,
         groups: []
       }
     });
@@ -552,6 +596,8 @@ async function handleDirectoryContactsList(request, env, authCtx) {
     const total = Number(countRow?.total || 0);
     const totalPages = total > 0 ? Math.ceil(total / pagination.pageSize) : 0;
 
+    const contactTypes = await listDirectoryContactTypes(env);
+
     return json({
       items: (rows?.results || []).map((row) => mapContactRow(row, { includePrivate })),
       pagination: {
@@ -562,7 +608,7 @@ async function handleDirectoryContactsList(request, env, authCtx) {
       },
       filters: {
         statuses: ['active', 'inactive', 'archived'],
-        types: ['member', 'visitor', 'staff', 'ministry_leader', 'other'],
+        types: contactTypes,
         groups: (groupRows?.results || []).map((row) => ({ id: row.id, name: row.name }))
       }
     });
@@ -617,7 +663,7 @@ async function handleDirectoryContactGet(request, env, authCtx, contactId) {
 function validateContactPayload(body) {
   const firstName = cleanText(body?.firstName || body?.first_name, 120);
   const lastName = cleanText(body?.lastName || body?.last_name, 120);
-  const contactType = cleanStatus(body?.contactType || body?.contact_type, 'member');
+  const contactType = normalizeContactType(body?.contactType || body?.contact_type, 'member');
   const status = cleanStatus(body?.status, 'active');
 
   if (!firstName) return { ok: false, error: 'First name is required.' };

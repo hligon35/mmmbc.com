@@ -1134,10 +1134,36 @@ async function handleBulletins(request, env) {
   return json({ error: 'Method not allowed' }, { status: 405 });
 }
 
-async function listGallery(env) {
+let galleryVisibilityColumnReady = null;
+
+async function ensureGalleryVisibilityColumn(env) {
+  if (!env?.DB) return false;
+  if (galleryVisibilityColumnReady !== null) return galleryVisibilityColumnReady;
+
+  galleryVisibilityColumnReady = (async () => {
+    try {
+      const info = await env.DB.prepare('PRAGMA table_info(gallery_items)').all();
+      const hasColumn = (info?.results || []).some((row) => String(row?.name || '').toLowerCase() === 'is_hidden');
+      if (hasColumn) return true;
+      await env.DB.prepare('ALTER TABLE gallery_items ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0').run();
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  return galleryVisibilityColumnReady;
+}
+
+async function listGallery(env, { publicOnly = false } = {}) {
+  const hasVisibility = await ensureGalleryVisibilityColumn(env);
+  const visibilityColumn = hasVisibility ? 'COALESCE(is_hidden, 0) AS is_hidden' : '0 AS is_hidden';
+  const visibilityWhere = publicOnly && hasVisibility ? 'WHERE COALESCE(is_hidden, 0) = 0' : '';
   const rows = await env.DB.prepare(
-    `SELECT id, album, label, tags_json, file_key, thumb_key, original_name, created_at, position
-     FROM gallery_items`
+    `SELECT id, album, label, tags_json, file_key, thumb_key, original_name, created_at, position, ${visibilityColumn}
+     FROM gallery_items
+     ${visibilityWhere}
+     ORDER BY datetime(created_at) DESC, id DESC`
   ).all();
 
   const items = (rows.results || []).map((r) => {
@@ -1159,7 +1185,8 @@ async function listGallery(env) {
       thumb: r.thumb_key ? `/cdn/gallery/${encodeURI(r.thumb_key)}` : `/cdn/gallery/${encodeURI(r.file_key)}`,
       originalName: r.original_name,
       createdAt: r.created_at,
-      position: r.position
+      position: r.position,
+      hideFromPublic: Number(r.is_hidden || 0) !== 0
     };
   });
 
@@ -1210,7 +1237,7 @@ async function handlePublicGallery(request, env) {
   // Public endpoint: drives the public photo gallery page.
   // Note: if your Cloudflare Access policy currently protects ALL /api paths,
   // we keep this under /public so it can remain unprotected.
-  const data = await listGallery(env);
+  const data = await listGallery(env, { publicOnly: true });
   const settings = await getGalleryPreferences(env);
   return json({ ...data, settings }, {
     status: 200,
@@ -1469,8 +1496,9 @@ async function handleGalleryUpdate(request, env, id) {
   if (!auth.ok) return json({ error: auth.error }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
-  const label = sanitizeSegment(body?.label || '') || '';
-  const tags = splitTags(body?.tags || '');
+  const hasLabel = Object.prototype.hasOwnProperty.call(body || {}, 'label');
+  const hasTags = Object.prototype.hasOwnProperty.call(body || {}, 'tags');
+  const hasVisibility = Object.prototype.hasOwnProperty.call(body || {}, 'hideFromPublic');
 
   const existing = await env.DB.prepare(
     `SELECT id, album, label, tags_json, file_key, thumb_key, original_name, created_at, position
@@ -1479,9 +1507,40 @@ async function handleGalleryUpdate(request, env, id) {
 
   if (!existing) return json({ error: 'Not found' }, { status: 404 });
 
-  await env.DB.prepare(
-    `UPDATE gallery_items SET label=?, tags_json=? WHERE id=?`
-  ).bind(label, JSON.stringify(tags), String(id)).run();
+  const parsedExistingTags = (() => {
+    try {
+      const parsed = JSON.parse(existing.tags_json || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  })();
+
+  const label = hasLabel ? (sanitizeSegment(body?.label || '') || '') : String(existing.label || '');
+  const tags = hasTags ? splitTags(body?.tags || '') : parsedExistingTags;
+
+  const visibilityEnabled = await ensureGalleryVisibilityColumn(env);
+  let hideFromPublic = false;
+  if (visibilityEnabled) {
+    if (hasVisibility) {
+      hideFromPublic = body.hideFromPublic === true || Number(body.hideFromPublic) === 1;
+    } else {
+      const visibilityRow = await env.DB.prepare('SELECT COALESCE(is_hidden, 0) AS is_hidden FROM gallery_items WHERE id=? LIMIT 1')
+        .bind(String(id))
+        .first();
+      hideFromPublic = Number(visibilityRow?.is_hidden || 0) !== 0;
+    }
+  }
+
+  if (visibilityEnabled) {
+    await env.DB.prepare(
+      `UPDATE gallery_items SET label=?, tags_json=?, is_hidden=? WHERE id=?`
+    ).bind(label, JSON.stringify(tags), hideFromPublic ? 1 : 0, String(id)).run();
+  } else {
+    await env.DB.prepare(
+      `UPDATE gallery_items SET label=?, tags_json=? WHERE id=?`
+    ).bind(label, JSON.stringify(tags), String(id)).run();
+  }
 
   return json({
     ok: true,
@@ -1494,7 +1553,8 @@ async function handleGalleryUpdate(request, env, id) {
       thumb: existing.thumb_key ? `/cdn/gallery/${encodeURI(existing.thumb_key)}` : `/cdn/gallery/${encodeURI(existing.file_key)}`,
       originalName: existing.original_name,
       createdAt: existing.created_at,
-      position: existing.position
+      position: existing.position,
+      hideFromPublic: visibilityEnabled ? hideFromPublic : false
     }
   });
 }

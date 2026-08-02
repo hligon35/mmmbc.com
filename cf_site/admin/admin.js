@@ -3332,9 +3332,45 @@ function renderPhotoGrid(items) {
     const meta = document.createElement('div');
     meta.className = 'thumb__meta';
 
+    const labelRow = document.createElement('div');
+    labelRow.className = 'thumb__labelRow';
+
     const label = document.createElement('div');
     label.className = 'thumb__label';
     label.textContent = item.label || item.album || 'Photo';
+
+    const visibilityToggle = document.createElement('label');
+    visibilityToggle.className = 'thumb__visibilityToggle';
+    const visibilityCheck = document.createElement('input');
+    visibilityCheck.className = 'thumb__visibilityCheck';
+    visibilityCheck.type = 'checkbox';
+    visibilityCheck.checked = item.hideFromPublic === true;
+    visibilityCheck.setAttribute('aria-label', 'Hide From Public Gallery');
+    const visibilityText = document.createElement('span');
+    visibilityText.textContent = 'Hide';
+    visibilityToggle.appendChild(visibilityCheck);
+    visibilityToggle.appendChild(visibilityText);
+
+    visibilityCheck.addEventListener('change', async () => {
+      const nextValue = visibilityCheck.checked;
+      visibilityCheck.disabled = true;
+      try {
+        const result = await api(`/api/gallery/${item.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ hideFromPublic: nextValue })
+        });
+        item.hideFromPublic = result?.item?.hideFromPublic === true ? true : nextValue;
+        showToast(nextValue ? 'Photo hidden from live gallery.' : 'Photo shown on live gallery.', { variant: 'success' });
+      } catch (err) {
+        visibilityCheck.checked = !nextValue;
+        showToast(err instanceof Error ? err.message : 'Unable to update gallery visibility.', { variant: 'danger' });
+      } finally {
+        visibilityCheck.disabled = false;
+      }
+    });
+
+    labelRow.appendChild(label);
+    labelRow.appendChild(visibilityToggle);
 
     const small = document.createElement('div');
     small.className = 'thumb__small';
@@ -3375,43 +3411,6 @@ function renderPhotoGrid(items) {
     });
     actions.appendChild(edit);
 
-    if (isManualMode()) {
-      const up = document.createElement('button');
-      up.className = 'btn';
-      up.type = 'button';
-      up.textContent = 'Up';
-
-      const down = document.createElement('button');
-      down.className = 'btn';
-      down.type = 'button';
-      down.textContent = 'Down';
-
-      up.addEventListener('click', async () => {
-        const album = String(photoArrangeAlbum || '').trim();
-        if (!album) return;
-        const ordered = items.map((x) => String(x.id));
-        const idx = ordered.indexOf(String(item.id));
-        if (idx <= 0) return;
-        [ordered[idx - 1], ordered[idx]] = [ordered[idx], ordered[idx - 1]];
-        await saveManualOrder(album, ordered);
-        applyPhotoFilters();
-      });
-
-      down.addEventListener('click', async () => {
-        const album = String(photoArrangeAlbum || '').trim();
-        if (!album) return;
-        const ordered = items.map((x) => String(x.id));
-        const idx = ordered.indexOf(String(item.id));
-        if (idx === -1 || idx >= ordered.length - 1) return;
-        [ordered[idx + 1], ordered[idx]] = [ordered[idx], ordered[idx + 1]];
-        await saveManualOrder(album, ordered);
-        applyPhotoFilters();
-      });
-
-      actions.appendChild(up);
-      actions.appendChild(down);
-    }
-
     const del = document.createElement('button');
     del.className = 'btn btn--danger';
     del.type = 'button';
@@ -3429,7 +3428,7 @@ function renderPhotoGrid(items) {
 
     actions.appendChild(del);
 
-    meta.appendChild(label);
+    meta.appendChild(labelRow);
     meta.appendChild(small);
     meta.appendChild(tags);
     meta.appendChild(actions);

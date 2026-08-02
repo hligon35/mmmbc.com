@@ -1024,6 +1024,10 @@
                     <option value="all">All</option>
                     <option value="member">Member</option>
                     <option value="visitor">Visitor</option>
+                    <option value="one_time_donor">One-Time Donor</option>
+                    <option value="repeat_donor">Repeat Donor</option>
+                    <option value="sponsor">Sponsor</option>
+                    <option value="volunteer">Volunteer</option>
                     <option value="staff">Staff</option>
                     <option value="ministry_leader">Ministry Leader</option>
                     <option value="other">Other</option>
@@ -1079,6 +1083,10 @@
                 <option value="all">All</option>
                 <option value="member">Member</option>
                 <option value="visitor">Visitor</option>
+                <option value="one_time_donor">One-Time Donor</option>
+                <option value="repeat_donor">Repeat Donor</option>
+                <option value="sponsor">Sponsor</option>
+                <option value="volunteer">Volunteer</option>
                 <option value="staff">Staff</option>
                 <option value="ministry_leader">Ministry Leader</option>
                 <option value="other">Other</option>
@@ -1322,6 +1330,10 @@
                   <select class="select" id="directoryContactType" required>
                     <option value="member">Member</option>
                     <option value="visitor">Visitor</option>
+                    <option value="one_time_donor">One-Time Donor</option>
+                    <option value="repeat_donor">Repeat Donor</option>
+                    <option value="sponsor">Sponsor</option>
+                    <option value="volunteer">Volunteer</option>
                     <option value="staff">Staff</option>
                     <option value="ministry_leader">Ministry Leader</option>
                     <option value="other">Other</option>
@@ -1665,51 +1677,54 @@
 
       <!-- Support -->
       <section class="tabPanel" role="tabpanel" id="tab-support" aria-labelledby="tabBtn-support" hidden data-header-crumb="Help &amp; Support" data-header-description="Send a support request if you need help with the website manager.">
-        <div class="card supportFormShell">
-          <p class="muted">Send a message to <strong>support@alphazonelabs.com</strong>.</p>
+        <div class="supportTopRow">
+          <div class="card supportFormShell">
+            <p class="muted">Send a message to <strong>support@alphazonelabs.com</strong>.</p>
 
-          <form id="supportForm" class="form">
-            <label class="label">
-              Subject line
-              <input class="input" name="subject" type="text" maxlength="140" placeholder="What do you need help with?" required />
-            </label>
-            <label class="label">
-              Message
-              <textarea class="textarea" name="message" rows="6" maxlength="5000" placeholder="Share the details and any error message you see…" required></textarea>
-            </label>
-            <label class="label">
-              Your email address (optional)
-              <input class="input" name="replyTo" type="email" maxlength="254" placeholder="you@example.com" />
-            </label>
-            <button class="btn btn--primary" type="submit">Send Message</button>
-            <div class="hint" id="supportHint" aria-live="polite"></div>
-            <div class="error" id="supportError" role="alert" hidden></div>
-          </form>
-        </div>
+            <form id="supportForm" class="form">
+              <label class="label">
+                Subject line
+                <input class="input" name="subject" type="text" maxlength="140" placeholder="What do you need help with?" required />
+              </label>
+              <label class="label">
+                Message
+                <textarea class="textarea" name="message" rows="6" maxlength="5000" placeholder="Share the details and any error message you see…" required></textarea>
+              </label>
+              <label class="label">
+                Your email address (optional)
+                <input class="input" name="replyTo" type="email" maxlength="254" placeholder="you@example.com" />
+              </label>
+              <button class="btn btn--primary" type="submit">Send Message</button>
+              <div class="hint" id="supportHint" aria-live="polite"></div>
+              <div class="error" id="supportError" role="alert" hidden></div>
+            </form>
+          </div>
 
-        <div class="card card--spacedTop" id="appearanceCard">
-          <h3 class="card__subtitle">Appearance</h3>
-          <p class="muted">Choose the look that is easiest for you to read.</p>
-          <label class="label">
-            Appearance setting
-            <select class="select" id="appearanceSelect">
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-              <option value="system">Use Device Setting</option>
-            </select>
-          </label>
-          <div class="hint" id="appearanceHint" aria-live="polite"></div>
-        </div>
+          <section class="card" id="adminStorageHealthCard" hidden aria-labelledby="adminStorageHealthTitle">
+            <h3 class="card__subtitle" id="adminStorageHealthTitle">Admin Diagnostics</h3>
+            <p class="muted">Shows current storage mode and backend availability for production troubleshooting.</p>
+            <div class="hint" id="adminStorageHealthSummary" aria-live="polite">Checking storage health…</div>
+            <div class="hint" id="adminStorageHealthDetails"></div>
+            <div class="toolbar">
+              <button class="btn" id="adminStorageHealthRefreshBtn" type="button">Refresh Diagnostics</button>
+            </div>
+          </section>
 
-        <div class="card card--spacedTop" id="adminStorageHealthCard" hidden>
-          <h3 class="card__subtitle">Admin Diagnostics</h3>
-          <p class="muted">Shows current storage mode and backend availability for production troubleshooting.</p>
-          <div class="hint" id="adminStorageHealthSummary" aria-live="polite">Checking storage health…</div>
-          <div class="hint" id="adminStorageHealthDetails"></div>
-          <div class="toolbar">
-            <button class="btn" id="adminStorageHealthRefreshBtn" type="button">Refresh Diagnostics</button>
+          <div class="card" id="appearanceCard">
+            <h3 class="card__subtitle">Appearance</h3>
+            <p class="muted">Choose the look that is easiest for you to read.</p>
+            <label class="label">
+              Appearance setting
+              <select class="select" id="appearanceSelect">
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="system">Use Device Setting</option>
+              </select>
+            </label>
+            <div class="hint" id="appearanceHint" aria-live="polite"></div>
           </div>
         </div>
+
       </section>
 
 

@@ -33,8 +33,15 @@
 </button>
 </nav>
 <main>
-<section class="content-section"><h1 data-cms-field="page.title" data-cms-type="text">Facility Rental</h1>
-<p class="facility-availability-badge" data-cms-field="availability" data-cms-type="select" data-cms-options='{"open":"Open for booking","limited":"Limited availability","closed":"Not currently available"}'>Open for booking</p>
+<section class="content-section facility-rental-page"><div class="facility-heading-row">
+<h1 data-cms-field="page.title" data-cms-type="text">Facility Rental</h1>
+<label class="facility-booking-picker" for="facilityBookingSelect">
+<span class="sr-only">Select a reservation form to open</span>
+<select id="facilityBookingSelect" aria-label="Open reservation form">
+<option value="">Open for booking...</option>
+</select>
+</label>
+</div>
 
 <div class="rental-gallery" aria-label="Facility rental photo gallery">
 <div class="rental-gallery__hero" aria-label="Featured facility photos">
@@ -107,6 +114,33 @@
 </footer>
 <script src="../script.js?v=20260730d"></script>
 <script src="../site-content-loader.js" defer data-cms-page="facility_rental"></script>
+<script>
+(function () {
+	var select = document.getElementById('facilityBookingSelect');
+	var nav = document.querySelector('.content-subnav');
+	if (!(select instanceof HTMLSelectElement) || !nav) return;
+
+	var links = Array.from(nav.querySelectorAll('a[href]')).filter(function (link) {
+		var text = String(link.textContent || '').toLowerCase();
+		return text.includes('reservation form');
+	});
+
+	links.forEach(function (link) {
+		var href = String(link.getAttribute('href') || '').trim();
+		if (!href) return;
+		var option = document.createElement('option');
+		option.value = href;
+		option.textContent = String(link.textContent || '').trim();
+		select.appendChild(option);
+	});
+
+	select.addEventListener('change', function () {
+		var value = String(select.value || '').trim();
+		if (!value) return;
+		window.location.href = value;
+	});
+})();
+</script>
 </body>
 </html>
 

@@ -1440,24 +1440,33 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 
 .thumb__img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;}
 .thumb__meta{padding:10px;display:grid;gap:6px;}
+.thumb__labelRow{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
 .thumb__label{font-size:1.1rem;font-weight:900;}
 .thumb__small{color:var(--muted);font-weight:800;font-size:.95rem;word-break:break-word;}
+.thumb__visibilityToggle{display:inline-flex;align-items:center;gap:6px;margin-left:auto;font-size:.84rem;font-weight:800;white-space:nowrap;}
+.thumb__visibilityCheck{width:18px;height:18px;accent-color:var(--accent);}
 
 .photoBulkBar{
   display:flex;
-  flex-wrap:wrap;
+  flex-direction:column;
   gap:10px;
-  align-items:center;
-  position:sticky;
-  top: var(--photo-bulk-top, 0px);
-  z-index:6;
-  background:rgba(15,15,15,.92);
+  align-items:stretch;
+  position:fixed;
+  left:16px;
+  bottom:16px;
+  z-index:260;
+  width:min(320px, calc(100vw - 32px));
+  background:rgba(15,15,15,.95);
   border:1px solid var(--border);
   border-radius:14px;
-  padding:8px;
+  padding:12px;
+  box-shadow:0 12px 24px rgba(0,0,0,.28);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
+
+.photoBulkBar .btn{width:100%;}
+.photoBulkBar .muted{font-size:.92rem;text-align:center;}
 
 .photoBulkBar--nav{
   width:100%;
@@ -1587,6 +1596,7 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 .printMuted{color:rgba(0,0,0,.75);}
 
 @media print{
+  @page{margin:0.5in;}
   :root{--bg:#fff;--panel:#fff;--text:#000;--muted:#000;--border:#000;}
   body{background:#fff;color:#000;}
   .header,.sideNav,.noPrint{display:none !important;}
@@ -1594,6 +1604,11 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
   #financeTopBar{display:none !important;}
   .app{max-width:none;margin:0;padding:0;}
   .card{border:none;background:transparent;padding:0;}
+  .dialog{display:none !important;}
+  .list--scroll5,.list--scrollEvents{max-height:none !important;overflow:visible !important;}
+  #adminPrintBody{overflow:visible !important;}
+  #adminPrintBody img,#adminPrintBody svg{max-width:100% !important;height:auto !important;}
+  .receipt,.printTable,.printTable tr,.printTable td,.printTable th{break-inside:avoid-page;page-break-inside:avoid;}
   .tableWrap{border:none;border-radius:0;overflow:visible;background:transparent;}
   .financeTable{min-width:0;}
   .financeTable thead th{position:static;background:transparent;color:#000;border:1px solid #000;}
@@ -2174,6 +2189,50 @@ body.navDrawerCollapsed .sideNav{
   margin-top:0;
 }
 
+.supportTopRow{
+  display:grid;
+  grid-template-columns:minmax(220px, 300px) minmax(520px, 720px) minmax(220px, 300px);
+  gap:14px;
+  align-items:start;
+  justify-content:space-between;
+}
+
+.supportTopRow .card{
+  margin-top:0;
+}
+
+.supportTopRow .supportFormShell{
+  margin:0;
+  width:100%;
+  max-width:720px;
+  justify-self:center;
+}
+
+.supportTopRow #adminStorageHealthCard{
+  grid-column:1;
+  width:100%;
+  max-width:300px;
+  justify-self:start;
+}
+.supportTopRow .supportFormShell{grid-column:2;}
+.supportTopRow #appearanceCard{
+  grid-column:3;
+  width:100%;
+  max-width:300px;
+  justify-self:end;
+}
+
+@media (max-width:900px){
+  .supportTopRow{grid-template-columns:1fr;}
+  .supportTopRow #adminStorageHealthCard,
+  .supportTopRow .supportFormShell,
+  .supportTopRow #appearanceCard{
+    grid-column:auto;
+    max-width:none;
+    justify-self:stretch;
+  }
+}
+
 
 .homeTaskGrid{
   display:grid;
@@ -2597,10 +2656,10 @@ body.navDrawerCollapsed .sideNav{display:flex;}
 }
 
 #tab-photos .photoBulkBar{
-  position:static;
-  top:auto;
-  margin-top:2px;
-  justify-content:flex-end;
+  left:16px;
+  bottom:16px;
+  margin:0;
+  justify-content:flex-start;
 }
 
 #tab-photos .photoBulkBar[hidden]{
@@ -2638,6 +2697,14 @@ body.navDrawerCollapsed .sideNav{display:flex;}
   .photoHeaderUploadRow{
     flex-direction:column;
     align-items:stretch;
+  }
+
+  .photoBulkBar,
+  #tab-photos .photoBulkBar{
+    left:12px;
+    right:12px;
+    bottom:12px;
+    width:auto;
   }
 }
 
