@@ -54,23 +54,71 @@
         </label>
         <label class="label">Envelope size
           <select id="envelopeDesignerSize" class="select">
-            <option value="a2">A2 · 4.375 × 5.75 in</option>
-            <option value="a7">A7 · 5.25 × 7.25 in</option>
-            <option value="a9">A9 · 5.75 × 8.75 in</option>
-            <option value="10">#10 · 4.125 × 9.5 in</option>
+            <option value="standard">Standard / Pew / Bill · 3-1/8" × 6-1/4"</option>
+            <option value="6_25">#6-1/4 · 3-1/2" × 6"</option>
+            <option value="6_75">#6-3/4 · 3-5/8" × 6-1/2"</option>
+            <option value="no3">Small / No. 3 Tither · 4-1/4" × 2-1/2"</option>
+            <option value="no3_slim">Small / No. 3 Tither (Slim) · 4-1/4" × 2-1/8"</option>
+            <option value="9">#9 Offering · 3-7/8" × 8-7/8"</option>
           </select>
         </label>
-        <label class="label">Church heading
-          <input id="envelopeDesignerHeading" class="input" value="Mt. Moriah Missionary Baptist Church" />
+        <p class="help fullSpan">Only envelope labels are editable in this designer. Church details, scripture, and the thank-you message stay fixed here.</p>
+        <label class="label">Date label
+          <input id="envelopeDesignerDateLabel" class="input" value="Date:" />
         </label>
-        <label class="label fullSpan">Giving message
-          <textarea id="envelopeDesignerMessage" class="textarea" rows="3">Thank you for your faithful giving. Please complete the lines below.</textarea>
+        <label class="label">Name label
+          <input id="envelopeDesignerNameLabel" class="input" value="Name:" />
+        </label>
+        <label class="label">Account label
+          <input id="envelopeDesignerAccountLabel" class="input" value="Acct #:" />
+        </label>
+        <label class="label">Envelope label
+          <input id="envelopeDesignerEnvelopeLabel" class="input" value="Env #:" />
+        </label>
+        <label class="label">Amount label
+          <input id="envelopeDesignerAmountLabel" class="input" value="Amount:" />
+        </label>
+        <label class="label">Check label
+          <input id="envelopeDesignerCheckLabel" class="input" value="Check" />
+        </label>
+        <label class="label">Cash label
+          <input id="envelopeDesignerCashLabel" class="input" value="Cash" />
+        </label>
+        <label class="label">Row 1 Col 1 label
+          <input id="envelopeDesignerGridR1C1" class="input" value="Tithe" />
+        </label>
+        <label class="label">Row 1 Col 2 label
+          <input id="envelopeDesignerGridR1C2" class="input" value="Annual Day" />
+        </label>
+        <label class="label">Row 1 Col 3 label
+          <input id="envelopeDesignerGridR1C3" class="input" value="Discipleship Training" />
+        </label>
+        <label class="label">Row 1 Col 4 label
+          <input id="envelopeDesignerGridR1C4" class="input" value="Missionary" />
+        </label>
+        <label class="label">Row 1 Col 5 label
+          <input id="envelopeDesignerGridR1C5" class="input" value="Pastor Anniversary" />
+        </label>
+        <label class="label">Row 2 Col 1 label
+          <input id="envelopeDesignerGridR2C1" class="input" value="Offering" />
+        </label>
+        <label class="label">Row 2 Col 2 label
+          <input id="envelopeDesignerGridR2C2" class="input" value="Benevolent" />
+        </label>
+        <label class="label">Row 2 Col 3 label
+          <input id="envelopeDesignerGridR2C3" class="input" value="Building Fund" />
+        </label>
+        <label class="label">Row 2 Col 4 label
+          <input id="envelopeDesignerGridR2C4" class="input" value="Youth" />
+        </label>
+        <label class="label">Row 2 Col 5 label
+          <input id="envelopeDesignerGridR2C5" class="input" value="Other" />
         </label>
         <label class="label">Background image
           <input id="envelopeDesignerBackground" class="input" type="file" accept="image/png,image/jpeg,image/webp" />
         </label>
         <label class="label">Background opacity
-          <input id="envelopeDesignerOpacity" class="input" type="range" min="0" max="100" value="24" />
+          <input id="envelopeDesignerOpacity" class="input" type="range" min="0" max="100" value="15" />
         </label>
       </form>
     </section>
@@ -81,6 +129,6 @@
     </section>
     <p id="pageError" class="error"></p>
   </main>
-  <script src="/admin/finance_envelope_designer.js"></script>
+  <script type="module" src="/admin/finance_envelope_designer.js"></script>
 </body>
 </html>

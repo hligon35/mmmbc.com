@@ -1,0 +1,46 @@
+{
+  "accounts": [
+    {
+      "id": "acct_checking_main",
+      "name": "Main Checking",
+      "accountType": "checking",
+      "last4": "",
+      "openingBalanceCents": 0,
+      "active": true,
+      "reconciliationEnabled": true,
+      "currentSystemBalanceCents": 0,
+      "lastReconciledDate": "",
+      "lastReconciledBalanceCents": 0,
+      "createdAt": "2026-08-02T19:55:59.264Z",
+      "updatedAt": "2026-08-02T19:55:59.268Z"
+    },
+    {
+      "id": "acct_undeposited_funds",
+      "name": "Undeposited Funds",
+      "accountType": "undeposited_funds",
+      "last4": "",
+      "openingBalanceCents": 0,
+      "active": true,
+      "reconciliationEnabled": false,
+      "currentSystemBalanceCents": 0,
+      "lastReconciledDate": "",
+      "lastReconciledBalanceCents": 0,
+      "createdAt": "2026-08-02T19:55:59.264Z",
+      "updatedAt": "2026-08-02T19:55:59.271Z"
+    },
+    {
+      "id": "acct_stripe_clearing",
+      "name": "Stripe Clearing",
+      "accountType": "stripe_clearing",
+      "last4": "",
+      "openingBalanceCents": 0,
+      "active": true,
+      "reconciliationEnabled": true,
+      "currentSystemBalanceCents": 0,
+      "lastReconciledDate": "",
+      "lastReconciledBalanceCents": 0,
+      "createdAt": "2026-08-02T19:55:59.264Z",
+      "updatedAt": "2026-08-02T19:55:59.271Z"
+    }
+  ]
+}

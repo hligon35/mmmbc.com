@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build:cf": "node ./scripts/build_cf_site.mjs",
-    "test": "node --test src/site-editor.test.mjs src/finance-envelope-reconciliation.test.mjs src/worker-directory.test.mjs",
+    "test": "node --test src/site-editor.test.mjs src/finance-envelope-reconciliation.test.mjs src/worker-directory.test.mjs src/finance-envelope-designer-layout.test.mjs",
     "verify:integrations": "node ./scripts/verify_integrations.mjs",
     "deploy": "npm run build:cf && npx wrangler deploy --env production"
   },
