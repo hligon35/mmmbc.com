@@ -3175,16 +3175,29 @@ function withPrefix(prefix, pathWithLeadingSlash) {
   return `${prefix}${p}`;
 }
 
+function resolveWorkerOrigin() {
+  const explicit = String(process.env.WORKER_ORIGIN || '').trim();
+  if (explicit) return explicit.replace(/\/$/, '');
+
+  const publicSiteUrl = String(process.env.PUBLIC_SITE_URL || '').trim();
+  if (publicSiteUrl) return publicSiteUrl.replace(/\/$/, '');
+
+  const canonicalHost = String(process.env.CANONICAL_HOST || '').trim();
+  if (canonicalHost) return `https://${canonicalHost}`.replace(/\/$/, '');
+
+  return '';
+}
+
 const galleryUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024, files: 20 }
 });
 
 function proxyToWorker(req, res) {
-  const base = String(process.env.WORKER_ORIGIN || '').trim().replace(/\/$/, '');
+  const base = resolveWorkerOrigin();
   if (!base) {
     return res.status(501).json({
-      error: 'This endpoint is provided by the Cloudflare Worker. Set WORKER_ORIGIN to your Worker URL (and optionally CF_ACCESS_CLIENT_ID/CF_ACCESS_CLIENT_SECRET for Access-protected Workers).'
+      error: 'This endpoint is provided by the Cloudflare Worker. Set WORKER_ORIGIN (or PUBLIC_SITE_URL / CANONICAL_HOST) to your Worker URL and optionally CF_ACCESS_CLIENT_ID/CF_ACCESS_CLIENT_SECRET for Access-protected Workers.'
     });
   }
 
@@ -3237,11 +3250,11 @@ function proxyToWorker(req, res) {
 }
 
 function proxyToWorkerStream(req, res, { forceAccept } = {}) {
-  const base = String(process.env.WORKER_ORIGIN || '').trim().replace(/\/$/, '');
+  const base = resolveWorkerOrigin();
   if (!base) {
     res.status(501);
     res.setHeader('content-type', 'text/plain; charset=utf-8');
-    res.end('This endpoint is provided by the Cloudflare Worker. Set WORKER_ORIGIN to your Worker URL.');
+    res.end('This endpoint is provided by the Cloudflare Worker. Set WORKER_ORIGIN (or PUBLIC_SITE_URL / CANONICAL_HOST) to your Worker URL.');
     return;
   }
 
@@ -3317,6 +3330,10 @@ function proxyToWorkerStream(req, res, { forceAccept } = {}) {
 app.get('/api/gallery/r2tree', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => proxyToWorker(req, res));
 app.delete('/api/gallery/r2object', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => proxyToWorker(req, res));
 app.post('/api/gallery/sync', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => proxyToWorker(req, res));
+
+// Worker-backed directory APIs. The local admin shell uses these endpoints
+// for contacts, subscribers, groups, and overview metrics.
+app.use('/api/directory', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), (req, res) => proxyToWorker(req, res));
 
 // Worker-backed CDN gallery objects (for previewing /cdn/gallery/* when running locally)
 app.use('/cdn/gallery', (req, res) => proxyToWorkerStream(req, res));

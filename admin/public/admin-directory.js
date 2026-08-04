@@ -102,6 +102,47 @@
     return value;
   }
 
+  function promptPageNumber(label, currentPage, totalPages) {
+    const total = Math.max(1, Number(totalPages || 1));
+    if (total <= 1) return null;
+    const raw = promptText(`Go to ${label} page (1-${total}):`, String(currentPage || 1));
+    if (raw === null) return null;
+
+    const next = Number.parseInt(String(raw || '').trim(), 10);
+    if (!Number.isInteger(next) || next < 1 || next > total) {
+      toast(`Enter a valid page number from 1 to ${total}.`, 'danger');
+      return null;
+    }
+    return next;
+  }
+
+  function bindPageInfoJump(id, label, getCurrentPage, getTotalPages, onJump) {
+    const el = $(id);
+    if (!(el instanceof HTMLElement) || el.dataset.pageJumpBound === '1') return;
+
+    el.dataset.pageJumpBound = '1';
+    el.classList.add('pageJumpInfo');
+    el.setAttribute('role', 'button');
+    el.tabIndex = 0;
+
+    const trigger = () => {
+      if (el.getAttribute('aria-disabled') === 'true') return;
+      const currentPage = Number(getCurrentPage());
+      const totalPages = Number(getTotalPages());
+      const next = promptPageNumber(label, currentPage, totalPages);
+      if (!next || next === currentPage) return;
+      onJump(next);
+    };
+
+    el.addEventListener('click', trigger);
+    el.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        trigger();
+      }
+    });
+  }
+
   function csvEscape(value) {
     const raw = String(value == null ? '' : value);
     if (!/[",\n\r]/.test(raw)) return raw;
@@ -177,6 +218,24 @@
 
   function normalizeHeaderKey(value) {
     return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  function actionIconSvg(kind) {
+    const type = String(kind || '').trim().toLowerCase();
+    if (type === 'edit') {
+      return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20h4l10-10-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M13 7l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+    }
+    if (type === 'delete') {
+      return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 7h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M9 7V5h6v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8 7l1 12h6l1-12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+    }
+    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+  }
+
+  function actionIconButtonHtml(kind, label, attrs = '', { danger = false } = {}) {
+    const safeLabel = escapeHtml(String(label || kind || 'Action').trim() || 'Action');
+    const safeAttrs = String(attrs || '');
+    const dangerClass = danger ? ' btn--danger' : '';
+    return `<button class="btn btn--sm actionIconBtn${dangerClass}" type="button" aria-label="${safeLabel}" title="${safeLabel}" ${safeAttrs}><span class="srOnly">${safeLabel}</span>${actionIconSvg(kind)}</button>`;
   }
 
   async function api(path, options) {
@@ -929,9 +988,9 @@
           <td>${escapeHtml(formatDateTime(item.updatedAt))}</td>
           <td>
             <div class="directoryActionGroup">
-              <button class="btn btn--sm" type="button" data-contact-view="${escapeHtml(item.id)}">View</button>
-              <button class="btn btn--sm" type="button" data-contact-edit="${escapeHtml(item.id)}">Edit</button>
-              <button class="btn btn--sm btn--danger" type="button" data-contact-archive="${escapeHtml(item.id)}">Archive</button>
+              ${actionIconButtonHtml('view', 'View contact', `data-contact-view="${escapeHtml(item.id)}"`)}
+              ${actionIconButtonHtml('edit', 'Edit contact', `data-contact-edit="${escapeHtml(item.id)}"`)}
+              ${actionIconButtonHtml('delete', 'Archive contact', `data-contact-archive="${escapeHtml(item.id)}"`, { danger: true })}
             </div>
           </td>
         </tr>
@@ -958,9 +1017,9 @@
             <span>${statusChip(item.newsletterStatus || 'not_subscribed')} ${statusChip(item.status)}</span>
           </div>
           <div class="directoryActionGroup">
-            <button class="btn btn--sm" type="button" data-contact-view="${escapeHtml(item.id)}">View</button>
-            <button class="btn btn--sm" type="button" data-contact-edit="${escapeHtml(item.id)}">Edit</button>
-            <button class="btn btn--sm btn--danger" type="button" data-contact-archive="${escapeHtml(item.id)}">Archive</button>
+            ${actionIconButtonHtml('view', 'View contact', `data-contact-view="${escapeHtml(item.id)}"`)}
+            ${actionIconButtonHtml('edit', 'Edit contact', `data-contact-edit="${escapeHtml(item.id)}"`)}
+            ${actionIconButtonHtml('delete', 'Archive contact', `data-contact-archive="${escapeHtml(item.id)}"`, { danger: true })}
           </div>
         </article>
       `;
@@ -968,6 +1027,12 @@
 
     const pageInfo = `Page ${state.contacts.page} of ${Math.max(1, state.contacts.totalPages)}`;
     setText('directoryContactsPageInfo', pageInfo);
+    const contactsPageInfo = $('directoryContactsPageInfo');
+    if (contactsPageInfo) {
+      const canJump = state.contacts.totalPages > 1;
+      contactsPageInfo.setAttribute('aria-disabled', canJump ? 'false' : 'true');
+      contactsPageInfo.setAttribute('title', canJump ? `Jump to page (1-${Math.max(1, state.contacts.totalPages)})` : '');
+    }
     setText('directoryContactsResultCount', `${state.contacts.total} contact${state.contacts.total === 1 ? '' : 's'}`);
 
     const prevBtn = $('directoryContactsPrevBtn');
@@ -1005,7 +1070,7 @@
           <td>${escapeHtml(formatDateTime(item.lastEmailedAt))}</td>
           <td>
             <div class="directoryActionGroup">
-              <button class="btn btn--sm" type="button" data-subscriber-view="${escapeHtml(item.id)}">View</button>
+              ${actionIconButtonHtml('view', 'View subscriber', `data-subscriber-view="${escapeHtml(item.id)}"`)}
               <button class="btn btn--sm" type="button" data-subscriber-resend="${escapeHtml(item.id)}">Resend Confirmation</button>
               <button class="btn btn--sm" type="button" data-subscriber-unsubscribe="${escapeHtml(item.id)}">Unsubscribe</button>
               <button class="btn btn--sm" type="button" data-subscriber-add-list="${escapeHtml(item.id)}">Add to List</button>
@@ -1026,7 +1091,7 @@
           <p class="directoryMuted">Source: ${escapeHtml(maybeText(item.consentSource, 'Not set'))}</p>
           <p class="directoryMuted">Lists: ${escapeHtml(lists)}</p>
           <div class="directoryActionGroup">
-            <button class="btn btn--sm" type="button" data-subscriber-view="${escapeHtml(item.id)}">View</button>
+            ${actionIconButtonHtml('view', 'View subscriber', `data-subscriber-view="${escapeHtml(item.id)}"`)}
             <button class="btn btn--sm" type="button" data-subscriber-resend="${escapeHtml(item.id)}">Resend Confirmation</button>
             <button class="btn btn--sm" type="button" data-subscriber-unsubscribe="${escapeHtml(item.id)}">Unsubscribe</button>
             <button class="btn btn--sm" type="button" data-subscriber-add-list="${escapeHtml(item.id)}">Add to List</button>
@@ -1037,6 +1102,12 @@
     }).join('');
 
     setText('directorySubscribersPageInfo', `Page ${state.subscribers.page} of ${Math.max(1, state.subscribers.totalPages)}`);
+    const subscribersPageInfo = $('directorySubscribersPageInfo');
+    if (subscribersPageInfo) {
+      const canJump = state.subscribers.totalPages > 1;
+      subscribersPageInfo.setAttribute('aria-disabled', canJump ? 'false' : 'true');
+      subscribersPageInfo.setAttribute('title', canJump ? `Jump to page (1-${Math.max(1, state.subscribers.totalPages)})` : '');
+    }
     setText('directorySubscribersResultCount', `${state.subscribers.total} subscriber${state.subscribers.total === 1 ? '' : 's'}`);
 
     const prevBtn = $('directorySubscribersPrevBtn');
@@ -1065,7 +1136,7 @@
           </div>
           <div class="row__actions">
             ${statusChip(group.status || 'active')}
-            <button class="btn btn--sm" type="button" data-group-edit="${escapeHtml(group.id)}">Edit</button>
+            ${actionIconButtonHtml('edit', 'Edit group', `data-group-edit="${escapeHtml(group.id)}"`)}
           </div>
         </div>
       `;
@@ -1080,7 +1151,7 @@
           </div>
           <div class="row__actions">
             ${statusChip(list.status || 'active')}
-            <button class="btn btn--sm" type="button" data-list-edit="${escapeHtml(list.id)}">Edit</button>
+            ${actionIconButtonHtml('edit', 'Edit list', `data-list-edit="${escapeHtml(list.id)}"`)}
           </div>
         </div>
       `;
@@ -1708,6 +1779,17 @@
       });
     }
 
+    bindPageInfoJump(
+      'directoryContactsPageInfo',
+      'contacts',
+      () => state.contacts.page,
+      () => state.contacts.totalPages,
+      (nextPage) => {
+        state.contacts.page = nextPage;
+        loadContacts();
+      }
+    );
+
     const tableWrap = $('directoryContactsTableWrap');
     const cardWrap = $('directoryContactsCardList');
 
@@ -1798,6 +1880,17 @@
         loadSubscribers();
       });
     }
+
+    bindPageInfoJump(
+      'directorySubscribersPageInfo',
+      'subscriber',
+      () => state.subscribers.page,
+      () => state.subscribers.totalPages,
+      (nextPage) => {
+        state.subscribers.page = nextPage;
+        loadSubscribers();
+      }
+    );
 
     const table = $('directorySubscribersTableBody');
     const cards = $('directorySubscribersCardList');

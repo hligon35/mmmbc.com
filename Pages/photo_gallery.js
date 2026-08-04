@@ -89,6 +89,21 @@ document.addEventListener('DOMContentLoaded', () => {
       white-space: nowrap;
       text-align: center;
     }
+    .pagination .pageJumpInfo {
+      cursor: pointer;
+      text-decoration: underline dotted;
+      text-underline-offset: 2px;
+    }
+    .pagination .pageJumpInfo[aria-disabled="true"] {
+      cursor: default;
+      text-decoration: none;
+      opacity: .8;
+    }
+    .pagination .pageJumpInfo:focus-visible {
+      outline: 2px solid #c46123;
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
     .lightbox-content {
       width: min(96vw, 1600px) !important;
       height: auto !important;
@@ -189,10 +204,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updatePagers(totalPages) {
     const label = filteredItems.length ? `Page ${currentPage} of ${totalPages}` : 'Page 0 of 0';
-    [pageInfo, pageInfoTop].forEach((node) => { if (node) node.textContent = label; });
+    [pageInfo, pageInfoTop].forEach((node) => {
+      if (!node) return;
+      const canJump = filteredItems.length > 0 && totalPages > 1;
+      node.textContent = label;
+      node.setAttribute('aria-disabled', canJump ? 'false' : 'true');
+      node.setAttribute('title', canJump ? `Jump to page (1-${totalPages})` : '');
+    });
     [prevPage, prevPageTop].forEach((button) => { if (button) button.disabled = currentPage <= 1; });
     [nextPage, nextPageTop].forEach((button) => {
       if (button) button.disabled = currentPage >= totalPages || filteredItems.length === 0;
+    });
+  }
+
+  function promptJumpToPage() {
+    const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+    if (!filteredItems.length || totalPages <= 1) return;
+
+    const raw = window.prompt(`Go to gallery page (1-${totalPages}):`, String(currentPage));
+    if (raw === null) return;
+
+    const next = Number.parseInt(String(raw || '').trim(), 10);
+    if (!Number.isInteger(next) || next < 1 || next > totalPages) {
+      window.alert(`Enter a valid page number from 1 to ${totalPages}.`);
+      return;
+    }
+
+    if (next === currentPage) return;
+    currentPage = next;
+    render();
+    topPager.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function bindPageInfoJump(node) {
+    if (!(node instanceof HTMLElement) || node.dataset.pageJumpBound === '1') return;
+    node.dataset.pageJumpBound = '1';
+    node.classList.add('pageJumpInfo');
+    node.setAttribute('role', 'button');
+    node.tabIndex = 0;
+
+    const trigger = () => {
+      if (node.getAttribute('aria-disabled') === 'true') return;
+      promptJumpToPage();
+    };
+
+    node.addEventListener('click', trigger);
+    node.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        trigger();
+      }
     });
   }
 
@@ -314,6 +375,8 @@ document.addEventListener('DOMContentLoaded', () => {
   prevPageTop?.addEventListener('click', () => changePage(-1));
   nextPage?.addEventListener('click', () => changePage(1));
   nextPageTop?.addEventListener('click', () => changePage(1));
+  bindPageInfoJump(pageInfo);
+  bindPageInfoJump(pageInfoTop);
   closeBtn?.addEventListener('click', closeLightbox);
   prevLightbox?.addEventListener('click', () => moveLightbox(-1));
   nextLightbox?.addEventListener('click', () => moveLightbox(1));

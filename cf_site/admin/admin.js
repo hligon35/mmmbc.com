@@ -400,7 +400,130 @@ const IMAGE_UPLOAD_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'
 const BULLETIN_UPLOAD_MIME_TYPES = new Set(['application/pdf', ...IMAGE_UPLOAD_MIME_TYPES]);
 let adminDrawerOpen = false;
 let adminDrawerRestoreFocus = null;
+let adminHeaderNavCollapsed = false;
+let adminHeaderNavLayoutFrame = 0;
 const dialogFocusRestoreTargets = new WeakMap();
+
+function getHeaderNavRequirements() {
+  const header = $('adminHeader');
+  const logo = header?.querySelector('.adminHeader__logo');
+  const breadcrumbs = $('adminHeaderBreadcrumbs');
+  const navButtons = Array.from(document.querySelectorAll('#adminSideNav .tab--nav'));
+  const inviteBtn = $('inviteAdminBtn');
+  if (!header || !logo || !breadcrumbs || !navButtons.length) return 0;
+
+  const logoWidth = Math.ceil(logo.getBoundingClientRect().width || 0);
+  const breadcrumbsWidth = Math.ceil(breadcrumbs.scrollWidth || breadcrumbs.getBoundingClientRect().width || 0);
+  const inviteWidth = inviteBtn && !inviteBtn.hidden
+    ? Math.max(44, Math.ceil(inviteBtn.getBoundingClientRect().width || 0))
+    : 0;
+
+  // Mirror canonical desktop sizing: each nav tab has a 160px minimum plus 10px gaps.
+  const navWidth = (navButtons.length * 160) + (Math.max(0, navButtons.length - 1) * 10);
+
+  // Include gutters/account spacing so we collapse before any visual collision.
+  return logoWidth + breadcrumbsWidth + navWidth + inviteWidth + 120;
+}
+
+function renderDrawerToggleButton(btn, isOpen) {
+  if (!(btn instanceof HTMLElement)) return;
+  const label = isOpen ? 'Close menu' : 'Open menu';
+  btn.setAttribute('aria-label', label);
+  btn.innerHTML = [
+    '<span class="drawerToggleBars" aria-hidden="true"><span></span><span></span><span></span></span>',
+    `<span class="srOnly">${escapeHtml(label)}</span>`
+  ].join('');
+}
+
+function restoreInviteButtonSlot() {
+  const button = $('inviteAdminBtn');
+  const inviteSlot = $('adminHeaderInvite');
+  if (!button || !inviteSlot) return;
+  if (button.parentElement !== inviteSlot) inviteSlot.appendChild(button);
+}
+
+function syncHeaderActionOrder(collapsed) {
+  const header = $('adminHeader');
+  const account = header?.querySelector('.adminHeader__account');
+  const actions = header?.querySelector('.headerActions');
+  const authStatus = $('authStatus');
+  const drawerBtn = $('navDrawerToggle');
+  const inviteBtn = $('inviteAdminBtn');
+  const logoutBtn = $('logoutBtn');
+  if (!header || !(actions instanceof HTMLElement) || !(drawerBtn instanceof HTMLElement)) return;
+
+  const viewportWidth = Math.max(0, window.innerWidth || document.documentElement.clientWidth || 0);
+  const compactMobile = collapsed && viewportWidth <= 900;
+
+  header.classList.toggle('adminHeader--navCollapsed', !!collapsed);
+  actions.classList.toggle('headerActions--compactNav', !!collapsed);
+
+  if (!collapsed) {
+    if (logoutBtn instanceof HTMLElement && logoutBtn.parentElement !== actions) {
+      actions.appendChild(logoutBtn);
+    }
+    restoreInviteButtonSlot();
+    return;
+  }
+
+  if (compactMobile && logoutBtn instanceof HTMLElement && account instanceof HTMLElement) {
+    if (authStatus instanceof HTMLElement && authStatus.parentElement === account) {
+      authStatus.insertAdjacentElement('afterend', logoutBtn);
+    } else if (logoutBtn.parentElement !== account) {
+      account.appendChild(logoutBtn);
+    }
+  } else if (logoutBtn instanceof HTMLElement) {
+    if (logoutBtn.parentElement !== actions) {
+      actions.appendChild(logoutBtn);
+    }
+    actions.appendChild(logoutBtn);
+  }
+
+  if (inviteBtn instanceof HTMLElement && !inviteBtn.hidden) {
+    actions.appendChild(inviteBtn);
+  }
+
+  actions.appendChild(drawerBtn);
+}
+
+function syncHeaderNavLayout() {
+  const header = $('adminHeader');
+  if (!header || header.hidden) return;
+
+  const viewportWidth = Math.max(0, window.innerWidth || document.documentElement.clientWidth || 0);
+  const desktop = viewportWidth > 900;
+  let shouldCollapse = !desktop;
+
+  if (desktop) {
+    const required = getHeaderNavRequirements();
+    shouldCollapse = required > viewportWidth;
+  }
+
+  const changed = adminHeaderNavCollapsed !== shouldCollapse;
+  adminHeaderNavCollapsed = shouldCollapse;
+  document.body.classList.toggle('adminHeaderNavCollapsed', shouldCollapse);
+  syncHeaderActionOrder(shouldCollapse);
+
+  if (changed && !shouldCollapse && adminDrawerOpen) {
+    setAdminDrawerOpen(false, { restoreFocus: false });
+  }
+
+  if (changed && shouldCollapse && adminDrawerOpen) {
+    setAdminDrawerOpen(false, { restoreFocus: false });
+  }
+
+  updateLayoutMetrics();
+}
+
+function queueHeaderNavLayoutSync() {
+  if (adminHeaderNavLayoutFrame) {
+    window.cancelAnimationFrame(adminHeaderNavLayoutFrame);
+  }
+  adminHeaderNavLayoutFrame = window.requestAnimationFrame(() => {
+    adminHeaderNavLayoutFrame = 0;
+    syncHeaderNavLayout();
+  });
+}
 
 function updateHeaderBumper() {
   const header = document.querySelector?.('.header');
@@ -432,6 +555,7 @@ function setAuthenticatedHeaderVisible(isAuthenticated) {
     setAdminDrawerOpen(false, { restoreFocus: false });
   }
   updateLayoutMetrics();
+  if (isAuthenticated) queueHeaderNavLayoutSync();
 }
 
 function getStoredDrawerPreference() {
@@ -499,8 +623,7 @@ function setAdminDrawerOpen(isOpen, { restoreFocus = true } = {}) {
   backdrop.hidden = !next;
 
   btn.setAttribute('aria-expanded', next ? 'true' : 'false');
-  btn.setAttribute('aria-label', next ? 'Close Menu' : 'Open Menu');
-  btn.textContent = next ? 'Close Menu' : 'Open Menu';
+  renderDrawerToggleButton(btn, next);
 
   setStoredDrawerPreference(next);
 
@@ -1375,6 +1498,7 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
 
   syncHeaderBreadcrumbs();
   syncHeaderContextDescription();
+  queueHeaderNavLayoutSync();
 
   try {
     window.dispatchEvent(new CustomEvent('admin:section-activated', {
@@ -1484,6 +1608,7 @@ async function refreshAuthUI() {
 
   syncHeaderBreadcrumbs();
   syncHeaderContextDescription();
+  queueHeaderNavLayoutSync();
   updateLayoutMetrics();
 }
 
@@ -2586,14 +2711,14 @@ function financeRowActionButtons(e, { onToggle }) {
   const viewBtn = document.createElement('button');
   viewBtn.type = 'button';
   viewBtn.className = 'btn btn--sm';
-  viewBtn.textContent = 'View';
+  setActionIconButton(viewBtn, 'view', 'View details');
   viewBtn.setAttribute('aria-expanded', 'false');
   viewBtn.addEventListener('click', () => onToggle(viewBtn));
 
   const editBtn = document.createElement('button');
   editBtn.type = 'button';
   editBtn.className = 'btn btn--sm';
-  editBtn.textContent = 'Edit';
+  setActionIconButton(editBtn, 'edit', 'Edit entry');
   editBtn.addEventListener('click', () => financeStartEdit(e));
 
   const receiptBtn = document.createElement('button');
@@ -2742,7 +2867,8 @@ function renderFinances() {
         const expanded = !detailRow.hidden;
         detailRow.hidden = expanded;
         btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-        btn.textContent = expanded ? 'View' : 'Hide';
+        const label = expanded ? 'View details' : 'Hide details';
+        setActionIconButton(btn, 'view', label);
       };
       actionsTd.appendChild(financeRowActionButtons(e, { onToggle: toggleDetail }));
       tr.appendChild(actionsTd);
@@ -2799,7 +2925,8 @@ function renderFinances() {
         const expanded = !detailWrap.hidden;
         detailWrap.hidden = expanded;
         btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-        btn.textContent = expanded ? 'View' : 'Hide';
+        const label = expanded ? 'View details' : 'Hide details';
+        setActionIconButton(btn, 'view', label);
       };
       const actions = financeRowActionButtons(e, { onToggle: toggleDetail });
 
@@ -3118,8 +3245,14 @@ function photoUpdateBulkBar() {
 
   const editBtn = $('photoBulkEditBtn');
   const deleteBtn = $('photoBulkDeleteBtn');
-  if (editBtn) editBtn.textContent = n === 1 ? 'Edit 1 selected photo' : `Edit ${n} selected photos`;
-  if (deleteBtn) deleteBtn.textContent = n === 1 ? 'Delete 1 selected photo' : `Delete ${n} selected photos`;
+  if (editBtn) {
+    const label = n === 1 ? 'Edit 1 selected photo' : `Edit ${n} selected photos`;
+    setActionIconButton(editBtn, 'edit', label);
+  }
+  if (deleteBtn) {
+    const label = n === 1 ? 'Delete 1 selected photo' : `Delete ${n} selected photos`;
+    setActionIconButton(deleteBtn, 'delete', label);
+  }
 
   // (Fallback) Stick in-view while scrolling down, but never let it move
   // higher than where it first appeared.
@@ -3160,14 +3293,62 @@ function photoUpdatePager() {
   const text = total ? `Page ${photoCurrentPage} of ${totalPages} • ${total} photo(s)` : '';
 
   if (pagerTop) pagerTop.hidden = !showPager;
-  if (infoTop) infoTop.textContent = text;
+  if (infoTop) {
+    infoTop.textContent = text;
+    infoTop.setAttribute('aria-disabled', showPager ? 'false' : 'true');
+    infoTop.setAttribute('title', showPager ? `Jump to page (1-${totalPages})` : '');
+  }
   if (prevTop) prevTop.disabled = photoCurrentPage <= 1;
   if (nextTop) nextTop.disabled = photoCurrentPage >= totalPages;
 
   if (pagerBottom) pagerBottom.hidden = !showPager;
-  if (infoBottom) infoBottom.textContent = text;
+  if (infoBottom) {
+    infoBottom.textContent = text;
+    infoBottom.setAttribute('aria-disabled', showPager ? 'false' : 'true');
+    infoBottom.setAttribute('title', showPager ? `Jump to page (1-${totalPages})` : '');
+  }
   if (prevBottom) prevBottom.disabled = photoCurrentPage <= 1;
   if (nextBottom) nextBottom.disabled = photoCurrentPage >= totalPages;
+}
+
+function photoPromptJumpToPage() {
+  const pageSize = photoPageSize();
+  const totalPages = Math.max(1, Math.ceil(photoFilteredItems.length / pageSize));
+  if (totalPages <= 1) return;
+
+  const raw = window.prompt(`Go to photo page (1-${totalPages}):`, String(photoCurrentPage));
+  if (raw === null) return;
+
+  const next = Number.parseInt(String(raw || '').trim(), 10);
+  if (!Number.isInteger(next) || next < 1 || next > totalPages) {
+    showToast(`Enter a valid page number from 1 to ${totalPages}.`, { variant: 'danger' });
+    return;
+  }
+
+  photoCurrentPage = next;
+  applyPhotoFilters({ resetPage: false });
+}
+
+function bindPhotoPageJump(id) {
+  const el = $(id);
+  if (!(el instanceof HTMLElement) || el.dataset.pageJumpBound === '1') return;
+  el.dataset.pageJumpBound = '1';
+  el.classList.add('pageJumpInfo');
+  el.setAttribute('role', 'button');
+  el.tabIndex = 0;
+
+  const trigger = () => {
+    if (el.getAttribute('aria-disabled') === 'true') return;
+    photoPromptJumpToPage();
+  };
+
+  el.addEventListener('click', trigger);
+  el.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      trigger();
+    }
+  });
 }
 
 function toNumberOrNull(v) {
@@ -3386,7 +3567,7 @@ function renderPhotoGrid(items) {
     const view = document.createElement('button');
     view.className = 'btn';
     view.type = 'button';
-    view.textContent = 'View';
+    setActionIconButton(view, 'view', 'View photo');
     view.addEventListener('click', () => {
       openPhotoViewDialog(item);
     });
@@ -3395,7 +3576,7 @@ function renderPhotoGrid(items) {
     const edit = document.createElement('button');
     edit.className = 'btn';
     edit.type = 'button';
-    edit.textContent = 'Edit';
+    setActionIconButton(edit, 'edit', 'Edit photo');
     edit.addEventListener('click', async () => {
       const nextLabel = prompt('Name/Label', String(item.label || ''));
       if (nextLabel === null) return;
@@ -3414,7 +3595,7 @@ function renderPhotoGrid(items) {
     const del = document.createElement('button');
     del.className = 'btn btn--danger';
     del.type = 'button';
-    del.textContent = 'Delete';
+    setActionIconButton(del, 'delete', 'Delete photo');
     del.addEventListener('click', async () => {
       const labelText = String(item.label || item.originalName || 'this photo');
       const ok = confirmWrite(
@@ -3581,6 +3762,7 @@ function renderR2Tree(prefix, data) {
     openBtn.type = 'button';
     openBtn.className = 'btn';
     openBtn.textContent = 'Open';
+    setActionIconButton(openBtn, 'go', 'Open folder');
     openBtn.addEventListener('click', () => {
       loadR2Tree(f.prefix).catch((e) => setR2Status(e.message));
     });
@@ -3614,7 +3796,7 @@ function renderR2Tree(prefix, data) {
     const viewBtn = document.createElement('button');
     viewBtn.type = 'button';
     viewBtn.className = 'btn';
-    viewBtn.textContent = 'View';
+    setActionIconButton(viewBtn, 'view', 'View stored file');
     viewBtn.addEventListener('click', () => {
       const key = String(o.key || '');
       if (!key) return;
@@ -3624,7 +3806,7 @@ function renderR2Tree(prefix, data) {
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
     delBtn.className = 'btn';
-    delBtn.textContent = 'Delete';
+    setActionIconButton(delBtn, 'delete', 'Delete stored file');
     delBtn.addEventListener('click', async () => {
       const key = String(o.key || '');
       if (!key) return;
@@ -3814,6 +3996,75 @@ function renderPreviewRows(listId, rows, emptyText) {
   for (const row of safeRows) root.appendChild(buildPreviewRow(row));
 }
 
+function actionIconSvg(kind) {
+  const type = String(kind || '').trim().toLowerCase();
+  if (type === 'close') {
+    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>';
+  }
+  if (type === 'refresh' || type === 'sync') {
+    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M20 4v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+  }
+  if (type === 'prev' || type === 'left') {
+    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+  }
+  if (type === 'next' || type === 'right' || type === 'go') {
+    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+  }
+  if (type === 'up') {
+    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+  }
+  if (type === 'upload') {
+    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 16V4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M7 9l5-5 5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4 20h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>';
+  }
+  if (type === 'edit') {
+    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20h4l10-10-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M13 7l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+  }
+  if (type === 'delete') {
+    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 7h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M9 7V5h6v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8 7l1 12h6l1-12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+  }
+  if (type === 'print') {
+    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 9V4h10v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><rect x="4" y="9" width="16" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect><path d="M7 17h10v3H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+  }
+  return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+}
+
+function setActionIconButton(el, kind, label) {
+  if (!(el instanceof HTMLElement)) return;
+  const safeLabel = String(label || kind || 'Action').trim() || 'Action';
+  el.classList.add('actionIconBtn');
+  el.setAttribute('aria-label', safeLabel);
+  el.setAttribute('title', safeLabel);
+  el.innerHTML = `<span class="srOnly">${escapeHtml(safeLabel)}</span>${actionIconSvg(kind)}`;
+}
+
+function initPhotoActionIcons() {
+  const buttonIcons = [
+    ['photoHelpCloseBtn', 'close', 'Close photo upload instructions'],
+    ['photoViewCloseBtn', 'close', 'Close photo preview'],
+    ['photoPrevPageBtn', 'prev', 'Previous photo page'],
+    ['photoNextPageBtn', 'next', 'Next photo page'],
+    ['photoPrevPageBtnBottom', 'prev', 'Previous photo page'],
+    ['photoNextPageBtnBottom', 'next', 'Next photo page'],
+    ['exportBtn', 'refresh', 'Refresh website gallery'],
+    ['r2RefreshBtn', 'refresh', 'Refresh storage view'],
+    ['r2UpBtn', 'up', 'Go up one folder'],
+    ['r2SyncFolderBtn', 'sync', 'Refresh this folder from storage'],
+    ['r2GoBtn', 'go', 'Open folder path']
+  ];
+
+  for (const [id, kind, label] of buttonIcons) {
+    const el = $(id);
+    if (el) setActionIconButton(el, kind, label);
+  }
+
+  const addPhotosBtn = document.querySelector('#tab-photos button[form="photoUploadForm"]');
+  if (addPhotosBtn instanceof HTMLElement) {
+    setActionIconButton(addPhotosBtn, 'upload', 'Add photos');
+  }
+
+  photoUpdateBulkBar();
+}
+
 function getAnnouncementFormDraftPreview() {
   const form = $('announceForm');
   if (!(form instanceof HTMLFormElement)) return null;
@@ -3837,19 +4088,6 @@ function renderAnnouncementsPreview() {
   const rows = [];
   const draft = announcementPreviewDraft || getAnnouncementFormDraftPreview();
   if (draft) rows.push(draft);
-
-  for (const post of announcementPosts.slice(0, 2)) {
-    if (draft && draft.id && String(draft.id) === String(post?.id || '')) continue;
-    const created = post?.createdAt ? `Posted: ${formatDate(post.createdAt)}` : '';
-    const starts = post?.startsAt ? ` • Starts: ${formatDate(post.startsAt)}` : '';
-    const expires = post?.expiresAt ? ` • Expires: ${formatDate(post.expiresAt)}` : ' • Expires: Never';
-    rows.push({
-      id: post?.id,
-      title: post?.title || 'Announcement',
-      meta: `${created}${starts}${expires}`.trim(),
-      body: post?.body || ''
-    });
-  }
 
   renderPreviewRows('announcePreviewList', rows, 'No announcement preview yet.');
 }
@@ -3946,9 +4184,19 @@ function renderAnnouncements() {
       main.appendChild(endsLabel);
       main.appendChild(neverWrap);
     } else {
-      const t = document.createElement('div');
+      const details = document.createElement('details');
+      details.className = 'announceItem';
+
+      const summary = document.createElement('summary');
+      summary.className = 'announceItem__summary';
+      const t = document.createElement('span');
       t.className = 'row__title';
       t.textContent = post.title;
+      summary.appendChild(t);
+
+      const content = document.createElement('div');
+      content.className = 'announceItem__content';
+
       const meta = document.createElement('div');
       meta.className = 'row__meta';
       const created = post.createdAt ? `Posted: ${formatDate(post.createdAt)}` : '';
@@ -3960,9 +4208,11 @@ function renderAnnouncements() {
       body.className = 'row__meta';
       body.textContent = post.body;
 
-      main.appendChild(t);
-      main.appendChild(meta);
-      main.appendChild(body);
+      content.appendChild(meta);
+      content.appendChild(body);
+      details.appendChild(summary);
+      details.appendChild(content);
+      main.appendChild(details);
     }
 
     const actions = document.createElement('div');
@@ -4021,7 +4271,7 @@ function renderAnnouncements() {
       const edit = document.createElement('button');
       edit.className = 'btn';
       edit.type = 'button';
-      edit.textContent = 'Edit';
+      setActionIconButton(edit, 'edit', 'Edit announcement');
       edit.addEventListener('click', () => {
         announcementPreviewDraft = null;
         editingAnnouncementId = post.id;
@@ -4033,7 +4283,7 @@ function renderAnnouncements() {
     const del = document.createElement('button');
     del.className = 'btn';
     del.type = 'button';
-    del.textContent = 'Delete';
+    setActionIconButton(del, 'delete', 'Delete announcement');
     del.addEventListener('click', async () => {
       if (!confirmWrite('Delete this announcement?')) return;
       await api(`/api/announcements/${post.id}`, { method: 'DELETE' });
@@ -4640,15 +4890,6 @@ function renderEventsPreview() {
   const draft = eventPreviewDraft || getEventFormDraftPreview();
   if (draft) rows.push(draft);
 
-  for (const ev of events.slice(0, 2)) {
-    if (draft && draft.id && String(draft.id) === String(ev?.id || '')) continue;
-    rows.push({
-      id: ev?.id,
-      title: String(ev?.title || '').trim() || 'Event',
-      meta: `${String(ev?.date || '')}${ev?.time ? ` • ${formatEventTime12h(ev.time)}` : ''}`
-    });
-  }
-
   renderPreviewRows('eventPreviewList', rows, 'No event preview yet.');
 }
 
@@ -4706,15 +4947,26 @@ function renderEvents() {
       main.appendChild(dateLabel);
       main.appendChild(timeLabel);
     } else {
-      const t = document.createElement('div');
+      const details = document.createElement('details');
+      details.className = 'announceItem';
+
+      const summary = document.createElement('summary');
+      summary.className = 'announceItem__summary';
+      const t = document.createElement('span');
       t.className = 'row__title';
       t.textContent = ev.title;
+      summary.appendChild(t);
+
+      const content = document.createElement('div');
+      content.className = 'announceItem__content';
       const meta = document.createElement('div');
       meta.className = 'row__meta';
       meta.textContent = `${ev.date}${ev.time ? ` • ${ev.time}` : ''}`;
+      content.appendChild(meta);
 
-      main.appendChild(t);
-      main.appendChild(meta);
+      details.appendChild(summary);
+      details.appendChild(content);
+      main.appendChild(details);
     }
 
     const actions = document.createElement('div');
@@ -4758,7 +5010,7 @@ function renderEvents() {
       const edit = document.createElement('button');
       edit.className = 'btn';
       edit.type = 'button';
-      edit.textContent = 'Edit';
+      setActionIconButton(edit, 'edit', 'Edit event');
       edit.addEventListener('click', () => {
         eventPreviewDraft = null;
         editingEventId = ev.id;
@@ -4770,7 +5022,7 @@ function renderEvents() {
     const del = document.createElement('button');
     del.className = 'btn';
     del.type = 'button';
-    del.textContent = 'Delete';
+    setActionIconButton(del, 'delete', 'Delete event');
     del.addEventListener('click', async () => {
       if (!confirm('Delete this event?')) return;
       await api(`/api/events/${ev.id}`, { method: 'DELETE' });
@@ -4843,15 +5095,6 @@ function renderBulletinsPreview() {
   const draft = bulletinPreviewDraft || getBulletinFormDraftPreview();
   if (draft) rows.push(draft);
 
-  for (const b of bulletins.slice(0, 2)) {
-    if (draft && draft.id && String(draft.id) === String(b?.id || '')) continue;
-    rows.push({
-      id: b?.id,
-      title: `${String(b?.title || 'Bulletin')}${b?.originalName ? ` • ${String(b.originalName)}` : ''}`,
-      meta: `${isActiveBulletin(b) ? 'Active now' : 'Scheduled'} • ${formatPreviewDateTime(b?.startsAt)} → ${formatPreviewDateTime(b?.endsAt)}`
-    });
-  }
-
   renderPreviewRows('bulletinPreviewList', rows, 'No bulletin preview yet.');
 }
 
@@ -4916,16 +5159,27 @@ function renderBulletins() {
       main.appendChild(endsLabel);
       main.appendChild(fileMeta);
     } else {
-      const t = document.createElement('div');
+      const details = document.createElement('details');
+      details.className = 'announceItem';
+
+      const summary = document.createElement('summary');
+      summary.className = 'announceItem__summary';
+      const t = document.createElement('span');
       t.className = 'row__title';
       t.textContent = `${b.title || 'Bulletin'} • ${b.originalName || ''}`.trim();
+      summary.appendChild(t);
+
+      const content = document.createElement('div');
+      content.className = 'announceItem__content';
       const meta = document.createElement('div');
       meta.className = 'row__meta';
       const active = isActiveBulletin(b);
       meta.textContent = `${active ? 'Active now' : ''}${active ? ' • ' : ''}${toLocalDateTimeValue(b.startsAt)} → ${toLocalDateTimeValue(b.endsAt)}`;
+      content.appendChild(meta);
 
-      main.appendChild(t);
-      main.appendChild(meta);
+      details.appendChild(summary);
+      details.appendChild(content);
+      main.appendChild(details);
     }
 
     const actions = document.createElement('div');
@@ -4937,6 +5191,7 @@ function renderBulletins() {
     open.target = '_blank';
     open.rel = 'noopener noreferrer';
     open.textContent = 'Open';
+    setActionIconButton(open, 'view', 'View bulletin');
 
     if (editingBulletinId === b.id) {
       const save = document.createElement('button');
@@ -4983,7 +5238,7 @@ function renderBulletins() {
       const edit = document.createElement('button');
       edit.className = 'btn';
       edit.type = 'button';
-      edit.textContent = 'Edit';
+      setActionIconButton(edit, 'edit', 'Edit bulletin');
       edit.addEventListener('click', () => {
         bulletinPreviewDraft = null;
         editingBulletinId = b.id;
@@ -4996,7 +5251,7 @@ function renderBulletins() {
     const del = document.createElement('button');
     del.className = 'btn';
     del.type = 'button';
-    del.textContent = 'Delete';
+    setActionIconButton(del, 'delete', 'Delete bulletin');
     del.addEventListener('click', async () => {
       if (!confirmWrite('Delete this bulletin?')) return;
       await api(`/api/bulletins/${b.id}`, { method: 'DELETE' });
@@ -5054,7 +5309,7 @@ function renderUsers() {
       const del = document.createElement('button');
       del.className = 'btn';
       del.type = 'button';
-      del.textContent = 'Delete';
+      setActionIconButton(del, 'delete', 'Delete admin account');
       del.addEventListener('click', async () => {
         if (!confirm('Delete this admin account?')) return;
         await api(`/api/users/${u.id}`, { method: 'DELETE' });
@@ -5130,7 +5385,7 @@ function renderLivestream() {
     const del = document.createElement('button');
     del.className = 'btn';
     del.type = 'button';
-    del.textContent = 'Delete';
+    setActionIconButton(del, 'delete', 'Delete recurring stream');
     del.addEventListener('click', async () => {
       if (!confirm('Delete this recurring stream?')) return;
       livestream.recurring = (livestream.recurring || []).filter((x) => x.id !== r.id);
@@ -5572,7 +5827,7 @@ function renderNewsletterRecordsList(container, records, { emptyLabel, includeSt
         </div>
         <div class="toolbar">
           <button class="btn" type="button" data-action="load" data-newsletter-record-id="${id}">Load</button>
-          <button class="btn" type="button" data-action="delete" data-newsletter-record-id="${id}">Delete</button>
+          <button class="btn actionIconBtn" type="button" data-action="delete" data-newsletter-record-id="${id}" aria-label="Delete newsletter record" title="Delete newsletter record"><span class="srOnly">Delete newsletter record</span>${actionIconSvg('delete')}</button>
         </div>
       </div>
     `;
@@ -5768,6 +6023,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateLayoutMetrics();
   window.addEventListener('resize', () => {
     try { updateLayoutMetrics(); } catch { /* ignore */ }
+    try { queueHeaderNavLayoutSync(); } catch { /* ignore */ }
   });
 
   resetTransientUiState();
@@ -5815,6 +6071,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   setAdminDrawerOpen(false, { restoreFocus: false });
   if ($('navDrawerToggle')) {
+    renderDrawerToggleButton($('navDrawerToggle'), false);
     $('navDrawerToggle').addEventListener('click', () => {
       setAdminDrawerOpen(!adminDrawerOpen, { restoreFocus: false });
     });
@@ -5872,6 +6129,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       activateMainSection(target, { subTabId: subTab });
     });
   }
+
+  queueHeaderNavLayoutSync();
 
   // Sub-tabs
   if ($('subTabBtn-content-announcements')) {
@@ -7099,6 +7358,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  initPhotoActionIcons();
+
   $('photoArrangeAlbum').addEventListener('change', (e) => {
     photoArrangeAlbum = String(e.currentTarget.value || '').trim();
     // If they picked an album, default to manual ordering.
@@ -7137,6 +7398,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  bindPhotoPageJump('photoPageInfo');
+  bindPhotoPageJump('photoPageInfoBottom');
+
   // Bulk actions
   if ($('photoBulkEditBtn')) {
     $('photoBulkEditBtn').addEventListener('click', async () => {
@@ -7165,10 +7429,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const btn = $('photoBulkEditBtn');
-      const prevText = btn?.textContent;
       if (btn) {
         btn.disabled = true;
-        btn.textContent = 'Editing…';
+        setActionIconButton(btn, 'edit', 'Editing selected photos...');
       }
 
       try {
@@ -7196,8 +7459,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       } finally {
         if (btn) {
           btn.disabled = false;
-          btn.textContent = prevText || 'Edit selected';
         }
+        photoUpdateBulkBar();
       }
     });
   }
@@ -7217,10 +7480,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const btn = $('photoBulkDeleteBtn');
-      const prevText = btn?.textContent;
       if (btn) {
         btn.disabled = true;
-        btn.textContent = 'Deleting…';
+        setActionIconButton(btn, 'delete', 'Deleting selected photos...');
       }
 
       try {
@@ -7245,25 +7507,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       } finally {
         if (btn) {
           btn.disabled = false;
-          btn.textContent = prevText || 'Delete selected';
         }
+        photoUpdateBulkBar();
       }
     });
   }
 
   $('exportBtn').addEventListener('click', async () => {
     const btn = $('exportBtn');
-    const prevText = btn ? btn.textContent : '';
     if (btn) {
       btn.disabled = true;
-      btn.textContent = 'Refreshing…';
+      setActionIconButton(btn, 'refresh', 'Refreshing website gallery...');
     }
 
     // Failsafe: never leave the UI stuck forever.
     const watchdog = window.setTimeout(() => {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = prevText || 'Refresh Website Gallery';
+        setActionIconButton(btn, 'refresh', 'Refresh website gallery');
       }
       setR2UiBusy(false);
       setR2Status('Refresh timed out.');
@@ -7281,7 +7542,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.clearTimeout(watchdog);
       if (btn) {
         btn.disabled = false;
-        btn.textContent = prevText || 'Refresh Website Gallery';
+        setActionIconButton(btn, 'refresh', 'Refresh website gallery');
       }
 
       // Never leave the progress meter hanging around after the action.

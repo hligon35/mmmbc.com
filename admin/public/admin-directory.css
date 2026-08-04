@@ -221,14 +221,22 @@
 .directoryDrawer[open] {
   justify-content: flex-end;
   padding: 0;
+  overflow: hidden;
 }
 
 .directoryDrawer__inner {
-  height: 100vh;
-  max-height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
   width: min(620px, 100vw);
   border-radius: 0;
   overflow: auto;
+}
+
+.directoryDrawerTopActions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .directoryDrawerSection {
@@ -266,6 +274,8 @@
 
 .directoryFormDialog__inner {
   max-width: min(980px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
 }
 
 .directoryDuplicateBox {

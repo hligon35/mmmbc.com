@@ -473,114 +473,70 @@ async function logDirectoryActivity(env, {
 }
 
 function contactSelectColumns(includePrivate, schema = {}) {
-  const newsletterStatusCols = schema.hasNewsletterSubscribers
-    ? `
-    (
-      SELECT ns.status
-      FROM newsletter_subscribers ns
-      WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email))
-      ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC
-      LIMIT 1
-    ) AS newsletter_status,
-    (
-      SELECT ns.email
-      FROM newsletter_subscribers ns
-      WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email))
-      ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC
-      LIMIT 1
-    ) AS newsletter_email,
-    (
-      SELECT ns.consent_source
-      FROM newsletter_subscribers ns
-      WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email))
-      ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC
-      LIMIT 1
-    ) AS newsletter_consent_source,
-    (
-      SELECT ns.consent_date
-      FROM newsletter_subscribers ns
-      WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email))
-      ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC
-      LIMIT 1
-    ) AS newsletter_consent_date,
-    (
-      SELECT ns.confirmed_at
-      FROM newsletter_subscribers ns
-      WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email))
-      ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC
-      LIMIT 1
-    ) AS newsletter_confirmed_at,
-    (
-      SELECT ns.unsubscribed_at
-      FROM newsletter_subscribers ns
-      WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email))
-      ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC
-      LIMIT 1
-    ) AS newsletter_unsubscribed_at`
-    : `,
-    NULL AS newsletter_status,
-    NULL AS newsletter_email,
-    NULL AS newsletter_consent_source,
-    NULL AS newsletter_consent_date,
-    NULL AS newsletter_confirmed_at,
-    NULL AS newsletter_unsubscribed_at`;
+  const cols = [
+    'c.id',
+    'c.first_name',
+    'c.last_name',
+    'c.preferred_name',
+    'c.contact_type',
+    'c.membership_status',
+    'c.status',
+    'c.account_number',
+    'c.primary_email',
+    'c.mobile_phone',
+    'c.home_phone',
+    'c.preferred_contact_method',
+    'c.birth_month',
+    'c.birth_day',
+    'c.anniversary_month',
+    'c.anniversary_day',
+    'c.member_since',
+    'c.created_at',
+    'c.updated_at'
+  ];
 
-  const ministryCols = (schema.hasDirectoryGroups && schema.hasDirectoryGroupMembers)
-    ? `,
-    (
-      SELECT gm.role
-      FROM directory_group_members gm
-      WHERE gm.contact_id = c.id AND gm.ended_at IS NULL
-      ORDER BY gm.joined_at DESC
-      LIMIT 1
-    ) AS ministry_role,
-    (
-      SELECT g.name
-      FROM directory_group_members gm
-      JOIN directory_groups g ON g.id = gm.group_id
-      WHERE gm.contact_id = c.id AND gm.ended_at IS NULL
-      ORDER BY gm.joined_at DESC
-      LIMIT 1
-    ) AS ministry_group`
-    : `,
-    NULL AS ministry_role,
-    NULL AS ministry_group`;
+  if (schema.hasNewsletterSubscribers) {
+    cols.push(
+      `(SELECT ns.status FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC LIMIT 1) AS newsletter_status`,
+      `(SELECT ns.email FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC LIMIT 1) AS newsletter_email`,
+      `(SELECT ns.consent_source FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC LIMIT 1) AS newsletter_consent_source`,
+      `(SELECT ns.consent_date FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC LIMIT 1) AS newsletter_consent_date`,
+      `(SELECT ns.confirmed_at FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC LIMIT 1) AS newsletter_confirmed_at`,
+      `(SELECT ns.unsubscribed_at FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC LIMIT 1) AS newsletter_unsubscribed_at`
+    );
+  } else {
+    cols.push(
+      'NULL AS newsletter_status',
+      'NULL AS newsletter_email',
+      'NULL AS newsletter_consent_source',
+      'NULL AS newsletter_consent_date',
+      'NULL AS newsletter_confirmed_at',
+      'NULL AS newsletter_unsubscribed_at'
+    );
+  }
 
-  const privateCols = includePrivate
-    ? `,
-      c.secondary_email,
-      c.address_line_1,
-      c.address_line_2,
-      c.city,
-      c.state,
-      c.postal_code,
-      c.notes`
-    : '';
+  if (schema.hasDirectoryGroups && schema.hasDirectoryGroupMembers) {
+    cols.push(
+      '(SELECT gm.role FROM directory_group_members gm WHERE gm.contact_id = c.id AND gm.ended_at IS NULL ORDER BY gm.joined_at DESC LIMIT 1) AS ministry_role',
+      '(SELECT g.name FROM directory_group_members gm JOIN directory_groups g ON g.id = gm.group_id WHERE gm.contact_id = c.id AND gm.ended_at IS NULL ORDER BY gm.joined_at DESC LIMIT 1) AS ministry_group'
+    );
+  } else {
+    cols.push('NULL AS ministry_role', 'NULL AS ministry_group');
+  }
 
-  return `
-    c.id,
-    c.first_name,
-    c.last_name,
-    c.preferred_name,
-    c.contact_type,
-    c.membership_status,
-    c.status,
-    c.account_number,
-    c.primary_email,
-    c.mobile_phone,
-    c.home_phone,
-    c.preferred_contact_method,
-    c.birth_month,
-    c.birth_day,
-    c.anniversary_month,
-    c.anniversary_day,
-    c.member_since,
-    c.created_at,
-    c.updated_at,
-    ${newsletterStatusCols},
-    ${ministryCols}
-    ${privateCols}
-  `;
+  if (includePrivate) {
+    cols.push(
+      'c.secondary_email',
+      'c.address_line_1',
+      'c.address_line_2',
+      'c.city',
+      'c.state',
+      'c.postal_code',
+      'c.notes'
+    );
+  }
+
+  return cols.join(',\n    ');
 }
 
 function mapContactRow(row, { includePrivate = false } = {}) {

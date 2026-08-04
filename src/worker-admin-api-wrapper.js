@@ -382,6 +382,8 @@ async function buildDashboardOverview(request, env) {
   let givingExpense30d = 0;
   let pendingReviewCount = 0;
   let currentMonthEntries = 0;
+  let galleryItemsCount = 0;
+  let galleryAlbumsCount = 0;
 
   if (env.DB) {
     const announcementsRows = await env.DB.prepare(
@@ -423,10 +425,10 @@ async function buildDashboardOverview(request, env) {
     const day30Iso = new Date(now - (30 * 24 * 60 * 60 * 1000)).toISOString();
 
     const financeRows = await env.DB.prepare(
-      `SELECT type, amount_cents, date, status
-       FROM finances
-       WHERE date >= ?
-       ORDER BY date DESC
+      `SELECT type, amount_cents, entry_date AS date, status
+       FROM finance_entries
+       WHERE date(entry_date) >= date(?)
+       ORDER BY entry_date DESC
        LIMIT 1000`
     ).bind(day30Iso).all().catch(() => ({ results: [] }));
     const financeEntries = Array.isArray(financeRows?.results) ? financeRows.results : [];
@@ -440,6 +442,15 @@ async function buildDashboardOverview(request, env) {
       const dateMs = Date.parse(String(row?.date || ''));
       if (Number.isFinite(dateMs) && dateMs >= Date.parse(monthStartIso)) currentMonthEntries += 1;
     }
+
+    const galleryCountRow = await env.DB.prepare(
+      `SELECT
+          COUNT(*) AS items_count,
+          COUNT(DISTINCT CASE WHEN trim(coalesce(album, '')) <> '' THEN trim(album) ELSE NULL END) AS albums_count
+       FROM gallery_items`
+    ).first().catch(() => null);
+    galleryItemsCount = Number(galleryCountRow?.items_count || 0);
+    galleryAlbumsCount = Number(galleryCountRow?.albums_count || 0);
   } else {
     const announcementData = await readAssetJson(request, env, '/announcements.json', { posts: [] });
     announcements = Array.isArray(announcementData?.posts) ? announcementData.posts : [];
@@ -448,6 +459,12 @@ async function buildDashboardOverview(request, env) {
     events = Array.isArray(eventData?.events)
       ? eventData.events
       : (Array.isArray(eventData) ? eventData : []);
+
+    const galleryData = await readAssetJson(request, env, '/gallery.json', { items: [], albums: [] });
+    const galleryItems = Array.isArray(galleryData?.items) ? galleryData.items : (Array.isArray(galleryData) ? galleryData : []);
+    const galleryAlbums = Array.isArray(galleryData?.albums) ? galleryData.albums : [];
+    galleryItemsCount = galleryItems.length;
+    galleryAlbumsCount = galleryAlbums.length;
   }
 
   const activeAnnouncements = announcements.filter((row) => {
@@ -474,10 +491,6 @@ async function buildDashboardOverview(request, env) {
 
   const upcoming14 = upcomingEvents.filter((row) => row.dateMs <= in14Days);
   const todayEvents = upcomingEvents.filter((row) => row.dateMs === todayStart);
-
-  const galleryData = await readAssetJson(request, env, '/gallery.json', { items: [], albums: [] });
-  const galleryItems = Array.isArray(galleryData?.items) ? galleryData.items : (Array.isArray(galleryData) ? galleryData : []);
-  const galleryAlbums = Array.isArray(galleryData?.albums) ? galleryData.albums : [];
 
   const needsAttention = [];
   if (!activeAnnouncements.length) {
@@ -534,8 +547,8 @@ async function buildDashboardOverview(request, env) {
       totalAnnouncements: announcements.length,
       subscribers,
       scheduledNewsletters: scheduled,
-      galleryItems: galleryItems.length,
-      galleryAlbums: galleryAlbums.length
+      galleryItems: galleryItemsCount,
+      galleryAlbums: galleryAlbumsCount
     },
     needsAttention,
     upcomingEvents: upcoming14.slice(0, 8).map((row) => ({

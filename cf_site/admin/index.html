@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/admin/admin-dashboard.css?v=20260730a" />
   <link rel="stylesheet" href="/admin/admin-directory.css?v=20260730a" />
   <link rel="stylesheet" href="/admin/admin-header-canonical.css?v=20260730d" />
-  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260803014446" />
+  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260804185909" />
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
@@ -1280,7 +1280,16 @@
           <div class="card dialog__inner directoryDrawer__inner">
             <div class="sectionHeader sectionHeader--compact">
               <h3 class="sectionHeader__title" id="directoryContactDrawerTitle">Contact details</h3>
-              <button class="btn" id="directoryContactDrawerCloseBtn" type="button">Close</button>
+              <div class="directoryDrawerTopActions" aria-label="Contact actions">
+                <button class="btn actionIconBtn" id="directoryDrawerEditBtn" type="button" aria-label="Edit contact" title="Edit contact">
+                  <span class="srOnly">Edit</span>
+                  <svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20h4l10-10-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M13 7l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                </button>
+                <button class="btn actionIconBtn" id="directoryContactDrawerCloseBtn" type="button" aria-label="Close contact details" title="Close contact details">
+                  <span class="srOnly">Close</span>
+                  <svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+                </button>
+              </div>
             </div>
 
             <section class="directoryDrawerSection" aria-label="Contact Header">
@@ -1290,9 +1299,6 @@
                   <h4 class="directoryDrawerName" id="directoryDrawerName">Contact</h4>
                   <p class="muted" id="directoryDrawerTypeStatus">Type | Status</p>
                 </div>
-              </div>
-              <div class="toolbar">
-                <button class="btn" id="directoryDrawerEditBtn" type="button">Edit</button>
               </div>
             </section>
 
@@ -1486,6 +1492,37 @@
 
       <!-- Events -->
       <section class="tabPanel" role="tabpanel" id="tab-events" aria-labelledby="tabBtn-events" hidden data-header-crumb="Events" data-header-description="Add service times, meetings, and church programs.">
+        <div class="sectionHeader sectionHeader--compact eventsHeaderRow">
+          <h3 class="sectionHeader__title">Events</h3>
+          <details class="menu eventsPrintMenu eventsPrintMenu--inline noPrint" id="eventsPrintMenu">
+            <summary class="btn actionIconBtn" aria-label="Print events" title="Print events">
+              <span class="srOnly">Print events</span>
+              <svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 9V4h10v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><rect x="4" y="9" width="16" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect><path d="M7 17h10v3H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </summary>
+            <div class="menu__panel" aria-label="Print events">
+              <div class="menu__title">Print events</div>
+              <button class="menu__item" id="printEventsAllBtn" type="button">All events</button>
+
+              <div class="menu__custom">
+                <div class="formRow">
+                  <label class="label">
+                    Group (same title)
+                    <select class="select" id="printEventsGroupTitle"></select>
+                  </label>
+                  <button class="btn btn--primary" id="printEventsGroupBtn" type="button">Print group</button>
+                </div>
+                <div class="formRow">
+                  <label class="label">
+                    Single event
+                    <select class="select" id="printEventId"></select>
+                  </label>
+                  <button class="btn btn--primary" id="printEventBtn" type="button">Print event</button>
+                </div>
+              </div>
+            </div>
+          </details>
+        </div>
+
         <p class="muted">Add, edit, and delete events. This exports to the website's existing schedule format when exports are enabled.</p>
 
         <form id="eventForm" class="form form--row">
@@ -1509,31 +1546,6 @@
           <div class="previewBlock__label">Live Preview</div>
           <div class="list" id="eventPreviewList"></div>
         </div>
-
-        <details class="menu eventsPrintMenu noPrint" id="eventsPrintMenu">
-          <summary class="btn">Print Events</summary>
-          <div class="menu__panel" aria-label="Print events">
-            <div class="menu__title">Print events</div>
-            <button class="menu__item" id="printEventsAllBtn" type="button">All events</button>
-
-            <div class="menu__custom">
-              <div class="formRow">
-                <label class="label">
-                  Group (same title)
-                  <select class="select" id="printEventsGroupTitle"></select>
-                </label>
-                <button class="btn btn--primary" id="printEventsGroupBtn" type="button">Print group</button>
-              </div>
-              <div class="formRow">
-                <label class="label">
-                  Single event
-                  <select class="select" id="printEventId"></select>
-                </label>
-                <button class="btn btn--primary" id="printEventBtn" type="button">Print event</button>
-              </div>
-            </div>
-          </div>
-        </details>
 
         <div class="list list--scrollEvents" id="eventList"></div>
       </section>
@@ -1692,28 +1704,6 @@
       <!-- Support -->
       <section class="tabPanel" role="tabpanel" id="tab-support" aria-labelledby="tabBtn-support" hidden data-header-crumb="Help &amp; Support" data-header-description="Send a support request if you need help with the website manager.">
         <div class="supportTopRow">
-          <div class="card supportFormShell">
-            <p class="muted">Send a message to <strong>support@alphazonelabs.com</strong>.</p>
-
-            <form id="supportForm" class="form">
-              <label class="label">
-                Subject line
-                <input class="input" name="subject" type="text" maxlength="140" placeholder="What do you need help with?" required />
-              </label>
-              <label class="label">
-                Message
-                <textarea class="textarea" name="message" rows="6" maxlength="5000" placeholder="Share the details and any error message you see…" required></textarea>
-              </label>
-              <label class="label">
-                Your email address (optional)
-                <input class="input" name="replyTo" type="email" maxlength="254" placeholder="you@example.com" />
-              </label>
-              <button class="btn btn--primary" type="submit">Send Message</button>
-              <div class="hint" id="supportHint" aria-live="polite"></div>
-              <div class="error" id="supportError" role="alert" hidden></div>
-            </form>
-          </div>
-
           <section class="card" id="adminStorageHealthCard" hidden aria-labelledby="adminStorageHealthTitle">
             <h3 class="card__subtitle" id="adminStorageHealthTitle">Admin Diagnostics</h3>
             <p class="muted">Shows current storage mode and backend availability for production troubleshooting.</p>
@@ -1737,6 +1727,28 @@
             </label>
             <div class="hint" id="appearanceHint" aria-live="polite"></div>
           </div>
+
+          <div class="card supportFormShell">
+            <p class="muted">Send a message to <strong>support@alphazonelabs.com</strong>.</p>
+
+            <form id="supportForm" class="form">
+              <label class="label">
+                Subject line
+                <input class="input" name="subject" type="text" maxlength="140" placeholder="What do you need help with?" required />
+              </label>
+              <label class="label">
+                Message
+                <textarea class="textarea" name="message" rows="6" maxlength="5000" placeholder="Share the details and any error message you see…" required></textarea>
+              </label>
+              <label class="label">
+                Your email address (optional)
+                <input class="input" name="replyTo" type="email" maxlength="254" placeholder="you@example.com" />
+              </label>
+              <button class="btn btn--primary" type="submit">Send Message</button>
+              <div class="hint" id="supportHint" aria-live="polite"></div>
+              <div class="error" id="supportError" role="alert" hidden></div>
+            </form>
+          </div>
         </div>
 
       </section>
@@ -1752,6 +1764,6 @@
   <script src="/admin/admin.js?v=20260730k" defer></script>
   <script src="/admin/admin-directory.js?v=20260730a" defer></script>
   <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260803014446" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260804185909" defer></script>
 </body>
 </html>

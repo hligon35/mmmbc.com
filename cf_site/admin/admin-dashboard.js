@@ -149,18 +149,21 @@
     const root = $('dashboardGivingStats');
     if (!root || !card) return;
 
-    if (!canView || !giving) {
-      card.hidden = true;
+    if (!canView) {
+      card.hidden = false;
+      root.innerHTML = '<div class="dashboardEmpty">Finance access is required to view giving details.</div>';
       return;
     }
 
     card.hidden = false;
 
+    const safeGiving = giving && typeof giving === 'object' ? giving : {};
+
     const stats = [
-      { label: 'Last 30 Days (Received)', value: formatMoneyCents(giving.last30dIncomeCents) },
-      { label: 'Last 30 Days (Spent)', value: formatMoneyCents(giving.last30dExpenseCents) },
-      { label: 'Pending Review Entries', value: Number(giving.pendingReviewCount || 0) },
-      { label: 'Current Month Entries', value: Number(giving.currentMonthEntries || 0) }
+      { label: 'Last 30 Days (Received)', value: formatMoneyCents(safeGiving.last30dIncomeCents) },
+      { label: 'Last 30 Days (Spent)', value: formatMoneyCents(safeGiving.last30dExpenseCents) },
+      { label: 'Pending Review Entries', value: Number(safeGiving.pendingReviewCount || 0) },
+      { label: 'Current Month Entries', value: Number(safeGiving.currentMonthEntries || 0) }
     ];
 
     root.innerHTML = stats.map((row) => `
