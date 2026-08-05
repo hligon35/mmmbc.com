@@ -19,6 +19,12 @@ const qrcode = require('qrcode');
 const mime = require('mime-types');
 const sharp = require('sharp');
 const { OAuth2Client } = require('google-auth-library');
+const { detectYoutubeLiveVideo, fetchYoutubeFeed } = require('./lib/youtube');
+const {
+  buildSupportEmailTemplate,
+  buildNewsletterEmailTemplate,
+  buildAdminInviteEmailTemplate
+} = require('./lib/email-templates');
 
 const { logger, audit, requestLogger, LOG_DIR, tailFile } = require('./lib/logger');
 const { maybeEncrypt, maybeDecrypt } = require('./lib/crypto');
@@ -523,69 +529,6 @@ function normalizeTotp(code) {
   return String(code || '').replace(/\s+/g, '');
 }
 
-function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function buildSupportEmailTemplate({ subject, message, actor, replyTo }) {
-  const safeSubject = escapeHtml(subject);
-  const safeMessage = escapeHtml(message).replace(/\n/g, '<br>');
-  const safeActor = escapeHtml(actor || 'Unknown');
-  const safeReplyTo = replyTo ? escapeHtml(replyTo) : 'Not provided';
-
-  return {
-    text: [
-      'MMMBC Support Message',
-      `Subject: ${subject}`,
-      `From: ${actor}`,
-      `Reply-To: ${replyTo || 'Not provided'}`,
-      '',
-      message
-    ].join('\n'),
-    html: `
-      <div style="font-family:Arial,sans-serif;line-height:1.5;color:#1f2937;background:#f8fafc;padding:24px">
-        <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;padding:24px">
-          <div style="font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#92400e;margin-bottom:12px">MMMBC Support</div>
-          <h1 style="margin:0 0 12px;font-size:22px;line-height:1.25;color:#111827">${safeSubject}</h1>
-          <p style="margin:0 0 8px"><strong>From:</strong> ${safeActor}</p>
-          <p style="margin:0 0 20px"><strong>Reply-to:</strong> ${safeReplyTo}</p>
-          <div style="white-space:normal;background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;color:#111827">${safeMessage}</div>
-        </div>
-      </div>
-    `
-  };
-}
-
-function buildNewsletterEmailTemplate({ subject, message }) {
-  const safeSubject = escapeHtml(subject);
-  const safeMessage = escapeHtml(message).replace(/\n/g, '<br>');
-
-  return {
-    text: `${message}\n\n---\nYou are receiving this message from MMMBC Admin.`,
-    html: `
-      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#1f2937;background:#f8fafc;padding:24px">
-        <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:20px;overflow:hidden">
-          <div style="padding:24px 28px;background:linear-gradient(135deg,#7f1d1d,#b45309);color:#ffffff">
-            <div style="font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.9">MMMBC Newsletter</div>
-            <h1 style="margin:10px 0 0;font-size:30px;line-height:1.15">${safeSubject}</h1>
-          </div>
-          <div style="padding:28px;color:#111827;font-size:16px">
-            <div style="white-space:normal">${safeMessage}</div>
-            <div style="margin-top:28px;padding-top:18px;border-top:1px solid #e5e7eb;font-size:13px;color:#6b7280">
-              Sent from the MMMBC admin newsletter editor.
-            </div>
-          </div>
-        </div>
-      </div>
-    `
-  };
-}
-
 function roleDisplayName(role) {
   const normalized = normalizeRole(role);
   if (normalized === ROLE.ADMINISTRATOR) return 'Administrator';
@@ -593,44 +536,6 @@ function roleDisplayName(role) {
   if (normalized === ROLE.TREASURER) return 'Treasurer';
   if (normalized === ROLE.AUDITOR) return 'Auditor';
   return 'Website Manager';
-}
-
-function buildAdminInviteEmailTemplate({ inviteLink, expiresAt, role }) {
-  const roleLabel = roleDisplayName(role);
-  const safeRoleLabel = escapeHtml(roleLabel);
-  const safeInviteLink = escapeHtml(inviteLink);
-  const expiresText = Number.isNaN(Date.parse(expiresAt))
-    ? 'in 7 days'
-    : new Date(expiresAt).toLocaleString();
-  const safeExpiresText = escapeHtml(expiresText);
-
-  return {
-    text: [
-      'Mt. Moriah Missionary Baptist Church Admin Invite',
-      `Role: ${roleLabel}`,
-      `Invite link: ${inviteLink}`,
-      `Expires: ${expiresText}`,
-      '',
-      'Open the link to complete your account setup.'
-    ].join('\n'),
-    html: `
-      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#1f2937;background:#f8fafc;padding:24px">
-        <div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden">
-          <div style="padding:24px 28px;background:linear-gradient(135deg,#7a2f16,#c46123);color:#ffffff">
-            <div style="font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.92">Mt. Moriah MBC</div>
-            <h1 style="margin:10px 0 0;font-size:28px;line-height:1.15">You are invited to Admin</h1>
-          </div>
-          <div style="padding:24px 28px;color:#111827;font-size:16px">
-            <p style="margin:0 0 10px">You have been invited to join the church admin system.</p>
-            <p style="margin:0 0 10px"><strong>Role:</strong> ${safeRoleLabel}</p>
-            <p style="margin:0 0 18px"><strong>Expires:</strong> ${safeExpiresText}</p>
-            <a href="${safeInviteLink}" style="display:inline-block;padding:12px 18px;border-radius:12px;background:#8b3f1f;color:#ffffff;text-decoration:none;font-weight:700">Complete Setup</a>
-            <p style="margin:18px 0 0;font-size:13px;color:#6b7280;word-break:break-word">If the button does not work, copy this link:<br>${safeInviteLink}</p>
-          </div>
-        </div>
-      </div>
-    `
-  };
 }
 
 // SendGrid's v3 /mail/send payload shape is a superset of MailChannels' old
@@ -666,122 +571,6 @@ function sendgridSend(payload) {
     req.write(body);
     req.end();
   });
-}
-
-function decodeHtmlEntities(input) {
-  return String(input || '')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-}
-
-function parseVideoIdFromWatchUrl(urlStr) {
-  try {
-    const u = new URL(urlStr);
-    const v = u.searchParams.get('v');
-    return v ? String(v).trim() : '';
-  } catch {
-    return '';
-  }
-}
-
-function httpGetFollow(urlStr, { headers = {}, maxRedirects = 5 } = {}) {
-  return new Promise((resolve, reject) => {
-    let url;
-    try {
-      url = new URL(urlStr);
-    } catch (e) {
-      reject(e);
-      return;
-    }
-
-    const lib = url.protocol === 'http:' ? http : https;
-
-    const req = lib.request(
-      {
-        method: 'GET',
-        hostname: url.hostname,
-        port: url.port || (url.protocol === 'http:' ? 80 : 443),
-        path: url.pathname + url.search,
-        headers
-      },
-      (resp) => {
-        const status = resp.statusCode || 0;
-        const location = String(resp.headers.location || '').trim();
-
-        if ([301, 302, 303, 307, 308].includes(status) && location && maxRedirects > 0) {
-          const nextUrl = new URL(location, url).toString();
-          resp.resume();
-          httpGetFollow(nextUrl, { headers, maxRedirects: maxRedirects - 1 }).then(resolve, reject);
-          return;
-        }
-
-        let data = '';
-        resp.setEncoding('utf8');
-        resp.on('data', (chunk) => { data += chunk; });
-        resp.on('end', () => {
-          resolve({ status, headers: resp.headers || {}, body: data, finalUrl: url.toString() });
-        });
-      }
-    );
-
-    req.on('error', reject);
-    req.end();
-  });
-}
-
-async function detectYoutubeLiveVideo(channelId) {
-  const url = `https://www.youtube.com/channel/${encodeURIComponent(channelId)}/live`;
-  const res = await httpGetFollow(url, {
-    headers: {
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'User-Agent': 'MMMBC-Local/1.0'
-    }
-  });
-
-  const fromUrl = parseVideoIdFromWatchUrl(res.finalUrl);
-  if (fromUrl) return { isLive: true, videoId: fromUrl, source: 'redirect' };
-
-  const html = String(res.body || '');
-  const fromHtml = (html.match(/\"videoId\"\s*:\s*\"([a-zA-Z0-9_-]{11})\"/) || [])[1];
-  if (fromHtml) {
-    const indicatesLive = /isLiveContent\"\s*:\s*true|\"LIVE\"/i.test(html);
-    if (indicatesLive) return { isLive: true, videoId: fromHtml, source: 'html' };
-  }
-
-  return { isLive: false, videoId: '', source: 'none' };
-}
-
-async function fetchYoutubeFeed(channelId) {
-  const url = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
-  const res = await httpGetFollow(url, {
-    headers: {
-      Accept: 'application/atom+xml,text/xml;q=0.9,*/*;q=0.1',
-      'User-Agent': 'MMMBC-Local/1.0'
-    }
-  });
-  if (res.status < 200 || res.status >= 300) throw new Error(`YouTube feed fetch failed (${res.status})`);
-  const xml = String(res.body || '');
-
-  const entries = [];
-  const entryRe = /<entry>([\s\S]*?)<\/entry>/g;
-  let m;
-  while ((m = entryRe.exec(xml))) {
-    const chunk = m[1] || '';
-    const id = (chunk.match(/<yt:videoId>([^<]+)<\/yt:videoId>/) || [])[1];
-    if (!id) continue;
-    const titleRaw = (chunk.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
-    const published = (chunk.match(/<published>([^<]+)<\/published>/) || [])[1] || '';
-    entries.push({
-      id: String(id).trim(),
-      title: decodeHtmlEntities(titleRaw).trim(),
-      published: String(published).trim()
-    });
-    if (entries.length >= 30) break;
-  }
-  return entries;
 }
 
 function sanitizeSegment(input) {
@@ -2992,7 +2781,7 @@ app.post('/api/users/invite', requirePermission(PERMISSIONS.USERS_MANAGE), async
   const fromEmail = String(process.env.SUPPORT_FROM_EMAIL || 'mmmbc@alphazonelabs.com').trim();
   const fromName = String(process.env.SUPPORT_FROM_NAME || 'MMMBC Admin').trim() || 'MMMBC Admin';
   const subject = `MMMBC Admin Invite (${roleDisplayName(role)})`;
-  const template = buildAdminInviteEmailTemplate({ inviteLink, expiresAt, role });
+  const template = buildAdminInviteEmailTemplate({ inviteLink, expiresAt, roleLabel: roleDisplayName(role) });
 
   try {
     const payload = {

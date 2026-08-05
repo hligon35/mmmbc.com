@@ -7,7 +7,7 @@
   --danger:#ff5757;
   --border:rgba(255,255,255,.09);
   --admin-window-gutter:clamp(20px, 3vw, 50px);
-  --admin-header-height:120px;
+  --admin-header-height:100px;
   --admin-section-extension-height:0px;
   --admin-drawer-width:320px;
   --admin-drawer-top-offset:-235px;

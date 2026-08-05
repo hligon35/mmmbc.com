@@ -2,7 +2,22 @@ import worker from './worker-auth-wrapper.js';
 import { handleGivingRequest } from './worker-giving.js';
 import { handleGivingPageRequest } from './worker-giving-pages.js';
 import { maybeHandleFinanceReconciliationRequest } from './worker-finance-reconciliation.js';
-import { EmailMessage } from 'cloudflare:email';
+import { readAssetJson, sendSupportEmailMessage } from './worker-shared.js';
+import {
+  normalizeAnnouncements,
+  normalizeEvents,
+  normalizeBulletins,
+  isoOrEmpty,
+  bulletinUrlForKey,
+  emptyFinances,
+  financeText,
+  financeDate,
+  financeAmountToCents,
+  financeUniqueSorted,
+  parseDateOnlyToTime,
+  startOfTodayMs,
+  isoFromDateTimeParts
+} from './worker-admin-api-utils.js';
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -27,56 +42,6 @@ async function requireSession(request, env, ctx) {
   return data?.user || null;
 }
 
-async function readAssetJson(request, env, pathname, fallback) {
-  if (!env.ASSETS || typeof env.ASSETS.fetch !== 'function') return fallback;
-  try {
-    const url = new URL(request.url);
-    url.pathname = pathname;
-    url.search = '';
-    const response = await env.ASSETS.fetch(new Request(url.toString(), { method: 'GET' }));
-    if (!response.ok) return fallback;
-    return await response.json();
-  } catch {
-    return fallback;
-  }
-}
-
-function normalizeAnnouncements(data) {
-  if (Array.isArray(data)) return { posts: data };
-  if (Array.isArray(data?.posts)) return { posts: data.posts };
-  if (Array.isArray(data?.announcements)) return { posts: data.announcements };
-  return { posts: [] };
-}
-
-function normalizeEvents(data) {
-  if (Array.isArray(data)) return { events: data };
-  if (Array.isArray(data?.events)) return { events: data.events };
-  if (Array.isArray(data?.schedule)) return { events: data.schedule };
-  return { events: [] };
-}
-
-function normalizeBulletins(data) {
-  if (Array.isArray(data)) return { bulletins: data };
-  if (Array.isArray(data?.bulletins)) return { bulletins: data.bulletins };
-  return { bulletins: [] };
-}
-
-function isoOrEmpty(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  const t = Date.parse(raw);
-  if (!Number.isFinite(t)) return '';
-  return new Date(t).toISOString();
-}
-
-function bulletinUrlForKey(fileKey) {
-  const key = String(fileKey || '').trim();
-  if (!key) return '';
-  if (/^https?:\/\//i.test(key)) return key;
-  if (key.startsWith('/')) return key;
-  return `/cdn/gallery/${encodeURI(key)}`;
-}
-
 async function forwardWithPath(request, env, ctx, pathname) {
   const url = new URL(request.url);
   url.pathname = pathname;
@@ -87,81 +52,6 @@ async function forwardWithPath(request, env, ctx, pathname) {
     body: request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.arrayBuffer()
   });
   return worker.fetch(forwarded, env, ctx);
-}
-
-async function sendSupportEmailMessage(env, {
-  subject,
-  textBody,
-  replyTo = '',
-  fromNameOverride = ''
-} = {}) {
-  const toEmail = String(env.SUPPORT_TO_EMAIL || 'support@hldesignedit.com').trim();
-  const deliveryToEmail = String(env.SUPPORT_EMAIL_DESTINATION || toEmail).trim();
-  const fromEmail = String(env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
-  const fromName = String(fromNameOverride || env.SUPPORT_FROM_NAME || 'MMMBC Website').trim() || 'MMMBC Website';
-
-  if (!env.SUPPORT_EMAIL || typeof env.SUPPORT_EMAIL.send !== 'function') {
-    throw new Error('Email send is not configured. SUPPORT_EMAIL binding is missing.');
-  }
-
-  const escapeQuotes = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/\"/g, '\\"');
-  const fromHeaderName = fromName ? `"${escapeQuotes(fromName)}" ` : '';
-  const fromHeader = `${fromHeaderName}<${fromEmail}>`;
-  const replyToHeader = replyTo ? `Reply-To: ${replyTo}\r\n` : '';
-  const safeSubject = String(subject || '').trim().slice(0, 180);
-  const safeBody = String(textBody || '').trim().slice(0, 12000);
-  const messageId = `<${crypto.randomUUID()}@mmmbc.local>`;
-
-  const raw = [
-    `To: ${toEmail}`,
-    `From: ${fromHeader}`,
-    replyToHeader.trimEnd(),
-    `Subject: ${safeSubject}`,
-    `Date: ${new Date().toUTCString()}`,
-    `Message-ID: ${messageId}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8',
-    '',
-    safeBody
-  ].filter(Boolean).join('\r\n');
-
-  const msg = new EmailMessage(fromEmail, deliveryToEmail, raw);
-  await env.SUPPORT_EMAIL.send(msg);
-}
-
-function emptyFinances() {
-  return {
-    entries: [],
-    meta: {
-      categories: [],
-      funds: []
-    }
-  };
-}
-
-function financeText(value, max = 240) {
-  return String(value || '').trim().replace(/\s+/g, ' ').slice(0, max);
-}
-
-function financeDate(value) {
-  const raw = String(value || '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
-  const t = Date.parse(`${raw}T00:00:00Z`);
-  if (!Number.isFinite(t)) return '';
-  return raw;
-}
-
-function financeAmountToCents(value) {
-  const num = Number(String(value || '').trim());
-  if (!Number.isFinite(num) || num <= 0) return Number.NaN;
-  return Math.round(num * 100);
-}
-
-function financeUniqueSorted(values) {
-  return Array.from(new Set((Array.isArray(values) ? values : [])
-    .map((v) => financeText(v, 120))
-    .filter(Boolean)))
-    .sort((a, b) => a.localeCompare(b));
 }
 
 async function ensureFinanceSchema(env) {
@@ -344,27 +234,6 @@ const READ_ENDPOINTS = new Set([
   '/api/finances',
   '/api/profiles'
 ]);
-
-function parseDateOnlyToTime(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return Number.NaN;
-  const ms = Date.parse(`${raw}T00:00:00`);
-  return Number.isFinite(ms) ? ms : Number.NaN;
-}
-
-function startOfTodayMs() {
-  const now = new Date();
-  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-}
-
-function isoFromDateTimeParts(datePart, timePart) {
-  const d = String(datePart || '').trim();
-  if (!d) return '';
-  const t = String(timePart || '').trim();
-  const ms = Date.parse(`${d}T${t || '00:00'}`);
-  if (!Number.isFinite(ms)) return '';
-  return new Date(ms).toISOString();
-}
 
 async function buildDashboardOverview(request, env) {
   const now = Date.now();

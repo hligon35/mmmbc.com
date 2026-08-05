@@ -7,7 +7,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "test": "jest --runInBand server.boot-guard.test.js server.request-id.test.js && node --test admin-ui.test.js"
+    "test": "jest --runInBand server.boot-guard.test.js server.request-id.test.js && node --test admin-ui.test.js server-route-manifest.characterization.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

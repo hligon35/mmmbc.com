@@ -5,7 +5,6 @@
 // Auth model (Cloudflare-native): protect /admin and /api via Cloudflare Access.
 // When Access is enabled, Cloudflare injects cf-access-authenticated-user-email.
 
-import { EmailMessage } from 'cloudflare:email';
 import {
   isEmailInvited,
   handleUsersList,
@@ -44,6 +43,10 @@ import {
   handleDirectoryListsCreate,
   handleDirectoryListsUpdate
 } from './worker-directory.js';
+import {
+  readAssetJson,
+  sendSupportEmailMessage
+} from './worker-shared.js';
 
 function applySecurityHeaders(headers, { isHttps = true } = {}) {
   const setIfMissing = (k, v) => {
@@ -126,20 +129,6 @@ function decodeHtmlEntities(input) {
     .replace(/&#39;/g, "'");
 }
 
-async function readAssetJson(request, env, pathname, fallback) {
-  if (!env.ASSETS || typeof env.ASSETS.fetch !== 'function') return fallback;
-  try {
-    const url = new URL(request.url);
-    url.pathname = pathname;
-    url.search = '';
-    const response = await env.ASSETS.fetch(new Request(url.toString(), { method: 'GET' }));
-    if (!response.ok) return fallback;
-    return await response.json();
-  } catch {
-    return fallback;
-  }
-}
-
 function normalizePublicSiteSettings(raw, env) {
   const data = (raw && typeof raw === 'object') ? raw : {};
   const subscribers = Array.isArray(data.subscribers)
@@ -196,62 +185,6 @@ function normalizeLivestreamData(raw) {
     },
     recurring
   };
-}
-
-async function sendSupportEmailMessage(env, {
-  subject,
-  textBody,
-  replyTo = '',
-  fromNameOverride = ''
-} = {}) {
-  const toEmail = String(env.SUPPORT_TO_EMAIL || 'support@hldesignedit.com').trim();
-  const deliveryToEmail = String(env.SUPPORT_EMAIL_DESTINATION || toEmail).trim();
-  const fromEmail = String(env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
-  const fromName = String(fromNameOverride || env.SUPPORT_FROM_NAME || 'MMMBC Website').trim() || 'MMMBC Website';
-
-  if (!env.SUPPORT_EMAIL || typeof env.SUPPORT_EMAIL.send !== 'function') {
-    throw new Error('Email send is not configured. SUPPORT_EMAIL binding is missing.');
-  }
-
-  const escapeQuotes = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/\"/g, '\\"');
-  const fromHeaderName = fromName ? `"${escapeQuotes(fromName)}" ` : '';
-  const fromHeader = `${fromHeaderName}<${fromEmail}>`;
-  const replyToHeader = replyTo ? `Reply-To: ${replyTo}\r\n` : '';
-  const safeSubject = String(subject || '').trim().slice(0, 180);
-  const safeBody = String(textBody || '').trim().slice(0, 12000);
-
-  const messageIdDomain = (() => {
-    const pick = (addr) => {
-      const m = String(addr || '').match(/@([^>\s]+)$/);
-      return m ? m[1] : '';
-    };
-    return pick(toEmail) || pick(fromEmail) || 'mmmbc.local';
-  })();
-
-  const messageId = (() => {
-    try {
-      return `<${crypto.randomUUID()}@${messageIdDomain}>`;
-    } catch {
-      const rand = Math.random().toString(16).slice(2);
-      return `<${Date.now().toString(16)}.${rand}@${messageIdDomain}>`;
-    }
-  })();
-
-  const raw = [
-    `To: ${toEmail}`,
-    `From: ${fromHeader}`,
-    replyToHeader.trimEnd(),
-    `Subject: ${safeSubject}`,
-    `Date: ${new Date().toUTCString()}`,
-    `Message-ID: ${messageId}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8',
-    '',
-    safeBody
-  ].filter(Boolean).join('\r\n');
-
-  const msg = new EmailMessage(fromEmail, deliveryToEmail, raw);
-  await env.SUPPORT_EMAIL.send(msg);
 }
 
 async function handlePublicAnnouncements(request, env) {

@@ -153,11 +153,21 @@
     overflow:visible !important;
   }
 
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs,
+  html body #adminHeader.adminHeader--navCollapsed .adminHeader__tabs{
+    overflow:hidden !important;
+    min-height:0 !important;
+    height:0 !important;
+    margin:0 !important;
+    padding:0 !important;
+    top:0 !important;
+  }
+
   html body.adminHeaderNavCollapsed #adminHeader .adminHeader__invite{
     display:none !important;
   }
 
-  html body.adminHeaderNavCollapsed .adminDrawerBackdrop{
+  html body.adminHeaderNavCollapsed.adminDrawerOpen .adminDrawerBackdrop{
     display:block !important;
     left:0;
     right:0;
@@ -167,7 +177,13 @@
     z-index:255;
   }
 
-  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
+  html body.adminHeaderNavCollapsed:not(.adminDrawerOpen) .adminDrawerBackdrop{
+    display:none !important;
+    pointer-events:none !important;
+  }
+
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav,
+  html body #adminHeader.adminHeader--navCollapsed .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
     position:fixed !important;
     top:calc(var(--admin-header-height) - 2px) !important;
     right:var(--admin-window-gutter) !important;
@@ -192,13 +208,15 @@
     z-index:265 !important;
   }
 
-  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav.adminDrawer--open{
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav.adminDrawer--open,
+  html body #adminHeader.adminHeader--navCollapsed .adminHeader__tabs #adminSideNav.adminDrawer.sideNav.adminDrawer--open{
     transform:translateY(0) scale(1) !important;
     opacity:1;
     pointer-events:auto;
   }
 
-  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav .tab--nav{
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav .tab--nav,
+  html body #adminHeader.adminHeader--navCollapsed .adminHeader__tabs #adminSideNav .tab--nav{
     min-width:0 !important;
     width:100% !important;
     border-radius:10px !important;
@@ -206,7 +224,8 @@
     padding:12px 14px !important;
   }
 
-  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav .sideNav__groupLabel{
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav .sideNav__groupLabel,
+  html body #adminHeader.adminHeader--navCollapsed .adminHeader__tabs #adminSideNav .sideNav__groupLabel{
     display:block !important;
     margin:6px 2px 2px;
   }
@@ -244,7 +263,7 @@
 
   html body #adminHeader .header__logo{
     width:min(100%, 220px) !important;
-    max-height:96px !important;
+    max-height:72px !important;
     height:auto !important;
     object-fit:contain !important;
   }
@@ -252,9 +271,16 @@
   html body #adminHeader .adminHeader__breadcrumbs{
     grid-area:breadcrumbs !important;
     align-self:end !important;
-    padding-bottom:0 !important;
+    padding-bottom:2px !important;
+    padding-left:8px !important;
     font-size:.86rem !important;
     font-weight:800 !important;
+    display:flex !important;
+    justify-content:flex-start !important;
+    flex-wrap:nowrap !important;
+    white-space:nowrap !important;
+    overflow:hidden !important;
+    text-overflow:ellipsis !important;
   }
 
   /* Top-right header cluster containing the greeting, account area, and actions */
@@ -265,13 +291,14 @@
     align-items:center !important;
     justify-content:flex-end !important;
     padding-top:6px !important;
-    min-height:44px !important;
+    min-height:38px !important;
   }
 
   /* Centered headline block inside the top area */
   html body #adminHeader .adminHeader__headline{
     position:absolute !important;
     left:50% !important;
+    top: 15px !important;
     transform:translateX(calc(-50% - 150px)) !important;
     width:max-content !important;
     max-width:min(64vw, 920px) !important;
@@ -297,6 +324,7 @@
     align-items:center !important;
     gap:12px !important;
     flex-wrap:nowrap !important;
+    transform:translateY(22px) !important;
   }
 
   html body #adminHeader #authStatus{
@@ -324,7 +352,7 @@
     display:flex !important;
     align-items:center !important;
     justify-content:flex-end !important;
-    padding-bottom:0 !important;
+    padding-bottom:2px !important;
     transform:translateX(-200px) !important;
     pointer-events:auto !important;
     z-index:10 !important;
@@ -422,7 +450,103 @@
     color:#fff7ed !important;
   }
 
-  html body.adminHomeSection #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
+  /* Collapsed desktop mode must render the drawer as a vertical panel, not horizontal tabs. */
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs,
+  html body #adminHeader.adminHeader--navCollapsed .adminHeader__tabs{
+    overflow:hidden !important;
+  }
+
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav,
+  html body #adminHeader.adminHeader--navCollapsed .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
+    position:fixed !important;
+    top:calc(var(--admin-header-height) - 2px) !important;
+    right:var(--admin-window-gutter) !important;
+    left:auto !important;
+    width:min(380px, calc(100vw - 28px)) !important;
+    max-height:calc(100dvh - var(--admin-header-height) - 14px) !important;
+    transform:translateY(-10px) scale(.98) !important;
+    transform-origin:top right !important;
+    opacity:0 !important;
+    pointer-events:none !important;
+    transition:transform .18s ease, opacity .18s ease !important;
+    margin:0 !important;
+    padding:12px !important;
+    display:grid !important;
+    grid-auto-flow:row !important;
+    grid-auto-rows:min-content !important;
+    gap:8px !important;
+    border:1px solid rgba(26,26,26,.24) !important;
+    border-radius:14px !important;
+    background:var(--panel) !important;
+    box-shadow:0 12px 30px rgba(0,0,0,.24) !important;
+    overflow-x:hidden !important;
+    overflow-y:auto !important;
+    z-index:265 !important;
+  }
+
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav.adminDrawer--open,
+  html body #adminHeader.adminHeader--navCollapsed .adminHeader__tabs #adminSideNav.adminDrawer.sideNav.adminDrawer--open{
+    transform:translateY(0) scale(1) !important;
+    opacity:1 !important;
+    pointer-events:auto !important;
+  }
+
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav .tab--nav,
+  html body #adminHeader.adminHeader--navCollapsed .adminHeader__tabs #adminSideNav .tab--nav{
+    display:block !important;
+    width:100% !important;
+    min-width:0 !important;
+    max-width:none !important;
+    text-align:left !important;
+    margin:0 !important;
+    border-radius:10px !important;
+    padding:12px 14px !important;
+    align-self:auto !important;
+    color:#1a1a1a !important;
+    font-weight:800 !important;
+    background:rgba(255,255,255,.96) !important;
+    border:1px solid rgba(26,26,26,.2) !important;
+  }
+
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav .tab--nav:hover,
+  html body #adminHeader.adminHeader--navCollapsed .adminHeader__tabs #adminSideNav .tab--nav:hover,
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav .tab--nav:focus-visible,
+  html body #adminHeader.adminHeader--navCollapsed .adminHeader__tabs #adminSideNav .tab--nav:focus-visible{
+    color:#1a1a1a !important;
+    background:#fff4e3 !important;
+    border-color:rgba(122,47,22,.45) !important;
+  }
+
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav .tab--nav[aria-selected="true"],
+  html body #adminHeader.adminHeader--navCollapsed .adminHeader__tabs #adminSideNav .tab--nav[aria-selected="true"]{
+    color:#fff7ed !important;
+    background:linear-gradient(180deg, #7a2f16, #c46123) !important;
+    border-color:rgba(83,28,11,.55) !important;
+  }
+
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav .sideNav__groupLabel,
+  html body #adminHeader.adminHeader--navCollapsed .adminHeader__tabs #adminSideNav .sideNav__groupLabel{
+    display:block !important;
+    margin:6px 2px 2px !important;
+    color:#5a2410 !important;
+    font-weight:900 !important;
+    letter-spacing:.08em !important;
+  }
+
+  html body.adminDrawerOpen.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav .sideNav__groupLabel,
+  html body.adminDrawerOpen #adminHeader.adminHeader--navCollapsed .adminHeader__tabs #adminSideNav.adminDrawer.sideNav .sideNav__groupLabel{
+    color:#5a2410 !important;
+    opacity:1 !important;
+    text-shadow:none !important;
+  }
+
+  html body.adminDrawerOpen.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav .tab--nav:not([aria-selected="true"]),
+  html body.adminDrawerOpen #adminHeader.adminHeader--navCollapsed .adminHeader__tabs #adminSideNav.adminDrawer.sideNav .tab--nav:not([aria-selected="true"]){
+    color:#1a1a1a !important;
+  }
+
+  html body.adminHomeSection:not(.adminHeaderNavCollapsed) #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav,
+  html body.adminHomeSection #adminHeader:not(.adminHeader--navCollapsed) .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
     display:flex !important;
   }
 
@@ -456,7 +580,7 @@
 
   #adminHeader .header__logo{
     width:min(160px, 38vw);
-    max-height:72px;
+    max-height:60px;
   }
 
   #adminHeader .adminHeader__top{
@@ -464,7 +588,7 @@
     display:flex;
     justify-content:flex-end;
     align-items:flex-start;
-    min-height:76px;
+    min-height:64px;
     padding-top:0;
     position:relative;
   }
@@ -486,6 +610,7 @@
     row-gap:4px;
     width:max-content;
     min-width:0;
+    transform:translateY(2px);
   }
 
   #adminHeader #authStatus{
