@@ -246,25 +246,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const menuButton = document.getElementById('menuButton');
     const navLinks = document.getElementById('navLinks');
+    const setMenuExpanded = (expanded) => {
+        if (menuButton) menuButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    };
+    const closeMobileMenu = ({ restoreFocus = false } = {}) => {
+        if (!navLinks) return;
+        navLinks.classList.remove('active');
+        setMenuExpanded(false);
+        closeLeadershipMenus();
+        if (restoreFocus && menuButton) menuButton.focus();
+    };
+
     enhanceLeadershipNav();
     document.addEventListener('click', (event) => {
         if (!event.target.closest('.nav-item-group--leadership')) closeLeadershipMenus();
     });
     if (menuButton && navLinks) {
-        const setExpanded = (expanded) => menuButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
         if (!menuButton.hasAttribute('aria-controls')) menuButton.setAttribute('aria-controls', 'navLinks');
-        setExpanded(navLinks.classList.contains('active'));
+        setMenuExpanded(navLinks.classList.contains('active'));
+
         menuButton.addEventListener('click', () => {
             navLinks.classList.toggle('active');
-            setExpanded(navLinks.classList.contains('active'));
-            if (!navLinks.classList.contains('active')) closeLeadershipMenus();
+            const isExpanded = navLinks.classList.contains('active');
+            setMenuExpanded(isExpanded);
+            if (!isExpanded) closeLeadershipMenus();
         });
+
+        navLinks.querySelectorAll('a').forEach((link) => {
+            link.addEventListener('click', () => {
+                closeMobileMenu();
+            });
+        });
+
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && navLinks.classList.contains('active')) {
-                navLinks.classList.remove('active');
-                setExpanded(false);
-                closeLeadershipMenus();
-                menuButton.focus();
+                closeMobileMenu({ restoreFocus: true });
             }
         });
     }

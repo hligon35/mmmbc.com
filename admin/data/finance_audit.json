@@ -1,3 +1,56 @@
 {
-  "events": []
+  "events": [
+    {
+      "eventId": "facf5c3a-71c7-491e-96bc-22212882fcd3",
+      "entityType": "finance_entry",
+      "entityId": "31cd2d67-cdf3-4273-b21d-4445ac65ce87",
+      "userId": "1b73e4ca-dec5-449d-a3ce-6f1c0a5e5f7e",
+      "userEmail": "hligon@getsparqd.com",
+      "occurredAt": "2026-08-19T01:49:50.434Z",
+      "action": "created",
+      "previousValues": {},
+      "newValues": {
+        "id": "31cd2d67-cdf3-4273-b21d-4445ac65ce87",
+        "date": "2026-08-18",
+        "type": "income",
+        "source": "manual",
+        "sourceLabel": "Manual",
+        "category": "Offering",
+        "fund": "Automation Verification Fund",
+        "fundId": "a0434adb-1eab-481a-ae7a-15c2f76e662e",
+        "accountId": "",
+        "accountName": "",
+        "method": "cash",
+        "checkNumber": "",
+        "depositBatchId": "",
+        "stripeSourceId": "",
+        "description": "",
+        "party": "Automation Verification",
+        "memo": "Automation finance verification 1787104190356",
+        "note": "",
+        "vendorId": "",
+        "vendorName": "",
+        "donorId": "",
+        "donorName": "",
+        "statementReviewStatus": "needs_review",
+        "goodsServicesValueCents": 0,
+        "status": "posted",
+        "reconciliationStatus": "unreconciled",
+        "amountCents": 1500,
+        "createdBy": "1b73e4ca-dec5-449d-a3ce-6f1c0a5e5f7e",
+        "createdAt": "2026-08-19T01:49:50.406Z",
+        "lastEditedBy": "",
+        "updatedAt": "",
+        "auditVersion": 1,
+        "voidedBy": "",
+        "voidedAt": "",
+        "voidReason": "",
+        "reversalTransactionId": ""
+      },
+      "reason": "",
+      "source": "manual",
+      "requestId": "4326b5d6-d83a-408c-a614-2dbe6936010e",
+      "ip": "::1"
+    }
+  ]
 }

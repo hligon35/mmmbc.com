@@ -27,6 +27,25 @@ async function requireSession(request, env, ctx) {
   return data?.user || null;
 }
 
+async function requireSessionState(request, env, ctx) {
+  const url = new URL(request.url);
+  url.pathname = '/api/me';
+  url.search = '';
+  const response = await worker.fetch(new Request(url.toString(), {
+    method: 'GET',
+    headers: request.headers
+  }), env, ctx);
+  if (!response.ok) return null;
+  return response.json().catch(() => null);
+}
+
+function canViewDeveloperDiagnostics(sessionState) {
+  if (!sessionState?.user) return false;
+  return sessionState?.user?.developer === true
+    || sessionState?.capabilities?.developer === true
+    || sessionState?.capabilities?.diagnostics?.view === true;
+}
+
 async function readAssetJson(request, env, pathname, fallback) {
   if (!env.ASSETS || typeof env.ASSETS.fetch !== 'function') return fallback;
   try {
@@ -1301,8 +1320,12 @@ export default {
     }
 
     if (url.pathname === '/api/admin/storage-health' && request.method === 'GET') {
-      const user = await requireSession(request, env, ctx);
+      const sessionState = await requireSessionState(request, env, ctx);
+      const user = sessionState?.user || null;
       if (!user) return json({ error: 'Unauthorized' }, 401);
+      if (!canViewDeveloperDiagnostics(sessionState)) {
+        return json({ error: 'Developer diagnostics access is required for this action.' }, 403);
+      }
       return json({
         ok: true,
         checkedAt: new Date().toISOString(),
@@ -1316,8 +1339,12 @@ export default {
     }
 
     if (url.pathname === '/api/admin/integration-health' && request.method === 'GET') {
-      const user = await requireSession(request, env, ctx);
+      const sessionState = await requireSessionState(request, env, ctx);
+      const user = sessionState?.user || null;
       if (!user) return json({ error: 'Unauthorized' }, 401);
+      if (!canViewDeveloperDiagnostics(sessionState)) {
+        return json({ error: 'Developer diagnostics access is required for this action.' }, 403);
+      }
       return json({
         ok: true,
         checkedAt: new Date().toISOString(),

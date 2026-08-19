@@ -649,6 +649,23 @@ function allowList(env) {
   );
 }
 
+function developerAllowList(env) {
+  const raw = String(env.DEVELOPER_EMAILS || '').trim();
+  if (!raw) return new Set();
+  return new Set(
+    raw
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+function hasDeveloperDiagnosticsAccess(env, email) {
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized) return false;
+  return developerAllowList(env).has(normalized);
+}
+
 function isDevBypass(env) {
   const raw = String(env.DEV_BYPASS_AUTH || '').trim().toLowerCase();
   return ['1', 'true', 'yes', 'y', 'on'].includes(raw);
@@ -1713,6 +1730,9 @@ async function handleCdn(request, env) {
 async function handleAdminIntegrationHealth(request, env) {
   const auth = await requireAdmin(request, env);
   if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+  if (!hasDeveloperDiagnosticsAccess(env, auth.email)) {
+    return json({ error: 'Developer diagnostics access is required for this action.' }, { status: 403 });
+  }
 
   const checks = {
     dbBinding: Boolean(env.DB),
@@ -1946,7 +1966,9 @@ export default {
     if (url.pathname === '/api/me' && request.method === 'GET') {
       const email = getAccessEmail(request);
       if (!email && !isDevBypass(env)) return json({ user: null });
-      return json({ user: { id: email || 'dev', email: email || 'dev@local', role: 'admin', name: '', isMaster: false, mustOnboard: false, twoFactorEnabled: false } });
+      const effectiveEmail = email || 'dev@local';
+      const developer = hasDeveloperDiagnosticsAccess(env, effectiveEmail);
+      return json({ user: { id: email || 'dev', email: effectiveEmail, role: 'admin', name: '', isMaster: false, developer, mustOnboard: false, twoFactorEnabled: false }, capabilities: { developer, diagnostics: { view: developer } } });
     }
 
     if (url.pathname.startsWith('/api/directory/')) {

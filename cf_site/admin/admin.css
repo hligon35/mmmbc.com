@@ -191,7 +191,7 @@ body{
 
 /* Events: keep controls on one row by shortening Title and moving hint below */
 #eventForm{
-  grid-template-columns:minmax(212px, 1fr) minmax(138px, 160px) minmax(200px, 1fr);
+  grid-template-columns:minmax(212px, 1fr) minmax(138px, 160px) minmax(200px, 1fr) auto;
   align-items:end;
 }
 #eventForm > .label{min-width:0;}
@@ -222,8 +222,8 @@ body{
 #eventForm #eventTimePicker input.select[aria-label="M"]{min-width:56px;}
 #eventForm #eventTimePicker input.select[aria-label="A/P"]{min-width:84px;}
 
-/* Add button on its own row */
-#eventForm > button.btn{grid-column:1 / -1;width:fit-content;justify-self:start;}
+/* Keep the submit action aligned with the last field on desktop */
+#eventForm > button.btn{width:fit-content;justify-self:start;align-self:end;}
 #eventForm #eventHint{grid-column:1 / -1;}
 
 @media (max-width:720px){
@@ -412,7 +412,10 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 
 .financeFilterPanel{
   min-width:min(360px, calc(100vw - 40px));
-  max-width:min(420px, calc(100vw - 40px));
+  width:min(760px, calc(100vw - 32px));
+  max-width:calc(100vw - 32px);
+  max-height:min(80vh, 820px);
+  overflow:auto;
 }
 
 .financeFilterFieldset{
@@ -459,7 +462,8 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 .financeMainTabs{margin:0; padding-top:0;}
 
 .financeWizardPanel{
-  max-width:640px;
+  width:min(960px, 100%);
+  max-width:960px;
   margin:0 auto;
   padding:18px;
   background:var(--bg);
@@ -492,7 +496,7 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 .wizardProgress__step--current{color:#fff;background:var(--accent);border-color:rgba(0,0,0,.2);}
 .wizardProgress__step:focus{outline:3px solid rgba(196,97,35,.55);outline-offset:2px;}
 
-.wizardForm{max-width:640px;}
+.wizardForm{max-width:none;}
 .wizardStep{
   border:1px solid var(--border);
   border-radius:14px;
@@ -502,7 +506,24 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 .wizardStep + .wizardStep{margin-top:12px;}
 .wizardStep__question{margin:0 0 12px;font-size:1.1rem;font-weight:900;}
 
-.formRow--wizard{grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));}
+.formRow--wizard{grid-template-columns:repeat(2, minmax(0, 1fr));align-items:start;}
+
+.financeWizardField{
+  min-width:0;
+  display:grid;
+  align-content:start;
+}
+
+.financeWizardField .input,
+.financeWizardField .select{
+  min-height:52px;
+}
+
+.financeWizardField .fieldHint,
+.financeWizardField .fieldError{
+  display:block;
+  margin-top:6px;
+}
 
 .wizardChoices{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
 .wizardChoice{
@@ -572,11 +593,77 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
   .financeCard .financeDetailFields{margin-top:10px;}
 }
 
+@media (max-width:760px){
+  .financeContextActions,
+  .financeFilterPresetGrid,
+  .financeFilterDateGrid,
+  .financeFilterDetailGrid,
+  .formRow--wizard{
+    grid-template-columns:1fr;
+  }
+
+  .financeFilterActions{
+    justify-content:stretch;
+  }
+
+  .financeFilterActions .btn,
+  .financeExportMenu,
+  .financeExportMenu > summary{
+    width:100%;
+  }
+}
+
 .financeAmt--income{color:#3fbf6b;}
 .financeAmt--expense{color:var(--danger);}
 
 .financeAdvancedFilters{margin-top:10px;}
 .financeAdvancedFilters > summary{cursor:pointer;font-weight:800;}
+
+.financeContextActions{
+  display:grid;
+  grid-template-columns:minmax(280px, 1.4fr) auto auto;
+  align-items:end;
+  gap:12px;
+  margin-top:10px;
+}
+
+.financeHeaderSearch,
+.financeHeaderRight,
+.financeQuickTabs,
+.financeReviewTableWrap,
+#panel-finances-review,
+#panel-finances-reports{
+  min-width:0;
+}
+
+.financeFilterPresetGrid,
+.financeFilterDetailGrid,
+.financeFilterDateGrid{
+  display:grid;
+  gap:10px;
+}
+
+.financeFilterPresetGrid{
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+}
+
+.financeFilterDateGrid,
+.financeFilterDetailGrid{
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+}
+
+.financeFilterActions{
+  justify-content:space-between;
+  gap:10px;
+}
+
+.financeExportMenu .menu__panel{
+  width:min(320px, calc(100vw - 32px));
+}
+
+#financeExportHint{
+  margin-top:8px;
+}
 
 /* ---------------------------------------------------------------------- */
 /* Finance: Reports & Printing                                            */
@@ -815,6 +902,55 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
   display:grid;
   gap:12px;
   margin-top:4px;
+}
+
+.newsletterComposeGrid{
+  align-items:start;
+}
+
+.newsletterComposeGrid--lead{
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+}
+
+.newsletterComposeGrid--schedule{
+  grid-template-columns:max-content max-content minmax(0, 1fr);
+}
+
+.newsletterField{
+  min-width:0;
+  display:grid;
+  align-content:start;
+}
+
+.newsletterField--date,
+.newsletterField--time{
+  width:max-content;
+}
+
+.newsletterField--date .input,
+.newsletterField--time .input{
+  width:auto;
+  min-width:0;
+}
+
+.newsletterField--timezone{
+  min-width:0;
+}
+
+.newsletterField .input,
+.newsletterField .select{
+  min-height:52px;
+}
+
+.newsletterField--timezone .select{
+  width:100%;
+  min-inline-size:0;
+  padding-right:2.8rem;
+  text-overflow:clip;
+}
+
+#newsletterTimezoneHint{
+  margin-top:6px;
 }
 
 .newsletterSectionEditor__item{
@@ -1234,6 +1370,27 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 @media (max-width:1100px){
   .newsletterBuilder{grid-template-columns:1fr;}
   .newsletterBuilder__preview{position:static;}
+}
+
+@media (max-width:1050px){
+  .newsletterComposeGrid--schedule{
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+  }
+
+  .newsletterField--timezone{
+    grid-column:1 / -1;
+  }
+
+  .newsletterField--timezone .select{
+    min-inline-size:0;
+  }
+}
+
+@media (max-width:760px){
+  .newsletterComposeGrid--lead,
+  .newsletterComposeGrid--schedule{
+    grid-template-columns:1fr;
+  }
 }
 
 @media (max-width:640px){
@@ -2020,8 +2177,34 @@ input[type="time"].input{
   flex:1 1 220px;
 }
 
+.announceForm__actionsRow{
+  grid-template-columns:auto auto auto;
+  align-items:end;
+  gap:12px;
+}
+
+.announceForm__expiresField{
+  width:fit-content;
+  min-width:0;
+}
+
+.announceForm__expiresField .input{
+  width:min(10ch, 100%);
+  min-width:8ch;
+}
+
+.announceForm__neverExpires{
+  min-width:0;
+  white-space:nowrap;
+  align-self:end;
+}
+
+.announceForm__submit{
+  align-self:end;
+}
+
 #eventForm{
-  grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns:minmax(212px, 1fr) minmax(138px, 160px) minmax(200px, 1fr) auto;
 }
 
 #eventForm input[type="date"].input{width:100%;}
@@ -2618,6 +2801,12 @@ body.authMode .loginStage{
   padding:0;
   background:transparent;
   z-index:195;
+  pointer-events:auto;
+}
+
+.adminDrawerBackdrop[hidden]{
+  display:none !important;
+  pointer-events:none !important;
 }
 
 body.adminDrawerOpen{overflow:hidden;}
@@ -2766,16 +2955,23 @@ body.navDrawerCollapsed .sideNav{display:flex;}
 }
 
 #tab-photos .photoSettingToggle{
-  display:inline-flex;
+  display:inline-grid;
+  grid-template-columns:auto minmax(0, 1fr);
   align-items:center;
-  gap:8px;
+  gap:10px;
   white-space:nowrap;
   min-width:auto;
+  width:fit-content;
 }
 
 #tab-photos #photoShowImageNames{
   width:20px;
   height:20px;
+  margin:0;
+}
+
+#tab-photos .photoSettingToggle__label{
+  line-height:1.3;
 }
 
 .photoHeaderUploadRow{
@@ -2796,6 +2992,18 @@ body.navDrawerCollapsed .sideNav{display:flex;}
   .photoHeaderUploadRow{
     flex-direction:column;
     align-items:stretch;
+  }
+
+  .announceForm__actionsRow{
+    grid-template-columns:1fr;
+    align-items:stretch;
+  }
+
+  .announceForm__expiresField,
+  .announceForm__neverExpires,
+  .announceForm__submit,
+  #tab-photos .photoSettingToggle{
+    width:100%;
   }
 
   .photoBulkBar,
@@ -3204,6 +3412,8 @@ body.navDrawerCollapsed .sideNav{display:flex;}
     overflow-x:auto;
     overflow-y:hidden;
     padding-bottom:2px;
+    position:relative;
+    z-index:245;
   }
 
   #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
@@ -3240,6 +3450,8 @@ body.navDrawerCollapsed .sideNav{display:flex;}
   }
 
   #adminHeader .adminHeader__tabs .tab--nav{
+    position:relative;
+    z-index:246;
     flex:0 0 auto !important;
     min-width:160px !important;
     border-radius:16px 16px 0 0 !important;
@@ -3300,6 +3512,8 @@ body.navDrawerCollapsed .sideNav{display:flex;}
   }
 
   html body #adminHeader .adminHeader__tabs #adminSideNav .tab--nav{
+    position:relative !important;
+    z-index:246 !important;
     border-radius:16px 16px 0 0 !important;
     border-bottom-left-radius:0 !important;
     border-bottom-right-radius:0 !important;

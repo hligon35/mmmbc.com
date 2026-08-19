@@ -529,7 +529,17 @@ function updateHeaderBumper() {
   const header = document.querySelector?.('.header');
   if (!header) return;
   try {
-    const h = Math.max(0, Math.round(header.getBoundingClientRect().height || 0));
+    const headerRect = header.getBoundingClientRect();
+    const tabs = $('adminHeaderTabs');
+    const tabsRect = tabs && !tabs.hidden && getComputedStyle(tabs).display !== 'none'
+      ? tabs.getBoundingClientRect()
+      : null;
+    const stackBottom = Math.max(
+      0,
+      Math.round(headerRect.bottom || 0),
+      Math.round(tabsRect?.bottom || 0)
+    );
+    const h = stackBottom;
     document.documentElement.style.setProperty('--header-bumper', `${h}px`);
     document.documentElement.style.setProperty('--admin-header-height', `${h}px`);
   } catch {
@@ -1530,6 +1540,13 @@ async function refreshAuthUI() {
       (Array.isArray(me.permissions) && me.permissions.includes(USERS_MANAGE_PERMISSION))
       || isAdministratorRole(me?.user?.role)
     );
+  const canViewDiagnostics = loggedIn
+    && (
+      me?.user?.developer === true
+      || me?.capabilities?.developer === true
+      || me?.capabilities?.diagnostics?.view === true
+      || (Array.isArray(me.permissions) && me.permissions.includes('diagnostics.view'))
+    );
 
   const inviteToken = getInviteTokenFromHash();
   const inInviteFlow = !!inviteToken;
@@ -1554,7 +1571,7 @@ async function refreshAuthUI() {
     inviteButton.style.position = 'relative';
     inviteButton.style.zIndex = '20';
   }
-  if ($('adminStorageHealthCard')) $('adminStorageHealthCard').hidden = !canManageUsers || inInviteFlow;
+  if ($('adminStorageHealthCard')) $('adminStorageHealthCard').hidden = !canViewDiagnostics || inInviteFlow;
 
   if (!loggedIn && !inInviteFlow) {
     const form = $('loginForm');
@@ -1592,7 +1609,7 @@ async function refreshAuthUI() {
     csrfReady = fetchCsrfToken();
     await csrfReady;
     await loadAll();
-    if (canManageUsers) {
+    if (canViewDiagnostics) {
       await loadAdminStorageHealth();
     }
     applyHashNavigation();
@@ -1718,6 +1735,12 @@ function setFinanceHint(text) {
   el.textContent = String(text || '');
 }
 
+function setFinanceExportHint(text) {
+  const el = $('financeExportHint');
+  if (!el) return;
+  el.textContent = String(text || '');
+}
+
 function financeSelectedTypes() {
   const incomeEl = $('financeTypeIncome');
   const expenseEl = $('financeTypeExpense');
@@ -1821,6 +1844,24 @@ function financeSetQuickKind(kind, { render = true, toggle = false } = {}) {
       expenseCb.checked = true;
     }
   }
+
+  if (render) renderFinances();
+}
+
+function financeClearQuickKind({ render = true } = {}) {
+  financeQuickKind = '';
+
+  const tabs = $('financeQuickTabs');
+  if (tabs) {
+    for (const btn of tabs.querySelectorAll('[data-fin-kind]')) {
+      btn.setAttribute('aria-pressed', 'false');
+    }
+  }
+
+  const incomeCb = $('financeTypeIncome');
+  const expenseCb = $('financeTypeExpense');
+  if (incomeCb instanceof HTMLInputElement) incomeCb.checked = true;
+  if (expenseCb instanceof HTMLInputElement) expenseCb.checked = true;
 
   if (render) renderFinances();
 }
@@ -2721,12 +2762,6 @@ function financeRowActionButtons(e, { onToggle }) {
   setActionIconButton(editBtn, 'edit', 'Edit entry');
   editBtn.addEventListener('click', () => financeStartEdit(e));
 
-  const receiptBtn = document.createElement('button');
-  receiptBtn.type = 'button';
-  receiptBtn.className = 'btn btn--sm';
-  receiptBtn.textContent = 'Print Receipt';
-  receiptBtn.addEventListener('click', () => financePrintReceipts([e]));
-
   const delBtn = document.createElement('button');
   delBtn.type = 'button';
   delBtn.className = 'btn btn--sm btn--danger';
@@ -2738,7 +2773,14 @@ function financeRowActionButtons(e, { onToggle }) {
 
   wrap.appendChild(viewBtn);
   wrap.appendChild(editBtn);
-  wrap.appendChild(receiptBtn);
+  if (financeCanPrintReceipt(e)) {
+    const receiptBtn = document.createElement('button');
+    receiptBtn.type = 'button';
+    receiptBtn.className = 'btn btn--sm';
+    receiptBtn.textContent = 'Print Receipt';
+    receiptBtn.addEventListener('click', () => financePrintReceipts([e]));
+    wrap.appendChild(receiptBtn);
+  }
   wrap.appendChild(delBtn);
   return wrap;
 }
@@ -2753,11 +2795,7 @@ function renderFinances() {
   const rangeHint = $('financeDateRangeHint');
   if (rangeHint) rangeHint.textContent = String(filters?.rangeError || '');
 
-  // Totals should reflect the selected date/search filters, but not the
-  // quick-kind mini-tabs OR the type checkbox filters.
-  // (You may browse "Expense" while still wanting to see income/giving totals.)
-  const totalsFilters = { ...filters, kind: '', types: [], type: '' };
-  const totalsRows = all.filter((e) => financeEntryMatches(e, totalsFilters));
+  const totalsRows = rows;
 
   let income = 0;
   let expense = 0;
@@ -2796,8 +2834,7 @@ function renderFinances() {
   if (tbody) tbody.innerHTML = '';
   if (cardList) cardList.innerHTML = '';
 
-  // Weekly Giving summary is independent of the table/filters.
-  renderWeeklyGiving();
+  renderWeeklyGiving(filters);
 
   if (!tbody && !cardList) return;
 
@@ -2939,7 +2976,7 @@ function renderFinances() {
     }
   }
 
-  renderWeeklyGiving();
+  renderWeeklyGiving(filters);
 }
 
 async function loadFinances() {
@@ -2976,6 +3013,112 @@ function downloadTextFile(name, text, mime) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+function downloadBinaryFile(name, bytes, mime) {
+  const blob = new Blob([bytes], { type: mime || 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function financeExportRows(filters = financeCurrentFilters()) {
+  const rows = Array.isArray(finances?.entries) ? finances.entries : [];
+  return rows
+    .filter((entry) => financeEntryMatches(entry, filters))
+    .sort((a, b) => String(a?.date || '').localeCompare(String(b?.date || '')));
+}
+
+function financeExportColumns(entries) {
+  return (Array.isArray(entries) ? entries : []).map((entry, index) => ({
+    'Receipt Number': financeCanPrintReceipt(entry) ? financeReceiptNoForEntry(entry, index) : '',
+    'Date': String(entry?.date || '').trim(),
+    'Transaction Type': financeNormalizeKey(entry?.type) === 'expense' ? 'Money Spent' : 'Money Received',
+    'Category': String(entry?.category || '').trim(),
+    'Fund': String(entry?.fund || '').trim(),
+    'Payment Method': financeMethodLabel(entry?.method),
+    'From / To': String(entry?.party || '').trim(),
+    'Amount': (Number(entry?.amountCents || 0) / 100).toFixed(2),
+    'Memo': String(entry?.memo || '').trim()
+  }));
+}
+
+function financeExportFileStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function financeExportToCsv(rows, { announce = true } = {}) {
+  const dataRows = financeExportColumns(rows);
+  const headers = ['Receipt Number', 'Date', 'Transaction Type', 'Category', 'Fund', 'Payment Method', 'From / To', 'Amount', 'Memo'];
+  const lines = [headers.map(financeCsvEscape).join(',')];
+  for (const row of dataRows) {
+    lines.push(headers.map((header) => financeCsvEscape(row[header])).join(','));
+  }
+  downloadTextFile(`finance-transactions-${financeExportFileStamp()}.csv`, lines.join('\n'), 'text/csv;charset=utf-8');
+  if (announce) setFinanceExportHint(`Downloaded CSV for ${rows.length} transaction${rows.length === 1 ? '' : 's'}.`);
+}
+
+function financeExportToXlsx(rows) {
+  const xlsx = window.XLSX;
+  if (!xlsx || typeof xlsx.utils?.book_new !== 'function') {
+    setFinanceExportHint('Excel export is unavailable because the workbook library did not load.');
+    return;
+  }
+
+  const sheetRows = financeExportColumns(rows);
+  const worksheet = xlsx.utils.json_to_sheet(sheetRows, {
+    header: ['Receipt Number', 'Date', 'Transaction Type', 'Category', 'Fund', 'Payment Method', 'From / To', 'Amount', 'Memo']
+  });
+  const workbook = xlsx.utils.book_new();
+  xlsx.utils.book_append_sheet(workbook, worksheet, 'Transactions');
+  const bytes = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+  downloadBinaryFile(
+    `finance-transactions-${financeExportFileStamp()}.xlsx`,
+    bytes,
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  );
+  setFinanceExportHint(`Downloaded Excel workbook for ${rows.length} transaction${rows.length === 1 ? '' : 's'}.`);
+}
+
+async function financeExportToGoogleSheets(rows) {
+  const headers = ['Receipt Number', 'Date', 'Transaction Type', 'Category', 'Fund', 'Payment Method', 'From / To', 'Amount', 'Memo'];
+  const sheetRows = financeExportColumns(rows);
+  const tsv = [
+    headers.join('\t'),
+    ...sheetRows.map((row) => headers.map((header) => String(row[header] ?? '')).join('\t'))
+  ].join('\n');
+
+  const sheetWindow = window.open('https://sheets.new', '_blank', 'noopener');
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(tsv);
+    copied = true;
+  } catch {
+    copied = false;
+  }
+
+  closeDetailsMenu('financeExportMenu');
+
+  if (sheetWindow && copied) {
+    setFinanceExportHint('Opened a new Google Sheet and copied the filtered transactions. Paste into cell A1.');
+    return;
+  }
+
+  financeExportToCsv(rows, { announce: false });
+  if (!sheetWindow && !copied) {
+    setFinanceExportHint('Google Sheets could not be opened and clipboard access was blocked. A CSV download was provided instead.');
+    return;
+  }
+  if (!sheetWindow) {
+    setFinanceExportHint('Google Sheets was blocked by your browser. The data was copied to your clipboard and a CSV download was provided as a fallback.');
+    return;
+  }
+  setFinanceExportHint('Opened a new Google Sheet, but clipboard access was blocked. A CSV download was provided; paste it into cell A1 after opening the file if needed.');
+}
+
 function isoDateToday() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -3003,7 +3146,7 @@ function normalizeCategoryKey(value) {
   return String(value || '').trim().toLowerCase();
 }
 
-function renderWeeklyGiving() {
+function renderWeeklyGiving(baseFilters = financeCurrentFilters()) {
   const today = isoDateToday();
   let from = '';
   let to = '';
@@ -3020,13 +3163,13 @@ function renderWeeklyGiving() {
   const offeringsKey = 'offerings';
 
   const entries = Array.isArray(finances?.entries) ? finances.entries : [];
-  const inRange = entries.filter((e) => {
-    const d = String(e?.date || '');
-    if (!d) return false;
-    if (from && d < from) return false;
-    if (to && d > to) return false;
-    return true;
-  });
+  const effectiveFilters = {
+    ...(baseFilters || {}),
+    from,
+    to,
+    dateRange: 'custom'
+  };
+  const inRange = entries.filter((e) => financeEntryMatches(e, effectiveFilters));
 
   let tithes = 0;
   let offerings = 0;
@@ -4406,9 +4549,7 @@ function financeReceiptHay(entry) {
 
 function financeGetReceiptsUniverse() {
   const all = Array.isArray(finances?.entries) ? finances.entries : [];
-  // Respect current date/search filters, but not quick tabs or type checkbox filters.
-  const base = financeCurrentFilters();
-  const filters = { ...base, kind: '', types: [], type: '' };
+  const filters = financeCurrentFilters();
   return all.filter((e) => financeEntryMatches(e, filters));
 }
 
@@ -4608,6 +4749,15 @@ function financeReceiptNoForEntry(entry, index) {
   return `MMMBC-${receiptSuffix}`;
 }
 
+function financeCanPrintReceipt(entry) {
+  if (!entry || typeof entry !== 'object') return false;
+  if (!String(entry?.id || '').trim()) return false;
+  if (!String(entry?.date || '').trim()) return false;
+  const type = financeNormalizeKey(entry?.type);
+  if (type !== 'income' && type !== 'expense') return false;
+  return Number.isFinite(Number(entry?.amountCents || 0));
+}
+
 function financeAppendSignatureLines(root) {
   const sign = document.createElement('div');
   sign.className = 'receipt__sign';
@@ -4669,14 +4819,14 @@ function financeBuildReceiptsTable(entries) {
 }
 
 function financePrintReceipts(entries, { reportLabel } = {}) {
-  const safe = Array.isArray(entries) ? entries.filter(Boolean) : [];
+  const safe = Array.isArray(entries) ? entries.filter((entry) => financeCanPrintReceipt(entry)) : [];
   if (!safe.length) {
-    alert('No entries selected to print.');
+    alert('No valid transactions are available to print.');
     return;
   }
 
   setPrintMode('receipts');
-  setFinancePrintHeader('Mt. Moriah Missionary Baptist Church', ['Financial Report', `${safe.length} item(s)`]);
+  setFinancePrintHeader(safe.length === 1 ? 'Receipt' : (reportLabel || 'Receipts'), [`${safe.length} item(s)`]);
 
   const root = $('adminPrintBody');
   if (!root) return;
@@ -5667,7 +5817,7 @@ function applyDetectedNewsletterTimezone() {
   if (!hasOption) {
     const opt = document.createElement('option');
     opt.value = detected;
-    opt.textContent = `${detected} (Detected)`;
+    opt.textContent = detected;
     select.appendChild(opt);
   }
 
@@ -6380,16 +6530,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     btn.addEventListener('click', () => setFinanceSubTab(btn.getAttribute('aria-controls')));
   }
 
-  if ($('financeViewSummaryBtn')) {
-    $('financeViewSummaryBtn').addEventListener('click', () => {
-      const totals = $('financeReportsTotals');
-      const btn = $('financeViewSummaryBtn');
-      try { totals?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch { /* ignore */ }
-      btn?.setAttribute('aria-expanded', 'true');
-      try { totals?.setAttribute('tabindex', '-1'); totals?.focus(); } catch { /* ignore */ }
-    });
-  }
-
   for (const id of ['financeFrom', 'financeTo', 'financeSearch']) {
     const el = $(id);
     if (!el) continue;
@@ -6498,10 +6638,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       if ($('financeFrom')) $('financeFrom').value = '';
       if ($('financeTo')) $('financeTo').value = '';
       if ($('financeSearch')) $('financeSearch').value = '';
+      if ($('financeFilterCategory')) $('financeFilterCategory').value = '';
+      if ($('financeFilterFund')) $('financeFilterFund').value = '';
+      if ($('financeFilterMethod')) $('financeFilterMethod').value = '';
       if ($('financeTypeIncome') instanceof HTMLInputElement) $('financeTypeIncome').checked = true;
       if ($('financeTypeExpense') instanceof HTMLInputElement) $('financeTypeExpense').checked = true;
       if ($('financeDateRangeHint')) $('financeDateRangeHint').textContent = '';
       setFinanceCustomMode(false);
+      financeClearQuickKind({ render: false });
       renderFinances();
       const menu = $('financeFilterMenu');
       if (menu) menu.open = false;
@@ -6510,25 +6654,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if ($('financeExportCsvBtn')) {
     $('financeExportCsvBtn').addEventListener('click', () => {
-      const filters = financeCurrentFilters();
-      const rows = (finances?.entries || []).filter((en) => financeEntryMatches(en, filters));
-      const header = ['Date', 'Type', 'Category', 'Fund', 'Method', 'FromTo', 'Memo', 'Amount'];
-      const lines = [header.map(financeCsvEscape).join(',')];
-      for (const r of rows) {
-        const amount = (Number(r.amountCents || 0) / 100).toFixed(2);
-        lines.push([
-          r.date,
-          r.type,
-          r.category,
-          r.fund,
-          r.method,
-          r.party,
-          r.memo,
-          amount
-        ].map(financeCsvEscape).join(','));
-      }
-      const stamp = new Date().toISOString().slice(0, 10);
-      downloadTextFile(`finances_${stamp}.csv`, lines.join('\n'), 'text/csv');
+      const rows = financeExportRows();
+      financeExportToCsv(rows);
+      closeDetailsMenu('financeExportMenu');
+    });
+  }
+
+  if ($('financeExportXlsxBtn')) {
+    $('financeExportXlsxBtn').addEventListener('click', () => {
+      const rows = financeExportRows();
+      financeExportToXlsx(rows);
+      closeDetailsMenu('financeExportMenu');
+    });
+  }
+
+  if ($('financeExportSheetsBtn')) {
+    $('financeExportSheetsBtn').addEventListener('click', async () => {
+      const rows = financeExportRows();
+      await financeExportToGoogleSheets(rows);
     });
   }
 

@@ -41,8 +41,12 @@
 	// Cloudflare-side Worker vars.
 	// GOOGLE_CLIENT_ID, GOOGLE_ALLOWED_EMAILS, and SESSION_SECRET must be configured
 	// as Cloudflare Worker secrets/variables before Google sign-in will be enabled.
+	// DEVELOPER_EMAILS is a separate allowlist for storage/integration diagnostics;
+	// it is checked server-side against the authenticated email and should stay
+	// narrower than ADMIN_ALLOW_EMAILS when you want regular admins blocked.
 	"vars": {
 		"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+		"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 		"CANONICAL_HOST": "mmmbc.alphazonelabs.com",
 		"ALLOW_SERVICE_TOKEN_ADMIN": "false",
 		"DEV_BYPASS_AUTH": "false",
@@ -93,6 +97,7 @@
 			},
 			"vars": {
 				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+				"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 				"CANONICAL_HOST": "mmmbc.alphazonelabs.com",
 				"ALLOW_SERVICE_TOKEN_ADMIN": "false",
 				"DEV_BYPASS_AUTH": "false",
@@ -130,6 +135,7 @@
 			],
 			"vars": {
 				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+				"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 				"CANONICAL_HOST": "mmmbc-preview.alphazonelabs.com",
 				"ALLOW_SERVICE_TOKEN_ADMIN": "true",
 				"DEV_BYPASS_AUTH": "false",
@@ -175,6 +181,7 @@
 			],
 			"vars": {
 				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+				"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 				"CANONICAL_HOST": "mmmbc.alphazonelabs.com",
 				"ALLOW_SERVICE_TOKEN_ADMIN": "true",
 				"DEV_BYPASS_AUTH": "false",

@@ -73,6 +73,7 @@ const DOCS_UPLOADS_DIR = path.join(UPLOADS_DIR, 'docs');
 const BULLETINS_UPLOADS_DIR = path.join(UPLOADS_DIR, 'bulletins');
 const ROOT_BULLETINS_DIR = path.join(ROOT_DIR, 'bulletins');
 const GALLERY_DIR = path.join(ROOT_DIR, 'ConImg', 'gallery');
+const XLSX_VENDOR_PATH = path.join(ROOT_DIR, 'node_modules', 'xlsx', 'dist', 'xlsx.full.min.js');
 
 // Keep local dev admin HTML in parity with what the production Cloudflare Worker
 // injects at runtime via transformAdminHtml() in src/worker-admin-api-wrapper.js.
@@ -892,6 +893,29 @@ function sessionUser(req) {
   };
 }
 
+function normalizeEmailAddress(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function configuredEmailAllowList(rawValue) {
+  return new Set(
+    String(rawValue || '')
+      .split(',')
+      .map((value) => normalizeEmailAddress(value))
+      .filter(Boolean)
+  );
+}
+
+function developerEmailAllowList() {
+  return configuredEmailAllowList(process.env.DEVELOPER_EMAILS || '');
+}
+
+function userHasDeveloperCapability(user) {
+  const email = normalizeEmailAddress(user?.email);
+  if (!email) return false;
+  return developerEmailAllowList().has(email);
+}
+
 function requireAuth(req, res, next) {
   const user = sessionUser(req);
   if (user) {
@@ -931,6 +955,32 @@ function requirePermission(permission) {
     });
     return sendApiError(res, 403, 'You do not have permission to perform this action.', { code: 'PERMISSION_DENIED', requestId: req.requestId });
   };
+}
+
+function requireDeveloperDiagnostics(req, res, next) {
+  const user = sessionUser(req);
+  if (!user) {
+    audit('auth_denied', {
+      at: new Date().toISOString(),
+      ip: req.ip,
+      path: req.originalUrl,
+      reason: 'no_session'
+    });
+    return sendApiError(res, 401, 'Session expired. Sign in again.', { code: 'SESSION_EXPIRED', requestId: req.requestId });
+  }
+  if (userHasDeveloperCapability(user)) return next();
+  audit('authz_denied', {
+    at: new Date().toISOString(),
+    ip: req.ip,
+    path: req.originalUrl,
+    userId: user.id,
+    userEmail: user.email,
+    reason: 'developer_diagnostics_required'
+  });
+  return sendApiError(res, 403, 'Developer diagnostics access is required for this action.', {
+    code: 'DEVELOPER_DIAGNOSTICS_REQUIRED',
+    requestId: req.requestId
+  });
 }
 
 function requireAnyPermission(permissions) {
@@ -1266,6 +1316,14 @@ app.get('/admin/finances/envelopes', requirePermission(PERMISSIONS.DONOR_READ), 
 
 app.get('/scan', (req, res) => {
   return res.sendFile(path.join(ROOT_DIR, 'scan.html'));
+});
+
+app.get('/admin/vendor/xlsx.full.min.js', (req, res) => {
+  if (!fs.existsSync(XLSX_VENDOR_PATH)) {
+    return res.status(404).json({ error: 'Excel export vendor asset is not installed.' });
+  }
+  res.setHeader('Cache-Control', 'no-store');
+  return res.sendFile(XLSX_VENDOR_PATH);
 });
 
 app.use('/admin', express.static(path.join(ADMIN_DIR, 'public'), {
@@ -2261,7 +2319,20 @@ app.get('/api/me', (req, res) => {
     mustOnboard: !!user.mustOnboard,
     twoFactorEnabled: !!user.twoFactorEnabled
   };
-  res.json({ user: req.session.user, permissions: permissionsForRole(req.session.user.role) });
+  const developer = userHasDeveloperCapability(req.session.user);
+  res.json({
+    user: {
+      ...req.session.user,
+      developer
+    },
+    permissions: permissionsForRole(req.session.user.role),
+    capabilities: {
+      developer,
+      diagnostics: {
+        view: developer
+      }
+    }
+  });
 });
 
 function dashboardEventTimeMs(eventItem) {
@@ -2578,7 +2649,7 @@ app.get('/api/admin/health', requirePermission(PERMISSIONS.USERS_MANAGE), (req, 
   });
 });
 
-app.get('/api/admin/storage-health', requirePermission(PERMISSIONS.USERS_MANAGE), async (req, res) => {
+app.get('/api/admin/storage-health', requireDeveloperDiagnostics, async (req, res) => {
   const storage = storageModeInfo();
   let postgresCheck = { ok: null, latencyMs: null, error: '' };
 
@@ -2603,9 +2674,68 @@ app.get('/api/admin/storage-health', requirePermission(PERMISSIONS.USERS_MANAGE)
     degraded,
     production,
     checkedAt: new Date().toISOString(),
+    actor: normalizeEmailAddress(sessionUser(req)?.email),
     storage,
     sessionStore: sessionStoreModeInfo(),
     postgresCheck
+  });
+});
+
+app.get('/api/admin/integration-health', requireDeveloperDiagnostics, async (req, res) => {
+  const actor = normalizeEmailAddress(sessionUser(req)?.email);
+  const storage = storageModeInfo();
+  let rootIndexExists = false;
+  let adminIndexExists = false;
+  let galleryDirExists = false;
+
+  try { rootIndexExists = fs.existsSync(path.join(ROOT_DIR, 'index.html')); } catch {}
+  try { adminIndexExists = fs.existsSync(path.join(ADMIN_DIR, 'public', 'index.html')); } catch {}
+  try { galleryDirExists = fs.existsSync(GALLERY_DIR); } catch {}
+
+  let postgresCheck = { ok: null, latencyMs: null, error: '' };
+  if (storage.postgresConnected) {
+    const started = Date.now();
+    try {
+      await pgQuery('SELECT 1 AS ok');
+      postgresCheck = { ok: true, latencyMs: Date.now() - started, error: '' };
+    } catch (err) {
+      postgresCheck = { ok: false, latencyMs: Date.now() - started, error: sanitizeClientErrorMessage(err?.message || 'Postgres check failed.', 503) };
+    }
+  }
+
+  return res.json({
+    ok: true,
+    checkedAt: new Date().toISOString(),
+    actor,
+    checks: {
+      rootIndexExists,
+      adminIndexExists,
+      galleryDirExists,
+      postgresConfigured: Boolean(POSTGRES_URL),
+      postgresConnected: storage.postgresConnected,
+      exportsEnabled: ENABLE_EXPORTS,
+      xlsxVendorAvailable: fs.existsSync(XLSX_VENDOR_PATH)
+    },
+    storage,
+    sessionStore: sessionStoreModeInfo(),
+    postgresCheck,
+    routeCoverage: {
+      publicFeeds: [
+        '/api/public/announcements',
+        '/api/public/events',
+        '/api/public/bulletins',
+        '/api/public/gallery',
+        '/api/public/youtube',
+        '/api/public/site-settings',
+        '/api/public/livestream'
+      ],
+      publicSubmissions: [
+        '/api/public/newsletter/subscribe',
+        '/api/public/contact-message',
+        '/api/public/facility-rental-request'
+      ],
+      adminHealth: '/api/admin/integration-health'
+    }
   });
 });
 

@@ -16,6 +16,18 @@
 
 PRAGMA foreign_keys = ON;
 
+CREATE TEMP TABLE IF NOT EXISTS seed_guard_directory_ready (
+  ready_directory INTEGER NOT NULL CHECK (ready_directory = 1)
+);
+DELETE FROM seed_guard_directory_ready;
+INSERT INTO seed_guard_directory_ready (ready_directory)
+VALUES (
+  CASE
+    WHEN EXISTS (SELECT 1 FROM pragma_table_info('directory_contacts') WHERE name = 'id') THEN 1
+    ELSE 0
+  END
+);
+
 -- Tables initialized at runtime by the current finance API.
 CREATE TABLE IF NOT EXISTS finance_funds (
   id TEXT PRIMARY KEY,
@@ -175,6 +187,41 @@ VALUES
   ('test-newsletter-sent', 'Test: Prior Weekly Update', 'Synthetic sent newsletter body.', '["jordan.brooks@example.com","avery.coleman@example.com","casey.franklin@example.com"]', 'sent', 3, NULL, NULL, NULL, 'America/Chicago', 0, NULL, strftime('%Y-%m-%dT%H:%M:%fZ','now','-10 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-7 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-7 days')),
   ('test-newsletter-failed', 'Test: Failed Delivery', 'Synthetic failed newsletter body.', '["invalid-test@example.com"]', 'failed', 0, NULL, NULL, NULL, 'America/Chicago', 1, 'Synthetic delivery failure for error-state testing.', strftime('%Y-%m-%dT%H:%M:%fZ','now','-5 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-4 days'), NULL);
 
+-- Finance ledger records used by the main admin Finance section.
+CREATE TEMP TABLE IF NOT EXISTS seed_guard_finance_core_ready (
+  ready_finance_core INTEGER NOT NULL CHECK (ready_finance_core = 1)
+);
+DELETE FROM seed_guard_finance_core_ready;
+INSERT INTO seed_guard_finance_core_ready (ready_finance_core)
+VALUES (
+  CASE
+    WHEN EXISTS (SELECT 1 FROM pragma_table_info('finance_entries') WHERE name = 'entry_date')
+      AND EXISTS (SELECT 1 FROM pragma_table_info('finance_funds') WHERE name = 'fund_name')
+      AND EXISTS (SELECT 1 FROM pragma_table_info('finance_meta') WHERE name = 'value_json')
+    THEN 1
+    ELSE 0
+  END
+);
+
+INSERT OR REPLACE INTO finance_funds
+  (id, fund_name, fund_code, active, created_at, updated_at)
+VALUES
+  ('test-fund-general', 'Test General Fund', 'GENERAL', 1, strftime('%Y-%m-%dT%H:%M:%fZ','now','-365 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  ('test-fund-building', 'Test Building Fund', 'BUILDING', 1, strftime('%Y-%m-%dT%H:%M:%fZ','now','-365 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  ('test-fund-missions', 'Test Missions Fund', 'MISSIONS', 1, strftime('%Y-%m-%dT%H:%M:%fZ','now','-365 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+
+INSERT OR REPLACE INTO finance_meta (key, value_json, updated_at)
+VALUES ('test-seed', '{"categories":["Offering","Utilities","Outreach","Supplies"],"funds":["Test General Fund","Test Building Fund","Test Missions Fund"]}', strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+
+INSERT OR REPLACE INTO finance_entries
+  (id, entry_date, type, category, fund, method, party, memo,
+   amount_cents, created_at, updated_at)
+VALUES
+  ('test-finance-01', date('now','-5 days'), 'income', 'Offering', 'Test General Fund', 'Online', 'Jordan Brooks', 'Synthetic giving entry', 12500, strftime('%Y-%m-%dT%H:%M:%fZ','now','-5 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-5 days')),
+  ('test-finance-02', date('now','-12 days'), 'income', 'Offering', 'Test Building Fund', 'Online', 'Avery Coleman', 'Synthetic building fund entry', 5000, strftime('%Y-%m-%dT%H:%M:%fZ','now','-12 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-12 days')),
+  ('test-finance-03', date('now','-8 days'), 'expense', 'Utilities', 'Test General Fund', 'Check', 'Test Utility Company', 'Synthetic utility expense', 7250, strftime('%Y-%m-%dT%H:%M:%fZ','now','-8 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-8 days')),
+  ('test-finance-04', date('now','-3 days'), 'expense', 'Outreach', 'Test Missions Fund', 'Card', 'Test Community Partner', 'Synthetic outreach supplies', 1800, strftime('%Y-%m-%dT%H:%M:%fZ','now','-3 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-3 days'));
+
 -- Linked donor records (members receive active envelope codes; visitors are
 -- one-time donors without member envelopes).
 INSERT OR REPLACE INTO finance_donors (
@@ -223,28 +270,23 @@ VALUES
   ('test-giving-03', NULL, 'test-session-03', 'test-pi-03', NULL, NULL, 'Parker Johnson', 'parker.johnson@example.com', 'GENERAL', 'one_time', 2500, 63, 'usd', 'pending', 'card', 'Synthetic pending visitor gift', strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 day'), NULL, strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 day')),
   ('test-giving-04', NULL, 'test-session-04', 'test-pi-04', NULL, NULL, 'Casey Franklin', 'casey.franklin@example.com', 'MISSIONS', 'one_time', 4000, 100, 'usd', 'failed', 'card', 'Synthetic failed gift', strftime('%Y-%m-%dT%H:%M:%fZ','now','-20 days'), NULL, strftime('%Y-%m-%dT%H:%M:%fZ','now','-20 days'));
 
--- Finance ledger records used by the main admin Finance section.
-INSERT OR REPLACE INTO finance_funds
-  (id, fund_name, fund_code, active, created_at, updated_at)
-VALUES
-  ('test-fund-general', 'Test General Fund', 'GENERAL', 1, strftime('%Y-%m-%dT%H:%M:%fZ','now','-365 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-  ('test-fund-building', 'Test Building Fund', 'BUILDING', 1, strftime('%Y-%m-%dT%H:%M:%fZ','now','-365 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-  ('test-fund-missions', 'Test Missions Fund', 'MISSIONS', 1, strftime('%Y-%m-%dT%H:%M:%fZ','now','-365 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now'));
-
-INSERT OR REPLACE INTO finance_meta (key, value_json, updated_at)
-VALUES ('test-seed', '{"categories":["Offering","Utilities","Outreach","Supplies"],"funds":["Test General Fund","Test Building Fund","Test Missions Fund"]}', strftime('%Y-%m-%dT%H:%M:%fZ','now'));
-
-INSERT OR REPLACE INTO finance_entries
-  (id, entry_date, type, category, fund, method, party, memo,
-   amount_cents, created_at, updated_at)
-VALUES
-  ('test-finance-01', strftime('%Y-%m-%dT%H:%M:%fZ','now','-5 days'), 'income', 'Offering', 'Test General Fund', 'Online', 'Jordan Brooks', 'Synthetic giving entry', 12500, strftime('%Y-%m-%dT%H:%M:%fZ','now','-5 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-5 days')),
-  ('test-finance-02', strftime('%Y-%m-%dT%H:%M:%fZ','now','-12 days'), 'income', 'Offering', 'Test Building Fund', 'Online', 'Avery Coleman', 'Synthetic building fund entry', 5000, strftime('%Y-%m-%dT%H:%M:%fZ','now','-12 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-12 days')),
-  ('test-finance-03', strftime('%Y-%m-%dT%H:%M:%fZ','now','-8 days'), 'expense', 'Utilities', 'Test General Fund', 'Check', 'Test Utility Company', 'Synthetic utility expense', 7250, strftime('%Y-%m-%dT%H:%M:%fZ','now','-8 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-8 days')),
-  ('test-finance-04', strftime('%Y-%m-%dT%H:%M:%fZ','now','-3 days'), 'expense', 'Outreach', 'Test Missions Fund', 'Card', 'Test Community Partner', 'Synthetic outreach supplies', 1800, strftime('%Y-%m-%dT%H:%M:%fZ','now','-3 days'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-3 days'));
-
 -- Sunday collection batch with cash, check, allocations, counter approval,
 -- loose giving, and audit history for reconciliation testing.
+CREATE TEMP TABLE IF NOT EXISTS seed_guard_finance_reconciliation_ready (
+  ready_finance_reconciliation INTEGER NOT NULL CHECK (ready_finance_reconciliation = 1)
+);
+DELETE FROM seed_guard_finance_reconciliation_ready;
+INSERT INTO seed_guard_finance_reconciliation_ready (ready_finance_reconciliation)
+VALUES (
+  CASE
+    WHEN EXISTS (SELECT 1 FROM pragma_table_info('finance_collection_batches') WHERE name = 'id')
+      AND EXISTS (SELECT 1 FROM pragma_table_info('finance_collection_envelopes') WHERE name = 'id')
+      AND EXISTS (SELECT 1 FROM pragma_table_info('finance_scan_codes') WHERE name = 'code_value')
+    THEN 1
+    ELSE 0
+  END
+);
+
 INSERT OR REPLACE INTO finance_collection_batches (
   id, service_date, service_name, status,
   declared_physical_cash_cents, declared_check_cents,

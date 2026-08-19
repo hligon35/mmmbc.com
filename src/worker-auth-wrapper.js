@@ -80,6 +80,17 @@ function allowedEmails(env) {
   return new Set(raw.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean));
 }
 
+function developerEmails(env) {
+  const raw = String(env.DEVELOPER_EMAILS || '');
+  return new Set(raw.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean));
+}
+
+function hasDeveloperCapability(env, email) {
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized) return false;
+  return developerEmails(env).has(normalized);
+}
+
 async function isEmailAllowedForSignIn(env, email) {
   const allow = allowedEmails(env);
   if (allow.has(email)) return true;
@@ -275,14 +286,21 @@ export default {
     const session = await readSession(request, sessionSecret);
     if (url.pathname === '/api/me' && request.method === 'GET') {
       if (!session) return json({ user: null });
+      const developer = hasDeveloperCapability(env, session.email);
       return json({ user: {
         id: session.email,
         email: session.email,
         name: session.name || '',
         role: 'administrator',
-        isMaster: true,
+        isMaster: false,
+        developer,
         mustOnboard: false,
         twoFactorEnabled: false
+      }, capabilities: {
+        developer,
+        diagnostics: {
+          view: developer
+        }
       } });
     }
 

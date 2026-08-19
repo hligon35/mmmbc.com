@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/admin/admin-dashboard.css?v=20260730a" />
   <link rel="stylesheet" href="/admin/admin-directory.css?v=20260730a" />
   <link rel="stylesheet" href="/admin/admin-header-canonical.css?v=20260730d" />
-  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260804185909" />
+  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260819020755" />
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
@@ -426,7 +426,7 @@
             </label>
             <label class="label label--inline photoSettingToggle" for="photoShowImageNames">
               <input class="checkbox" id="photoShowImageNames" type="checkbox" checked />
-              <span>Show image names on live gallery</span>
+              <span class="photoSettingToggle__label">Show image names on live gallery</span>
             </label>
           </div>
           <div class="hint" id="photoDisplayNameToggleHint" aria-live="polite"></div>
@@ -502,17 +502,17 @@
               Message
               <textarea class="textarea" name="body" rows="5" maxlength="5000" required></textarea>
             </label>
-            <div class="formRow">
-              <label class="label">
+            <div class="formRow announceForm__actionsRow">
+              <label class="label announceForm__expiresField">
                 Expires in days
                 <input class="input" name="expiresInDays" type="number" min="1" max="365" value="30" />
               </label>
-              <label class="label label--inline">
+              <label class="label label--inline announceForm__neverExpires">
                 <input class="checkbox" name="neverExpires" type="checkbox" />
                 Never expires
               </label>
+              <button class="btn btn--primary announceForm__submit" type="submit">Post Announcement</button>
             </div>
-            <button class="btn btn--primary" type="submit">Post Announcement</button>
             <div class="hint" id="announceHint" aria-live="polite"></div>
           </form>
 
@@ -589,9 +589,6 @@
         <!-- Record Money -->
         <div class="subTabPanel financeWizardPanel noPrint" role="tabpanel" id="panel-finances-record" aria-labelledby="subTabBtn-finances-record">
           <h3 class="wizard__heading" id="financeWizardHeading">Record Money</h3>
-          <div class="toolbar" aria-label="Finance QR workflow actions">
-            <a class="btn" id="financeScanQrBtn" href="/scan">Scan QR Code</a>
-          </div>
 
           <ol class="wizardProgress" id="financeWizardProgress" aria-label="Entry steps">
             <li><button class="wizardProgress__step" type="button" data-wizard-goto="direction" aria-current="step" aria-label="Money Type">1 Money Type</button></li>
@@ -618,23 +615,23 @@
 
             <!-- Step 2: Details -->
             <div class="wizardStep" data-step-panel="details" hidden>
-              <div class="formRow formRow--wizard">
-                <label class="label">
+              <div class="formRow formRow--wizard financeDetailsGrid">
+                <label class="label financeWizardField">
                   <span id="financeDateLabelText">Date received</span>
                   <input class="input" id="financeDate" type="date" required />
                 </label>
-                <label class="label">
+                <label class="label financeWizardField">
                   <span id="financeCategoryLabelText">What kind of giving?</span>
                   <select class="select" id="financeCategory" required></select>
                   <span class="fieldHint" id="financeCategoryHint">Choose what the money was received for.</span>
                   <span class="fieldError" id="financeCategoryError" role="alert" hidden></span>
                 </label>
-                <label class="label">
+                <label class="label financeWizardField">
                   Amount
                   <input class="input" id="financeAmount" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" required />
                   <span class="fieldError" id="financeAmountError" role="alert" hidden></span>
                 </label>
-                <label class="label">
+                <label class="label financeWizardField">
                   <span id="financeFundLabelText">Which church fund?</span>
                   <select class="select" id="financeFund" required></select>
                   <span class="fieldHint" id="financeFundHint">Choose where this money should be recorded, such as General Fund or Building Fund.</span>
@@ -729,33 +726,35 @@
               <details class="menu" id="financeFilterMenu">
                 <summary class="btn" aria-label="Filters" title="Filters">Filters</summary>
                 <form class="menu__panel financeFilterPanel" id="financeFilterForm" aria-label="Finance filters">
-                  <fieldset class="financeFilterFieldset">
+                  <fieldset class="financeFilterFieldset financeFilterFieldset--presets">
                     <legend class="menu__title">Date range</legend>
 
-                    <label class="menu__checkItem">
-                      <input class="menu__check" type="radio" name="financeDateRange" value="all" id="financeRangeAll" checked />
-                      <span>All dates</span>
-                    </label>
-                    <label class="menu__checkItem">
-                      <input class="menu__check" type="radio" name="financeDateRange" value="7" id="financeRange7" />
-                      <span>Last 7 days</span>
-                    </label>
-                    <label class="menu__checkItem">
-                      <input class="menu__check" type="radio" name="financeDateRange" value="30" id="financeRange30" />
-                      <span>Last 30 days</span>
-                    </label>
-                    <label class="menu__checkItem">
-                      <input class="menu__check" type="radio" name="financeDateRange" value="90" id="financeRange90" />
-                      <span>Last 90 days</span>
-                    </label>
-                    <label class="menu__checkItem">
-                      <input class="menu__check" type="radio" name="financeDateRange" value="custom" id="financeRangeCustom" />
-                      <span>Custom date range</span>
-                    </label>
+                    <div class="financeFilterPresetGrid">
+                      <label class="menu__checkItem">
+                        <input class="menu__check" type="radio" name="financeDateRange" value="all" id="financeRangeAll" checked />
+                        <span>All dates</span>
+                      </label>
+                      <label class="menu__checkItem">
+                        <input class="menu__check" type="radio" name="financeDateRange" value="7" id="financeRange7" />
+                        <span>Last 7 days</span>
+                      </label>
+                      <label class="menu__checkItem">
+                        <input class="menu__check" type="radio" name="financeDateRange" value="30" id="financeRange30" />
+                        <span>Last 30 days</span>
+                      </label>
+                      <label class="menu__checkItem">
+                        <input class="menu__check" type="radio" name="financeDateRange" value="90" id="financeRange90" />
+                        <span>Last 90 days</span>
+                      </label>
+                      <label class="menu__checkItem">
+                        <input class="menu__check" type="radio" name="financeDateRange" value="custom" id="financeRangeCustom" />
+                        <span>Custom date range</span>
+                      </label>
+                    </div>
                   </fieldset>
 
-                  <div class="menu__custom" id="financeCustomRange" hidden>
-                    <div class="formRow">
+                  <div class="menu__custom financeFilterCustomGrid" id="financeCustomRange" hidden>
+                    <div class="formRow financeFilterDateGrid">
                       <label class="label">
                         From
                         <input class="input" id="financeFrom" type="date" />
@@ -766,16 +765,13 @@
                       </label>
                     </div>
                     <p class="hint" id="financeDateRangeHint" aria-live="polite"></p>
-                    <div class="toolbar toolbar--tightTop">
-                      <button class="btn btn--primary" id="financeApplyCustomRangeBtn" type="button">Apply custom range</button>
-                    </div>
                   </div>
 
                   <div class="menu__divider" role="separator" aria-hidden="true"></div>
 
                   <details class="financeAdvancedFilters" id="financeAdvancedFilters">
                     <summary class="menu__title menu__title--spaced">Advanced filters</summary>
-                    <div class="formRow">
+                    <div class="formRow financeFilterDetailGrid">
                       <label class="label">
                         Category
                         <select class="select" id="financeFilterCategory"><option value="">(All categories)</option></select>
@@ -798,8 +794,9 @@
                     </div>
                   </details>
 
-                  <div class="toolbar toolbar--tightTop">
-                    <button class="btn" id="financeClearRangeBtn" type="button">Show All Entries</button>
+                  <div class="toolbar toolbar--tightTop financeFilterActions">
+                    <button class="btn btn--primary" id="financeApplyCustomRangeBtn" type="button">Apply custom dates</button>
+                    <button class="btn" id="financeClearRangeBtn" type="button">Reset All Filters</button>
                   </div>
                 </form>
               </details>
@@ -834,15 +831,6 @@
               <div class="list financeReportActions" aria-label="Reports and printing actions">
                 <div class="row">
                   <div class="row__main">
-                    <div class="row__title">View Financial Summary</div>
-                    <div class="row__meta">Shows Money Received, Money Spent, and Net Total for the current filters.</div>
-                  </div>
-                  <div class="row__actions">
-                    <button class="btn" id="financeViewSummaryBtn" type="button" aria-expanded="false" aria-controls="financeReportsTotals">View Financial Summary</button>
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="row__main">
                     <div class="row__title">Print Transaction History</div>
                     <div class="row__meta">Prints the transaction list using your current filters.</div>
                   </div>
@@ -861,29 +849,20 @@
                 </div>
                 <div class="row">
                   <div class="row__main">
-                    <div class="row__title">Design &amp; Print Envelopes</div>
-                    <div class="row__meta">Open the dedicated envelope designer page to create and print giving envelopes.</div>
+                    <div class="row__title">Export Transactions</div>
+                    <div class="row__meta">Export the currently filtered transactions as CSV, Excel, or into a new Google Sheet.</div>
+                    <div class="hint" id="financeExportHint" aria-live="polite"></div>
                   </div>
                   <div class="row__actions">
-                    <a class="btn" id="financeEnvelopeDesignerBtn" href="/admin/finances/envelopes">Open Envelope Designer</a>
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="row__main">
-                    <div class="row__title">Download Spreadsheet</div>
-                    <div class="row__meta">Downloads the currently filtered transactions as a spreadsheet file.</div>
-                  </div>
-                  <div class="row__actions">
-                    <button class="btn btn--primary" id="financeExportCsvBtn" type="button">Download Spreadsheet</button>
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="row__main">
-                    <div class="row__title">Finance Dashboard</div>
-                    <div class="row__meta">Open fund balances, donor statements, and board reports.</div>
-                  </div>
-                  <div class="row__actions">
-                    <a class="btn" id="financeDashboardBtn" href="/admin/finances/dashboard">Finance Dashboard</a>
+                    <details class="menu financeExportMenu" id="financeExportMenu">
+                      <summary class="btn btn--primary" aria-label="Export transactions" title="Export transactions">Export Transactions</summary>
+                      <div class="menu__panel" aria-label="Export transaction formats">
+                        <div class="menu__title">Choose export format</div>
+                        <button class="menu__item" id="financeExportCsvBtn" type="button">CSV</button>
+                        <button class="menu__item" id="financeExportXlsxBtn" type="button">Excel (.xlsx)</button>
+                        <button class="menu__item" id="financeExportSheetsBtn" type="button">Google Sheets</button>
+                      </div>
+                    </details>
                   </div>
                 </div>
               </div>
@@ -1574,14 +1553,16 @@
               </div>
               <h3 class="card__subtitle">Step 2: Write Newsletter</h3>
 
-              <label class="label">
-                Subject line
-                <input class="input" id="newsletterSubject" type="text" maxlength="140" required />
-              </label>
-              <label class="label">
-                Week of date
-                <input class="input" id="newsletterWeekOfDate" type="date" />
-              </label>
+              <div class="formRow newsletterComposeGrid newsletterComposeGrid--lead">
+                <label class="label newsletterField">
+                  Subject line
+                  <input class="input" id="newsletterSubject" type="text" maxlength="140" required />
+                </label>
+                <label class="label newsletterField">
+                  Week of date
+                  <input class="input" id="newsletterWeekOfDate" type="date" />
+                </label>
+              </div>
               <div class="newsletterSectionEditor" id="newsletterSectionEditor" aria-label="Newsletter section editor">
                 <p class="muted">Write each part in the matching section below so the preview and final email stay in the right order.</p>
 
@@ -1637,16 +1618,16 @@
               <div class="card card--spacedTop">
                 <h4 class="card__subtitle">Step 3: Review and Send</h4>
                 <p class="muted" id="newsletterReviewSummary">Review recipients, subject, and delivery details before sending.</p>
-                <div class="formRow">
-                  <label class="label">
+                <div class="formRow newsletterComposeGrid newsletterComposeGrid--schedule">
+                  <label class="label newsletterField newsletterField--date">
                     Date to send
                     <input class="input" id="newsletterScheduleDate" type="date" />
                   </label>
-                  <label class="label">
+                  <label class="label newsletterField newsletterField--time">
                     Time to send
                     <input class="input" id="newsletterScheduleTime" type="time" />
                   </label>
-                  <label class="label">
+                  <label class="label newsletterField newsletterField--timezone">
                     Time zone
                     <select class="select" id="newsletterScheduleTimezone">
                       <option value="America/Chicago">America/Chicago</option>
@@ -1761,9 +1742,10 @@
   </main>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="/admin/vendor/xlsx.full.min.js" defer></script>
   <script src="/admin/admin.js?v=20260730k" defer></script>
   <script src="/admin/admin-directory.js?v=20260730a" defer></script>
   <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260804185909" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260819020755" defer></script>
 </body>
 </html>

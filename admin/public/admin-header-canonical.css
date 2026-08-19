@@ -262,7 +262,7 @@
     grid-area:top !important;
     position:relative !important;
     display:flex !important;
-    align-items:center !important;
+    align-items:flex-end !important;
     justify-content:flex-end !important;
     padding-top:6px !important;
     min-height:44px !important;
@@ -294,9 +294,11 @@
     position:relative !important;
     z-index:2 !important;
     width:auto !important;
-    align-items:center !important;
+    align-items:flex-end !important;
+    align-self:flex-end !important;
     gap:12px !important;
     flex-wrap:nowrap !important;
+    padding-bottom:2px !important;
   }
 
   html body #adminHeader #authStatus{
@@ -304,9 +306,11 @@
     font-weight:900 !important;
     white-space:nowrap !important;
     max-width:none !important;
+    align-self:flex-end !important;
   }
 
   html body #adminHeader .headerActions{
+    align-items:flex-end !important;
     justify-content:flex-end !important;
     flex-wrap:nowrap !important;
     gap:8px !important;

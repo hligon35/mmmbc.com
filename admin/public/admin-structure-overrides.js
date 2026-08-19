@@ -212,13 +212,13 @@
     Array.from(contentTab.children).forEach((child) => {
       if (child !== pageContext && child !== split) announcementPane.appendChild(child);
     });
-    const eventHeading = document.createElement('div');
-    eventHeading.className = 'sectionHeader sectionHeader--compact contentEventsSplit__eventHeader';
-    eventHeading.innerHTML = '<div><h2 class="sectionHeader__title">Events</h2><p class="muted">Add, edit, and delete service times, meetings, and church programs.</p></div>';
-    eventPane.appendChild(eventHeading);
     Array.from(eventsTab.children).forEach((child) => {
       if (!child.classList?.contains('pageContext')) eventPane.appendChild(child);
     });
+    const eventDescription = eventPane.querySelector('p.muted');
+    if (eventDescription) {
+      eventDescription.textContent = 'Add, edit, and delete service times, meetings, and church programs.';
+    }
     split.append(announcementPane, eventPane);
     contentTab.appendChild(split);
     eventsTab.remove();
@@ -251,6 +251,9 @@
       #tab-photos #photoBulkCount { white-space: nowrap; }
       #tab-photos #photoUploadForm { display: grid !important; grid-template-columns: repeat(4, minmax(150px, 1fr)); align-items: end; gap: 14px; width: 100%; margin-bottom: 20px; }
       #tab-photos #photoUploadForm > .label, #tab-photos #photoToolbar > .label { min-width: 0; display: grid; gap: 7px; }
+      #tab-photos #photoToolbar > .photoSettingToggle { display: inline-grid !important; grid-template-columns: auto minmax(0, 1fr); align-items: center !important; gap: 10px; width: fit-content; }
+      #tab-photos #photoToolbar > .photoSettingToggle #photoShowImageNames { margin: 0; }
+      #tab-photos #photoToolbar > .photoSettingToggle .photoSettingToggle__label { line-height: 1.3; }
       #tab-photos #photoUploadForm .input, #tab-photos #photoToolbar .input, #tab-photos #photoToolbar .select { width: 100%; min-width: 0; min-height: 52px; }
       #tab-photos .photoUploadActions { grid-column: 1 / -1; display: flex !important; align-items: center; justify-content: flex-end; gap: 12px; width: 100%; }
       #tab-photos .photoUploadAcceptedContainer { display: flex; align-items: center; min-height: 46px; max-width: min(520px, 42vw); padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
@@ -276,6 +279,7 @@
         #tab-photos .photoPageContextActions { grid-column: 1; grid-row: auto; justify-content: flex-start; }
         #tab-photos .photoUploadAcceptedContainer { max-width: 100%; }
         #tab-photos #photoUploadForm, #tab-photos #photoToolbar { grid-template-columns: 1fr; }
+        #tab-photos #photoToolbar > .photoSettingToggle { width: 100%; }
         #tab-photos #photoGrid.grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
       }
       @media (max-width: 420px) { #tab-photos #photoGrid.grid { grid-template-columns: 1fr !important; } }

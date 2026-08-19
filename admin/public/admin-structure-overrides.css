@@ -31,10 +31,6 @@
   padding-left: 0;
 }
 
-.contentEventsSplit__eventHeader {
-  margin-bottom: 16px;
-}
-
 .contentEventsSplit .sectionHeader {
   align-items: flex-start;
 }
@@ -197,6 +193,78 @@
   overflow: auto;
 }
 
+#tab-photos #photoToolbar > .photoSettingToggle {
+  display: inline-grid !important;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center !important;
+  gap: 10px;
+  width: fit-content;
+}
+
+#tab-photos #photoToolbar > .photoSettingToggle #photoShowImageNames {
+  margin: 0;
+}
+
+#tab-photos #photoToolbar > .photoSettingToggle .photoSettingToggle__label {
+  line-height: 1.3;
+}
+
+#announceForm .announceForm__actionsRow {
+  grid-template-columns: auto auto auto;
+  align-items: end;
+}
+
+#announceForm .announceForm__expiresField .input {
+  width: min(10ch, 100%);
+  min-width: 8ch;
+}
+
+#tab-newsletter .newsletterComposeGrid--lead {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#tab-newsletter .newsletterComposeGrid--schedule {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+#tab-newsletter .newsletterField {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+}
+
+#tab-finances .financeContextActions {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.4fr) auto auto;
+  gap: 12px;
+  align-items: end;
+}
+
+#tab-finances .financeFilterPanel {
+  width: min(760px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+}
+
+#tab-finances .financeFilterPresetGrid,
+#tab-finances .financeFilterDateGrid,
+#tab-finances .financeFilterDetailGrid {
+  display: grid;
+  gap: 10px;
+}
+
+#tab-finances .financeFilterPresetGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#tab-finances .financeFilterDateGrid,
+#tab-finances .financeFilterDetailGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+#tab-finances .formRow--wizard {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 #app.app .pageContext__title,
 #app.app .sectionHeader__title,
 #app.app .row__title,
@@ -304,6 +372,21 @@
   #tab-finances .financeHeaderSearch {
     width: 100%;
     justify-self: stretch;
+  }
+
+  #announceForm .announceForm__actionsRow,
+  #tab-newsletter .newsletterComposeGrid--lead,
+  #tab-newsletter .newsletterComposeGrid--schedule,
+  #tab-finances .financeContextActions,
+  #tab-finances .financeFilterPresetGrid,
+  #tab-finances .financeFilterDateGrid,
+  #tab-finances .financeFilterDetailGrid,
+  #tab-finances .formRow--wizard {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-photos #photoToolbar > .photoSettingToggle {
+    width: 100%;
   }
 }
 

@@ -15,6 +15,9 @@ function expect(actual) {
       toContain(expected) {
         assert.ok(!String(actual).includes(expected), `${String(actual)} unexpectedly contains ${expected}`);
       },
+      toMatch(pattern) {
+        assert.doesNotMatch(String(actual), pattern);
+      },
       toBeNull() {
         assert.notStrictEqual(actual, null);
       }
@@ -27,6 +30,11 @@ describe('Admin accessibility redesign guards', () => {
   const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
   const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin.css'), 'utf8');
   const canonicalCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-header-canonical.css'), 'utf8');
+  const overrideCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-structure-overrides.css'), 'utf8');
+  const overrideJs = fs.readFileSync(path.join(__dirname, 'public', 'admin-structure-overrides.js'), 'utf8');
+  const workerJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'worker.js'), 'utf8');
+  const workerAuthWrapperJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'worker-auth-wrapper.js'), 'utf8');
+  const workerAdminWrapperJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'worker-admin-api-wrapper.js'), 'utf8');
 
   test('Home is the default section after authentication', () => {
     expect(indexHtml).toContain('id="tabBtn-home"');
@@ -54,7 +62,7 @@ describe('Admin accessibility redesign guards', () => {
 
   test('Drawer toggle states are present', () => {
     expect(indexHtml).toContain('Open Menu');
-    expect(adminJs).toContain("btn.textContent = next ? 'Close Menu' : 'Open Menu';");
+    expect(adminJs).toContain("const label = isOpen ? 'Close menu' : 'Open menu';");
   });
 
   test('Advanced Photo Tools are collapsed by default', () => {
@@ -71,10 +79,20 @@ describe('Admin accessibility redesign guards', () => {
     expect(adminJs).toContain("await api(`/api/gallery/r2tree?prefix=${encodeURIComponent(r2Prefix)}&limit=1000`, { method: 'GET' });");
   });
 
+  test('Photo image-name toggle keeps one aligned label row in source and override styles', () => {
+    expect(indexHtml).toContain('id="photoShowImageNames"');
+    expect(indexHtml).toContain('class="photoSettingToggle__label"');
+    expect(adminCss).toContain('.photoSettingToggle__label{');
+    expect(overrideCss).toContain('#tab-photos #photoToolbar > .photoSettingToggle .photoSettingToggle__label');
+    expect(overrideJs).not.toContain('contentEventsSplit__eventHeader');
+  });
+
   test('Bulk controls appear with dynamic labels and count-aware delete copy', () => {
     expect(indexHtml).toContain('id="photoBulkBar"');
-    expect(adminJs).toContain("editBtn.textContent = n === 1 ? 'Edit 1 selected photo' : `Edit ${n} selected photos`;");
-    expect(adminJs).toContain("deleteBtn.textContent = n === 1 ? 'Delete 1 selected photo' : `Delete ${n} selected photos`;");
+    expect(adminJs).toContain("const label = n === 1 ? 'Edit 1 selected photo' : `Edit ${n} selected photos`;");
+    expect(adminJs).toContain("setActionIconButton(editBtn, 'edit', label);");
+    expect(adminJs).toContain("const label = n === 1 ? 'Delete 1 selected photo' : `Delete ${n} selected photos`;");
+    expect(adminJs).toContain("setActionIconButton(deleteBtn, 'delete', label);");
     expect(adminJs).toContain('This will remove the selected images from the photo gallery and public website after refresh.');
   });
 
@@ -91,6 +109,16 @@ describe('Admin accessibility redesign guards', () => {
     expect(adminJs).toContain("await api('/api/newsletter/test'");
     expect(adminJs).toContain("await mutateNewsletterRecord('save_draft', payload);");
     expect(adminJs).toContain("await mutateNewsletterRecord('schedule', payload);");
+  });
+
+  test('Newsletter compose fields use responsive grouped rows without changing existing ids', () => {
+    expect(indexHtml).toContain('newsletterComposeGrid newsletterComposeGrid--lead');
+    expect(indexHtml).toContain('newsletterComposeGrid newsletterComposeGrid--schedule');
+    expect(indexHtml).toContain('id="newsletterSubject"');
+    expect(indexHtml).toContain('id="newsletterWeekOfDate"');
+    expect(indexHtml).toContain('id="newsletterScheduleTimezone"');
+    expect(adminCss).toContain('.newsletterComposeGrid--schedule{');
+    expect(overrideCss).toContain('#tab-newsletter .newsletterComposeGrid--schedule');
   });
 
   test('Unsaved-change warnings trigger only when dirty state exists', () => {
@@ -139,11 +167,25 @@ describe('Admin accessibility redesign guards', () => {
     expect(canonicalCss).toContain('pointer-events:auto !important;');
     expect(canonicalCss).toContain('html body #adminHeader .headerInviteBtn{');
   });
+
+  test('Developer diagnostics are gated by explicit capability checks across local and worker paths', () => {
+    expect(adminJs).toContain('capabilities?.diagnostics?.view === true');
+    expect(adminJs).toContain("await api('/api/admin/storage-health', { method: 'GET' });");
+    expect(workerAuthWrapperJs).toContain('DEVELOPER_EMAILS');
+    expect(workerAdminWrapperJs).toContain('Developer diagnostics access is required for this action.');
+    expect(workerJs).toContain('hasDeveloperDiagnosticsAccess');
+  });
+
+  test('Announcements and events combine without injecting a duplicate events heading block', () => {
+    expect(overrideJs).not.toContain('sectionHeader--compact contentEventsSplit__eventHeader');
+    expect(overrideJs).toContain("eventDescription.textContent = 'Add, edit, and delete service times, meetings, and church programs.';");
+  });
 });
 
 describe('Church Finances wizard redesign', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin.css'), 'utf8');
   const serverJs = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
 
   test('Finance section keeps its section target and heading', () => {
@@ -220,26 +262,51 @@ describe('Church Finances wizard redesign', () => {
     expect(indexHtml).toContain('Transaction History');
     expect(indexHtml).toContain('Money In');
     expect(indexHtml).toContain('Money Out');
-    expect(adminJs).toContain("viewBtn.textContent = 'View';");
-    expect(adminJs).toContain("editBtn.textContent = 'Edit';");
+    expect(adminJs).toContain("setActionIconButton(viewBtn, 'view', 'View details');");
+    expect(adminJs).toContain("setActionIconButton(editBtn, 'edit', 'Edit entry');");
     expect(adminJs).toContain("receiptBtn.textContent = 'Print Receipt';");
-    expect(adminJs).toContain("delBtn.textContent = 'Delete';");
+    expect(adminJs).toContain("delBtn.textContent = 'Void';");
   });
 
-  test('Review Transactions supports advanced filters and Show All Entries', () => {
+  test('Review Transactions supports advanced filters and Reset All Filters', () => {
     expect(indexHtml).toContain('id="financeAdvancedFilters"');
     expect(indexHtml).toContain('id="financeFilterCategory"');
     expect(indexHtml).toContain('id="financeFilterFund"');
     expect(indexHtml).toContain('id="financeFilterMethod"');
-    expect(indexHtml).toContain('Show All Entries');
+    expect(indexHtml).toContain('Reset All Filters');
+    expect(adminJs).toContain('financeClearQuickKind({ render: false });');
   });
 
-  test('Reports & Printing view keeps Financial Summary, printing, and export actions', () => {
-    expect(indexHtml).toContain('View Financial Summary');
+  test('Reports & Printing view keeps summary, printing, and new export actions while hiding removed entry points', () => {
     expect(indexHtml).toContain('Print Transaction History');
     expect(indexHtml).toContain('Print Selected Receipts');
-    expect(indexHtml).toContain('Download Spreadsheet');
-    expect(indexHtml).toContain('Finance Dashboard');
+    expect(indexHtml).toContain('Export Transactions');
+    expect(indexHtml).toContain('id="financeExportCsvBtn"');
+    expect(indexHtml).toContain('id="financeExportXlsxBtn"');
+    expect(indexHtml).toContain('id="financeExportSheetsBtn"');
+    expect(indexHtml).not.toContain('financeViewSummaryBtn');
+    expect(indexHtml).toContain('Money Flow');
+    expect(indexHtml).toContain('Giving Breakdown');
+    expect(indexHtml).not.toContain('Design &amp; Print Envelopes');
+    expect(indexHtml).not.toContain('Finance Dashboard');
+    expect(indexHtml).not.toMatch(/id="financeReportsTotals"[^>]*hidden|hidden[^>]*id="financeReportsTotals"/);
+    expect(adminJs).not.toContain('function toggleFinanceSummaryPanel(');
+    expect(adminJs).toContain('function financeExportToXlsx(rows)');
+    expect(adminJs).toContain('function financeExportToGoogleSheets(rows)');
+    expect(indexHtml).toContain('/admin/vendor/xlsx.full.min.js');
+  });
+
+  test('Receipt printing only renders when an entry is valid for receipt output', () => {
+    expect(adminJs).toContain('function financeCanPrintReceipt(entry)');
+    expect(adminJs).toContain('if (financeCanPrintReceipt(e)) {');
+    expect(adminJs).toContain('No valid transactions are available to print.');
+  });
+
+  test('Record Money removes the visible scan QR action and keeps the wider two-column detail layout', () => {
+    expect(indexHtml).not.toContain('id="financeScanQrBtn"');
+    expect(indexHtml).toContain('class="label financeWizardField"');
+    expect(adminCss).toContain('.financeWizardField{');
+    expect(adminCss).toContain('.financeWizardPanel{');
   });
 
   test('Finance period controls use full labels', () => {

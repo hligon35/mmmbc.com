@@ -21,6 +21,7 @@ const rootDirs = ['Pages', 'Icons', 'ConImg', 'bulletins', 'rental'];
 const adminRemove = new Set(['login.html', 'login.js', 'login_legacy.html']);
 const structureCssTag = `  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=${assetVersion}" />`;
 const structureScriptTag = `  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=${assetVersion}" defer></script>`;
+const xlsxVendorSrc = path.join(root, 'node_modules', 'xlsx', 'dist', 'xlsx.full.min.js');
 
 async function exists(target) {
   try {
@@ -100,6 +101,12 @@ async function mirrorAdmin() {
   html = html.replace('</head>', `${structureCssTag}\n</head>`);
   html = html.replace('</body>', `${structureScriptTag}\n</body>`);
   await fs.writeFile(indexPath, html, 'utf8');
+
+  if (await exists(xlsxVendorSrc)) {
+    const vendorDest = path.join(adminDest, 'vendor', 'xlsx.full.min.js');
+    await fs.mkdir(path.dirname(vendorDest), { recursive: true });
+    await fs.copyFile(xlsxVendorSrc, vendorDest);
+  }
 }
 
 async function main() {
