@@ -186,8 +186,8 @@
 				}
 			],
 			"vars": {
-				"CF_ACCESS_TEAM_DOMAIN": "",
-				"CF_ACCESS_AUD": "",
+				"CF_ACCESS_TEAM_DOMAIN": "getsparqd-server.cloudflareaccess.com",
+				"CF_ACCESS_AUD": "c54638d506e1d93d7c7a744bb74481441df23e6e0db17df247679fff0e36d271",
 				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 				"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 				"CANONICAL_HOST": "mmmbc.alphazonelabs.com",
