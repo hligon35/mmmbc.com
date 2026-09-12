@@ -1,7 +1,7 @@
 {
 	"name": "mmmbc",
 	"compatibility_date": "2026-01-21",
-	// Worker entrypoint with branded Google authentication and admin API fallbacks.
+	// Production Worker entrypoint with Cloudflare Access authentication.
 	"main": "./src/worker-admin-api-wrapper.js",
 	// Assets-only Worker deployment (static site)
 	// This intentionally deploys ONLY the curated public-site files in ./cf_site
@@ -39,12 +39,14 @@
 		"crons": ["*/5 * * * *"]
 	},
 	// Cloudflare-side Worker vars.
-	// GOOGLE_CLIENT_ID, GOOGLE_ALLOWED_EMAILS, and SESSION_SECRET must be configured
-	// as Cloudflare Worker secrets/variables before Google sign-in will be enabled.
+	// Configure CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD in the Cloudflare dashboard.
+	// CF_ACCESS_AUD may contain comma-separated tags for separate admin UI/API apps.
 	// DEVELOPER_EMAILS is a separate allowlist for storage/integration diagnostics;
 	// it is checked server-side against the authenticated email and should stay
 	// narrower than ADMIN_ALLOW_EMAILS when you want regular admins blocked.
 	"vars": {
+		"CF_ACCESS_TEAM_DOMAIN": "",
+		"CF_ACCESS_AUD": "",
 		"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 		"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 		"CANONICAL_HOST": "mmmbc.alphazonelabs.com",
@@ -96,6 +98,8 @@
 				"crons": ["*/5 * * * *"]
 			},
 			"vars": {
+				"CF_ACCESS_TEAM_DOMAIN": "",
+				"CF_ACCESS_AUD": "",
 				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 				"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 				"CANONICAL_HOST": "mmmbc.alphazonelabs.com",
@@ -134,6 +138,8 @@
 				}
 			],
 			"vars": {
+				"CF_ACCESS_TEAM_DOMAIN": "",
+				"CF_ACCESS_AUD": "",
 				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 				"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 				"CANONICAL_HOST": "mmmbc-preview.alphazonelabs.com",
@@ -180,6 +186,8 @@
 				}
 			],
 			"vars": {
+				"CF_ACCESS_TEAM_DOMAIN": "",
+				"CF_ACCESS_AUD": "",
 				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 				"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 				"CANONICAL_HOST": "mmmbc.alphazonelabs.com",

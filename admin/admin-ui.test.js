@@ -33,6 +33,7 @@ describe('Admin accessibility redesign guards', () => {
   const overrideCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-structure-overrides.css'), 'utf8');
   const overrideJs = fs.readFileSync(path.join(__dirname, 'public', 'admin-structure-overrides.js'), 'utf8');
   const workerJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'worker.js'), 'utf8');
+  const adminAuthJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin-auth.js'), 'utf8');
   const workerAuthWrapperJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'worker-auth-wrapper.js'), 'utf8');
   const workerAdminWrapperJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'worker-admin-api-wrapper.js'), 'utf8');
 
@@ -152,26 +153,32 @@ describe('Admin accessibility redesign guards', () => {
     expect(adminJs).toContain('You selected file changes that have not been uploaded yet.');
   });
 
-  test('Authentication and CSRF behavior remains wired', () => {
+  test('Cloudflare Access authentication and CSRF behavior remains wired', () => {
     expect(adminJs).toContain("await fetch('/api/csrf'");
     expect(adminJs).toContain("await api('/api/me', { method: 'GET' })");
-    expect(adminJs).toContain("await api('/api/auth/logout', { method: 'POST', body: '{}' });");
+    expect(adminJs).toContain("window.location.assign('/cdn-cgi/access/logout');");
+    expect(indexHtml).toContain('id="accessPanel"');
+    expect(indexHtml).toContain('href="/admin/"');
   });
 
-  test('Invite admin button is positioned and wired for interaction', () => {
-    expect(adminJs).toContain("$('inviteAdminBtn').addEventListener('click', (event) => {");
-    expect(adminJs).toContain('openInviteAdminDialog();');
-    expect(adminJs).toContain("event.preventDefault();");
-    expect(adminCss).toContain('.headerInviteBtn{');
-    expect(canonicalCss).toContain('transform:translateX(-200px) !important;');
-    expect(canonicalCss).toContain('pointer-events:auto !important;');
-    expect(canonicalCss).toContain('html body #adminHeader .headerInviteBtn{');
+  test('Legacy authentication and header invite UI are absent', () => {
+    expect(indexHtml).not.toContain('accounts.google.com');
+    expect(indexHtml).not.toContain('id="loginForm"');
+    expect(indexHtml).not.toContain('id="recoverForm"');
+    expect(indexHtml).not.toContain('id="inviteForm"');
+    expect(indexHtml).not.toContain('id="inviteAdminBtn"');
+    expect(indexHtml).not.toContain('id="inviteAdminDialog"');
+    expect(adminJs).not.toContain("api('/api/auth/google'");
+    expect(adminJs).not.toContain("api('/api/auth/login'");
+    expect(adminJs).not.toContain("api('/api/auth/recover'");
+    expect(adminJs).not.toContain("api('/api/users/invite'");
   });
 
   test('Developer diagnostics are gated by explicit capability checks across local and worker paths', () => {
     expect(adminJs).toContain('capabilities?.diagnostics?.view === true');
     expect(adminJs).toContain("await api('/api/admin/storage-health', { method: 'GET' });");
-    expect(workerAuthWrapperJs).toContain('DEVELOPER_EMAILS');
+    expect(adminAuthJs).toContain('DEVELOPER_EMAILS');
+    expect(workerAuthWrapperJs).toContain('handleMeRequest');
     expect(workerAdminWrapperJs).toContain('Developer diagnostics access is required for this action.');
     expect(workerJs).toContain('hasDeveloperDiagnosticsAccess');
   });
@@ -179,6 +186,67 @@ describe('Admin accessibility redesign guards', () => {
   test('Announcements and events combine without injecting a duplicate events heading block', () => {
     expect(overrideJs).not.toContain('sectionHeader--compact contentEventsSplit__eventHeader');
     expect(overrideJs).toContain("eventDescription.textContent = 'Add, edit, and delete service times, meetings, and church programs.';");
+  });
+});
+
+describe('Users and roles settings', () => {
+  const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+  const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin.css'), 'utf8');
+
+  test('Settings navigation and administrator list expose the required structure', () => {
+    expect(indexHtml).toContain('id="tabBtn-settings"');
+    expect(indexHtml).toContain('aria-controls="tab-settings"');
+    expect(indexHtml).toContain('id="settingsAddUserForm"');
+    expect(indexHtml).toContain('id="settingsUserSearch"');
+    expect(indexHtml).toContain('id="settingsRoleFilter"');
+    expect(indexHtml).toContain('id="settingsStatusFilter"');
+    expect(indexHtml).toMatch(/<th>Name<\/th><th>Email<\/th><th>Role<\/th><th>Status<\/th><th>Last login<\/th><th>Date added<\/th><th>Actions<\/th>/);
+    expect(indexHtml).toContain('id="settingsConfirmDialog"');
+    expect(indexHtml).toContain('id="settingsAuditBody"');
+  });
+
+  test('Settings uses all canonical user, role, audit, and lifecycle endpoints', () => {
+    expect(adminJs).toContain("api('/api/admin/settings/roles'");
+    expect(adminJs).toContain("api('/api/admin/settings/users'");
+    expect(adminJs).toContain("api('/api/admin/settings/users/audit?page=1&pageSize=10'");
+    expect(adminJs).toContain("method: 'PATCH'");
+    expect(adminJs).toContain("pending: ['activate']");
+    expect(adminJs).toContain("active: ['suspend', 'revoke']");
+    expect(adminJs).toContain("suspended: ['reactivate', 'revoke']");
+  });
+
+  test('Main sections and Settings are hidden from users without matching permissions', () => {
+    expect(adminJs).toContain("'tab-content': 'announcements.view'");
+    expect(adminJs).toContain("'tab-events': 'events.view'");
+    expect(adminJs).toContain("'tab-photos': 'photos.view'");
+    expect(adminJs).toContain("'tab-newsletter': 'newsletter.view'");
+    expect(adminJs).toContain("'tab-finances': 'finance.view'");
+    expect(adminJs).toContain("'tab-directory': 'directory.view'");
+    expect(adminJs).toContain("'tab-support': 'support.send'");
+    expect(adminJs).toContain("'tab-settings': USERS_MANAGE_PERMISSION");
+    expect(adminJs).toContain('element.hidden = !allowed;');
+    expect(adminJs).toContain('if (requiredPermission && !currentPermissions.has(requiredPermission))');
+  });
+
+  test('User and audit records are rendered with DOM nodes and textContent', () => {
+    const userRenderer = adminJs.slice(adminJs.indexOf('function renderSettingsUsers'), adminJs.indexOf('function renderSettingsAudit'));
+    const auditRenderer = adminJs.slice(adminJs.indexOf('function renderSettingsAudit'), adminJs.indexOf('async function loadSettingsRoles'));
+    expect(userRenderer).toContain("document.createElement('tr')");
+    expect(userRenderer).toContain('body.replaceChildren(...rows);');
+    expect(userRenderer).not.toContain('innerHTML');
+    expect(auditRenderer).toContain("document.createElement('tr')");
+    expect(auditRenderer).toContain('body.replaceChildren(...rows);');
+    expect(auditRenderer).not.toContain('innerHTML');
+  });
+
+  test('Role summary and permission matrix distinguish all access levels', () => {
+    expect(adminJs).toContain("return 'Manage'");
+    expect(adminJs).toContain("return 'View'");
+    expect(adminJs).toContain("return 'No access'");
+    expect(adminJs).toContain('role.description');
+    expect(adminCss).toContain('.settingsMatrix td[data-access="manage"]');
+    expect(adminCss).toContain('.settingsGrid{');
   });
 });
 

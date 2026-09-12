@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { test } from 'node:test';
+import { PERMISSIONS } from './admin-rbac.js';
 
 function loadWorkerAdminApi() {
   const source = fs.readFileSync(path.join(process.cwd(), 'src', 'worker-admin-api-wrapper.js'), 'utf8');
@@ -14,7 +15,10 @@ function loadWorkerAdminApi() {
     async fetch(request) {
       const url = new URL(request.url);
       if (url.pathname === '/api/me') {
-        return new Response(JSON.stringify({ user: { email: 'finance-admin@example.com' } }), {
+        return new Response(JSON.stringify({
+          user: { email: 'finance-admin@example.com', role: 'administrator', status: 'active' },
+          permissions: Object.values(PERMISSIONS)
+        }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
         });
@@ -34,7 +38,8 @@ function loadWorkerAdminApi() {
     handleGivingRequest: async () => null,
     handleGivingPageRequest: async () => null,
     maybeHandleFinanceReconciliationRequest: async () => null,
-    EmailMessage: class EmailMessage {}
+    EmailMessage: class EmailMessage {},
+    PERMISSIONS
   });
 
   vm.runInContext(transformed, context, { filename: 'worker-admin-api-wrapper.js' });

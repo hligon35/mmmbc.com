@@ -11,6 +11,8 @@ admin/uploads/
 .env
 .env.*
 !.env.example
+admin-roster.local.json
+admin-roster.local.csv
 
 # OS/editor noise
 .DS_Store

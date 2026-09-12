@@ -1,3 +1,5 @@
+import { PERMISSIONS, roleHasPermission } from './admin-rbac.js';
+
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -59,71 +61,23 @@ function normalizeRole(input) {
 
 function rolePermissions(roleInput) {
   const role = normalizeRole(roleInput);
-  if (role === 'administrator') {
-    return {
-      role,
-      canReadBasic: true,
-      canReadPrivate: true,
-      canManageContacts: true,
-      canArchiveContacts: true,
-      canManageSubscribers: true,
-      canManageGroups: true,
-      canImportExport: true
-    };
-  }
-
-  if (role === 'website_editor') {
-    return {
-      role,
-      canReadBasic: true,
-      canReadPrivate: false,
-      canManageContacts: false,
-      canArchiveContacts: false,
-      canManageSubscribers: false,
-      canManageGroups: false,
-      canImportExport: false
-    };
-  }
-
-  if (role === 'finance_entry' || role === 'treasurer' || role === 'auditor') {
-    return {
-      role,
-      canReadBasic: true,
-      canReadPrivate: false,
-      canManageContacts: false,
-      canArchiveContacts: false,
-      canManageSubscribers: false,
-      canManageGroups: false,
-      canImportExport: false
-    };
-  }
-
+  const canView = roleHasPermission(role, PERMISSIONS.DIRECTORY_VIEW);
+  const canManage = roleHasPermission(role, PERMISSIONS.DIRECTORY_MANAGE);
   return {
     role,
-    canReadBasic: true,
-    canReadPrivate: false,
-    canManageContacts: false,
-    canArchiveContacts: false,
-    canManageSubscribers: false,
-    canManageGroups: false,
-    canImportExport: false
+    canReadBasic: canView,
+    canReadPrivate: canManage,
+    canManageContacts: canManage,
+    canArchiveContacts: canManage,
+    canManageSubscribers: canManage,
+    canManageGroups: canManage,
+    canImportExport: canManage
   };
 }
 
-async function resolveDirectoryAccessContext(env, email) {
+async function resolveDirectoryAccessContext(env, email, authenticatedUser = null) {
   const lowerEmail = String(email || '').trim().toLowerCase();
-  let role = 'administrator';
-
-  if (env.DB && lowerEmail) {
-    try {
-      const row = await env.DB.prepare(
-        `SELECT role FROM admin_invites WHERE email = ? AND status = 'invited' LIMIT 1`
-      ).bind(lowerEmail).first();
-      if (row?.role) role = String(row.role);
-    } catch {
-      role = 'administrator';
-    }
-  }
+  const role = String(authenticatedUser?.role || '');
 
   const permissions = rolePermissions(role);
   return {

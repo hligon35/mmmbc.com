@@ -12,13 +12,6 @@
     });
   }
 
-  function restoreInviteButton() {
-    const button = document.getElementById('inviteAdminBtn');
-    const inviteSlot = document.getElementById('adminHeaderInvite');
-    if (!button || !inviteSlot) return;
-    if (button.parentElement !== inviteSlot) inviteSlot.appendChild(button);
-  }
-
   function selectableValues(select) {
     if (!(select instanceof HTMLSelectElement)) return [];
     return Array.from(select.options)
@@ -113,8 +106,6 @@
     const syncProgress = document.getElementById('syncProgressWrap');
     const title = pageContext?.querySelector('.pageContext__title');
     if (!tab || !pageContext || !sectionHeader || !panel || !uploadForm || !title) return;
-
-    restoreInviteButton();
 
     const submitRow = uploadForm.querySelector('.photoUploadSubmitRow');
     const submitButton = submitRow?.querySelector('button[type="submit"]') || uploadForm.querySelector('button[type="submit"]');
@@ -290,7 +281,6 @@
   function apply() {
     injectStyles();
     fixBreadcrumbs();
-    restoreInviteButton();
     addFinanceCategoryDelete();
     repairPhotoWorkspace();
     combineAnnouncementsAndEvents();

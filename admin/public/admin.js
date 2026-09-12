@@ -1,10 +1,5 @@
 let csrfToken = '';
 let csrfReady = Promise.resolve();
-let authProviders = { google: { enabled: false, clientId: '' } };
-let googleInitializedClientId = '';
-let googleRenderedClientId = '';
-let googleInitRetryCount = 0;
-let googleInitRetryTimer = null;
 let sessionWarningVisible = false;
 
 const API_FRIENDLY_STATUS = {
@@ -204,10 +199,7 @@ async function api(path, options = {}) {
   const method = String(options.method || 'GET').toUpperCase();
   const needsCsrf = url.startsWith('/api/')
     && !['GET', 'HEAD', 'OPTIONS'].includes(method)
-    && !url.startsWith('/api/auth/login')
-    && !url.startsWith('/api/auth/logout')
-    && !url.startsWith('/api/auth/recover')
-    && !url.startsWith('/api/invites/');
+    ;
 
   const isFormData = options.body instanceof FormData;
   const createHeaders = () => ({
@@ -340,6 +332,17 @@ const NAV_DRAWER_OPEN_KEY = 'mmmbc_admin_drawer_open_v1';
 const NAV_DRAWER_COLLAPSE_KEY = 'mmmbc_admin_nav_drawer_collapsed_v1';
 const APPEARANCE_PREF_KEY = 'mmmbc_admin_appearance_v1';
 const USERS_MANAGE_PERMISSION = 'users.manage';
+const SECTION_PERMISSIONS = Object.freeze({
+  'tab-content': 'announcements.view',
+  'tab-events': 'events.view',
+  'tab-photos': 'photos.view',
+  'tab-newsletter': 'newsletter.view',
+  'tab-finances': 'finance.view',
+  'tab-directory': 'directory.view',
+  'tab-support': 'support.send',
+  'tab-settings': USERS_MANAGE_PERMISSION
+});
+let currentPermissions = new Set();
 const UNSAVED_WARNING_TEXT = 'You have unsaved changes. Leave this page without saving them?';
 const NEWSLETTER_BODY_TEMPLATE = [
   'Week of date',
@@ -409,20 +412,16 @@ function getHeaderNavRequirements() {
   const logo = header?.querySelector('.adminHeader__logo');
   const breadcrumbs = $('adminHeaderBreadcrumbs');
   const navButtons = Array.from(document.querySelectorAll('#adminSideNav .tab--nav'));
-  const inviteBtn = $('inviteAdminBtn');
   if (!header || !logo || !breadcrumbs || !navButtons.length) return 0;
 
   const logoWidth = Math.ceil(logo.getBoundingClientRect().width || 0);
   const breadcrumbsWidth = Math.ceil(breadcrumbs.scrollWidth || breadcrumbs.getBoundingClientRect().width || 0);
-  const inviteWidth = inviteBtn && !inviteBtn.hidden
-    ? Math.max(44, Math.ceil(inviteBtn.getBoundingClientRect().width || 0))
-    : 0;
 
   // Mirror canonical desktop sizing: each nav tab has a 160px minimum plus 10px gaps.
   const navWidth = (navButtons.length * 160) + (Math.max(0, navButtons.length - 1) * 10);
 
   // Include gutters/account spacing so we collapse before any visual collision.
-  return logoWidth + breadcrumbsWidth + navWidth + inviteWidth + 120;
+  return logoWidth + breadcrumbsWidth + navWidth + 120;
 }
 
 function renderDrawerToggleButton(btn, isOpen) {
@@ -435,20 +434,12 @@ function renderDrawerToggleButton(btn, isOpen) {
   ].join('');
 }
 
-function restoreInviteButtonSlot() {
-  const button = $('inviteAdminBtn');
-  const inviteSlot = $('adminHeaderInvite');
-  if (!button || !inviteSlot) return;
-  if (button.parentElement !== inviteSlot) inviteSlot.appendChild(button);
-}
-
 function syncHeaderActionOrder(collapsed) {
   const header = $('adminHeader');
   const account = header?.querySelector('.adminHeader__account');
   const actions = header?.querySelector('.headerActions');
   const authStatus = $('authStatus');
   const drawerBtn = $('navDrawerToggle');
-  const inviteBtn = $('inviteAdminBtn');
   const logoutBtn = $('logoutBtn');
   if (!header || !(actions instanceof HTMLElement) || !(drawerBtn instanceof HTMLElement)) return;
 
@@ -462,7 +453,6 @@ function syncHeaderActionOrder(collapsed) {
     if (logoutBtn instanceof HTMLElement && logoutBtn.parentElement !== actions) {
       actions.appendChild(logoutBtn);
     }
-    restoreInviteButtonSlot();
     return;
   }
 
@@ -477,10 +467,6 @@ function syncHeaderActionOrder(collapsed) {
       actions.appendChild(logoutBtn);
     }
     actions.appendChild(logoutBtn);
-  }
-
-  if (inviteBtn instanceof HTMLElement && !inviteBtn.hidden) {
-    actions.appendChild(inviteBtn);
   }
 
   actions.appendChild(drawerBtn);
@@ -981,135 +967,6 @@ function confirmWrite(message) {
   return confirm(message || 'Save changes?');
 }
 
-function isWorkersDeployment() {
-  // Option B runs on Cloudflare Workers, usually on a *.workers.dev hostname.
-  // In that mode, authentication is handled by Cloudflare Access instead of the legacy password form.
-  const host = String(window.location.hostname || '').toLowerCase();
-  return host.endsWith('.workers.dev');
-}
-
-async function loadAuthProviders() {
-  try {
-    const data = await api('/api/auth/providers', { method: 'GET' });
-    const google = data?.google || {};
-    authProviders = {
-      google: {
-        enabled: !!google.enabled,
-        clientId: String(google.clientId || '')
-      }
-    };
-  } catch {
-    authProviders = { google: { enabled: false, clientId: '' } };
-  }
-}
-
-function hideGoogleButton() {
-  const g = window.google;
-  try {
-    if (g && g.accounts && g.accounts.id && typeof g.accounts.id.cancel === 'function') {
-      g.accounts.id.cancel();
-    }
-  } catch {
-    // ignore
-  }
-  const btnWrap = $('googleSignInBtn');
-  if (btnWrap) btnWrap.innerHTML = '';
-  googleRenderedClientId = '';
-  googleInitRetryCount = 0;
-  if (googleInitRetryTimer) {
-    try { window.clearTimeout(googleInitRetryTimer); } catch { /* ignore */ }
-    googleInitRetryTimer = null;
-  }
-}
-
-async function loginWithGoogle(idToken) {
-  await api('/api/auth/google', {
-    method: 'POST',
-    body: JSON.stringify({ idToken })
-  });
-  csrfReady = fetchCsrfToken();
-  await csrfReady;
-}
-
-function initGoogleSignInButton() {
-  const hint = $('googleLoginHint');
-  const panel = $('googleLoginPanel');
-  const wrap = $('googleSignInBtn');
-  if (!panel || !wrap || !hint) return;
-
-  if (!authProviders.google.enabled || !authProviders.google.clientId) {
-    panel.hidden = false;
-    hint.textContent = 'Google sign-in is currently unavailable. Refresh and try again.';
-    hideGoogleButton();
-    return;
-  }
-
-  panel.hidden = false;
-
-  const g = window.google;
-  if (!g || !g.accounts || !g.accounts.id) {
-    if (googleInitRetryCount < 15) {
-      googleInitRetryCount += 1;
-      hint.textContent = 'Loading Google sign-in…';
-      googleInitRetryTimer = window.setTimeout(() => {
-        googleInitRetryTimer = null;
-        initGoogleSignInButton();
-      }, 250);
-      return;
-    }
-    hint.textContent = 'Google sign-in failed to load. Refresh and try again.';
-    return;
-  }
-
-  googleInitRetryCount = 0;
-  if (googleInitRetryTimer) {
-    try { window.clearTimeout(googleInitRetryTimer); } catch { /* ignore */ }
-    googleInitRetryTimer = null;
-  }
-
-  hint.textContent = 'Use your approved Google account.';
-
-  if (googleInitializedClientId !== authProviders.google.clientId) {
-    g.accounts.id.initialize({
-      client_id: authProviders.google.clientId,
-      callback: async (response) => {
-        const token = String(response?.credential || '').trim();
-        if (!token) {
-          showToast('Google sign-in did not return a credential.', { variant: 'danger' });
-          return;
-        }
-        try {
-          await loginWithGoogle(token);
-          await refreshAuthUI();
-        } catch (err) {
-          const el = $('loginError');
-          if (el) {
-            el.textContent = String(err?.message || 'Google sign-in failed.');
-            el.hidden = false;
-          }
-        }
-      }
-    });
-    googleInitializedClientId = authProviders.google.clientId;
-  }
-
-  if (googleRenderedClientId === authProviders.google.clientId && wrap.childElementCount > 0) {
-    return;
-  }
-
-  wrap.innerHTML = '';
-
-  g.accounts.id.renderButton(wrap, {
-    type: 'standard',
-    shape: 'rectangular',
-    size: 'large',
-    text: 'signin_with',
-    theme: 'outline',
-    logo_alignment: 'left'
-  });
-  googleRenderedClientId = authProviders.google.clientId;
-}
-
 function uniqStringsLower(list) {
   const out = [];
   const seen = new Set();
@@ -1356,60 +1213,6 @@ function syncHeaderContextDescription() {
   root.textContent = String(preferred?.textContent || '').trim();
 }
 
-function passwordScore(pw) {
-  const p = String(pw || '');
-  let score = 0;
-  if (p.length >= 8) score += 1;
-  if (/[A-Z]/.test(p)) score += 1;
-  if (/[^A-Za-z0-9]/.test(p)) score += 1;
-  if (p.length >= 12) score += 1;
-  return score;
-}
-
-function passwordPolicyError(pw) {
-  const p = String(pw || '');
-  if (p.length < 8) return 'Password must be at least 8 characters.';
-  if (!/[A-Z]/.test(p)) return 'Password must include at least 1 capital letter.';
-  if (!/[^A-Za-z0-9]/.test(p)) return 'Password must include at least 1 special character.';
-  return '';
-}
-
-function wirePeekButtons() {
-  const buttons = Array.from(document.querySelectorAll('[data-peek-target]'));
-  for (const btn of buttons) {
-    btn.addEventListener('click', () => {
-      const targetId = btn.getAttribute('data-peek-target');
-      const input = targetId ? document.getElementById(targetId) : null;
-      if (!input) return;
-      const isPassword = input.getAttribute('type') === 'password';
-      input.setAttribute('type', isPassword ? 'text' : 'password');
-      btn.setAttribute('aria-pressed', isPassword ? 'true' : 'false');
-      btn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
-      input.focus();
-      try { input.setSelectionRange(input.value.length, input.value.length); } catch { /* ignore */ }
-    });
-  }
-}
-
-function wirePasswordMeter(inputId, meterId, textId) {
-  const input = $(inputId);
-  const meter = $(meterId);
-  const text = $(textId);
-  if (!input || !meter || !text) return;
-
-  const update = () => {
-    const score = passwordScore(input.value);
-    meter.value = score;
-    const label = score <= 1 ? 'Weak' : score === 2 ? 'Fair' : score === 3 ? 'Good' : 'Strong';
-    text.textContent = `Password strength: ${label}`;
-  };
-  if (!input.dataset.meterWired) {
-    input.addEventListener('input', update);
-    input.dataset.meterWired = '1';
-  }
-  update();
-}
-
 function setTab(activeId) {
   const tabButtons = [
     $('tabBtn-home'),
@@ -1419,7 +1222,8 @@ function setTab(activeId) {
     $('tabBtn-finances'),
     $('tabBtn-directory'),
     $('tabBtn-newsletter'),
-    $('tabBtn-support')
+    $('tabBtn-support'),
+    $('tabBtn-settings')
   ];
   const panels = [
     $('tab-home'),
@@ -1429,7 +1233,8 @@ function setTab(activeId) {
     $('tab-finances'),
     $('tab-directory'),
     $('tab-newsletter'),
-    $('tab-support')
+    $('tab-support'),
+    $('tab-settings')
   ];
 
   tabButtons.forEach((b) => {
@@ -1470,6 +1275,11 @@ function updateActiveSectionExtensions() {
 
 function activateMainSection(sectionId, { subTabId = '' } = {}) {
   if (!sectionId) return;
+  const requiredPermission = SECTION_PERMISSIONS[sectionId];
+  if (requiredPermission && !currentPermissions.has(requiredPermission)) {
+    sectionId = 'tab-home';
+    subTabId = '';
+  }
   const currentPanel = document.querySelector('.tabPanel:not([hidden])');
   if (currentPanel && currentPanel.id !== sectionId && !confirmUnsavedChanges()) {
     return;
@@ -1490,6 +1300,9 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
   if (sectionId === 'tab-directory') {
     setDirectorySubTab(subTabId || 'panel-directory-contacts');
   }
+  if (sectionId === 'tab-settings') {
+    loadSettings().catch(() => {});
+  }
 
   const hashMap = {
     'tab-home': 'home',
@@ -1499,7 +1312,8 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
     'tab-finances': 'finances',
     'tab-directory': 'directory',
     'tab-newsletter': 'newsletter',
-    'tab-support': 'support'
+    'tab-support': 'support',
+    'tab-settings': 'settings'
   };
   const nextHash = hashMap[sectionId];
   if (nextHash) {
@@ -1527,6 +1341,21 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
   }
 }
 
+function applyPermissionVisibility(loggedIn) {
+  const elements = document.querySelectorAll('#adminSideNav .tab--nav, [data-section-target]');
+  for (const element of elements) {
+    const sectionId = String(
+      element.getAttribute('aria-controls') || element.getAttribute('data-section-target') || ''
+    ).trim();
+    const requiredPermission = SECTION_PERMISSIONS[sectionId];
+    if (!requiredPermission) continue;
+    const allowed = loggedIn && currentPermissions.has(requiredPermission);
+    element.hidden = !allowed;
+    element.setAttribute('aria-hidden', allowed ? 'false' : 'true');
+    if ('disabled' in element) element.disabled = !allowed;
+  }
+}
+
 async function refreshAuthUI() {
   let me = { user: null };
   try {
@@ -1535,11 +1364,8 @@ async function refreshAuthUI() {
     me = { user: null };
   }
   const loggedIn = !!me.user;
-  const canManageUsers = loggedIn
-    && (
-      (Array.isArray(me.permissions) && me.permissions.includes(USERS_MANAGE_PERMISSION))
-      || isAdministratorRole(me?.user?.role)
-    );
+  currentPermissions = new Set(Array.isArray(me.permissions) ? me.permissions.map(String) : []);
+  if (loggedIn && isAdministratorRole(me?.user?.role)) currentPermissions.add(USERS_MANAGE_PERMISSION);
   const canViewDiagnostics = loggedIn
     && (
       me?.user?.developer === true
@@ -1548,41 +1374,18 @@ async function refreshAuthUI() {
       || (Array.isArray(me.permissions) && me.permissions.includes('diagnostics.view'))
     );
 
-  const inviteToken = getInviteTokenFromHash();
-  const inInviteFlow = !!inviteToken;
-  const showSignInScreen = !loggedIn && !inInviteFlow;
+  const showSignInScreen = !loggedIn;
 
   document.body.classList.toggle('authMode', showSignInScreen);
 
-  setAuthenticatedHeaderVisible(loggedIn && !inInviteFlow);
+  setAuthenticatedHeaderVisible(loggedIn);
 
-  $('inviteCard').hidden = !inInviteFlow;
-  $('loginCard').hidden = !showSignInScreen;
   const authShell = $('authShell');
-  if (authShell) authShell.hidden = loggedIn;
-  $('dashboardCard').hidden = !loggedIn || inInviteFlow;
+  if (authShell) authShell.hidden = !showSignInScreen;
+  $('dashboardCard').hidden = !loggedIn;
   $('logoutBtn').hidden = !loggedIn;
-  if ($('inviteAdminBtn')) {
-    const inviteButton = $('inviteAdminBtn');
-    inviteButton.hidden = !canManageUsers || inInviteFlow;
-    inviteButton.disabled = !canManageUsers || inInviteFlow;
-    inviteButton.style.display = 'inline-flex';
-    inviteButton.style.pointerEvents = 'auto';
-    inviteButton.style.position = 'relative';
-    inviteButton.style.zIndex = '20';
-  }
-  if ($('adminStorageHealthCard')) $('adminStorageHealthCard').hidden = !canViewDiagnostics || inInviteFlow;
-
-  if (!loggedIn && !inInviteFlow) {
-    const form = $('loginForm');
-    const forgotToggle = $('forgotToggle');
-    const forgotPanel = $('forgotPanel');
-    if (form) form.hidden = false;
-    if (forgotToggle) forgotToggle.hidden = false;
-    if (forgotPanel) forgotPanel.hidden = true;
-    await loadAuthProviders();
-    initGoogleSignInButton();
-  }
+  if ($('adminStorageHealthCard')) $('adminStorageHealthCard').hidden = !canViewDiagnostics;
+  applyPermissionVisibility(loggedIn);
 
   const nameOrEmail = String(me?.user?.name || me?.user?.email || '').trim();
   const roleLabel = formatUserRoleLabel(me?.user?.role);
@@ -1619,33 +1422,10 @@ async function refreshAuthUI() {
     setAdminDrawerOpen(false, { restoreFocus: false });
   }
 
-  if (inInviteFlow) {
-    await loadInvite(inviteToken);
-  }
-
   syncHeaderBreadcrumbs();
   syncHeaderContextDescription();
   queueHeaderNavLayoutSync();
   updateLayoutMetrics();
-}
-
-async function login(email, password) {
-  await api('/api/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({
-      email,
-      password
-    })
-  });
-
-  csrfReady = fetchCsrfToken();
-  await csrfReady;
-}
-
-async function logout() {
-  await api('/api/auth/logout', { method: 'POST', body: '{}' });
-  csrfToken = '';
-  csrfReady = Promise.resolve();
 }
 
 function formatDate(iso) {
@@ -1656,21 +1436,12 @@ function normalizeHash() {
   return String(window.location.hash || '').replace(/^#/, '').trim().toLowerCase();
 }
 
-function getInviteTokenFromHash() {
-  const raw = String(window.location.hash || '').replace(/^#/, '').trim();
-  const m = raw.match(/(?:^|&)invite=([^&]+)/i);
-  if (!m) return '';
-  try { return decodeURIComponent(m[1]); } catch { return m[1]; }
-}
-
 function applyHashNavigation() {
   const h = normalizeHash();
   if (!h) {
     activateMainSection('tab-home');
     return;
   }
-
-  if (/invite=/.test(h)) return;
 
   if (h === 'home') activateMainSection('tab-home');
   if (h === 'photos') activateMainSection('tab-photos', { subTabId: 'panel-photos-manage' });
@@ -1682,6 +1453,7 @@ function applyHashNavigation() {
   if (h === 'directory') activateMainSection('tab-directory', { subTabId: 'panel-directory-contacts' });
   if (h === 'newsletter') activateMainSection('tab-newsletter');
   if (h === 'support') activateMainSection('tab-support');
+  if (h === 'settings') activateMainSection('tab-settings');
 
   if (h === 'announcements') {
     activateMainSection('tab-content', { subTabId: 'panel-content-announcements' });
@@ -3255,14 +3027,6 @@ function setContentSubTab(panelId) {
   );
 }
 
-function setSettingsSubTab(panelId) {
-  setSubTab(
-    ['subTabBtn-settings-social', 'subTabBtn-settings-theme'],
-    ['panel-settings-social', 'panel-settings-theme'],
-    panelId
-  );
-}
-
 function setPhotosSubTab(panelId) {
   setSubTab(
     ['subTabBtn-photos-manage', 'subTabBtn-photos-bucket'],
@@ -3277,31 +3041,6 @@ function setDirectorySubTab(panelId) {
     ['panel-directory-contacts', 'panel-directory-subscribers', 'panel-directory-groups'],
     panelId
   );
-}
-
-let inviteLoadedToken = '';
-async function loadInvite(token) {
-  if (!token) return;
-  if (inviteLoadedToken === token) return;
-  inviteLoadedToken = token;
-
-  $('inviteError').hidden = true;
-  $('inviteHint').textContent = 'Loading…';
-
-  try {
-    const data = await api(`/api/invites/${encodeURIComponent(token)}`, { method: 'GET' });
-    $('inviteEmail').textContent = `Setting up: ${data.email}`;
-    const qr = $('inviteQr');
-    if (qr && data.twoFactor?.qrDataUrl) qr.src = data.twoFactor.qrDataUrl;
-    const secret = $('inviteSecret');
-    if (secret) secret.textContent = String(data.twoFactor?.secret || '');
-    $('inviteHint').textContent = 'Complete the form to finish setup.';
-    wirePasswordMeter('inviteNewPassword', 'invitePwMeter', 'invitePwText');
-  } catch (err) {
-    $('inviteError').textContent = err.message;
-    $('inviteError').hidden = false;
-    $('inviteHint').textContent = '';
-  }
 }
 
 // -------- Photo Gallery --------
@@ -6104,17 +5843,301 @@ function renderNewsletterPreview() {
   updateNewsletterStepSummaries();
 }
 
+// -------- Users & Roles Settings --------
+const settingsState = {
+  roles: [],
+  page: 1,
+  pageSize: 25,
+  totalPages: 1,
+  pendingConfirm: null
+};
+
+const SETTINGS_PERMISSION_ROWS = [
+  { label: 'Announcements', view: 'announcements.view', manage: ['announcements.manage'] },
+  { label: 'Events', view: 'events.view', manage: ['events.manage'] },
+  { label: 'Photos', view: 'photos.view', manage: ['photos.manage'] },
+  { label: 'Newsletter', view: 'newsletter.view', manage: ['newsletter.manage'] },
+  { label: 'Finance', view: 'finance.view', manage: ['finance.record', 'finance.edit_void', 'finance.funds_categories', 'finance.export', 'finance.statements_controls'] },
+  { label: 'Directory', view: 'directory.view', manage: ['directory.manage'] },
+  { label: 'Help & Support', view: 'support.send', manage: ['support.send'] },
+  { label: 'Users & Roles', view: 'users.manage', manage: ['users.manage'] }
+];
+
+function settingsCell(text, tagName = 'td') {
+  const cell = document.createElement(tagName);
+  cell.textContent = String(text ?? '');
+  return cell;
+}
+
+function settingsDate(value, fallback = 'Never') {
+  const raw = String(value || '').trim();
+  if (!raw) return fallback;
+  const timestamp = Date.parse(raw);
+  if (!Number.isFinite(timestamp)) return raw;
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(timestamp));
+}
+
+function settingsRoleByKey(key) {
+  return settingsState.roles.find((role) => String(role.key) === String(key));
+}
+
+function settingsRoleAccess(role, row) {
+  const permissions = new Set(Array.isArray(role?.permissions) ? role.permissions.map(String) : []);
+  if (row.manage.some((permission) => permissions.has(permission))) return 'Manage';
+  if (permissions.has(row.view)) return 'View';
+  return 'No access';
+}
+
+function settingsRoleSelect(selectedKey, ariaLabel) {
+  const select = document.createElement('select');
+  select.className = 'select settingsRoleSelect';
+  select.setAttribute('aria-label', ariaLabel);
+  for (const role of settingsState.roles) {
+    const option = document.createElement('option');
+    option.value = String(role.key || '');
+    option.textContent = String(role.label || role.key || 'Role');
+    option.selected = option.value === String(selectedKey || '');
+    select.appendChild(option);
+  }
+  return select;
+}
+
+function renderSettingsRoleSummary() {
+  const root = $('settingsSelectedRoleSummary');
+  const select = $('settingsAddRole');
+  if (!root || !select) return;
+  const role = settingsRoleByKey(select.value);
+  root.replaceChildren();
+  if (!role) return;
+  const title = document.createElement('strong');
+  title.textContent = String(role.label || role.key || 'Selected role');
+  const description = document.createElement('p');
+  description.textContent = String(role.description || '');
+  const access = document.createElement('p');
+  access.className = 'muted';
+  access.textContent = `Access: ${SETTINGS_PERMISSION_ROWS.map((row) => `${row.label}: ${settingsRoleAccess(role, row)}`).join('; ')}`;
+  root.append(title, description, access);
+}
+
+function renderSettingsRoles() {
+  const head = $('settingsRolesHead');
+  const body = $('settingsRolesBody');
+  const addRole = $('settingsAddRole');
+  const roleFilter = $('settingsRoleFilter');
+  if (!head || !body || !addRole || !roleFilter) return;
+
+  const headRow = document.createElement('tr');
+  headRow.appendChild(settingsCell('Area', 'th'));
+  for (const role of settingsState.roles) headRow.appendChild(settingsCell(role.label || role.key, 'th'));
+  head.replaceChildren(headRow);
+
+  const rows = SETTINGS_PERMISSION_ROWS.map((permissionRow) => {
+    const row = document.createElement('tr');
+    row.appendChild(settingsCell(permissionRow.label, 'th'));
+    for (const role of settingsState.roles) {
+      const level = settingsRoleAccess(role, permissionRow);
+      const cell = settingsCell(level);
+      cell.dataset.access = level.toLowerCase().replace(/\s+/g, '-');
+      row.appendChild(cell);
+    }
+    return row;
+  });
+  body.replaceChildren(...rows);
+
+  const priorAddRole = addRole.value || 'website_editor';
+  const priorFilter = roleFilter.value;
+  addRole.replaceChildren();
+  roleFilter.replaceChildren(new Option('All roles', ''));
+  for (const role of settingsState.roles) {
+    const addOption = new Option(String(role.label || role.key), String(role.key || ''));
+    addOption.selected = addOption.value === priorAddRole;
+    addRole.appendChild(addOption);
+    roleFilter.appendChild(new Option(String(role.label || role.key), String(role.key || '')));
+  }
+  if (Array.from(roleFilter.options).some((option) => option.value === priorFilter)) roleFilter.value = priorFilter;
+  renderSettingsRoleSummary();
+}
+
+function settingsActionLabel(action) {
+  return {
+    'user.created': 'Added administrator',
+    'user.updated': 'Changed administrator role or name',
+    'user.activated': 'Activated administrator',
+    'user.suspended': 'Suspended administrator',
+    'user.reactivated': 'Reactivated administrator',
+    'user.revoked': 'Revoked administrator access'
+  }[String(action || '')] || String(action || '').replace(/[._]/g, ' ');
+}
+
+function openSettingsConfirmation(message, onConfirm, onCancel = null) {
+  const dialog = $('settingsConfirmDialog');
+  const messageNode = $('settingsConfirmMessage');
+  if (!(dialog instanceof HTMLDialogElement) || !messageNode) return;
+  settingsState.pendingConfirm = { onConfirm, onCancel };
+  messageNode.textContent = String(message || 'Confirm this administrator change.');
+  openManagedDialog(dialog, { initialFocusId: 'settingsConfirmCancelBtn' });
+}
+
+async function runSettingsMutation(path, options, successMessage) {
+  const status = $('settingsUsersStatus');
+  if (status) status.textContent = 'Saving change...';
+  try {
+    await api(path, options);
+    showToast(successMessage, { variant: 'success' });
+    await Promise.all([loadSettingsUsers(), loadSettingsAudit()]);
+  } catch (error) {
+    if (status) status.textContent = String(error?.message || 'The administrator change could not be saved.');
+    showToast(String(error?.message || 'The administrator change could not be saved.'), { variant: 'danger' });
+  }
+}
+
+function renderSettingsUsers(data) {
+  const body = $('settingsUsersBody');
+  const status = $('settingsUsersStatus');
+  const pageInfo = $('settingsUsersPageInfo');
+  if (!body || !status || !pageInfo) return;
+  const users = Array.isArray(data?.users) ? data.users : [];
+  const pagination = data?.pagination || {};
+  settingsState.page = Number(pagination.page || 1);
+  settingsState.totalPages = Math.max(1, Number(pagination.totalPages || 1));
+
+  const rows = users.map((user) => {
+    const row = document.createElement('tr');
+    row.appendChild(settingsCell(user.fullName || user.name || 'Not provided'));
+    row.appendChild(settingsCell(user.email || ''));
+
+    const roleCell = document.createElement('td');
+    const roleSelect = settingsRoleSelect(user.role, `Role for ${String(user.fullName || user.email || 'administrator')}`);
+    roleSelect.addEventListener('change', () => {
+      const nextRole = roleSelect.value;
+      const previousRole = String(user.role || '');
+      const role = settingsRoleByKey(nextRole);
+      openSettingsConfirmation(
+        `Change ${String(user.fullName || user.email || 'this administrator')} to ${String(role?.label || nextRole)}?`,
+        () => runSettingsMutation(`/api/admin/settings/users/${encodeURIComponent(String(user.id || ''))}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ role: nextRole })
+        }, 'Administrator role updated.'),
+        () => { roleSelect.value = previousRole; }
+      );
+    });
+    roleCell.appendChild(roleSelect);
+    row.appendChild(roleCell);
+
+    const statusCell = settingsCell(String(user.status || 'unknown').replace(/\b\w/g, (character) => character.toUpperCase()));
+    statusCell.dataset.status = String(user.status || '').toLowerCase();
+    row.appendChild(statusCell);
+    row.appendChild(settingsCell(settingsDate(user.lastLoginAt)));
+    row.appendChild(settingsCell(settingsDate(user.createdAt, 'Unknown')));
+
+    const actionsCell = document.createElement('td');
+    actionsCell.className = 'settingsUserActions';
+    const actions = {
+      pending: ['activate'],
+      active: ['suspend', 'revoke'],
+      suspended: ['reactivate', 'revoke'],
+      revoked: ['reactivate']
+    }[String(user.status || '').toLowerCase()] || [];
+    for (const action of actions) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = action === 'revoke' ? 'btn btn--danger' : 'btn';
+      button.textContent = action.replace(/\b\w/g, (character) => character.toUpperCase());
+      button.addEventListener('click', () => {
+        openSettingsConfirmation(
+          `${button.textContent} access for ${String(user.fullName || user.email || 'this administrator')}?`,
+          () => runSettingsMutation(`/api/admin/settings/users/${encodeURIComponent(String(user.id || ''))}/${action}`, {
+            method: 'POST',
+            body: '{}'
+          }, `Administrator ${action}d.`)
+        );
+      });
+      actionsCell.appendChild(button);
+    }
+    row.appendChild(actionsCell);
+    return row;
+  });
+
+  if (!rows.length) {
+    const row = document.createElement('tr');
+    const cell = settingsCell('No administrators match these filters.');
+    cell.colSpan = 7;
+    row.appendChild(cell);
+    rows.push(row);
+  }
+  body.replaceChildren(...rows);
+  status.textContent = `${Number(pagination.total || users.length)} administrator${Number(pagination.total || users.length) === 1 ? '' : 's'}`;
+  pageInfo.textContent = `Page ${settingsState.page} of ${settingsState.totalPages}`;
+  $('settingsUsersPrevBtn').disabled = settingsState.page <= 1;
+  $('settingsUsersNextBtn').disabled = settingsState.page >= settingsState.totalPages;
+}
+
+function renderSettingsAudit(data) {
+  const body = $('settingsAuditBody');
+  if (!body) return;
+  const entries = Array.isArray(data?.audit) ? data.audit : (Array.isArray(data?.entries) ? data.entries : []);
+  const rows = entries.map((entry) => {
+    const row = document.createElement('tr');
+    row.appendChild(settingsCell(entry.actorEmail || 'System'));
+    row.appendChild(settingsCell(settingsActionLabel(entry.action)));
+    row.appendChild(settingsCell(entry.targetEmail || 'Not applicable'));
+    row.appendChild(settingsCell(settingsDate(entry.createdAt, 'Unknown')));
+    return row;
+  });
+  if (!rows.length) {
+    const row = document.createElement('tr');
+    const cell = settingsCell('No administrator activity has been recorded yet.');
+    cell.colSpan = 4;
+    row.appendChild(cell);
+    rows.push(row);
+  }
+  body.replaceChildren(...rows);
+}
+
+async function loadSettingsRoles() {
+  const data = await api('/api/admin/settings/roles', { method: 'GET' });
+  settingsState.roles = Array.isArray(data?.roles) ? data.roles : [];
+  renderSettingsRoles();
+}
+
+async function loadSettingsUsers() {
+  const query = new URLSearchParams({ page: String(settingsState.page), pageSize: String(settingsState.pageSize) });
+  const search = String($('settingsUserSearch')?.value || '').trim();
+  const role = String($('settingsRoleFilter')?.value || '').trim();
+  const status = String($('settingsStatusFilter')?.value || '').trim();
+  if (search) query.set('q', search);
+  if (role) query.set('role', role);
+  if (status) query.set('status', status);
+  const data = await api(`/api/admin/settings/users?${query.toString()}`, { method: 'GET' });
+  renderSettingsUsers(data);
+}
+
+async function loadSettingsAudit() {
+  const data = await api('/api/admin/settings/users/audit?page=1&pageSize=10', { method: 'GET' });
+  renderSettingsAudit(data);
+}
+
+async function loadSettings() {
+  if (!currentPermissions.has(USERS_MANAGE_PERMISSION)) return;
+  const status = $('settingsUsersStatus');
+  if (status) status.textContent = 'Loading administrators...';
+  try {
+    if (!settingsState.roles.length) await loadSettingsRoles();
+    await Promise.all([loadSettingsUsers(), loadSettingsAudit()]);
+  } catch (error) {
+    if (status) status.textContent = String(error?.message || 'Settings could not be loaded.');
+  }
+}
+
 // -------- Load everything --------
 async function loadAll() {
-  const results = await Promise.allSettled([
-    loadGallery(),
-    loadAnnouncements(),
-    loadEvents(),
-    loadBulletins(),
-    loadFinances(),
-    loadSubscribers(),
-    loadNewsletterRecords(),
-  ]);
+  const tasks = [];
+  if (currentPermissions.has('photos.view')) tasks.push(loadGallery());
+  if (currentPermissions.has('announcements.view')) tasks.push(loadAnnouncements(), loadBulletins());
+  if (currentPermissions.has('events.view')) tasks.push(loadEvents());
+  if (currentPermissions.has('finance.view')) tasks.push(loadFinances());
+  if (currentPermissions.has('newsletter.view')) tasks.push(loadSubscribers(), loadNewsletterRecords());
+  const results = await Promise.allSettled(tasks);
 
   for (const r of results) {
     if (r.status === 'rejected') throw r.reason;
@@ -6127,6 +6150,7 @@ async function loadAll() {
       // Dashboard should not block admin boot if overview data is unavailable.
     }
   }
+  applyPermissionVisibility(true);
 }
 
 function renderStorageHealthStatus(data) {
@@ -6269,6 +6293,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('tabBtn-directory')) $('tabBtn-directory').addEventListener('click', () => activateMainSection('tab-directory', { subTabId: 'panel-directory-contacts' }));
   if ($('tabBtn-newsletter')) $('tabBtn-newsletter').addEventListener('click', () => activateMainSection('tab-newsletter'));
   if ($('tabBtn-support')) $('tabBtn-support').addEventListener('click', () => activateMainSection('tab-support'));
+  if ($('tabBtn-settings')) $('tabBtn-settings').addEventListener('click', () => activateMainSection('tab-settings'));
 
   for (const trigger of Array.from(document.querySelectorAll('[data-section-target]'))) {
     trigger.addEventListener('click', (e) => {
@@ -6281,6 +6306,79 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   queueHeaderNavLayoutSync();
+
+  if ($('settingsRefreshBtn')) $('settingsRefreshBtn').addEventListener('click', () => loadSettings());
+  if ($('settingsAddRole')) $('settingsAddRole').addEventListener('change', renderSettingsRoleSummary);
+  if ($('settingsUserFilters')) {
+    $('settingsUserFilters').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      settingsState.page = 1;
+      await loadSettingsUsers();
+    });
+  }
+  if ($('settingsUsersPrevBtn')) {
+    $('settingsUsersPrevBtn').addEventListener('click', async () => {
+      if (settingsState.page <= 1) return;
+      settingsState.page -= 1;
+      await loadSettingsUsers();
+    });
+  }
+  if ($('settingsUsersNextBtn')) {
+    $('settingsUsersNextBtn').addEventListener('click', async () => {
+      if (settingsState.page >= settingsState.totalPages) return;
+      settingsState.page += 1;
+      await loadSettingsUsers();
+    });
+  }
+  if ($('settingsAddUserForm')) {
+    $('settingsAddUserForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const hint = $('settingsAddHint');
+      const formData = new FormData(form);
+      if (hint) hint.textContent = 'Adding administrator...';
+      try {
+        await api('/api/admin/settings/users', {
+          method: 'POST',
+          body: JSON.stringify({
+            fullName: String(formData.get('fullName') || '').trim(),
+            email: String(formData.get('email') || '').trim().toLowerCase(),
+            role: String(formData.get('role') || ''),
+            status: String(formData.get('status') || 'pending')
+          })
+        });
+        form.reset();
+        $('settingsAddStatus').value = 'pending';
+        renderSettingsRoleSummary();
+        if (hint) hint.textContent = 'Administrator added.';
+        showToast('Administrator added.', { variant: 'success' });
+        settingsState.page = 1;
+        await Promise.all([loadSettingsUsers(), loadSettingsAudit()]);
+      } catch (error) {
+        if (hint) hint.textContent = String(error?.message || 'The administrator could not be added.');
+      }
+    });
+  }
+
+  const settingsConfirmDialog = $('settingsConfirmDialog');
+  const cancelSettingsConfirmation = () => {
+    const pending = settingsState.pendingConfirm;
+    settingsState.pendingConfirm = null;
+    if (typeof pending?.onCancel === 'function') pending.onCancel();
+    if (settingsConfirmDialog instanceof HTMLDialogElement) closeManagedDialog(settingsConfirmDialog);
+  };
+  if ($('settingsConfirmCancelBtn')) $('settingsConfirmCancelBtn').addEventListener('click', cancelSettingsConfirmation);
+  if ($('settingsConfirmApplyBtn')) {
+    $('settingsConfirmApplyBtn').addEventListener('click', async () => {
+      const pending = settingsState.pendingConfirm;
+      settingsState.pendingConfirm = null;
+      if (settingsConfirmDialog instanceof HTMLDialogElement) closeManagedDialog(settingsConfirmDialog);
+      if (typeof pending?.onConfirm === 'function') await pending.onConfirm();
+    });
+  }
+  if (settingsConfirmDialog instanceof HTMLDialogElement) {
+    wireDialogDismissBehavior(settingsConfirmDialog, { onClose: cancelSettingsConfirmation });
+  }
 
   // Sub-tabs
   if ($('subTabBtn-content-announcements')) {
@@ -6297,12 +6395,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('panel-photos-manage') && $('panel-photos-bucket')) {
     // Keep login clean; bucket browsing requires auth.
     setPhotosSubTab('panel-photos-manage');
-  }
-  if ($('subTabBtn-settings-social')) {
-    $('subTabBtn-settings-social').addEventListener('click', () => setSettingsSubTab('panel-settings-social'));
-  }
-  if ($('subTabBtn-settings-theme')) {
-    $('subTabBtn-settings-theme').addEventListener('click', () => setSettingsSubTab('panel-settings-theme'));
   }
   if ($('subTabBtn-directory-contacts')) {
     $('subTabBtn-directory-contacts').addEventListener('click', () => setDirectorySubTab('panel-directory-contacts'));
@@ -6811,179 +6903,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Password peek + meters
-  wirePeekButtons();
-  wirePasswordMeter('recoverNewPassword', 'recoverPwMeter', 'recoverPwText');
-  wirePasswordMeter('newPassword', 'accountPwMeter', 'accountPwText');
-  // Optional: user creation temp password uses policy checks; meter not shown in UI.
-
-  // Login
-  $('loginForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    $('loginError').hidden = true;
-
-    const fd = new FormData(e.currentTarget);
-    try {
-      await login(String(fd.get('email')), String(fd.get('password')));
-      await refreshAuthUI();
-    } catch (err) {
-      $('loginError').textContent = err.message;
-      $('loginError').hidden = false;
-    }
-  });
-
-  await loadAuthProviders();
-  initGoogleSignInButton();
-
-  // Invite onboarding
-  if ($('copySecretBtn') && $('inviteSecret')) {
-    $('copySecretBtn').addEventListener('click', async () => {
-      const text = String($('inviteSecret').textContent || '');
-      try {
-        await navigator.clipboard.writeText(text);
-        $('inviteHint').textContent = 'Copied.';
-      } catch {
-        $('inviteHint').textContent = 'Copy failed. You can select and copy manually.';
-      }
-    });
-  }
-
-  $('inviteForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    $('inviteError').hidden = true;
-    const token = getInviteTokenFromHash();
-    if (!token) {
-      $('inviteError').textContent = 'Missing invite token.';
-      $('inviteError').hidden = false;
-      return;
-    }
-
-    const hint = $('inviteHint');
-    hint.textContent = '';
-    const fd = new FormData(e.currentTarget);
-    const newPassword = String(fd.get('newPassword') || '');
-    const confirmPassword = String(fd.get('confirmPassword') || '');
-    if (newPassword !== confirmPassword) {
-      hint.textContent = 'Passwords do not match.';
-      return;
-    }
-    const policyErr = passwordPolicyError(newPassword);
-    if (policyErr) {
-      hint.textContent = policyErr;
-      return;
-    }
-
-    hint.textContent = 'Completing setup…';
-    try {
-      await api(`/api/invites/${encodeURIComponent(token)}/complete`, {
-        method: 'POST',
-        body: JSON.stringify({
-          name: String(fd.get('name') || ''),
-          newPassword
-        })
-      });
-      window.location.hash = '';
-      inviteLoadedToken = '';
-      await refreshAuthUI();
-    } catch (err) {
-      $('inviteError').textContent = err.message;
-      $('inviteError').hidden = false;
-      hint.textContent = '';
-    }
-  });
-
-  // Invite admin (header modal)
-  const inviteAdminDialog = $('inviteAdminDialog');
-  const openInviteAdminDialog = () => {
-    if (!(inviteAdminDialog instanceof HTMLDialogElement)) return;
-    const err = $('inviteAdminError');
-    const hint = $('inviteAdminHint');
-    if (err) {
-      err.hidden = true;
-      err.textContent = '';
-    }
-    if (hint) hint.textContent = '';
-    openManagedDialog(inviteAdminDialog, { initialFocusId: 'inviteAdminEmail' });
-  };
-  const closeInviteAdminDialog = () => {
-    if (!(inviteAdminDialog instanceof HTMLDialogElement)) return;
-    closeManagedDialog(inviteAdminDialog);
-  };
-
-  if ($('inviteAdminBtn')) {
-    $('inviteAdminBtn').addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      openInviteAdminDialog();
-    });
-  }
-  if ($('inviteAdminCloseBtn')) {
-    $('inviteAdminCloseBtn').addEventListener('click', () => closeInviteAdminDialog());
-  }
-  if (inviteAdminDialog instanceof HTMLDialogElement) {
-    wireDialogDismissBehavior(inviteAdminDialog, { onClose: closeInviteAdminDialog });
-  }
-
-  if ($('inviteAdminForm')) {
-    $('inviteAdminForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const form = e.currentTarget;
-      const err = $('inviteAdminError');
-      const hint = $('inviteAdminHint');
-      const sendBtn = $('inviteAdminSendBtn');
-      if (err) {
-        err.hidden = true;
-        err.textContent = '';
-      }
-      if (hint) hint.textContent = 'Sending invite…';
-      if (sendBtn) sendBtn.disabled = true;
-
-      try {
-        const fd = new FormData(form);
-        const email = String(fd.get('email') || '').trim().toLowerCase();
-        const role = String(fd.get('role') || 'website_editor').trim();
-        const out = await api('/api/users/invite', {
-          method: 'POST',
-          body: JSON.stringify({ email, role })
-        });
-
-        if (hint) {
-          hint.textContent = out?.emailSent
-            ? 'Invite email sent successfully.'
-            : 'Invite created, but email sending is unavailable. Share the invite link manually.';
-          if (!out?.emailSent && out?.emailError) {
-            hint.textContent += ` (${String(out.emailError)})`;
-          }
-        }
-
-        if (!out?.emailSent && out?.inviteLink) {
-          try {
-            await navigator.clipboard.writeText(String(out.inviteLink));
-            if (hint) hint.textContent += ' Invite link copied to clipboard.';
-          } catch {
-            // ignore clipboard issues
-          }
-        }
-
-        showToast(
-          out?.emailSent ? 'Invite sent.' : 'Invite created. Email not sent; copied link if possible.',
-          { variant: out?.emailSent ? 'success' : 'danger' }
-        );
-
-        if (form instanceof HTMLFormElement) form.reset();
-        setTimeout(() => closeInviteAdminDialog(), 250);
-      } catch (error) {
-        if (err) {
-          err.textContent = String(error?.message || 'Unable to send invite.');
-          err.hidden = false;
-        }
-        if (hint) hint.textContent = '';
-      } finally {
-        if (sendBtn) sendBtn.disabled = false;
-      }
-    });
-  }
-
   // Support
   if ($('supportForm')) {
     $('supportForm').addEventListener('submit', async (e) => {
@@ -7328,55 +7247,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   wireRecordsActions('newsletterRecordsScheduled');
   wireRecordsActions('newsletterRecordsHistory');
 
-  // Forgot login (recovery)
-  $('forgotToggle').addEventListener('click', () => {
-    const panel = $('forgotPanel');
-    panel.hidden = !panel.hidden;
-    if (!panel.hidden) {
-      const emailEl = panel.querySelector('input[name="email"]');
-      if (emailEl) emailEl.focus();
-    }
-  });
-
-  $('recoverForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const hint = $('recoverHint');
-    hint.textContent = '';
-    const fd = new FormData(e.currentTarget);
-    const newPassword = String(fd.get('newPassword') || '');
-    const confirmPassword = String(fd.get('confirmPassword') || '');
-    if (newPassword !== confirmPassword) {
-      hint.textContent = 'Passwords do not match.';
-      return;
-    }
-    const policyErr = passwordPolicyError(newPassword);
-    if (policyErr) {
-      hint.textContent = policyErr;
-      return;
-    }
-    hint.textContent = 'Resetting…';
-    try {
-      await api('/api/auth/recover', {
-        method: 'POST',
-        body: JSON.stringify({
-          email: String(fd.get('email') || ''),
-          recoveryCode: String(fd.get('recoveryCode') || ''),
-          newPassword
-        })
-      });
-      hint.textContent = 'Password updated. You can sign in now.';
-      safeResetForm(e);
-      $('forgotPanel').hidden = true;
-    } catch (err) {
-      hint.textContent = err.message;
-    }
-  });
-
   const logoutBtn = $('logoutBtn');
   if (logoutBtn) {
-    logoutBtn.addEventListener('click', async () => {
-      await logout();
-      await refreshAuthUI();
+    logoutBtn.addEventListener('click', () => {
+      window.location.assign('/cdn-cgi/access/logout');
     });
   }
 
@@ -7399,46 +7273,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         if (hint) hint.textContent = 'Saved.';
         await refreshAuthUI();
-      } catch (err) {
-        if (hint) hint.textContent = err.message;
-      }
-    });
-  }
-
-  // Account password (optional UI)
-  const passwordForm = $('passwordForm');
-  if (passwordForm) {
-    passwordForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const hint = $('passwordHint');
-      if (hint) hint.textContent = '';
-      const fd = new FormData(e.currentTarget);
-      const newPassword = String(fd.get('newPassword') || '');
-      const confirmPassword = String(fd.get('confirmPassword') || '');
-      if (newPassword !== confirmPassword) {
-        if (hint) hint.textContent = 'Passwords do not match.';
-        return;
-      }
-      const policyErr = passwordPolicyError(newPassword);
-      if (policyErr) {
-        if (hint) hint.textContent = policyErr;
-        return;
-      }
-
-      if (!confirmWrite('Update your password?')) return;
-
-      if (hint) hint.textContent = 'Updating…';
-      try {
-        await api('/api/account/password', {
-          method: 'PUT',
-          body: JSON.stringify({
-            currentPassword: String(fd.get('currentPassword') || ''),
-            newPassword
-          })
-        });
-        if (hint) hint.textContent = 'Password updated.';
-        safeResetForm(e);
-        wirePasswordMeter('newPassword', 'accountPwMeter', 'accountPwText');
       } catch (err) {
         if (hint) hint.textContent = err.message;
       }

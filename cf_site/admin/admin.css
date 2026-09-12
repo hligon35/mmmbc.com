@@ -2588,34 +2588,6 @@ summary:focus-visible{
   color:#3f3f3f;
 }
 
-.headerInviteBtn{
-  width:56px;
-  height:56px;
-  border:0 !important;
-  border-radius:0 !important;
-  background:transparent !important;
-  box-shadow:none !important;
-}
-
-.headerInviteBtn__icon{
-  width:34px;
-  height:34px;
-  object-fit:contain;
-  display:block;
-  background:var(--bg);
-  border-radius:12px;
-  padding:6px;
-  box-shadow:0 10px 20px rgba(0,0,0,.16);
-}
-
-#inviteAdminDialog .dialog__inner{
-  max-width:min(560px, calc(100vw - 36px));
-}
-
-#inviteAdminDialog .toolbar{
-  margin-top:8px;
-}
-
 .advancedTools{
   margin-top:14px;
   border:1px solid var(--border);
@@ -2670,6 +2642,53 @@ body.theme-system.theme-effective-dark .sideNav__groupLabel{
   color:#dfdfdf;
 }
 
+/* Cloudflare Access and administrator settings */
+.accessPanel{
+  display:grid;
+  gap:14px;
+  max-width:580px;
+}
+
+.accessPanel p{margin:0;}
+.accessPanel .btn{justify-self:start;}
+
+.settingsPanel{display:grid;gap:18px;}
+.settingsGrid{display:grid;grid-template-columns:minmax(320px, .8fr) minmax(520px, 1.2fr);gap:18px;align-items:start;}
+.settingsAddCard,.settingsRolesCard,.settingsUsersCard,.settingsAuditCard{min-width:0;}
+.settingsRoleSummary{border:1px solid var(--border);border-radius:8px;padding:12px;background:rgba(196,97,35,.08);}
+.settingsRoleSummary p{margin:6px 0 0;}
+.settingsFilters{display:grid;grid-template-columns:minmax(240px, 2fr) minmax(160px, 1fr) minmax(160px, 1fr) auto;gap:12px;align-items:end;margin-bottom:14px;}
+.settingsFilters .btn{min-height:44px;}
+.settingsPager{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;}
+.settingsUserActions{display:flex;flex-wrap:wrap;gap:6px;min-width:170px;}
+.settingsUserActions .btn{min-height:36px;padding:6px 10px;}
+.settingsRoleSelect{min-width:165px;}
+.settingsMatrix th,.settingsMatrix td{text-align:center;white-space:nowrap;}
+.settingsMatrix th:first-child{text-align:left;}
+.settingsMatrix td[data-access="manage"]{color:#155b36;font-weight:900;background:#e7f6ed;}
+.settingsMatrix td[data-access="view"]{color:#704214;font-weight:900;background:#fff3de;}
+.settingsMatrix td[data-access="no-access"]{color:#702626;background:#f9e6e6;}
+.settingsUsersTable td[data-status]{font-weight:900;}
+.settingsUsersTable td[data-status="active"]{color:#1d7045;}
+.settingsUsersTable td[data-status="suspended"],
+.settingsUsersTable td[data-status="revoked"]{color:var(--danger);}
+
+body.theme-dark .settingsRoleSummary,
+body.theme-system.theme-effective-dark .settingsRoleSummary{background:rgba(196,97,35,.16);}
+body.theme-dark .settingsMatrix td[data-access],
+body.theme-system.theme-effective-dark .settingsMatrix td[data-access]{background:#242424;color:var(--text);}
+
+@media (max-width:1100px){
+  .settingsGrid{grid-template-columns:1fr;}
+  .settingsFilters{grid-template-columns:repeat(2, minmax(0, 1fr));}
+}
+
+@media (max-width:700px){
+  .settingsFilters{grid-template-columns:1fr;}
+  .settingsFilters .btn,.accessPanel .btn{width:100%;justify-self:stretch;}
+  .settingsPager{justify-content:space-between;}
+}
+
 @media (max-width:1100px){
   .homeTaskGrid{grid-template-columns:repeat(2, minmax(0, 1fr));}
 }
@@ -2708,18 +2727,6 @@ body.theme-system.theme-effective-dark .sideNav__groupLabel{
 .loginBrand__logo{width:100%;max-height:560px;object-fit:contain;}
 .loginStage{min-width:0;}
 .loginStage .loginCard{max-width:560px;margin:0 auto;}
-
-#googleLoginPanel{
-  display:grid;
-  justify-items:center;
-  text-align:center;
-}
-
-#googleSignInBtn{
-  width:100%;
-  display:flex;
-  justify-content:center;
-}
 
 body.authMode .app{
   min-height:100vh;
@@ -3239,7 +3246,6 @@ body.navDrawerCollapsed .sideNav{display:flex;}
 #adminHeader .adminHeader__logo,
 #adminHeader .adminHeader__breadcrumbs,
 #adminHeader .adminHeader__top,
-#adminHeader .adminHeader__invite,
 #adminHeader .adminHeader__tabs{
   min-width:0;
 }
@@ -3307,7 +3313,7 @@ body.navDrawerCollapsed .sideNav{display:flex;}
     grid-template-rows:auto auto;
     grid-template-areas:
       "logo breadcrumbs top"
-      "logo invite tabs";
+      "logo tabs tabs";
     align-items:stretch !important;
     gap:8px 16px;
     padding:8px var(--admin-window-gutter) 6px !important;
@@ -3361,48 +3367,6 @@ body.navDrawerCollapsed .sideNav{display:flex;}
     grid-column:3;
     justify-self:end;
     width:100%;
-  }
-
-  #adminHeader .adminHeader__invite{
-    grid-area:invite;
-    display:flex;
-    align-items:flex-end;
-    justify-content:flex-start;
-    padding-bottom:2px;
-  }
-
-  #adminHeader .headerInviteBtn{
-    width:auto;
-    height:auto;
-    min-height:42px;
-    padding:8px 12px;
-    border:2px solid rgba(26,26,26,.35) !important;
-    border-radius:12px !important;
-    background:rgba(255,255,255,.35) !important;
-    display:inline-flex;
-    align-items:center;
-    gap:8px;
-    box-shadow:0 4px 12px rgba(0,0,0,.14) !important;
-  }
-
-  #adminHeader .headerInviteBtn__icon{
-    width:22px;
-    height:22px;
-    padding:0;
-    border-radius:0;
-    background:transparent;
-    box-shadow:none;
-  }
-
-  #adminHeader .headerInviteBtn__label{
-    font-weight:900;
-    line-height:1;
-    color:#1a1a1a;
-    white-space:nowrap;
-  }
-
-  #adminHeader .headerInviteBtn[hidden]{
-    display:none !important;
   }
 
   #adminHeader .adminHeader__tabs{
@@ -3479,7 +3443,7 @@ body.navDrawerCollapsed .sideNav{display:flex;}
     grid-template-rows:auto auto !important;
     grid-template-areas:
       "logo breadcrumbs top"
-      "logo invite tabs" !important;
+      "logo tabs tabs" !important;
     align-items:stretch !important;
     gap:8px 16px !important;
   }
@@ -3487,7 +3451,6 @@ body.navDrawerCollapsed .sideNav{display:flex;}
   html body #adminHeader .adminHeader__logo{grid-area:logo !important;}
   html body #adminHeader .adminHeader__breadcrumbs{grid-area:breadcrumbs !important; align-self:center !important;}
   html body #adminHeader .adminHeader__top{grid-area:top !important;}
-  html body #adminHeader .adminHeader__invite{grid-area:invite !important; justify-content:flex-start !important;}
   html body #adminHeader .adminHeader__tabs{grid-area:tabs !important; display:flex !important; justify-content:center !important; overflow-x:auto !important;}
 
   html body #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{

@@ -7,7 +7,6 @@
 #adminHeader .adminHeader__logo,
 #adminHeader .adminHeader__breadcrumbs,
 #adminHeader .adminHeader__top,
-#adminHeader .adminHeader__invite,
 #adminHeader .adminHeader__tabs,
 #adminHeader .adminHeader__headline,
 #adminHeader .adminHeader__account{
@@ -69,11 +68,6 @@
   overflow-wrap:anywhere;
 }
 
-/* Invite admin button visibility state */
-#adminHeader .headerInviteBtn[hidden]{
-  display:none !important;
-}
-
 #adminHeader .headerActions--compactNav{
   display:flex;
   align-items:center;
@@ -85,23 +79,6 @@
 #adminHeader .headerActions--compactNav #logoutBtn{
   min-width:auto;
   padding-inline:12px;
-}
-
-#adminHeader .headerActions--compactNav .headerInviteBtn{
-  width:40px;
-  height:40px;
-  min-height:40px;
-  min-width:40px;
-  padding:0;
-  border-radius:10px;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  gap:0;
-}
-
-#adminHeader .headerActions--compactNav .headerInviteBtn__label{
-  display:none;
 }
 
 #adminHeader #navDrawerToggle .drawerToggleBars{
@@ -151,10 +128,6 @@
 
   html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs{
     overflow:visible !important;
-  }
-
-  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__invite{
-    display:none !important;
   }
 
   html body.adminHeaderNavCollapsed .adminDrawerBackdrop{
@@ -322,50 +295,6 @@
     border-radius:12px !important;
   }
 
-  /* Invite admin button placement on the right side */
-  html body #adminHeader .adminHeader__invite{
-    grid-area:invite !important;
-    display:flex !important;
-    align-items:center !important;
-    justify-content:flex-end !important;
-    padding-bottom:0 !important;
-    transform:translateX(-200px) !important;
-    pointer-events:auto !important;
-    z-index:10 !important;
-  }
-
-  html body #adminHeader .headerInviteBtn{
-    width:40px !important;
-    height:40px !important;
-    min-height:40px !important;
-    padding:0 !important;
-    display:inline-flex !important;
-    align-items:center !important;
-    justify-content:center !important;
-    gap:0 !important;
-    border:2px solid rgba(26,26,26,.35) !important;
-    border-radius:10px !important;
-    background:rgba(255,255,255,.45) !important;
-    box-shadow:0 4px 12px rgba(0,0,0,.14) !important;
-    pointer-events:auto !important;
-    cursor:pointer !important;
-    position:relative !important;
-    z-index:20 !important;
-  }
-
-  html body #adminHeader .headerInviteBtn__icon{
-    width:18px !important;
-    height:18px !important;
-    padding:0 !important;
-    border-radius:0 !important;
-    background:transparent !important;
-    box-shadow:none !important;
-  }
-
-  html body #adminHeader .headerInviteBtn__label{
-    display:none !important;
-  }
-
   /* Main navigation tabs for the admin sections */
   html body #adminHeader .adminHeader__tabs{
     grid-area:tabs !important;
@@ -522,8 +451,6 @@
     margin-top:0;
   }
 
-  #adminHeader .headerActions .headerInviteBtn,
-  #adminHeader .headerActions--compactNav .headerInviteBtn,
   #adminHeader .headerActions #navDrawerToggle,
   #adminHeader .headerActions--compactNav #navDrawerToggle{
     width:36px;
@@ -535,11 +462,6 @@
     align-items:center;
     justify-content:center;
     border-radius:10px;
-  }
-
-  #adminHeader .headerActions .headerInviteBtn .headerInviteBtn__label,
-  #adminHeader .headerActions--compactNav .headerInviteBtn .headerInviteBtn__label{
-    display:none !important;
   }
 
   #adminHeader #navDrawerToggle{
@@ -565,10 +487,6 @@
     font-size:.77rem;
     line-height:1.15;
     padding-right:4px;
-  }
-
-  #adminHeader .adminHeader__invite{
-    display:none !important;
   }
 
   #adminHeader .adminHeader__tabs{

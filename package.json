@@ -4,12 +4,17 @@
   "type": "module",
   "scripts": {
     "build:cf": "node ./scripts/build_cf_site.mjs",
-    "test": "node --test src/site-editor.test.mjs src/finance-envelope-reconciliation.test.mjs src/worker-directory.test.mjs src/finance-envelope-designer-layout.test.mjs src/public-nav.test.mjs src/worker-admin-finance-flow.test.mjs",
+    "test": "node --test src/admin-auth-users.test.mjs src/site-editor.test.mjs src/finance-envelope-reconciliation.test.mjs src/worker-directory.test.mjs src/finance-envelope-designer-layout.test.mjs src/public-nav.test.mjs src/worker-admin-finance-flow.test.mjs",
+    "import:admins": "node ./scripts/import_admin_roster.mjs",
     "verify:integrations": "node ./scripts/verify_integrations.mjs",
     "deploy": "npm run build:cf && npx wrangler deploy --env production"
   },
   "dependencies": {
+    "jose": "^6.2.12",
     "qrcode": "^1.5.4",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "wrangler": "^4.107.0"
   }
 }

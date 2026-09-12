@@ -105,7 +105,7 @@ function buildAdminInviteEmailTemplate({ inviteUrl, role }) {
       'Mt. Moriah Missionary Baptist Church Admin Access',
       `Role: ${roleLabel}`,
       '',
-      'You have been granted admin access. Sign in with Google using this email address:',
+      'You have been granted admin access. Sign in through Cloudflare Access using this email address and the one-time PIN sent to it:',
       inviteUrl
     ].join('\n'),
     html: `
@@ -118,7 +118,7 @@ function buildAdminInviteEmailTemplate({ inviteUrl, role }) {
           </div>
           <div style="padding:24px 28px;color:#111827;font-size:16px">
             <p style="margin:0 0 10px"><strong>Role:</strong> ${safeRoleLabel}</p>
-            <p style="margin:0 0 18px">Sign in with Google using this email address to access the admin dashboard.</p>
+            <p style="margin:0 0 18px">Sign in through Cloudflare Access using this email address and the one-time PIN sent to it.</p>
             <a href="${safeInviteUrl}" style="display:inline-block;padding:12px 18px;border-radius:12px;background:#8b3f1f;color:#ffffff;text-decoration:none;font-weight:700">Go to Admin</a>
             <p style="margin:18px 0 0;font-size:13px;color:#6b7280;word-break:break-word">If the button does not work, copy this link:<br>${safeInviteUrl}</p>
           </div>

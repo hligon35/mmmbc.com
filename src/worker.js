@@ -2,15 +2,18 @@
 // - Serves static site assets from ./cf_site via env.ASSETS
 // - Implements gallery API + CDN endpoints using D1 + R2
 //
-// Auth model (Cloudflare-native): protect /admin and /api via Cloudflare Access.
-// When Access is enabled, Cloudflare injects cf-access-authenticated-user-email.
+// Auth model: Cloudflare Access JWT verification plus D1-backed administrator RBAC.
 
 import { EmailMessage } from 'cloudflare:email';
 import {
-  isEmailInvited,
-  handleUsersList,
-  handleUsersInvite,
-  handleUsersRevoke,
+  authenticateAdminRequest,
+  authErrorResponse,
+  requirePermission,
+  sessionStateForUser,
+  updateLastLoginIfDue
+} from './admin-auth.js';
+import { PERMISSIONS } from './admin-rbac.js';
+import {
   handleSubscribersGet,
   handleSubscribersPut,
   handleNewsletterRecordsGet,
@@ -20,7 +23,13 @@ import {
   processScheduledNewsletters
 } from './worker-communications.js';
 import {
-  handlePublicSiteContentGet
+  handlePublicSiteContentGet,
+  handleSitePagesList,
+  handleSitePageGet,
+  handleSitePageDraftPut,
+  handleSitePagePublishPost,
+  handleSitePageRestorePreviousPost,
+  handleSitePageMediaUpload
 } from './worker-site-editor.js';
 import {
   resolveDirectoryAccessContext,
@@ -44,6 +53,8 @@ import {
   handleDirectoryListsCreate,
   handleDirectoryListsUpdate
 } from './worker-directory.js';
+
+const adminAuthCache = new WeakMap();
 
 function applySecurityHeaders(headers, { isHttps = true } = {}) {
   const setIfMissing = (k, v) => {
@@ -581,74 +592,6 @@ function splitTags(raw) {
     .slice(0, 25);
 }
 
-function tryParseJwtPayload(jwt) {
-  const token = String(jwt || '').trim();
-  const parts = token.split('.');
-  if (parts.length < 2) return null;
-
-  const b64url = parts[1];
-  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
-  const padLen = (4 - (b64.length % 4)) % 4;
-  const padded = b64 + '='.repeat(padLen);
-
-  try {
-    const jsonStr = atob(padded);
-    const payload = JSON.parse(jsonStr);
-    return payload && typeof payload === 'object' ? payload : null;
-  } catch {
-    return null;
-  }
-}
-
-function getAccessJwt(request) {
-  return (
-    getHeaderTrim(request, 'cf-access-jwt-assertion')
-    || getHeaderTrim(request, 'Cf-Access-Jwt-Assertion')
-    || ''
-  ).trim();
-}
-
-function getAccessEmailHeaderOnly(request) {
-  return (
-    request.headers.get('cf-access-authenticated-user-email')
-    || request.headers.get('Cf-Access-Authenticated-User-Email')
-    || ''
-  ).trim().toLowerCase();
-}
-
-function getAccessEmail(request) {
-  const headerEmail = getAccessEmailHeaderOnly(request);
-  if (headerEmail) return headerEmail;
-
-  // Some Access setups do not forward the email header, but DO forward a JWT assertion.
-  // In that case, derive email from the JWT payload.
-  const jwt = getAccessJwt(request);
-  if (!jwt) return '';
-
-  const payload = tryParseJwtPayload(jwt);
-  const email = String(payload?.email || payload?.user_email || payload?.upn || '').trim().toLowerCase();
-  return email;
-}
-
-function hasAccessSessionCookie(request) {
-  const cookie = String(request.headers.get('cookie') || '');
-  return (
-    /(?:^|;\s*)CF_Authorization(?:_[^=]+)?=/.test(cookie)
-    || /(?:^|;\s*)CF_AppSession=/.test(cookie)
-  );
-}
-
-function allowList(env) {
-  const raw = String(env.ADMIN_ALLOW_EMAILS || '').trim();
-  if (!raw) return null;
-  return new Set(
-    raw
-      .split(',')
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean)
-  );
-}
-
 function developerAllowList(env) {
   const raw = String(env.DEVELOPER_EMAILS || '').trim();
   if (!raw) return new Set();
@@ -666,71 +609,60 @@ function hasDeveloperDiagnosticsAccess(env, email) {
   return developerAllowList(env).has(normalized);
 }
 
-function isDevBypass(env) {
-  const raw = String(env.DEV_BYPASS_AUTH || '').trim().toLowerCase();
-  return ['1', 'true', 'yes', 'y', 'on'].includes(raw);
-}
-
-function allowServiceTokenAdmin(env) {
-  const raw = String(env.ALLOW_SERVICE_TOKEN_ADMIN || '').trim().toLowerCase();
-  return ['1', 'true', 'yes', 'y', 'on'].includes(raw);
-}
-
-function getHeaderTrim(request, name) {
-  return String(request.headers.get(name) || '').trim();
-}
-
-function hasServiceTokenHeaders(request) {
-  // Cloudflare Access service tokens are presented via these headers.
-  const id = getHeaderTrim(request, 'CF-Access-Client-Id') || getHeaderTrim(request, 'cf-access-client-id');
-  const secret = getHeaderTrim(request, 'CF-Access-Client-Secret') || getHeaderTrim(request, 'cf-access-client-secret');
-  return Boolean(id) && Boolean(secret);
-}
-
-function hasValidServiceToken(request, env) {
-  // Support server-to-server auth for local admin proxying.
-  // If these are set as Worker secrets/vars, we validate and allow.
-  const expectedId = String(env.CF_ACCESS_CLIENT_ID || '').trim();
-  const expectedSecret = String(env.CF_ACCESS_CLIENT_SECRET || '').trim();
-  if (!expectedId || !expectedSecret) return false;
-
-  const id = getHeaderTrim(request, 'CF-Access-Client-Id') || getHeaderTrim(request, 'cf-access-client-id');
-  const secret = getHeaderTrim(request, 'CF-Access-Client-Secret') || getHeaderTrim(request, 'cf-access-client-secret');
-  if (!id || !secret) return false;
-
-  return id === expectedId && secret === expectedSecret;
-}
-
-function hasAccessJwtAssertion(request) {
-  return Boolean(getAccessJwt(request));
-}
-
-async function requireAdmin(request, env) {
-  if (isDevBypass(env)) return { ok: true, email: 'dev@local' };
-
-  // Strong path: validate the service token headers against Worker secrets.
-  if (hasValidServiceToken(request, env)) {
-    return { ok: true, email: 'service-token@access' };
+async function requireAdmin(request, env, permission = '') {
+  try {
+    let context = adminAuthCache.get(request);
+    if (!context) {
+      context = await authenticateAdminRequest(
+        request,
+        env,
+        env.__ACCESS_JWKS ? { jwks: env.__ACCESS_JWKS } : {}
+      );
+      adminAuthCache.set(request, context);
+    }
+    if (permission) requirePermission(context.user, permission);
+    return { ok: true, email: context.user.email, ...context };
+  } catch (error) {
+    return { ok: false, response: authErrorResponse(error) };
   }
+}
 
-  // Allow Access Service Tokens (useful for automation/migrations) when enabled.
-  // NOTE: If Cloudflare Access is in front of this Worker, it will validate the
-  // service token at the edge and typically inject a JWT assertion header.
-  // In that case we can allow without having the token values in Worker env.
-  if (allowServiceTokenAdmin(env) && hasServiceTokenHeaders(request) && hasAccessJwtAssertion(request)) {
-    return { ok: true, email: 'service-token@access' };
+function requiredWorkerPermission(pathname, method) {
+  if (pathname.startsWith('/api/directory/')) {
+    return method === 'GET' ? PERMISSIONS.DIRECTORY_VIEW : PERMISSIONS.DIRECTORY_MANAGE;
   }
-
-  const email = getAccessEmail(request);
-  if (!email) return { ok: false, error: 'Unauthorized (Cloudflare Access required)' };
-  const allow = allowList(env);
-  if (!allow || allow.has(email)) return { ok: true, email };
-
-  // Dynamic admins granted via /api/users/invite (stored in D1, on top of the
-  // static ADMIN_ALLOW_EMAILS var).
-  if (await isEmailInvited(env, email)) return { ok: true, email };
-
-  return { ok: false, error: 'Forbidden' };
+  if (/^\/api\/gallery\/(upload|order|r2list|r2tree|r2object|sync|r2migrate)$/.test(pathname)) {
+    return PERMISSIONS.PHOTOS_MANAGE;
+  }
+  if (pathname === '/api/gallery' || pathname.startsWith('/api/gallery/')) {
+    return method === 'GET' ? PERMISSIONS.PHOTOS_VIEW : PERMISSIONS.PHOTOS_MANAGE;
+  }
+  if (pathname === '/api/announcements' || pathname.startsWith('/api/announcements/')) {
+    return method === 'GET' ? PERMISSIONS.ANNOUNCEMENTS_VIEW : PERMISSIONS.ANNOUNCEMENTS_MANAGE;
+  }
+  if (pathname === '/api/events' || pathname.startsWith('/api/events/')) {
+    return method === 'GET' ? PERMISSIONS.EVENTS_VIEW : PERMISSIONS.EVENTS_MANAGE;
+  }
+  if (pathname === '/api/bulletins' || pathname.startsWith('/api/bulletins/')) {
+    return method === 'GET' ? PERMISSIONS.ANNOUNCEMENTS_VIEW : PERMISSIONS.ANNOUNCEMENTS_MANAGE;
+  }
+  if (pathname === '/api/subscribers' || pathname === '/api/newsletter/records') {
+    return method === 'GET' ? PERMISSIONS.NEWSLETTER_VIEW : PERMISSIONS.NEWSLETTER_MANAGE;
+  }
+  if (pathname === '/api/newsletter/test' || pathname === '/api/newsletter/send') {
+    return PERMISSIONS.NEWSLETTER_MANAGE;
+  }
+  if (pathname === '/api/support/message') return PERMISSIONS.SUPPORT_SEND;
+  if (pathname === '/api/admin/site-pages' || pathname.startsWith('/api/admin/site-pages/')) {
+    return PERMISSIONS.SETTINGS_MANAGE;
+  }
+  if (pathname === '/api/users' || pathname === '/api/users/invite' || pathname.startsWith('/api/users/')) {
+    return PERMISSIONS.USERS_MANAGE;
+  }
+  if (pathname === '/api/admin/health' || pathname === '/api/admin/integration-health') {
+    return PERMISSIONS.SETTINGS_MANAGE;
+  }
+  return '';
 }
 
 async function handleSupportMessage(request, env) {
@@ -1731,7 +1663,12 @@ async function handleAdminIntegrationHealth(request, env) {
   const auth = await requireAdmin(request, env);
   if (!auth.ok) return json({ error: auth.error }, { status: 401 });
   if (!hasDeveloperDiagnosticsAccess(env, auth.email)) {
-    return json({ error: 'Developer diagnostics access is required for this action.' }, { status: 403 });
+    return json({
+      error: {
+        code: 'DEVELOPER_DIAGNOSTICS_REQUIRED',
+        message: 'Developer diagnostics access is required for this action.'
+      }
+    }, { status: 403 });
   }
 
   const checks = {
@@ -1934,47 +1871,25 @@ export default {
       return handleCdn(request, env);
     }
 
-    // Minimal API
-    if (url.pathname === '/api/access/status' && request.method === 'GET') {
-      const emailHeader = getAccessEmailHeaderOnly(request);
-      const jwt = getAccessJwt(request);
-      const jwtPayload = tryParseJwtPayload(jwt);
-      const emailFromJwt = String(jwtPayload?.email || jwtPayload?.user_email || jwtPayload?.upn || '').trim().toLowerCase();
-      const email = getAccessEmail(request);
-
-      return json({
-        ok: true,
-        hostname: url.hostname,
-        pathname: url.pathname,
-        devBypass: isDevBypass(env),
-        allowListEnabled: Boolean(allowList(env)),
-        access: {
-          hasSessionCookie: hasAccessSessionCookie(request),
-          hasJwtAssertion: Boolean(jwt),
-          hasEmailHeader: Boolean(emailHeader),
-          hasServiceTokenHeaders: hasServiceTokenHeaders(request),
-          email,
-          emailHeader,
-          emailFromJwt,
-          jwtIssuer: String(jwtPayload?.iss || ''),
-          jwtAudience: jwtPayload?.aud || null
-        },
-        hint: 'If hasSessionCookie/hasJwtAssertion/hasEmailHeader are all false, Cloudflare Access is not currently protecting this hostname/path (or you are using a hostname Access cannot intercept, like some workers.dev setups).'
-      });
+    if (url.pathname === '/api/me' && request.method === 'GET') {
+      const auth = await requireAdmin(request, env);
+      if (!auth.ok) return auth.response;
+      const update = updateLastLoginIfDue(env, auth.user);
+      if (ctx?.waitUntil) ctx.waitUntil(update);
+      else await update;
+      return json(sessionStateForUser(auth.user, env));
     }
 
-    if (url.pathname === '/api/me' && request.method === 'GET') {
-      const email = getAccessEmail(request);
-      if (!email && !isDevBypass(env)) return json({ user: null });
-      const effectiveEmail = email || 'dev@local';
-      const developer = hasDeveloperDiagnosticsAccess(env, effectiveEmail);
-      return json({ user: { id: email || 'dev', email: effectiveEmail, role: 'admin', name: '', isMaster: false, developer, mustOnboard: false, twoFactorEnabled: false }, capabilities: { developer, diagnostics: { view: developer } } });
+    const requiredPermission = requiredWorkerPermission(url.pathname, request.method);
+    if (requiredPermission) {
+      const auth = await requireAdmin(request, env, requiredPermission);
+      if (!auth.ok) return auth.response;
     }
 
     if (url.pathname.startsWith('/api/directory/')) {
       const auth = await requireAdmin(request, env);
-      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
-      const directoryAuth = await resolveDirectoryAccessContext(env, auth.email);
+      if (!auth.ok) return auth.response;
+      const directoryAuth = await resolveDirectoryAccessContext(env, auth.email, auth.user);
 
       if (url.pathname === '/api/directory/overview' && request.method === 'GET') {
         return handleDirectoryOverview(request, env, directoryAuth);
@@ -2202,30 +2117,38 @@ export default {
       return handleAdminIntegrationHealth(request, env);
     }
 
+    if (url.pathname === '/api/admin/site-pages' && request.method === 'GET') {
+      return handleSitePagesList(request, env);
+    }
+
+    if (url.pathname.startsWith('/api/admin/site-pages/')) {
+      const parts = url.pathname.split('/').filter(Boolean);
+      const page = decodeURIComponent(parts[3] || '');
+      const action = parts[4] || '';
+      if (page && !action && request.method === 'GET') return handleSitePageGet(request, env, page);
+      if (page && action === 'draft' && request.method === 'PUT') {
+        const auth = await requireAdmin(request, env);
+        if (!auth.ok) return auth.response;
+        return handleSitePageDraftPut(request, env, page, auth.email);
+      }
+      if (page && action === 'publish' && request.method === 'POST') {
+        const auth = await requireAdmin(request, env);
+        if (!auth.ok) return auth.response;
+        return handleSitePagePublishPost(request, env, page, auth.email);
+      }
+      if (page && action === 'restore-previous' && request.method === 'POST') {
+        const auth = await requireAdmin(request, env);
+        if (!auth.ok) return auth.response;
+        return handleSitePageRestorePreviousPost(request, env, page, auth.email);
+      }
+      if (page && action === 'media' && request.method === 'POST') {
+        return handleSitePageMediaUpload(request, env, page);
+      }
+    }
+
     // Support messages (admin only)
     if (url.pathname === '/api/support/message' && request.method === 'POST') {
       return handleSupportMessage(request, env);
-    }
-
-    // Admin users / invites (admin only)
-    const usersPath = url.pathname.replace(/\/+$/, '') || '/';
-    if (usersPath === '/api/users' && request.method === 'GET') {
-      const auth = await requireAdmin(request, env);
-      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
-      return handleUsersList(request, env);
-    }
-
-    if (usersPath === '/api/users/invite' && request.method === 'POST') {
-      const auth = await requireAdmin(request, env);
-      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
-      return handleUsersInvite(request, env, auth.email);
-    }
-
-    if (usersPath.startsWith('/api/users/') && request.method === 'DELETE') {
-      const auth = await requireAdmin(request, env);
-      if (!auth.ok) return json({ error: auth.error }, { status: 401 });
-      const id = decodeURIComponent(usersPath.split('/').pop());
-      return handleUsersRevoke(request, env, id);
     }
 
     // Newsletter subscribers (admin only)

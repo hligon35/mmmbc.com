@@ -3,6 +3,9 @@ import { handleGivingRequest } from './worker-giving.js';
 import { handleGivingPageRequest } from './worker-giving-pages.js';
 import { maybeHandleFinanceReconciliationRequest } from './worker-finance-reconciliation.js';
 import { EmailMessage } from 'cloudflare:email';
+import { PERMISSIONS } from './admin-rbac.js';
+
+const authStateCache = new WeakMap();
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -15,6 +18,7 @@ function json(body, status = 200) {
 }
 
 async function requireSession(request, env, ctx) {
+  if (authStateCache.has(request)) return authStateCache.get(request);
   const url = new URL(request.url);
   url.pathname = '/api/me';
   url.search = '';
@@ -24,7 +28,9 @@ async function requireSession(request, env, ctx) {
   }), env, ctx);
   if (!response.ok) return null;
   const data = await response.json().catch(() => null);
-  return data?.user || null;
+  const state = data?.user ? { ...data, ...data.user } : null;
+  authStateCache.set(request, state);
+  return state;
 }
 
 async function requireSessionState(request, env, ctx) {
@@ -44,6 +50,52 @@ function canViewDeveloperDiagnostics(sessionState) {
   return sessionState?.user?.developer === true
     || sessionState?.capabilities?.developer === true
     || sessionState?.capabilities?.diagnostics?.view === true;
+}
+
+function authFailure(status, code, message) {
+  return json({ error: { code, message } }, status);
+}
+
+function requiredOuterPermission(pathname, method) {
+  if (pathname === '/api/profiles') return PERMISSIONS.SETTINGS_MANAGE;
+  if (pathname === '/api/livestream' || pathname === '/api/settings' || pathname.startsWith('/api/theme/')) {
+    return PERMISSIONS.SETTINGS_MANAGE;
+  }
+  if (pathname === '/api/export') return PERMISSIONS.FINANCE_EXPORT;
+  if (pathname === '/api/finances') return PERMISSIONS.FINANCE_VIEW;
+  if (pathname === '/api/finances/meta') {
+    return method === 'GET' ? PERMISSIONS.FINANCE_VIEW : PERMISSIONS.FINANCE_FUNDS_CATEGORIES;
+  }
+  if (pathname === '/api/finances/funds' || /^\/api\/finances\/funds\/[^/]+\/archive$/.test(pathname)) {
+    return method === 'GET' ? PERMISSIONS.FINANCE_VIEW : PERMISSIONS.FINANCE_FUNDS_CATEGORIES;
+  }
+  if (/^\/api\/finances\/entries\/[^/]+(?:\/void)?$/.test(pathname)) {
+    return method === 'GET' ? PERMISSIONS.FINANCE_VIEW : PERMISSIONS.FINANCE_EDIT_VOID;
+  }
+  if (pathname === '/api/finances/entries') {
+    return method === 'GET' ? PERMISSIONS.FINANCE_VIEW : PERMISSIONS.FINANCE_RECORD;
+  }
+  if (pathname.startsWith('/api/finances/')) {
+    return method === 'GET' ? PERMISSIONS.FINANCE_VIEW : PERMISSIONS.FINANCE_RECORD;
+  }
+  return '';
+}
+
+function outerRouteRequiresSession(pathname) {
+  return pathname === '/api/dashboard/overview'
+    || pathname === '/api/account'
+    || pathname === '/api/account/password'
+    || pathname === '/api/admin/storage-health'
+    || pathname === '/api/admin/integration-health';
+}
+
+async function enforceOuterPermission(request, env, ctx, permission = '') {
+  const state = await requireSession(request, env, ctx);
+  if (!state) return authFailure(401, 'AUTH_REQUIRED', 'Cloudflare Access authentication is required.');
+  if (permission && (!Array.isArray(state.permissions) || !state.permissions.includes(permission))) {
+    return authFailure(403, 'PERMISSION_DENIED', 'You do not have permission to perform this action.');
+  }
+  return null;
 }
 
 async function readAssetJson(request, env, pathname, fallback) {
@@ -978,15 +1030,7 @@ export default {
 
     // Core auth/session routes are implemented in worker-auth-wrapper.
     // Forward them explicitly so they are not caught by the generic /api 404 guard below.
-    if (url.pathname === '/api/auth/providers' && request.method === 'GET') {
-      return worker.fetch(request, env, ctx);
-    }
-
-    if (url.pathname === '/api/auth/google' && request.method === 'POST') {
-      return worker.fetch(request, env, ctx);
-    }
-
-    if (url.pathname === '/api/auth/logout' && request.method === 'POST') {
+    if (url.pathname === '/api/auth/logout' && (request.method === 'GET' || request.method === 'POST')) {
       return worker.fetch(request, env, ctx);
     }
 
@@ -996,6 +1040,12 @@ export default {
 
     if (url.pathname === '/api/csrf' && request.method === 'GET') {
       return worker.fetch(request, env, ctx);
+    }
+
+    const outerPermission = requiredOuterPermission(url.pathname, request.method);
+    if (outerPermission || outerRouteRequiresSession(url.pathname)) {
+      const denied = await enforceOuterPermission(request, env, ctx, outerPermission);
+      if (denied) return denied;
     }
 
     if (request.method === 'GET' && READ_ENDPOINTS.has(url.pathname)) {
@@ -1298,15 +1348,6 @@ export default {
       return json({ ok: true, data: { ...(await readFinanceData(env)), meta }, meta });
     }
 
-    // Legacy auth/account/settings routes retained as compatibility shims.
-    if (url.pathname === '/api/auth/login' && request.method === 'POST') {
-      return json({ error: 'Use Google sign-in. Password login is not available.' }, 400);
-    }
-
-    if (url.pathname === '/api/auth/recover' && request.method === 'POST') {
-      return json({ ok: true });
-    }
-
     if (url.pathname === '/api/account' && request.method === 'PUT') {
       const user = await requireSession(request, env, ctx);
       if (!user) return json({ error: 'Unauthorized' }, 401);
@@ -1324,7 +1365,7 @@ export default {
       const user = sessionState?.user || null;
       if (!user) return json({ error: 'Unauthorized' }, 401);
       if (!canViewDeveloperDiagnostics(sessionState)) {
-        return json({ error: 'Developer diagnostics access is required for this action.' }, 403);
+        return authFailure(403, 'DEVELOPER_DIAGNOSTICS_REQUIRED', 'Developer diagnostics access is required for this action.');
       }
       return json({
         ok: true,
@@ -1343,7 +1384,7 @@ export default {
       const user = sessionState?.user || null;
       if (!user) return json({ error: 'Unauthorized' }, 401);
       if (!canViewDeveloperDiagnostics(sessionState)) {
-        return json({ error: 'Developer diagnostics access is required for this action.' }, 403);
+        return authFailure(403, 'DEVELOPER_DIAGNOSTICS_REQUIRED', 'Developer diagnostics access is required for this action.');
       }
       return json({
         ok: true,

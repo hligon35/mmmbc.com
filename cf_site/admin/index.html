@@ -9,179 +9,30 @@
   <link rel="stylesheet" href="/admin/admin-dashboard.css?v=20260730a" />
   <link rel="stylesheet" href="/admin/admin-directory.css?v=20260730a" />
   <link rel="stylesheet" href="/admin/admin-header-canonical.css?v=20260730d" />
-  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260819020853" />
+  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260911181836" />
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
 
   <button class="adminDrawerBackdrop" id="adminDrawerBackdrop" type="button" aria-label="Close menu" hidden></button>
 
-  <dialog class="dialog" id="inviteAdminDialog" aria-labelledby="inviteAdminDialogTitle" aria-modal="true">
-    <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
-    <div class="card dialog__inner">
-      <div class="sectionHeader sectionHeader--compact">
-        <h3 class="sectionHeader__title" id="inviteAdminDialogTitle">Invite an Admin</h3>
-        <button class="btn" id="inviteAdminCloseBtn" type="button">Close</button>
-      </div>
-      <p class="muted">Send a branded invite email with a secure onboarding link.</p>
-      <form id="inviteAdminForm" class="form">
-        <label class="label">
-          Email
-          <input class="input" id="inviteAdminEmail" name="email" type="email" autocomplete="email" required />
-        </label>
-        <label class="label">
-          Role
-          <select class="select" id="inviteAdminRole" name="role" required>
-            <option value="website_editor">Website Manager</option>
-            <option value="administrator">Administrator</option>
-            <option value="finance_entry">Finance Entry</option>
-            <option value="treasurer">Treasurer</option>
-            <option value="auditor">Auditor</option>
-          </select>
-        </label>
-        <div class="toolbar">
-          <button class="btn btn--primary" id="inviteAdminSendBtn" type="submit">Send Invite</button>
-        </div>
-        <div class="hint" id="inviteAdminHint" aria-live="polite"></div>
-        <div class="error" id="inviteAdminError" role="alert" hidden></div>
-      </form>
-    </div>
-  </dialog>
-
   <main id="app" class="app" role="main">
     <div class="srOnly" id="adminLiveRegion" aria-live="polite" aria-atomic="true"></div>
-    <section class="loginShell" id="authShell" aria-label="Sign-in layout">
+    <section class="loginShell" id="authShell" aria-label="Administrator access" hidden>
       <div class="loginBrand" aria-hidden="true">
         <img class="loginBrand__logo" src="/ConImg/MtMoriahLogo-1.png" alt="" />
       </div>
 
       <div class="loginStage">
-        <section class="card loginCard" id="loginCard" aria-label="Login">
-      <h1 class="card__title">Sign in</h1>
-      <p class="muted">Use your approved Google account to sign in.</p>
+        <section class="card loginCard accessPanel" id="accessPanel" aria-labelledby="accessPanelTitle">
+      <h1 class="card__title" id="accessPanelTitle">Administrator session expired</h1>
+      <p class="muted">Your Cloudflare Access session is missing, expired, or does not have permission to open this administrator area.</p>
+      <p>Sign in with an approved church administrator account, then return to this page.</p>
+      <a class="btn btn--primary" id="accessSignInLink" href="/admin/">Sign in to administrator area</a>
+      <div class="hint" id="accessStatus" role="status" aria-live="polite"></div>
 
-      <div class="card" id="googleLoginPanel">
-        <div class="card__subtitle">Google sign-in</div>
-        <p class="muted" id="googleLoginHint">Loading Google sign-in…</p>
-        <div id="googleSignInBtn" aria-label="Google sign-in button"></div>
-      </div>
-
-      <form id="loginForm" class="form" hidden>
-        <label class="label">
-          Email
-          <input class="input" name="email" type="email" autocomplete="username" required />
-        </label>
-        <label class="label">
-          Password
-          <div class="inputGroup">
-            <input class="input" id="loginPassword" name="password" type="password" autocomplete="current-password" required />
-            <button class="peekBtn" type="button" data-peek-target="loginPassword" aria-label="Show password" aria-pressed="false">
-              <svg class="peekBtn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path fill="currentColor" d="M12 5c-5.5 0-9.6 4.2-11 7 1.4 2.8 5.5 7 11 7s9.6-4.2 11-7c-1.4-2.8-5.5-7-11-7zm0 11.5A4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 0 1 0 9zm0-2.2a2.3 2.3 0 1 0 0-4.6 2.3 2.3 0 0 0 0 4.6z"/>
-              </svg>
-            </button>
-          </div>
-        </label>
-        <button class="btn btn--primary" type="submit">Sign in</button>
-        <button class="linkBtn" id="forgotToggle" type="button" hidden>Forgot login?</button>
-        <div class="error" id="loginError" role="alert" hidden></div>
-      </form>
-
-      <div class="collapse" id="forgotPanel" hidden>
-        <div class="divider"></div>
-        <h2 class="card__subtitle">Recover account</h2>
-        <p class="muted">If you have the recovery code, you can reset your password here.</p>
-        <form id="recoverForm" class="form">
-          <label class="label">
-            Email
-            <input class="input" name="email" type="email" autocomplete="username" required />
-          </label>
-          <label class="label">
-            Recovery code
-            <input class="input" name="recoveryCode" type="text" autocomplete="one-time-code" required />
-          </label>
-          <label class="label">
-            New password
-            <div class="inputGroup">
-              <input class="input" id="recoverNewPassword" name="newPassword" type="password" autocomplete="new-password" required />
-              <button class="peekBtn" type="button" data-peek-target="recoverNewPassword" aria-label="Show password" aria-pressed="false">
-                <svg class="peekBtn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path fill="currentColor" d="M12 5c-5.5 0-9.6 4.2-11 7 1.4 2.8 5.5 7 11 7s9.6-4.2 11-7c-1.4-2.8-5.5-7-11-7zm0 11.5A4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 0 1 0 9zm0-2.2a2.3 2.3 0 1 0 0-4.6 2.3 2.3 0 0 0 0 4.6z"/>
-                </svg>
-              </button>
-            </div>
-            <div class="pwHelp" id="recoverPwHelp">
-              <div class="pwHelp__row"><meter class="pwMeter" id="recoverPwMeter" min="0" max="4" value="0"></meter><span class="pwMeter__text" id="recoverPwText">Password strength</span></div>
-              <ul class="pwRules" aria-label="Password requirements">
-                <li>At least 8 characters</li>
-                <li>At least 1 capital letter</li>
-                <li>At least 1 special character</li>
-              </ul>
-            </div>
-          </label>
-          <label class="label">
-            Confirm new password
-            <div class="inputGroup">
-              <input class="input" id="recoverConfirmPassword" name="confirmPassword" type="password" autocomplete="new-password" required />
-              <button class="peekBtn" type="button" data-peek-target="recoverConfirmPassword" aria-label="Show password" aria-pressed="false">
-                <svg class="peekBtn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path fill="currentColor" d="M12 5c-5.5 0-9.6 4.2-11 7 1.4 2.8 5.5 7 11 7s9.6-4.2 11-7c-1.4-2.8-5.5-7-11-7zm0 11.5A4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 0 1 0 9zm0-2.2a2.3 2.3 0 1 0 0-4.6 2.3 2.3 0 0 0 0 4.6z"/>
-                </svg>
-              </button>
-            </div>
-          </label>
-          <button class="btn btn--primary" type="submit">Reset password</button>
-          <div class="hint" id="recoverHint" aria-live="polite"></div>
-        </form>
-      </div>
     </section>
 
-    <section class="card loginCard" id="inviteCard" aria-label="Account setup" hidden>
-      <h1 class="card__title">Finish account setup</h1>
-      <p class="muted" id="inviteEmail">Loading invite…</p>
-
-      <form id="inviteForm" class="form">
-        <label class="label">
-          Your name
-          <input class="input" name="name" type="text" autocomplete="name" required />
-        </label>
-
-        <label class="label">
-          New password
-          <div class="inputGroup">
-            <input class="input" id="inviteNewPassword" name="newPassword" type="password" autocomplete="new-password" required />
-            <button class="peekBtn" type="button" data-peek-target="inviteNewPassword" aria-label="Show password" aria-pressed="false">
-              <svg class="peekBtn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path fill="currentColor" d="M12 5c-5.5 0-9.6 4.2-11 7 1.4 2.8 5.5 7 11 7s9.6-4.2 11-7c-1.4-2.8-5.5-7-11-7zm0 11.5A4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 0 1 0 9zm0-2.2a2.3 2.3 0 1 0 0-4.6 2.3 2.3 0 0 0 0 4.6z"/>
-              </svg>
-            </button>
-          </div>
-          <div class="pwHelp">
-            <div class="pwHelp__row"><meter class="pwMeter" id="invitePwMeter" min="0" max="4" value="0"></meter><span class="pwMeter__text" id="invitePwText">Password strength</span></div>
-            <ul class="pwRules" aria-label="Password requirements">
-              <li>At least 8 characters</li>
-              <li>At least 1 capital letter</li>
-              <li>At least 1 special character</li>
-            </ul>
-          </div>
-        </label>
-
-        <label class="label">
-          Confirm new password
-          <div class="inputGroup">
-            <input class="input" id="inviteConfirmPassword" name="confirmPassword" type="password" autocomplete="new-password" required />
-            <button class="peekBtn" type="button" data-peek-target="inviteConfirmPassword" aria-label="Show password" aria-pressed="false">
-              <svg class="peekBtn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path fill="currentColor" d="M12 5c-5.5 0-9.6 4.2-11 7 1.4 2.8 5.5 7 11 7s9.6-4.2 11-7c-1.4-2.8-5.5-7-11-7zm0 11.5A4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 0 1 0 9zm0-2.2a2.3 2.3 0 1 0 0-4.6 2.3 2.3 0 0 0 0 4.6z"/>
-              </svg>
-            </button>
-          </div>
-        </label>
-        <button class="btn btn--primary" type="submit">Complete setup</button>
-        <div class="error" id="inviteError" role="alert" hidden></div>
-        <div class="hint" id="inviteHint" aria-live="polite"></div>
-      </form>
-    </section>
       </div>
     </section>
     <section class="card" id="dashboardCard" aria-label="Admin dashboard" hidden>
@@ -206,13 +57,6 @@
           </div>
         </div>
 
-        <div class="adminHeader__invite noPrint" id="adminHeaderInvite">
-          <button class="iconBtn headerInviteBtn" id="inviteAdminBtn" type="button" aria-label="Invite admin" title="Invite admin" hidden>
-            <img class="iconBtn__icon headerInviteBtn__icon" src="/Icons/mailus.png" alt="" aria-hidden="true" />
-            <span class="headerInviteBtn__label">Invite Admin</span>
-          </button>
-        </div>
-
         <div class="adminHeader__tabs noPrint" id="adminHeaderTabs" aria-label="Primary admin navigation">
           <nav class="sideNav adminDrawer" id="adminSideNav" role="tablist" aria-label="Admin sections" aria-hidden="true" tabindex="-1">
             <button class="tab tab--nav" role="tab" aria-selected="true" aria-controls="tab-home" id="tabBtn-home">Home</button>
@@ -229,6 +73,7 @@
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-finances" id="tabBtn-finances">Church Finances</button>
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-directory" id="tabBtn-directory">Directory</button>
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-support" id="tabBtn-support">Help &amp; Support</button>
+            <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-settings" id="tabBtn-settings">Settings</button>
           </nav>
         </div>
 
@@ -1734,6 +1579,72 @@
 
       </section>
 
+      <!-- Settings -->
+      <section class="tabPanel settingsPanel" role="tabpanel" id="tab-settings" aria-labelledby="tabBtn-settings" hidden data-header-crumb="Settings" data-header-description="Manage administrator access, roles, and recent account activity.">
+        <div class="sectionHeader">
+          <div>
+            <h2 class="sectionHeader__title">Users &amp; Roles</h2>
+            <p class="muted">Add administrators and control exactly what each standard role can access.</p>
+          </div>
+          <button class="btn" id="settingsRefreshBtn" type="button">Refresh</button>
+        </div>
+
+        <div class="settingsGrid">
+          <section class="card settingsAddCard" aria-labelledby="settingsAddTitle">
+            <h3 class="card__subtitle" id="settingsAddTitle">Add administrator</h3>
+            <form class="form" id="settingsAddUserForm">
+              <div class="formRow">
+                <label class="label">Full name<input class="input" name="fullName" type="text" maxlength="120" autocomplete="name" required /></label>
+                <label class="label">Email<input class="input" name="email" type="email" maxlength="254" autocomplete="email" required /></label>
+              </div>
+              <div class="formRow">
+                <label class="label">Role<select class="select" id="settingsAddRole" name="role" required></select></label>
+                <label class="label">Status
+                  <select class="select" id="settingsAddStatus" name="status" required>
+                    <option value="pending" selected>Pending</option>
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                  </select>
+                </label>
+              </div>
+              <div class="settingsRoleSummary" id="settingsSelectedRoleSummary" aria-live="polite"></div>
+              <button class="btn btn--primary" type="submit">Add administrator</button>
+              <div class="hint" id="settingsAddHint" aria-live="polite"></div>
+            </form>
+          </section>
+
+          <section class="card settingsRolesCard" aria-labelledby="settingsRolesTitle">
+            <h3 class="card__subtitle" id="settingsRolesTitle">Standard role permissions</h3>
+            <p class="muted">View means read-only access. Manage means the role can create or change records.</p>
+            <div class="tableWrap"><table class="table settingsMatrix"><thead id="settingsRolesHead"></thead><tbody id="settingsRolesBody"></tbody></table></div>
+          </section>
+        </div>
+
+        <section class="card settingsUsersCard" aria-labelledby="settingsUsersTitle">
+          <div class="sectionHeader sectionHeader--compact">
+            <h3 class="card__subtitle" id="settingsUsersTitle">Administrators</h3>
+            <div class="hint" id="settingsUsersStatus" role="status" aria-live="polite"></div>
+          </div>
+          <form class="settingsFilters" id="settingsUserFilters" role="search">
+            <label class="label">Search by name or email<input class="input" id="settingsUserSearch" type="search" maxlength="120" /></label>
+            <label class="label">Role<select class="select" id="settingsRoleFilter"><option value="">All roles</option></select></label>
+            <label class="label">Status<select class="select" id="settingsStatusFilter"><option value="">All statuses</option><option value="pending">Pending</option><option value="active">Active</option><option value="suspended">Suspended</option><option value="revoked">Revoked</option></select></label>
+            <button class="btn" type="submit">Apply filters</button>
+          </form>
+          <div class="tableWrap"><table class="table settingsUsersTable"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last login</th><th>Date added</th><th>Actions</th></tr></thead><tbody id="settingsUsersBody"></tbody></table></div>
+          <div class="settingsPager" aria-label="Administrator list pagination">
+            <button class="btn" id="settingsUsersPrevBtn" type="button">Previous</button>
+            <span id="settingsUsersPageInfo" aria-live="polite"></span>
+            <button class="btn" id="settingsUsersNextBtn" type="button">Next</button>
+          </div>
+        </section>
+
+        <section class="card settingsAuditCard" aria-labelledby="settingsAuditTitle">
+          <h3 class="card__subtitle" id="settingsAuditTitle">Recent administrator activity</h3>
+          <div class="tableWrap"><table class="table"><thead><tr><th>Actor</th><th>Action</th><th>Target</th><th>Date</th></tr></thead><tbody id="settingsAuditBody"></tbody></table></div>
+        </section>
+      </section>
+
 
 
         </div>
@@ -1741,11 +1652,22 @@
     </section>
   </main>
 
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <dialog class="dialog" id="settingsConfirmDialog" aria-labelledby="settingsConfirmTitle" aria-modal="true">
+    <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
+    <div class="card dialog__inner">
+      <h2 class="card__subtitle" id="settingsConfirmTitle">Confirm administrator change</h2>
+      <p id="settingsConfirmMessage"></p>
+      <div class="toolbar">
+        <button class="btn" id="settingsConfirmCancelBtn" type="button">Cancel</button>
+        <button class="btn btn--primary" id="settingsConfirmApplyBtn" type="button">Confirm change</button>
+      </div>
+    </div>
+  </dialog>
+
   <script src="/admin/vendor/xlsx.full.min.js" defer></script>
   <script src="/admin/admin.js?v=20260730k" defer></script>
   <script src="/admin/admin-directory.js?v=20260730a" defer></script>
   <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260819020853" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260911181836" defer></script>
 </body>
 </html>
