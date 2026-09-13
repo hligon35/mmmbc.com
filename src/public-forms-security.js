@@ -1,8 +1,4 @@
-// Shared hardening for anonymous public form endpoints (contact, facility rental,
-// newsletter subscribe): Turnstile verification, D1-backed rate limiting, and a
-// honeypot check. All three are best-effort: if TURNSTILE_SECRET_KEY or SITE_DB is
-// not configured yet, the corresponding check is skipped rather than blocking traffic,
-// so this can be deployed before those pieces exist and tightened later.
+// Shared hardening for anonymous public form endpoints.
 
 async function sha256Hex(text) {
   const data = new TextEncoder().encode(text);
@@ -22,7 +18,12 @@ export function honeypotTripped(body, fieldName = 'website') {
 
 export async function verifyTurnstile(env, token, remoteIp) {
   const secret = String(env.TURNSTILE_SECRET_KEY || '').trim();
-  if (!secret) return { ok: true, skipped: true };
+  if (!secret) {
+    if (String(env.ENVIRONMENT || '').toLowerCase() === 'production') {
+      return { ok: false, error: 'Form verification is temporarily unavailable.' };
+    }
+    return { ok: true, skipped: true };
+  }
   if (!token) return { ok: false, error: 'Please complete the verification challenge.' };
 
   const form = new FormData();

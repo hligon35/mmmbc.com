@@ -1,6 +1,4 @@
-// Centralized Resend email client for all application email (transactional and bulk).
-// Replaces the previous SendGrid REST integration and the Cloudflare Email Workers
-// (`send_email` binding / `cloudflare:email`) integration, per the Resend-only email policy.
+// Centralized Resend client for transactional and batch application email.
 //
 // Requires:
 //   - env.RESEND_API_KEY   (Worker secret, set via `wrangler secret put RESEND_API_KEY`)
@@ -37,7 +35,8 @@ async function sendResendEmail(env, {
   html = '',
   replyTo = '',
   fromEmail = '',
-  fromName = ''
+  fromName = '',
+  idempotencyKey = ''
 } = {}) {
   const apiKey = String(env.RESEND_API_KEY || '').trim();
   if (!apiKey) return { ok: false, status: 0, error: 'RESEND_API_KEY is not configured.' };
@@ -64,7 +63,8 @@ async function sendResendEmail(env, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        authorization: `Bearer ${apiKey}`
+        authorization: `Bearer ${apiKey}`,
+        ...(idempotencyKey ? { 'Idempotency-Key': String(idempotencyKey).slice(0, 256) } : {})
       },
       body: JSON.stringify(payload)
     });
@@ -89,7 +89,8 @@ async function sendResendBatch(env, {
   html = '',
   fromEmail = '',
   fromName = '',
-  recipients = []
+  recipients = [],
+  idempotencyKey = ''
 } = {}) {
   const apiKey = String(env.RESEND_API_KEY || '').trim();
   if (!apiKey) return { ok: false, sent: 0, error: 'RESEND_API_KEY is not configured.' };
@@ -117,7 +118,8 @@ async function sendResendBatch(env, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          authorization: `Bearer ${apiKey}`
+          authorization: `Bearer ${apiKey}`,
+          ...(idempotencyKey ? { 'Idempotency-Key': `${String(idempotencyKey).slice(0, 240)}-${i / BATCH_SIZE}` } : {})
         },
         body: JSON.stringify(body)
       });

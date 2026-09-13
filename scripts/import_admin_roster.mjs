@@ -2,7 +2,6 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { extname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import XLSX from 'xlsx';
 import { isValidEmail, normalizeEmail } from '../src/admin-auth.js';
 import { normalizeRole } from '../src/admin-rbac.js';
 
@@ -34,8 +33,38 @@ function readRows(inputPath) {
     if (!Array.isArray(parsed)) throw new Error('JSON input must contain an array of administrator rows.');
     return parsed;
   }
-  const workbook = XLSX.readFile(inputPath, { raw: false });
-  return XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
+  if (extname(inputPath).toLowerCase() !== '.csv') {
+    throw new Error('Administrator imports support JSON and CSV only.');
+  }
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+  const input = readFileSync(inputPath, 'utf8').replace(/^\uFEFF/, '');
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    if (char === '"' && quoted && input[index + 1] === '"') {
+      cell += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === ',' && !quoted) {
+      row.push(cell);
+      cell = '';
+    } else if ((char === '\n' || char === '\r') && !quoted) {
+      if (char === '\r' && input[index + 1] === '\n') index += 1;
+      row.push(cell);
+      if (row.some((value) => value.trim())) rows.push(row);
+      row = [];
+      cell = '';
+    } else {
+      cell += char;
+    }
+  }
+  row.push(cell);
+  if (row.some((value) => value.trim())) rows.push(row);
+  const headers = (rows.shift() || []).map((value) => value.trim());
+  return rows.map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] || ''])));
 }
 
 function field(row, names) {
@@ -75,7 +104,7 @@ function sqlText(value) {
 
 function wranglerArgs(args, extra) {
   const target = args.local ? ['--local'] : ['--remote', '--env', args.env];
-  return ['wrangler', 'd1', 'execute', 'mmdb', ...target, ...extra];
+  return ['wrangler', 'd1', 'execute', 'DB', ...target, ...extra];
 }
 
 function runWrangler(args, extra) {

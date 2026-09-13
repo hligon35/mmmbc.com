@@ -1,324 +1,133 @@
-// IMPORTANT — two Cloudflare accounts are involved during the mmmbc.com migration:
-//   1. Client account "Mmmbc270@gmail.com's Account" (id 27ab1ed14fb5c134ac057536ec739155):
-//      holds the "site"/"admin" D1 databases and the "mmmbc" R2 bucket used by the
-//      top-level block and env.production/env.preview/env.migrate below.
-//   2. Legacy personal account (id a66d8ad6d673f957cc07a4499662d694): still serves
-//      https://mmmbc.alphazonelabs.com from the OLD "mmdb" D1 + "mmmbc-gallery" R2
-//      bucket via env.legacy_alphazonelabs, kept running temporarily per client request.
-// `wrangler deploy` always targets whichever account the CLI is currently logged into
-// (`wrangler whoami`), NOT whatever account "owns" the resource IDs in this file — if you
-// run a bare deploy while logged into the wrong account it will fail to resolve the D1/R2
-// ids rather than deploy correctly. Always confirm `wrangler whoami` before deploying, and
-// only use `env.legacy_alphazonelabs` while logged into the legacy personal account.
 {
-	"name": "mmmbc",
-	"compatibility_date": "2026-01-21",
-	// Production Worker entrypoint with Cloudflare Access authentication.
-	"main": "./src/worker-admin-api-wrapper.js",
-	// Assets-only Worker deployment (static site)
-	// This intentionally deploys ONLY the curated public-site files in ./cf_site
-	// so that the admin server code and admin data are never published.
-	"assets": {
-		"directory": "./cf_site"
-	},
-	// Single R2 bucket, organized by key prefix: "gallery/" for photo-gallery uploads,
-	// "site/" for site-editor page media. See src/worker.js (gallery) and
-	// src/worker-site-editor.js (site-content media) for the exact key builders.
-	"r2_buckets": [
-		{
-			"binding": "GALLERY_BUCKET",
-			"bucket_name": "mmmbc"
-		}
-	],
-	// Two physically separate D1 databases:
-	//  - DB ("admin"): every admin-domain table (events, announcements, finance,
-	//    directory, gallery metadata, site editor, audit log, etc).
-	//  - SITE_DB ("site"): anonymous public-form submissions only (newsletter opt-in,
-	//    contact messages, facility rental requests). Never joined against DB.
-	"d1_databases": [
-		{
-			"binding": "DB",
-			"database_name": "admin",
-			"database_id": "b41e2b58-600a-4edf-a379-bfa71f4952ab",
-			"migrations_dir": "./migrations/admin"
-		},
-		{
-			"binding": "SITE_DB",
-			"database_name": "site",
-			"database_id": "77089d29-b050-4100-80b0-16edd7a3c070",
-			"migrations_dir": "./migrations/site"
-		}
-	],
-	"send_email": [
-		{
-			"name": "SUPPORT_EMAIL",
-			"destination_address": "hligon@getsparqd.com"
-		}
-	],
-	// Runs every 5 minutes; processes any newsletter_records rows that are due
-	// (status = 'scheduled'/'retrying' and schedule_at <= now).
-	// IMPORTANT: also declared under env.production below. `triggers` is inheritable,
-	// but since this top-level block and env.production both deploy to the SAME
-	// Worker name ("mmmbc"), a bare `npx wrangler deploy` (no --env) would silently
-	// clear the cron trigger on the live Worker if this were missing here. Keep both in sync.
-	"triggers": {
-		"crons": ["*/5 * * * *"]
-	},
-	// Cloudflare-side Worker vars.
-	// Configure CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD in the Cloudflare dashboard.
-	// CF_ACCESS_AUD may contain comma-separated tags for separate admin UI/API apps.
-	// DEVELOPER_EMAILS is a separate allowlist for storage/integration diagnostics;
-	// it is checked server-side against the authenticated email and should stay
-	// narrower than ADMIN_ALLOW_EMAILS when you want regular admins blocked.
-	"vars": {
-		"CF_ACCESS_TEAM_DOMAIN": "",
-		"CF_ACCESS_AUD": "",
-		"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-		"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-		"CANONICAL_HOST": "mmmbc.com",
-		"ALLOW_SERVICE_TOKEN_ADMIN": "false",
-		"DEV_BYPASS_AUTH": "false",
-		"SUPPORT_TO_EMAIL": "support@hldesignedit.com",
-		"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
-		"SUPPORT_FROM_EMAIL": "needhelp@mmmbc.com",
-		"SUPPORT_FROM_NAME": "Mount Moriah Admin",
-		"PUBLIC_SITE_URL": "https://mmmbc.com"
-	},
-	// Always deploy with `npm run deploy` (== build:cf + wrangler deploy --env production).
-	// env.production sets "name": "mmmbc", the SAME Worker name as this top-level block,
-	// so a bare `npx wrangler deploy` (no --env) publishes to the identical live Worker —
-	// it is NOT a separate/safe target. It also skips the build:cf step, risking stale
-	// cf_site/ static assets. Only use it for a quick `--dry-run` config check.
-	// Deploy preview instead: npx wrangler deploy --env preview
-	// All of the blocks below (production/preview/migrate) target the CLIENT Cloudflare
-	// account (27ab1ed14fb5c134ac057536ec739155). See env.legacy_alphazonelabs at the
-	// bottom of this file for the temporary personal-account deployment.
-	"env": {
-		"production": {
-			// Deploy with: npm run deploy  (or npx wrangler deploy --env production)
-			// Intended for the live custom domain.
-			"name": "mmmbc",
-			"main": "./src/worker-admin-api-wrapper.js",
-			"assets": {
-				"directory": "./cf_site"
-			},
-			"r2_buckets": [
-				{
-					"binding": "GALLERY_BUCKET",
-					"bucket_name": "mmmbc"
-				}
-			],
-			"d1_databases": [
-				{
-					"binding": "DB",
-					"database_name": "admin",
-					"database_id": "b41e2b58-600a-4edf-a379-bfa71f4952ab",
-					"migrations_dir": "./migrations/admin"
-				},
-				{
-					"binding": "SITE_DB",
-					"database_name": "site",
-					"database_id": "77089d29-b050-4100-80b0-16edd7a3c070",
-					"migrations_dir": "./migrations/site"
-				}
-			],
-			"send_email": [
-				{
-					"name": "SUPPORT_EMAIL",
-					"destination_address": "hligon@getsparqd.com"
-				}
-			],
-			// Runs every 5 minutes; processes any newsletter_records rows that are due
-			// (status = 'scheduled'/'retrying' and schedule_at <= now).
-			"triggers": {
-				"crons": ["*/5 * * * *"]
-			},
-			"vars": {
-				"CF_ACCESS_TEAM_DOMAIN": "",
-				"CF_ACCESS_AUD": "",
-				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-				"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-				"CANONICAL_HOST": "mmmbc.com",
-				"ALLOW_SERVICE_TOKEN_ADMIN": "false",
-				"DEV_BYPASS_AUTH": "false",
-				"SUPPORT_TO_EMAIL": "support@hldesignedit.com",
-				"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
-				"SUPPORT_FROM_EMAIL": "needhelp@mmmbc.com",
-				"SUPPORT_FROM_NAME": "Mount Moriah Admin",
-				"PUBLIC_SITE_URL": "https://mmmbc.com"
-			}
-		},
-		// KNOWN GAP: no dedicated preview D1/R2 resources exist yet on the client account —
-		// this reuses the production "site"/"admin" D1s and "mmmbc" R2 bucket. Do not run
-		// destructive preview tests until real "site-preview"/"admin-preview" D1s (and a
-		// preview R2 bucket, or a "preview/" key prefix convention) are created — see
-		// docs/launch-readiness-report.md.
-		"preview": {
-			"name": "mmmbc-preview",
-			"main": "./src/worker-admin-api-wrapper.js",
-			"assets": {
-				"directory": "./cf_site"
-			},
-			"r2_buckets": [
-				{
-					"binding": "GALLERY_BUCKET",
-					"bucket_name": "mmmbc"
-				}
-			],
-			"d1_databases": [
-				{
-					"binding": "DB",
-					"database_name": "admin",
-					"database_id": "b41e2b58-600a-4edf-a379-bfa71f4952ab",
-					"migrations_dir": "./migrations/admin"
-				},
-				{
-					"binding": "SITE_DB",
-					"database_name": "site",
-					"database_id": "77089d29-b050-4100-80b0-16edd7a3c070",
-					"migrations_dir": "./migrations/site"
-				}
-			],
-			"send_email": [
-				{
-					"name": "SUPPORT_EMAIL",
-					"destination_address": "hligon@getsparqd.com"
-				}
-			],
-			"vars": {
-				"CF_ACCESS_TEAM_DOMAIN": "",
-				"CF_ACCESS_AUD": "",
-				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-				"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-				"CANONICAL_HOST": "",
-				"ALLOW_SERVICE_TOKEN_ADMIN": "true",
-				"DEV_BYPASS_AUTH": "false",
-				"SUPPORT_TO_EMAIL": "support@hldesignedit.com",
-				"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
-				"SUPPORT_FROM_EMAIL": "needhelp@mmmbc.com",
-				"SUPPORT_FROM_NAME": "Mount Moriah Admin",
-				"PUBLIC_SITE_URL": ""
-			}
-		},
-		// LEGACY/OBSOLETE: was a one-off tool for copying R2 objects between the old
-		// preview and prod gallery buckets. Now that there is a single "mmmbc" R2 bucket
-		// this is no longer needed for R2, but is kept as a service-token-admin sandbox
-		// for testing D1 migrations against the client account without Access configured.
-		"migrate": {
-			"name": "mmmbc-migrate",
-			"main": "./src/worker.js",
-			"assets": {
-				"directory": "./cf_site"
-			},
-			"r2_buckets": [
-				{
-					"binding": "GALLERY_BUCKET",
-					"bucket_name": "mmmbc"
-				},
-				{
-					"binding": "GALLERY_BUCKET_SRC",
-					"bucket_name": "mmmbc"
-				},
-				{
-					"binding": "GALLERY_BUCKET_DST",
-					"bucket_name": "mmmbc"
-				}
-			],
-			"d1_databases": [
-				{
-					"binding": "DB",
-					"database_name": "admin",
-					"database_id": "b41e2b58-600a-4edf-a379-bfa71f4952ab",
-					"migrations_dir": "./migrations/admin"
-				},
-				{
-					"binding": "SITE_DB",
-					"database_name": "site",
-					"database_id": "77089d29-b050-4100-80b0-16edd7a3c070",
-					"migrations_dir": "./migrations/site"
-				}
-			],
-			"send_email": [
-				{
-					"name": "SUPPORT_EMAIL",
-					"destination_address": "hligon@getsparqd.com"
-				}
-			],
-			"vars": {
-				"CF_ACCESS_TEAM_DOMAIN": "getsparqd-server.cloudflareaccess.com",
-				"CF_ACCESS_AUD": "c54638d506e1d93d7c7a744bb74481441df23e6e0db17df247679fff0e36d271",
-				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-				"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-				"CANONICAL_HOST": "mmmbc.com",
-				"ALLOW_SERVICE_TOKEN_ADMIN": "true",
-				"DEV_BYPASS_AUTH": "false",
-				"SUPPORT_TO_EMAIL": "support@hldesignedit.com",
-				"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com"
-			},
-			"observability": {
-				"enabled": false,
-				"head_sampling_rate": 1,
-				"logs": {
-					"enabled": true,
-					"head_sampling_rate": 1,
-					"persist": true,
-					"invocation_logs": true
-				},
-				"traces": {
-					"enabled": true,
-					"persist": true,
-					"head_sampling_rate": 1
-				}
-			}
-		},
-		// TEMPORARY: keeps https://mmmbc.alphazonelabs.com serving from the OLD personal
-		// Cloudflare account while the client account is validated. Deploy this ONLY while
-		// `wrangler whoami` shows the legacy personal account (id a66d8ad6d673f957cc07a4499662d694)
-		// — it targets that account's original single "mmdb" D1 + "mmmbc-gallery" R2 bucket
-		// (pre-dating the site/admin D1 split) and is NOT reachable from the client account.
-		// Remove this block once the client disconnects the legacy account, per client instruction.
-		"legacy_alphazonelabs": {
-			"name": "mmmbc",
-			"main": "./src/worker-admin-api-wrapper.js",
-			"assets": {
-				"directory": "./cf_site"
-			},
-			"r2_buckets": [
-				{
-					"binding": "GALLERY_BUCKET",
-					"bucket_name": "mmmbc-gallery"
-				}
-			],
-			"d1_databases": [
-				{
-					"binding": "DB",
-					"database_name": "mmdb",
-					"database_id": "a981265d-7e16-486c-9d02-48dfa5017bed"
-				}
-			],
-			"send_email": [
-				{
-					"name": "SUPPORT_EMAIL",
-					"destination_address": "hligon@getsparqd.com"
-				}
-			],
-			"triggers": {
-				"crons": ["*/5 * * * *"]
-			},
-			"vars": {
-				"CF_ACCESS_TEAM_DOMAIN": "",
-				"CF_ACCESS_AUD": "",
-				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-				"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-				"CANONICAL_HOST": "mmmbc.com",
-				"ALLOW_SERVICE_TOKEN_ADMIN": "false",
-				"DEV_BYPASS_AUTH": "false",
-				"SUPPORT_TO_EMAIL": "support@hldesignedit.com",
-				"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
-				"SUPPORT_FROM_EMAIL": "needhelp@mmmbc.com",
-				"SUPPORT_FROM_NAME": "Mount Moriah Admin",
-				"PUBLIC_SITE_URL": "https://mmmbc.alphazonelabs.com"
-			}
-		}
-	}
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mmmbc",
+  "main": "./src/worker-admin-api-wrapper.js",
+  "compatibility_date": "2026-01-21",
+  "workers_dev": true,
+  "preview_urls": true,
+  "assets": {
+    "directory": "./cf_site",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*", "/cdn/*", "/scan", "/scan/*"]
+  },
+  "routes": [
+    { "pattern": "mmmbc.com/*", "zone_name": "mmmbc.com" },
+    { "pattern": "www.mmmbc.com/*", "zone_name": "mmmbc.com" }
+  ],
+  "r2_buckets": [
+    { "binding": "GALLERY_BUCKET", "bucket_name": "mmmbc" }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "admin",
+      "database_id": "b41e2b58-600a-4edf-a379-bfa71f4952ab",
+      "migrations_dir": "./migrations/admin"
+    },
+    {
+      "binding": "SITE_DB",
+      "database_name": "site",
+      "database_id": "77089d29-b050-4100-80b0-16edd7a3c070",
+      "migrations_dir": "./migrations/site"
+    }
+  ],
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "vars": {
+    "ENVIRONMENT": "production",
+    "CF_ACCESS_TEAM_DOMAIN": "",
+    "CF_ACCESS_AUD": "",
+    "ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+    "DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+    "CANONICAL_HOST": "mmmbc.com",
+    "ALLOW_SERVICE_TOKEN_ADMIN": "false",
+    "DEV_BYPASS_AUTH": "false",
+    "SUPPORT_TO_EMAIL": "hligon@getsparqd.com",
+    "SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
+    "SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church",
+    "RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
+    "RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church",
+    "PUBLIC_SITE_URL": "https://mmmbc.com"
+  },
+  "env": {
+    "production": {
+      "name": "mmmbc",
+      "routes": [
+        { "pattern": "mmmbc.com/*", "zone_name": "mmmbc.com" },
+        { "pattern": "www.mmmbc.com/*", "zone_name": "mmmbc.com" }
+      ],
+      "r2_buckets": [
+        { "binding": "GALLERY_BUCKET", "bucket_name": "mmmbc" }
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "admin",
+          "database_id": "b41e2b58-600a-4edf-a379-bfa71f4952ab",
+          "migrations_dir": "./migrations/admin"
+        },
+        {
+          "binding": "SITE_DB",
+          "database_name": "site",
+          "database_id": "77089d29-b050-4100-80b0-16edd7a3c070",
+          "migrations_dir": "./migrations/site"
+        }
+      ],
+      "triggers": { "crons": ["*/5 * * * *"] },
+      "vars": {
+        "ENVIRONMENT": "production",
+        "CF_ACCESS_TEAM_DOMAIN": "",
+        "CF_ACCESS_AUD": "",
+        "ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+        "DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+        "CANONICAL_HOST": "mmmbc.com",
+        "ALLOW_SERVICE_TOKEN_ADMIN": "false",
+        "DEV_BYPASS_AUTH": "false",
+        "SUPPORT_TO_EMAIL": "hligon@getsparqd.com",
+        "SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
+        "SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church",
+        "RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
+        "RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church",
+        "PUBLIC_SITE_URL": "https://mmmbc.com"
+      }
+    },
+    "preview": {
+      "name": "mmmbc-preview",
+      "routes": [],
+      "r2_buckets": [
+        { "binding": "GALLERY_BUCKET", "bucket_name": "mmmbc-preview" }
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "admin-preview",
+          "database_id": "00000000-0000-0000-0000-000000000001",
+          "migrations_dir": "./migrations/admin"
+        },
+        {
+          "binding": "SITE_DB",
+          "database_name": "site-preview",
+          "database_id": "00000000-0000-0000-0000-000000000002",
+          "migrations_dir": "./migrations/site"
+        }
+      ],
+      "triggers": { "crons": [] },
+      "vars": {
+        "ENVIRONMENT": "preview",
+        "CF_ACCESS_TEAM_DOMAIN": "",
+        "CF_ACCESS_AUD": "",
+        "ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com",
+        "DEVELOPER_EMAILS": "hligon@getsparqd.com",
+        "CANONICAL_HOST": "",
+        "ALLOW_SERVICE_TOKEN_ADMIN": "false",
+        "DEV_BYPASS_AUTH": "false",
+        "SUPPORT_TO_EMAIL": "hligon@getsparqd.com",
+        "SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
+        "SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church Preview",
+        "RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
+        "RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church Preview",
+        "PUBLIC_SITE_URL": ""
+      }
+    }
+  }
 }

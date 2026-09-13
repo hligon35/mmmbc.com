@@ -1,0 +1,97 @@
+name: Monthly maintenance
+
+on:
+  schedule:
+    - cron: "17 9 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: monthly-maintenance
+  cancel-in-progress: false
+
+jobs:
+  maintain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Create maintenance branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin master
+          if git ls-remote --exit-code --heads origin monthlyUpdate >/dev/null 2>&1; then
+            git fetch origin monthlyUpdate
+            git switch -C monthlyUpdate origin/monthlyUpdate
+            git merge --no-edit origin/master
+          else
+            git switch -c monthlyUpdate origin/master
+          fi
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Apply safe in-range updates
+        run: |
+          npm update
+          npm ci
+
+      - name: Install admin test dependencies
+        run: npm --prefix admin ci
+
+      - name: Run maintenance checks
+        id: checks
+        continue-on-error: true
+        run: npm run maintenance
+
+      - name: Scan tracked files for likely secrets
+        id: secrets
+        continue-on-error: true
+        run: |
+          if git grep -lEI '(BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|sk_live_[A-Za-z0-9]{16,}|re_[A-Za-z0-9]{16,}|AIza[0-9A-Za-z_-]{30,})' -- ':!package-lock.json' ':!admin/package-lock.json'; then
+            echo "Potential secret found in tracked files."
+            exit 1
+          fi
+
+      - name: Record workflow findings
+        if: always()
+        run: |
+          {
+            echo
+            echo "## Workflow guards"
+            echo
+            echo "- Maintenance checks: ${{ steps.checks.outcome }}"
+            echo "- Secret scan: ${{ steps.secrets.outcome }}"
+          } >> monthlyReport.md
+
+      - name: Commit report and safe updates
+        if: always() && steps.secrets.outcome == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json monthlyReport.md
+          git diff --cached --quiet || git commit -m "chore: monthly maintenance report"
+          git push origin monthlyUpdate
+
+      - name: Open or update pull request
+        if: always() && steps.secrets.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr view monthlyUpdate --json number >/dev/null 2>&1 ||
+            gh pr create --base master --head monthlyUpdate --title "Monthly maintenance" --body-file monthlyReport.md
+
+      - name: Fail after preserving report
+        if: steps.checks.outcome == 'failure' || steps.secrets.outcome == 'failure'
+        run: exit 1

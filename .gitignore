@@ -21,3 +21,6 @@ Thumbs.db
 
 # Local Wrangler/Miniflare state (D1 sqlite, R2 sim, etc.)
 .wrangler/
+
+.dev.vars
+.dev.vars.*

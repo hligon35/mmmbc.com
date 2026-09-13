@@ -145,8 +145,9 @@
 
   function csvEscape(value) {
     const raw = String(value == null ? '' : value);
-    if (!/[",\n\r]/.test(raw)) return raw;
-    return `"${raw.replace(/"/g, '""')}"`;
+    const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+    if (!/[",\n\r]/.test(safe)) return safe;
+    return `"${safe.replace(/"/g, '""')}"`;
   }
 
   function parseCsv(text) {

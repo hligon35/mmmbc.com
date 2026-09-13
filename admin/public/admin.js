@@ -2768,7 +2768,8 @@ async function loadFinances() {
 }
 
 function financeCsvEscape(value) {
-  const s = String(value ?? '');
+  const raw = String(value ?? '');
+  const s = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
   if (/[\n\r,\"]/g.test(s)) return `"${s.replace(/\"/g, '""')}"`;
   return s;
 }
@@ -2831,28 +2832,6 @@ function financeExportToCsv(rows, { announce = true } = {}) {
   }
   downloadTextFile(`finance-transactions-${financeExportFileStamp()}.csv`, lines.join('\n'), 'text/csv;charset=utf-8');
   if (announce) setFinanceExportHint(`Downloaded CSV for ${rows.length} transaction${rows.length === 1 ? '' : 's'}.`);
-}
-
-function financeExportToXlsx(rows) {
-  const xlsx = window.XLSX;
-  if (!xlsx || typeof xlsx.utils?.book_new !== 'function') {
-    setFinanceExportHint('Excel export is unavailable because the workbook library did not load.');
-    return;
-  }
-
-  const sheetRows = financeExportColumns(rows);
-  const worksheet = xlsx.utils.json_to_sheet(sheetRows, {
-    header: ['Receipt Number', 'Date', 'Transaction Type', 'Category', 'Fund', 'Payment Method', 'From / To', 'Amount', 'Memo']
-  });
-  const workbook = xlsx.utils.book_new();
-  xlsx.utils.book_append_sheet(workbook, worksheet, 'Transactions');
-  const bytes = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
-  downloadBinaryFile(
-    `finance-transactions-${financeExportFileStamp()}.xlsx`,
-    bytes,
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  );
-  setFinanceExportHint(`Downloaded Excel workbook for ${rows.length} transaction${rows.length === 1 ? '' : 's'}.`);
 }
 
 async function financeExportToGoogleSheets(rows) {
@@ -6748,14 +6727,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('financeExportCsvBtn').addEventListener('click', () => {
       const rows = financeExportRows();
       financeExportToCsv(rows);
-      closeDetailsMenu('financeExportMenu');
-    });
-  }
-
-  if ($('financeExportXlsxBtn')) {
-    $('financeExportXlsxBtn').addEventListener('click', () => {
-      const rows = financeExportRows();
-      financeExportToXlsx(rows);
       closeDetailsMenu('financeExportMenu');
     });
   }

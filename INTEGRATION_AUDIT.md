@@ -13,17 +13,17 @@ Generated for Cloudflare Worker stack (`src/worker-admin-api-wrapper.js` -> `src
 | 5 | YouTube live/recent feed | `GET /api/public/youtube` (fallback `/public/youtube.json`) | Admin controls separate (currently `/api/livestream` in UI, not worker-backed) | Public read | Live fetched from YouTube feed | `Pages/live_praise.html` + worker live-feed route | Connected (public) |
 | 6 | Livestream profile payload | `GET /api/public/livestream` | (No production worker write route yet) | Public read | Static asset fallback `livestream.json` | Public page scripts | Read-only bridge |
 | 7 | Public site settings | `GET /api/public/site-settings` (fallback static `site-settings.json`) | Admin settings UI currently expects `/api/settings` (not worker-backed) | Public read | Static asset fallback `site-settings.json` | `script.js` | Read-only bridge |
-| 8 | Contact form submission | `POST /api/public/contact-message` | N/A | Public write (validated) | Email delivery via `SUPPORT_EMAIL` binding | `Pages/contact.html` + `script.js` | Connected |
+| 8 | Contact form submission | `POST /api/public/contact-message` | N/A | Public write (validated) | Email delivery via Resend | `Pages/contact.html` + `script.js` | Connected |
 | 9 | Newsletter signup (public) | `POST /api/public/newsletter/subscribe` | `GET/PUT /api/subscribers` | Public write + admin read/write | D1 `subscribers` | `script.js` + worker communications routes | Connected |
-| 10 | Facility rental request (member) | `POST /api/public/facility-rental-request` (mailto fallback) | N/A | Public write | Email delivery via `SUPPORT_EMAIL` binding | `facility_rental_form.js` | Connected |
-| 11 | Facility rental request (non-member) | `POST /api/public/facility-rental-request` (mailto fallback) | N/A | Public write | Email delivery via `SUPPORT_EMAIL` binding | `facility_rental_nonmembers_form.js` | Connected |
+| 10 | Facility rental request (member) | `POST /api/public/facility-rental-request` (mailto fallback) | N/A | Public write | Email delivery via Resend | `facility_rental_form.js` | Connected |
+| 11 | Facility rental request (non-member) | `POST /api/public/facility-rental-request` (mailto fallback) | N/A | Public write | Email delivery via Resend | `facility_rental_nonmembers_form.js` | Connected |
 | 12 | Giving checkout | `POST /api/giving/checkout` from public giving page | Admin reporting paths separate | Public write | Stripe + D1 giving tables | `Pages/giving.js`, `src/worker-giving.js` | Connected |
 | 13 | Public page CMS hydration | `GET /api/site-content/:page` | Admin editor APIs under `/api/admin/site-pages*` | Public read / admin write | D1 `site_page_content` | `site-content-loader.js`, `src/worker-site-editor.js` | Connected |
 | 14 | Directory contacts | N/A | `/api/directory/contacts*` + duplicate-check/archive aliases | Admin-only | D1 directory tables | `admin/public/admin-directory.js`, `src/worker-directory.js` | Connected |
 | 15 | Directory subscribers/lists/groups | N/A | `/api/directory/subscribers*`, `/api/directory/lists*`, `/api/directory/groups*` | Admin-only | D1 directory tables | admin directory module + worker routes | Connected |
 | 16 | Admin users/invites | N/A | `/api/users`, `/api/users/invite`, `/api/users/:id` | Admin-only | D1 `admin_invites` + static allowlist var | admin UI + `worker-communications.js` | Connected |
-| 17 | Newsletter campaign records/send | N/A | `/api/newsletter/records`, `/api/newsletter/send`, `/api/newsletter/test` | Admin-only | D1 `newsletter_records`, D1 `subscribers`, SendGrid secret | admin UI + worker communications routes | Connected |
-| 18 | Admin support messaging | N/A | `POST /api/support/message` | Admin-only | Email delivery via `SUPPORT_EMAIL` binding | admin UI + worker support route | Connected |
+| 17 | Newsletter campaign records/send | N/A | `/api/newsletter/records`, `/api/newsletter/send`, `/api/newsletter/test` | Admin-only | D1 `newsletter_records`, D1 `subscribers`, Resend secret | admin UI + worker communications routes | Connected |
+| 18 | Admin support messaging | N/A | `POST /api/support/message` | Admin-only | Email delivery via Resend | admin UI + worker support route | Connected |
 | 19 | Integration diagnostics and API boundary | `GET /api/public/*`, unknown API -> JSON 404 | `GET /api/admin/integration-health` | Split public/admin | Runtime route checks + lightweight DB/asset diagnostics | worker route + script `scripts/verify_integrations.mjs` | Connected |
 
 ## Key architecture notes

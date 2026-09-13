@@ -1427,7 +1427,7 @@ export default {
           dbBinding: Boolean(env.DB),
           assetsBinding: Boolean(env.ASSETS && typeof env.ASSETS.fetch === 'function'),
           galleryBucketBinding: Boolean(env.GALLERY_BUCKET),
-          supportEmailBinding: Boolean(env.SUPPORT_EMAIL && typeof env.SUPPORT_EMAIL.send === 'function')
+          resendConfigured: Boolean(env.RESEND_API_KEY && env.RESEND_FROM_EMAIL)
         }
       });
     }
@@ -1447,7 +1447,7 @@ export default {
           dbBinding: Boolean(env.DB),
           assetsBinding: Boolean(env.ASSETS && typeof env.ASSETS.fetch === 'function'),
           galleryBucketBinding: Boolean(env.GALLERY_BUCKET),
-          supportEmailBinding: Boolean(env.SUPPORT_EMAIL && typeof env.SUPPORT_EMAIL.send === 'function')
+          resendConfigured: Boolean(env.RESEND_API_KEY && env.RESEND_FROM_EMAIL)
         },
         routeCoverage: {
           publicFeeds: [

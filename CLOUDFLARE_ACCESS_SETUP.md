@@ -11,9 +11,9 @@ Repository code validates Access JWTs but cannot create the dashboard policy. Co
 ## Protect admin paths
 
 1. Open **Zero Trust > Access controls > Applications > Add an application > Self-hosted**.
-2. Create protected applications for `mmmbc.alphazonelabs.com/admin/*` and `mmmbc.alphazonelabs.com/api/*`.
+2. Create protected applications for `mmmbc.com/admin/*`, `mmmbc.com/scan*`, and the protected administrative API routes.
 3. On each, add an **Allow** policy containing only approved administrator email addresses and select One-time PIN as the login method.
-4. Create more-specific self-hosted applications for `mmmbc.alphazonelabs.com/api/public/*`, `/api/site-content/*`, and `/api/giving/*`. Give each a **Bypass** policy with **Include > Everyone**. Leave `/cdn/*` and normal site assets outside the protected API application.
+4. Create more-specific self-hosted applications for `mmmbc.com/api/public/*`, `/api/site-content/*`, and `/api/giving/*`. Give each a **Bypass** policy with **Include > Everyone**. Leave public media and normal site assets outside the protected API application.
 5. Confirm the more-specific public application paths take precedence over `/api/*`.
 
 ## Configure Worker variables

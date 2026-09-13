@@ -694,7 +694,7 @@
                 <div class="row">
                   <div class="row__main">
                     <div class="row__title">Export Transactions</div>
-                    <div class="row__meta">Export the currently filtered transactions as CSV, Excel, or into a new Google Sheet.</div>
+                    <div class="row__meta">Export the currently filtered transactions as CSV or into a new Google Sheet.</div>
                     <div class="hint" id="financeExportHint" aria-live="polite"></div>
                   </div>
                   <div class="row__actions">
@@ -703,7 +703,6 @@
                       <div class="menu__panel" aria-label="Export transaction formats">
                         <div class="menu__title">Choose export format</div>
                         <button class="menu__item" id="financeExportCsvBtn" type="button">CSV</button>
-                        <button class="menu__item" id="financeExportXlsxBtn" type="button">Excel (.xlsx)</button>
                         <button class="menu__item" id="financeExportSheetsBtn" type="button">Google Sheets</button>
                       </div>
                     </details>
@@ -1284,7 +1283,7 @@
               <li>Consent handling</li>
               <li>Import review</li>
             </ol>
-            <label class="label">Choose file<input class="input" id="directoryImportFile" type="file" accept=".csv,.xlsx,.xls,.json" /></label>
+            <label class="label">Choose file<input class="input" id="directoryImportFile" type="file" accept=".csv,text/csv" /></label>
             <div class="hint" id="directoryImportHint" aria-live="polite">Import CSV contacts with consent metadata. Duplicate rows are skipped.</div>
           </div>
         </dialog>
@@ -1663,7 +1662,6 @@
     </div>
   </dialog>
 
-  <script src="/admin/vendor/xlsx.full.min.js" defer></script>
   <script src="/admin/admin.js?v=20260730k" defer></script>
   <script src="/admin/admin-directory.js?v=20260730a" defer></script>
   <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>

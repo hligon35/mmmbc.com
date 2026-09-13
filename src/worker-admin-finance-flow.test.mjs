@@ -38,7 +38,6 @@ function loadWorkerAdminApi() {
     handleGivingRequest: async () => null,
     handleGivingPageRequest: async () => null,
     maybeHandleFinanceReconciliationRequest: async () => null,
-    EmailMessage: class EmailMessage {},
     PERMISSIONS
   });
 

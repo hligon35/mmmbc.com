@@ -350,7 +350,6 @@ describe('Church Finances wizard redesign', () => {
     expect(indexHtml).toContain('Print Selected Receipts');
     expect(indexHtml).toContain('Export Transactions');
     expect(indexHtml).toContain('id="financeExportCsvBtn"');
-    expect(indexHtml).toContain('id="financeExportXlsxBtn"');
     expect(indexHtml).toContain('id="financeExportSheetsBtn"');
     expect(indexHtml).not.toContain('financeViewSummaryBtn');
     expect(indexHtml).toContain('Money Flow');
@@ -359,9 +358,7 @@ describe('Church Finances wizard redesign', () => {
     expect(indexHtml).not.toContain('Finance Dashboard');
     expect(indexHtml).not.toMatch(/id="financeReportsTotals"[^>]*hidden|hidden[^>]*id="financeReportsTotals"/);
     expect(adminJs).not.toContain('function toggleFinanceSummaryPanel(');
-    expect(adminJs).toContain('function financeExportToXlsx(rows)');
     expect(adminJs).toContain('function financeExportToGoogleSheets(rows)');
-    expect(indexHtml).toContain('/admin/vendor/xlsx.full.min.js');
   });
 
   test('Receipt printing only renders when an entry is valid for receipt output', () => {

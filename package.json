@@ -4,17 +4,25 @@
   "type": "module",
   "scripts": {
     "build:cf": "node ./scripts/build_cf_site.mjs",
-    "test": "node --test src/admin-auth-users.test.mjs src/site-editor.test.mjs src/finance-envelope-reconciliation.test.mjs src/worker-directory.test.mjs src/finance-envelope-designer-layout.test.mjs src/public-nav.test.mjs src/worker-admin-finance-flow.test.mjs",
+    "test": "node --test src/*.test.mjs",
+    "test:admin": "npm --prefix admin test",
+    "test:all": "npm test && npm run test:admin",
+    "check": "npm run test:all && npm run build:cf && npm run verify:integrations && npm run worker:dry-run",
+    "worker:dry-run": "wrangler deploy --env production --dry-run",
+    "preview:dry-run": "wrangler deploy --env preview --dry-run",
+    "migrate:local:admin": "wrangler d1 migrations apply admin --local",
+    "migrate:local:site": "wrangler d1 migrations apply site --local",
+    "maintenance": "node ./scripts/monthly-maintenance.mjs",
     "import:admins": "node ./scripts/import_admin_roster.mjs",
-    "verify:integrations": "node ./scripts/verify_integrations.mjs",
+    "verify:integrations": "node ./scripts/verify_local_integrations.mjs",
+    "verify:integrations:target": "node ./scripts/verify_integrations.mjs",
     "deploy": "npm run build:cf && npx wrangler deploy --env production"
   },
   "dependencies": {
     "jose": "^6.2.12",
-    "qrcode": "^1.5.4",
-    "xlsx": "^0.18.5"
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
-    "wrangler": "^4.107.0"
+    "wrangler": "^4.131.1"
   }
 }

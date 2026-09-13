@@ -10,11 +10,11 @@
  * - WP_APP_PASSWORD
  *
  * Optional env:
- * - PUBLIC_GALLERY_URL (default: https://mmmbc.alphazonelabs.com/public/gallery.json)
+ * - PUBLIC_GALLERY_URL (default: https://mmmbc.com/public/gallery.json)
  * - LIMIT (default: 200)
  */
 
-const PUBLIC_GALLERY_URL = process.env.PUBLIC_GALLERY_URL || 'https://mmmbc.alphazonelabs.com/public/gallery.json';
+const PUBLIC_GALLERY_URL = process.env.PUBLIC_GALLERY_URL || 'https://mmmbc.com/public/gallery.json';
 const LIMIT = Number(process.env.LIMIT || 200);
 const WP_BASE_URL = String(process.env.WP_BASE_URL || '').trim();
 const WP_USERNAME = String(process.env.WP_USERNAME || '').trim();

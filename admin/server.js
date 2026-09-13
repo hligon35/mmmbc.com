@@ -73,7 +73,6 @@ const DOCS_UPLOADS_DIR = path.join(UPLOADS_DIR, 'docs');
 const BULLETINS_UPLOADS_DIR = path.join(UPLOADS_DIR, 'bulletins');
 const ROOT_BULLETINS_DIR = path.join(ROOT_DIR, 'bulletins');
 const GALLERY_DIR = path.join(ROOT_DIR, 'ConImg', 'gallery');
-const XLSX_VENDOR_PATH = path.join(ROOT_DIR, 'node_modules', 'xlsx', 'dist', 'xlsx.full.min.js');
 
 // Keep local dev admin HTML in parity with what the production Cloudflare Worker
 // injects at runtime via transformAdminHtml() in src/worker-admin-api-wrapper.js.
@@ -634,39 +633,36 @@ function buildAdminInviteEmailTemplate({ inviteLink, expiresAt, role }) {
   };
 }
 
-// SendGrid's v3 /mail/send payload shape is a superset of MailChannels' old
-// tx/v1/send format (personalizations/from/content), so callers below build
-// the same payload shape and only the transport + auth header changed.
-function sendgridSend(payload) {
-  const apiKey = String(process.env.SENDGRID_API_KEY || '').trim();
+async function resendSend(payload) {
+  const apiKey = String(process.env.RESEND_API_KEY || '').trim();
   if (!apiKey) {
-    return Promise.resolve({ status: 0, body: 'SENDGRID_API_KEY is not configured.' });
+    return { status: 0, body: 'RESEND_API_KEY is not configured.' };
   }
-  return new Promise((resolve, reject) => {
-    const body = JSON.stringify(payload);
-    const req = https.request(
-      {
-        method: 'POST',
-        hostname: 'api.sendgrid.com',
-        path: '/v3/mail/send',
-        headers: {
-          'content-type': 'application/json',
-          'content-length': Buffer.byteLength(body),
-          authorization: `Bearer ${apiKey}`
-        }
-      },
-      (resp) => {
-        let data = '';
-        resp.on('data', (chunk) => { data += chunk; });
-        resp.on('end', () => {
-          resolve({ status: resp.statusCode || 0, body: data });
-        });
-      }
-    );
-    req.on('error', reject);
-    req.write(body);
-    req.end();
+
+  const text = (payload.content || []).find((item) => item.type === 'text/plain')?.value || '';
+  const html = (payload.content || []).find((item) => item.type === 'text/html')?.value || '';
+  const from = payload.from?.name
+    ? `${payload.from.name} <${payload.from.email}>`
+    : payload.from?.email;
+  const messages = (payload.personalizations || []).map((item) => ({
+    from,
+    to: (item.to || []).map((recipient) => recipient.email).filter(Boolean),
+    subject: item.subject || payload.subject || '(no subject)',
+    text,
+    ...(html ? { html } : {})
+  }));
+  if (!messages.length) return { status: 0, body: 'No recipients were provided.' };
+
+  const batch = messages.length > 1;
+  const response = await fetch(batch ? 'https://api.resend.com/emails/batch' : 'https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify(batch ? messages : messages[0])
   });
+  return { status: response.status, body: await response.text() };
 }
 
 function decodeHtmlEntities(input) {
@@ -1316,14 +1312,6 @@ app.get('/admin/finances/envelopes', requirePermission(PERMISSIONS.DONOR_READ), 
 
 app.get('/scan', (req, res) => {
   return res.sendFile(path.join(ROOT_DIR, 'scan.html'));
-});
-
-app.get('/admin/vendor/xlsx.full.min.js', (req, res) => {
-  if (!fs.existsSync(XLSX_VENDOR_PATH)) {
-    return res.status(404).json({ error: 'Excel export vendor asset is not installed.' });
-  }
-  res.setHeader('Cache-Control', 'no-store');
-  return res.sendFile(XLSX_VENDOR_PATH);
 });
 
 app.use('/admin', express.static(path.join(ADMIN_DIR, 'public'), {
@@ -2713,8 +2701,7 @@ app.get('/api/admin/integration-health', requireDeveloperDiagnostics, async (req
       galleryDirExists,
       postgresConfigured: Boolean(POSTGRES_URL),
       postgresConnected: storage.postgresConnected,
-      exportsEnabled: ENABLE_EXPORTS,
-      xlsxVendorAvailable: fs.existsSync(XLSX_VENDOR_PATH)
+      exportsEnabled: ENABLE_EXPORTS
     },
     storage,
     sessionStore: sessionStoreModeInfo(),
@@ -2998,7 +2985,7 @@ app.post('/api/support/message', (req, res, next) => {
   const replyTo = replyToRaw && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyToRaw) ? replyToRaw : '';
 
   const toEmail = String(process.env.SUPPORT_TO_EMAIL || 'support@alphazonelabs.com').trim();
-  const fromEmail = String(process.env.SUPPORT_FROM_EMAIL || 'mmmbc@alphazonelabs.com').trim();
+  const fromEmail = String(process.env.RESEND_FROM_EMAIL || process.env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
   const fromName = String(process.env.SUPPORT_FROM_NAME || 'MMMBC Admin Support').trim() || 'MMMBC Admin Support';
 
   const composedSubject = `[MMMBC Support] ${subject}`;
@@ -3019,7 +3006,7 @@ app.post('/api/support/message', (req, res, next) => {
         { type: 'text/html', value: supportTemplate.html }
       ]
     };
-    const out = await sendgridSend(payload);
+    const out = await resendSend(payload);
     if (out.status < 200 || out.status >= 300) {
       logger.error('support_email_failed', { status: out.status, body: String(out.body || '').slice(0, 2000) });
       return res.status(502).json({ error: `Email send failed (${out.status}).` });
@@ -3134,7 +3121,7 @@ app.post('/api/users/invite', requirePermission(PERMISSIONS.USERS_MANAGE), async
       ]
     };
 
-    const out = await sendgridSend(payload);
+    const out = await resendSend(payload);
     if (out.status < 200 || out.status >= 300) {
       logger.error('admin_invite_email_failed', { status: out.status, body: String(out.body || '').slice(0, 2000), email, role });
       return res.json({ ok: true, inviteLink, expiresAt, emailSent: false });
@@ -6414,8 +6401,8 @@ async function sendNewsletterEmail({ subject, message, emails }) {
 
   // One personalization per recipient so recipients never see each other's
   // addresses (a single shared "to" list would leak the subscriber list).
-  // Batch to stay under SendGrid's 1000-personalizations-per-request limit.
-  const BATCH_SIZE = 500;
+  // Batch to stay under Resend's 100-message batch limit.
+  const BATCH_SIZE = 100;
   let sent = 0;
   for (let i = 0; i < emails.length; i += BATCH_SIZE) {
     const batch = emails.slice(i, i + BATCH_SIZE);
@@ -6424,7 +6411,7 @@ async function sendNewsletterEmail({ subject, message, emails }) {
       from: { email: fromEmail, name: fromName },
       content
     };
-    const out = await sendgridSend(payload);
+    const out = await resendSend(payload);
     if (out.status < 200 || out.status >= 300) {
       logger.error('newsletter_email_failed', { status: out.status, body: String(out.body || '').slice(0, 2000) });
       return { ok: false, error: `Newsletter send failed (${out.status}).`, sent };

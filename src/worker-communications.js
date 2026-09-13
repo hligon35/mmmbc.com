@@ -29,7 +29,7 @@ function isValidEmail(email) {
 // Thin adapters around ./email-resend.js that preserve the existing {status, body} shape
 // used by the call sites below, so error-handling logic didn't need to change.
 
-async function sendgridSend(env, { personalizations, from, content }) {
+async function sendTransactionalEmail(env, { personalizations, from, content }) {
   const to = (personalizations?.[0]?.to || []).map((r) => r.email).filter(Boolean);
   const subject = personalizations?.[0]?.subject || '';
   const text = (content || []).find((c) => c.type === 'text/plain')?.value || '';
@@ -46,7 +46,7 @@ async function sendgridSend(env, { personalizations, from, content }) {
   return { status: out.ok ? 200 : (out.status || 500), body: out.error || '' };
 }
 
-function normalizedSendgridBody(rawBody) {
+function normalizedEmailError(rawBody) {
   return String(rawBody || '').trim();
 }
 
@@ -83,7 +83,7 @@ function buildAdminInviteEmailTemplate({ inviteUrl, role }) {
   const roleLabel = roleDisplayName(role);
   const safeRoleLabel = escapeHtml(roleLabel);
   const safeInviteUrl = escapeHtml(inviteUrl);
-  let logoUrl = 'https://mmmbc.alphazonelabs.com/ConImg/MtMoriahLogo-1.png';
+  let logoUrl = 'https://mmmbc.com/ConImg/MtMoriahLogo-1.png';
   try {
     const origin = new URL(inviteUrl).origin;
     logoUrl = `${origin}/ConImg/MtMoriahLogo-1.png`;
@@ -172,7 +172,7 @@ async function handleUsersInvite(request, env, actorEmail) {
   }
 
   const canonical = String(env.CANONICAL_HOST || '').trim();
-  const inviteUrl = canonical ? `https://${canonical}/admin/` : 'https://mmmbc.alphazonelabs.com/admin/';
+  const inviteUrl = canonical ? `https://${canonical}/admin/` : 'https://mmmbc.com/admin/';
   const fromEmail = String(
     env.RESEND_FROM_EMAIL || env.SUPPORT_FROM_EMAIL || env.SUPPORT_EMAIL_DESTINATION || 'no-reply@mmmbc.com'
   ).trim();
@@ -180,7 +180,7 @@ async function handleUsersInvite(request, env, actorEmail) {
   const fromName = String(env.SUPPORT_FROM_NAME || 'MMMBC Admin').trim() || 'MMMBC Admin';
   const template = buildAdminInviteEmailTemplate({ inviteUrl, role });
 
-  let out = await sendgridSend(env, {
+  let out = await sendTransactionalEmail(env, {
     personalizations: [{ to: [{ email }], subject: `MMMBC Admin Access (${roleDisplayName(role)})` }],
     from: { email: fromEmail, name: fromName },
     content: [
@@ -196,7 +196,7 @@ async function handleUsersInvite(request, env, actorEmail) {
     && (out.status === 400 || out.status === 401 || out.status === 403);
 
   if (shouldRetryWithFallback) {
-    out = await sendgridSend(env, {
+    out = await sendTransactionalEmail(env, {
       personalizations: [{ to: [{ email }], subject: `MMMBC Admin Access (${roleDisplayName(role)})` }],
       from: { email: fallbackFromEmail, name: fromName },
       content: [
@@ -209,7 +209,7 @@ async function handleUsersInvite(request, env, actorEmail) {
   const emailSent = out.status >= 200 && out.status < 300;
   const emailError = emailSent
     ? ''
-    : normalizedSendgridBody(out.body).slice(0, 500) || `Invite email failed (${out.status || 'unknown'}).`;
+    : normalizedEmailError(out.body).slice(0, 500) || `Invite email failed (${out.status || 'unknown'}).`;
   return json({
     ok: true,
     email,
@@ -292,7 +292,7 @@ function buildNewsletterEmailTemplate({ subject, message }) {
   };
 }
 
-async function sendNewsletterEmail(env, { subject, message, emails }) {
+async function sendNewsletterEmail(env, { subject, message, emails, idempotencyKey = '' }) {
   const fromEmail = String(env.RESEND_FROM_EMAIL || env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
   const fromName = String(env.SUPPORT_FROM_NAME || 'MMMBC Newsletter').trim() || 'MMMBC Newsletter';
   const template = buildNewsletterEmailTemplate({ subject, message });
@@ -305,7 +305,8 @@ async function sendNewsletterEmail(env, { subject, message, emails }) {
     html: template.html,
     fromEmail,
     fromName,
-    recipients: emails
+    recipients: emails,
+    idempotencyKey
   });
   if (!out.ok) return { ok: false, error: out.error || 'Newsletter send failed.', sent: out.sent };
   return { ok: true, sent: out.sent };
@@ -339,7 +340,7 @@ async function getNewsletterRecords(env) {
   const all = (rows?.results || []).map(rowToRecord);
   return {
     drafts: all.filter((r) => r.status === 'draft'),
-    scheduled: all.filter((r) => r.status === 'scheduled' || r.status === 'retrying'),
+    scheduled: all.filter((r) => ['scheduled', 'retrying', 'sending'].includes(r.status)),
     history: all.filter((r) => ['sent', 'skipped', 'failed'].includes(r.status))
   };
 }
@@ -484,7 +485,7 @@ async function processScheduledNewsletters(env) {
   let due;
   try {
     due = await env.DB.prepare(
-      `SELECT * FROM newsletter_records WHERE status IN ('scheduled', 'retrying') AND schedule_at <= ?`
+      `SELECT * FROM newsletter_records WHERE status IN ('scheduled', 'retrying', 'sending') AND schedule_at <= ?`
     ).bind(nowIso).all();
   } catch {
     return;
@@ -492,7 +493,20 @@ async function processScheduledNewsletters(env) {
 
   for (const row of (due?.results || [])) {
     const record = rowToRecord(row);
-    const out = await sendNewsletterEmail(env, { subject: record.subject, message: record.message, emails: record.emails });
+    const leaseUntil = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const claim = await env.DB.prepare(
+      `UPDATE newsletter_records
+       SET status='sending', schedule_at=?, updated_at=?
+       WHERE id=? AND status IN ('scheduled', 'retrying', 'sending') AND schedule_at <= ?`
+    ).bind(leaseUntil, nowIso, record.id, nowIso).run();
+    if (!Number(claim?.meta?.changes || 0)) continue;
+
+    const out = await sendNewsletterEmail(env, {
+      subject: record.subject,
+      message: record.message,
+      emails: record.emails,
+      idempotencyKey: `newsletter-${record.id}`
+    });
     const now = new Date().toISOString();
 
     if (out.ok) {
