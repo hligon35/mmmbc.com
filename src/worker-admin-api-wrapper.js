@@ -2,8 +2,9 @@ import worker from './worker-auth-wrapper.js';
 import { handleGivingRequest } from './worker-giving.js';
 import { handleGivingPageRequest } from './worker-giving-pages.js';
 import { maybeHandleFinanceReconciliationRequest } from './worker-finance-reconciliation.js';
-import { EmailMessage } from 'cloudflare:email';
 import { PERMISSIONS } from './admin-rbac.js';
+import { honeypotTripped, verifyTurnstile, checkRateLimit, clientIp } from './public-forms-security.js';
+import { sendResendEmail } from './email-resend.js';
 
 const authStateCache = new WeakMap();
 
@@ -168,36 +169,22 @@ async function sendSupportEmailMessage(env, {
 } = {}) {
   const toEmail = String(env.SUPPORT_TO_EMAIL || 'support@hldesignedit.com').trim();
   const deliveryToEmail = String(env.SUPPORT_EMAIL_DESTINATION || toEmail).trim();
-  const fromEmail = String(env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
+  const fromEmail = String(env.RESEND_FROM_EMAIL || env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
   const fromName = String(fromNameOverride || env.SUPPORT_FROM_NAME || 'MMMBC Website').trim() || 'MMMBC Website';
-
-  if (!env.SUPPORT_EMAIL || typeof env.SUPPORT_EMAIL.send !== 'function') {
-    throw new Error('Email send is not configured. SUPPORT_EMAIL binding is missing.');
-  }
-
-  const escapeQuotes = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/\"/g, '\\"');
-  const fromHeaderName = fromName ? `"${escapeQuotes(fromName)}" ` : '';
-  const fromHeader = `${fromHeaderName}<${fromEmail}>`;
-  const replyToHeader = replyTo ? `Reply-To: ${replyTo}\r\n` : '';
   const safeSubject = String(subject || '').trim().slice(0, 180);
   const safeBody = String(textBody || '').trim().slice(0, 12000);
-  const messageId = `<${crypto.randomUUID()}@mmmbc.local>`;
 
-  const raw = [
-    `To: ${toEmail}`,
-    `From: ${fromHeader}`,
-    replyToHeader.trimEnd(),
-    `Subject: ${safeSubject}`,
-    `Date: ${new Date().toUTCString()}`,
-    `Message-ID: ${messageId}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8',
-    '',
-    safeBody
-  ].filter(Boolean).join('\r\n');
-
-  const msg = new EmailMessage(fromEmail, deliveryToEmail, raw);
-  await env.SUPPORT_EMAIL.send(msg);
+  const out = await sendResendEmail(env, {
+    to: deliveryToEmail,
+    subject: safeSubject,
+    text: safeBody,
+    replyTo,
+    fromEmail,
+    fromName
+  });
+  if (!out.ok) {
+    throw new Error(out.error || 'Email send failed via Resend.');
+  }
 }
 
 function emptyFinances() {
@@ -467,9 +454,11 @@ async function buildDashboardOverview(request, env) {
     ).all().catch(() => ({ results: [] }));
     events = Array.isArray(eventRows?.results) ? eventRows.results : [];
 
-    const subCountRow = await env.DB.prepare(
-      "SELECT COUNT(*) AS c FROM subscribers WHERE lower(coalesce(status, 'active')) = 'active'"
-    ).first().catch(() => ({ c: 0 }));
+    const subCountRow = env.SITE_DB
+      ? await env.SITE_DB.prepare(
+          "SELECT COUNT(*) AS c FROM subscribers WHERE lower(coalesce(status, 'active')) = 'active'"
+        ).first().catch(() => ({ c: 0 }))
+      : { c: 0 };
     subscribers = Number(subCountRow?.c || 0);
 
     const newsletterRows = await env.DB.prepare(
@@ -932,14 +921,19 @@ export default {
 
     if (url.pathname === '/api/public/newsletter/subscribe' && request.method === 'POST') {
       const body = await request.json().catch(() => ({}));
+      if (honeypotTripped(body)) return json({ ok: true, email: '' });
       const email = String(body?.email || '').trim().toLowerCase();
       const name = String(body?.name || '').trim().slice(0, 120);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return json({ error: 'A valid email is required.' }, 400);
       }
-      if (!env.DB) return json({ ok: true, email, warning: 'DB unavailable; accepted without persistence.' });
+      const rate = await checkRateLimit(env, request, 'newsletter_subscribe', { max: 5, windowSeconds: 600 });
+      if (!rate.ok) return json({ error: rate.error }, 429);
+      const turnstile = await verifyTurnstile(env, body?.turnstileToken, clientIp(request));
+      if (!turnstile.ok) return json({ error: turnstile.error }, 403);
+      if (!env.SITE_DB) return json({ ok: true, email, warning: 'DB unavailable; accepted without persistence.' });
       const now = new Date().toISOString();
-      await env.DB.prepare(
+      await env.SITE_DB.prepare(
         `INSERT INTO subscribers (id, email, name, status, created_at)
          VALUES (?, ?, ?, 'active', ?)
          ON CONFLICT(email) DO UPDATE SET
@@ -951,6 +945,7 @@ export default {
 
     if (url.pathname === '/api/public/contact-message' && request.method === 'POST') {
       const body = await request.json().catch(() => ({}));
+      if (honeypotTripped(body)) return json({ ok: true });
       const name = String(body?.name || '').trim().slice(0, 120);
       const email = String(body?.email || '').trim().toLowerCase();
       const phone = String(body?.phone || '').trim().slice(0, 80);
@@ -958,6 +953,21 @@ export default {
       const message = String(body?.message || '').trim().slice(0, 4000);
       if (!name || !message) return json({ error: 'Name and message are required.' }, 400);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: 'A valid email is required.' }, 400);
+
+      const rate = await checkRateLimit(env, request, 'contact_message', { max: 5, windowSeconds: 600 });
+      if (!rate.ok) return json({ error: rate.error }, 429);
+      const turnstile = await verifyTurnstile(env, body?.turnstileToken, clientIp(request));
+      if (!turnstile.ok) return json({ error: turnstile.error }, 403);
+
+      const id = crypto.randomUUID();
+      const createdAt = new Date().toISOString();
+      // Persist before attempting email so the submission is never lost if Resend/email fails.
+      if (env.SITE_DB) {
+        await env.SITE_DB.prepare(
+          `INSERT INTO contact_messages (id, name, email, phone, address, message, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'received', ?)`
+        ).bind(id, name, email, phone, address, message, createdAt).run();
+      }
 
       const textBody = [
         'Public website contact form submission',
@@ -977,14 +987,27 @@ export default {
           replyTo: email,
           fromNameOverride: 'MMMBC Public Contact'
         });
+        if (env.SITE_DB) {
+          await env.SITE_DB.prepare(`UPDATE contact_messages SET status = 'emailed' WHERE id = ?`).bind(id).run();
+        }
         return json({ ok: true });
       } catch (e) {
-        return json({ error: `Unable to send message. ${String(e?.message || e)}`.slice(0, 500) }, 502);
+        const errMsg = String(e?.message || e).slice(0, 500);
+        if (env.SITE_DB) {
+          await env.SITE_DB.prepare(
+            `UPDATE contact_messages SET status = 'email_failed', email_error = ? WHERE id = ?`
+          ).bind(errMsg, id).run();
+        }
+        // The message was still saved (if SITE_DB is configured); tell the visitor it was received.
+        return json(env.SITE_DB
+          ? { ok: true, warning: 'Message received; email notification is delayed.' }
+          : { error: `Unable to send message. ${errMsg}` }, env.SITE_DB ? 200 : 502);
       }
     }
 
     if (url.pathname === '/api/public/facility-rental-request' && request.method === 'POST') {
       const body = await request.json().catch(() => ({}));
+      if (honeypotTripped(body)) return json({ ok: true });
       const audience = String(body?.audience || '').trim().toLowerCase() === 'non_member' ? 'non_member' : 'member';
       const form = (body?.form && typeof body.form === 'object') ? body.form : {};
       const personResponsible = String(form.personResponsible || '').trim().slice(0, 140);
@@ -998,6 +1021,11 @@ export default {
         return json({ error: 'Please complete all required rental fields.' }, 400);
       }
 
+      const rate = await checkRateLimit(env, request, 'facility_rental_request', { max: 5, windowSeconds: 600 });
+      if (!rate.ok) return json({ error: rate.error }, 429);
+      const turnstile = await verifyTurnstile(env, body?.turnstileToken, clientIp(request));
+      if (!turnstile.ok) return json({ error: turnstile.error }, 403);
+
       const formLines = [];
       for (const [key, value] of Object.entries(form)) {
         if (value == null) continue;
@@ -1008,9 +1036,23 @@ export default {
         formLines.push(`${key}: ${String(value).trim()}`);
       }
 
+      const id = crypto.randomUUID();
+      const createdAt = new Date().toISOString();
+      if (env.SITE_DB) {
+        await env.SITE_DB.prepare(
+          `INSERT INTO facility_rental_requests
+             (id, audience, person_responsible, phone, purpose, date_of_use, time_from, time_to,
+              contact_email, form_json, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?)`
+        ).bind(
+          id, audience, personResponsible, phone, purpose, dateOfUse, timeFrom, timeTo,
+          contactEmail, JSON.stringify(form), createdAt
+        ).run();
+      }
+
       const textBody = [
         `Facility rental request (${audience === 'non_member' ? 'Non-member' : 'Member'})`,
-        `Submitted at: ${new Date().toISOString()}`,
+        `Submitted at: ${createdAt}`,
         '',
         ...formLines
       ].join('\n');
@@ -1022,9 +1064,20 @@ export default {
           replyTo: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail) ? contactEmail : '',
           fromNameOverride: 'MMMBC Public Facility Rental'
         });
+        if (env.SITE_DB) {
+          await env.SITE_DB.prepare(`UPDATE facility_rental_requests SET status = 'emailed' WHERE id = ?`).bind(id).run();
+        }
         return json({ ok: true });
       } catch (e) {
-        return json({ error: `Unable to send request. ${String(e?.message || e)}`.slice(0, 500) }, 502);
+        const errMsg = String(e?.message || e).slice(0, 500);
+        if (env.SITE_DB) {
+          await env.SITE_DB.prepare(
+            `UPDATE facility_rental_requests SET status = 'email_failed', email_error = ? WHERE id = ?`
+          ).bind(errMsg, id).run();
+        }
+        return json(env.SITE_DB
+          ? { ok: true, warning: 'Request received; email notification is delayed.' }
+          : { error: `Unable to send request. ${errMsg}` }, env.SITE_DB ? 200 : 502);
       }
     }
 

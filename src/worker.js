@@ -4,7 +4,6 @@
 //
 // Auth model: Cloudflare Access JWT verification plus D1-backed administrator RBAC.
 
-import { EmailMessage } from 'cloudflare:email';
 import {
   authenticateAdminRequest,
   authErrorResponse,
@@ -13,6 +12,7 @@ import {
   updateLastLoginIfDue
 } from './admin-auth.js';
 import { PERMISSIONS } from './admin-rbac.js';
+import { sendResendEmail } from './email-resend.js';
 import {
   handleSubscribersGet,
   handleSubscribersPut,
@@ -217,52 +217,22 @@ async function sendSupportEmailMessage(env, {
 } = {}) {
   const toEmail = String(env.SUPPORT_TO_EMAIL || 'support@hldesignedit.com').trim();
   const deliveryToEmail = String(env.SUPPORT_EMAIL_DESTINATION || toEmail).trim();
-  const fromEmail = String(env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
+  const fromEmail = String(env.RESEND_FROM_EMAIL || env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
   const fromName = String(fromNameOverride || env.SUPPORT_FROM_NAME || 'MMMBC Website').trim() || 'MMMBC Website';
-
-  if (!env.SUPPORT_EMAIL || typeof env.SUPPORT_EMAIL.send !== 'function') {
-    throw new Error('Email send is not configured. SUPPORT_EMAIL binding is missing.');
-  }
-
-  const escapeQuotes = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/\"/g, '\\"');
-  const fromHeaderName = fromName ? `"${escapeQuotes(fromName)}" ` : '';
-  const fromHeader = `${fromHeaderName}<${fromEmail}>`;
-  const replyToHeader = replyTo ? `Reply-To: ${replyTo}\r\n` : '';
   const safeSubject = String(subject || '').trim().slice(0, 180);
   const safeBody = String(textBody || '').trim().slice(0, 12000);
 
-  const messageIdDomain = (() => {
-    const pick = (addr) => {
-      const m = String(addr || '').match(/@([^>\s]+)$/);
-      return m ? m[1] : '';
-    };
-    return pick(toEmail) || pick(fromEmail) || 'mmmbc.local';
-  })();
-
-  const messageId = (() => {
-    try {
-      return `<${crypto.randomUUID()}@${messageIdDomain}>`;
-    } catch {
-      const rand = Math.random().toString(16).slice(2);
-      return `<${Date.now().toString(16)}.${rand}@${messageIdDomain}>`;
-    }
-  })();
-
-  const raw = [
-    `To: ${toEmail}`,
-    `From: ${fromHeader}`,
-    replyToHeader.trimEnd(),
-    `Subject: ${safeSubject}`,
-    `Date: ${new Date().toUTCString()}`,
-    `Message-ID: ${messageId}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8',
-    '',
-    safeBody
-  ].filter(Boolean).join('\r\n');
-
-  const msg = new EmailMessage(fromEmail, deliveryToEmail, raw);
-  await env.SUPPORT_EMAIL.send(msg);
+  const out = await sendResendEmail(env, {
+    to: deliveryToEmail,
+    subject: safeSubject,
+    text: safeBody,
+    replyTo,
+    fromEmail,
+    fromName
+  });
+  if (!out.ok) {
+    throw new Error(out.error || 'Email send failed via Resend.');
+  }
 }
 
 async function handlePublicAnnouncements(request, env) {
@@ -365,7 +335,10 @@ async function handlePublicLivestream(request, env) {
 }
 
 async function handlePublicNewsletterSubscribe(request, env) {
-  if (!env.DB) return json({ error: 'Database is unavailable.' }, { status: 503 });
+  // NOTE: production traffic never reaches this copy — worker-admin-api-wrapper.js
+  // intercepts /api/public/newsletter/subscribe first (with Turnstile + rate limiting).
+  // This remains only for the env.migrate sandbox, which uses ./src/worker.js directly.
+  if (!env.SITE_DB) return json({ error: 'Database is unavailable.' }, { status: 503 });
 
   const body = await request.json().catch(() => ({}));
   const email = String(body?.email || '').trim().toLowerCase();
@@ -375,7 +348,7 @@ async function handlePublicNewsletterSubscribe(request, env) {
   }
 
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  await env.SITE_DB.prepare(
     `INSERT INTO subscribers (id, email, name, status, created_at)
      VALUES (?, ?, ?, 'active', ?)
      ON CONFLICT(email) DO UPDATE SET
@@ -681,11 +654,8 @@ async function handleSupportMessage(request, env) {
   const replyTo = replyToRaw && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyToRaw) ? replyToRaw : '';
 
   const toEmail = String(env.SUPPORT_TO_EMAIL || 'support@hldesignedit.com').trim();
-  // Cloudflare send_email requires the destination address to be verified and it must
-  // match the binding's destination_address. Use SUPPORT_EMAIL_DESTINATION for actual
-  // delivery, while keeping the visible "To:" header as SUPPORT_TO_EMAIL.
   const deliveryToEmail = String(env.SUPPORT_EMAIL_DESTINATION || toEmail).trim();
-  const fromEmail = String(env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
+  const fromEmail = String(env.RESEND_FROM_EMAIL || env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
   const fromName = String(env.SUPPORT_FROM_NAME || 'MMMBC Admin Support').trim() || 'MMMBC Admin Support';
 
   const composedSubject = `[MMMBC Support] ${subject}`;
@@ -696,106 +666,17 @@ async function handleSupportMessage(request, env) {
     message
   ].join('\n');
 
-  // Prefer Cloudflare Email Routing (send_email binding) when configured.
-  // This is more reliable than the legacy MailChannels endpoint, which may reject requests.
-  let emailRoutingError = '';
-  if (env.SUPPORT_EMAIL && typeof env.SUPPORT_EMAIL.send === 'function') {
-    const escapeQuotes = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/\"/g, '\\"');
-    const fromHeaderName = fromName ? `"${escapeQuotes(fromName)}" ` : '';
-    const fromHeader = `${fromHeaderName}<${fromEmail}>`;
-    const replyToHeader = replyTo ? `Reply-To: ${replyTo}\r\n` : '';
-
-    const messageIdDomain = (() => {
-      const pick = (addr) => {
-        const m = String(addr || '').match(/@([^>\s]+)$/);
-        return m ? m[1] : '';
-      };
-      return pick(toEmail) || pick(fromEmail) || 'mmmbc.local';
-    })();
-
-    const messageId = (() => {
-      try {
-        // crypto.randomUUID is available in Workers.
-        return `<${crypto.randomUUID()}@${messageIdDomain}>`;
-      } catch {
-        const rand = Math.random().toString(16).slice(2);
-        return `<${Date.now().toString(16)}.${rand}@${messageIdDomain}>`;
-      }
-    })();
-
-    const dateHeader = new Date().toUTCString();
-
-    // Minimal RFC-5322-ish message. Good enough for plain-text support emails.
-    const raw = [
-      `To: ${toEmail}`,
-      `From: ${fromHeader}`,
-      replyToHeader.trimEnd(),
-      `Subject: ${composedSubject}`,
-      `Date: ${dateHeader}`,
-      `Message-ID: ${messageId}`,
-      'MIME-Version: 1.0',
-      'Content-Type: text/plain; charset=utf-8',
-      '',
-      textBody
-    ].filter(Boolean).join('\r\n');
-
-    try {
-      const msg = new EmailMessage(fromEmail, deliveryToEmail, raw);
-      await env.SUPPORT_EMAIL.send(msg);
-      return json({ ok: true });
-    } catch (e) {
-      // Common Cloudflare Email Routing error: destination address not verified.
-      // Fall back to MailChannels when possible.
-      emailRoutingError = (e && (e.stack || e.message)) ? String(e.stack || e.message) : String(e);
-
-      if (/destination address is not a verified address/i.test(emailRoutingError)) {
-        return json(
-          {
-            error: 'Email send failed (Email Routing): the delivery destination is not verified. Verify the destination_address for the SUPPORT_EMAIL binding (or set SUPPORT_EMAIL_DESTINATION to a verified address) in Cloudflare Dashboard → Email → Email Routing.'
-          },
-          { status: 502 }
-        );
-      }
-
-      // When SUPPORT_EMAIL is configured, do not fall back to MailChannels.
-      // MailChannels frequently rejects non-Cloudflare origins and can mask the real error.
-      return json(
-        { error: `Email send failed (Email Routing). ${emailRoutingError}`.slice(0, 2000) },
-        { status: 502 }
-      );
-    }
-  }
-
-  // Fallback: MailChannels (legacy). This may return 401/403 depending on current policy.
-  const payload = {
-    personalizations: [{ to: [{ email: deliveryToEmail }], subject: composedSubject }],
-    from: { email: fromEmail, name: fromName },
-    ...(replyTo ? { reply_to: { email: replyTo } } : {}),
-    content: [{ type: 'text/plain', value: textBody }]
-  };
-
-  const res = await fetch('https://api.mailchannels.net/tx/v1/send', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(payload)
+  const out = await sendResendEmail(env, {
+    to: deliveryToEmail,
+    subject: composedSubject,
+    text: textBody,
+    replyTo,
+    fromEmail,
+    fromName
   });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    if (res.status === 401) {
-      return json(
-        {
-          error: 'Email send failed (401 from MailChannels). Configure Cloudflare Email Routing with a send_email binding named SUPPORT_EMAIL.'
-        },
-        { status: 502 }
-      );
-    }
-    const prefix = emailRoutingError
-      ? `Email Routing failed (${String(emailRoutingError).slice(0, 500)}). `
-      : '';
-    return json({ error: `${prefix}Email send failed (${res.status}). ${errText}`.trim().slice(0, 2000) }, { status: 502 });
+  if (!out.ok) {
+    return json({ error: `Email send failed (Resend). ${out.error || ''}`.trim().slice(0, 2000) }, { status: 502 });
   }
-
   return json({ ok: true });
 }
 

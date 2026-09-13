@@ -25,13 +25,9 @@ CREATE TABLE IF NOT EXISTS bulletins (
   created_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS subscribers (
-  id TEXT PRIMARY KEY,
-  email TEXT NOT NULL UNIQUE,
-  name TEXT,
-  status TEXT NOT NULL DEFAULT 'active',
-  created_at TEXT NOT NULL
-);
+-- NOTE: `subscribers` (newsletter opt-in) moved to the separate "site" D1 database;
+-- see migrations/site/0001_init_site_db.sql. It never lived here in production data
+-- (both D1s were freshly created empty), so no data migration is required.
 
 CREATE TABLE IF NOT EXISTS finance_entries (
   id TEXT PRIMARY KEY,

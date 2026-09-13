@@ -269,7 +269,7 @@ export async function handleSitePageMediaUpload(request, env, page) {
   const safeName = String(file.name || 'image')
     .replace(/[^a-zA-Z0-9._-]/g, '-')
     .slice(-80);
-  const fileKey = `site-content/${key}/${Date.now()}-${safeName}`;
+  const fileKey = `site/${key}/${Date.now()}-${safeName}`;
 
   await env.GALLERY_BUCKET.put(fileKey, await file.arrayBuffer(), {
     httpMetadata: { contentType: type }

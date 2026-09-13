@@ -1,7 +1,9 @@
 // D1-backed admin users/invites, newsletter subscribers, and newsletter sending for the
-// Cloudflare Worker. Emails are sent via the SendGrid REST API (fetch), using the
-// SENDGRID_API_KEY Worker secret. Mirrors the feature set in admin/server.js (the local
+// Cloudflare Worker. Emails are sent via the Resend API (see ./email-resend.js), using the
+// RESEND_API_KEY Worker secret. Mirrors the feature set in admin/server.js (the local
 // dev admin backend), but backed by D1 instead of JSON files.
+
+import { sendResendEmail, sendResendBatch } from './email-resend.js';
 
 function json(resBody, status = 200) {
   return new Response(JSON.stringify(resBody), {
@@ -23,40 +25,29 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
 }
 
-// ---------------- SendGrid ----------------
+// ---------------- Resend ----------------
+// Thin adapters around ./email-resend.js that preserve the existing {status, body} shape
+// used by the call sites below, so error-handling logic didn't need to change.
 
-async function sendgridSend(env, payload) {
-  const apiKey = String(env.SENDGRID_API_KEY || '').trim();
-  if (!apiKey) return { status: 0, body: 'SENDGRID_API_KEY is not configured.' };
+async function sendgridSend(env, { personalizations, from, content }) {
+  const to = (personalizations?.[0]?.to || []).map((r) => r.email).filter(Boolean);
+  const subject = personalizations?.[0]?.subject || '';
+  const text = (content || []).find((c) => c.type === 'text/plain')?.value || '';
+  const html = (content || []).find((c) => c.type === 'text/html')?.value || '';
 
-  const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${apiKey}`
-    },
-    body: JSON.stringify(payload)
+  const out = await sendResendEmail(env, {
+    to,
+    subject,
+    text,
+    html,
+    fromEmail: from?.email,
+    fromName: from?.name
   });
-  const body = await res.text().catch(() => '');
-  return { status: res.status, body };
+  return { status: out.ok ? 200 : (out.status || 500), body: out.error || '' };
 }
 
 function normalizedSendgridBody(rawBody) {
-  const text = String(rawBody || '').trim();
-  if (!text) return '';
-  try {
-    const parsed = JSON.parse(text);
-    if (Array.isArray(parsed?.errors) && parsed.errors.length) {
-      const msg = parsed.errors
-        .map((item) => String(item?.message || '').trim())
-        .filter(Boolean)
-        .join('; ');
-      return msg || text;
-    }
-    return text;
-  } catch {
-    return text;
-  }
+  return String(rawBody || '').trim();
 }
 
 // ---------------- Admin users / invites ----------------
@@ -183,7 +174,7 @@ async function handleUsersInvite(request, env, actorEmail) {
   const canonical = String(env.CANONICAL_HOST || '').trim();
   const inviteUrl = canonical ? `https://${canonical}/admin/` : 'https://mmmbc.alphazonelabs.com/admin/';
   const fromEmail = String(
-    env.SENDGRID_FROM_EMAIL || env.SUPPORT_FROM_EMAIL || env.SUPPORT_EMAIL_DESTINATION || 'no-reply@mmmbc.com'
+    env.RESEND_FROM_EMAIL || env.SUPPORT_FROM_EMAIL || env.SUPPORT_EMAIL_DESTINATION || 'no-reply@mmmbc.com'
   ).trim();
   const fallbackFromEmail = String(env.SUPPORT_EMAIL_DESTINATION || '').trim();
   const fromName = String(env.SUPPORT_FROM_NAME || 'MMMBC Admin').trim() || 'MMMBC Admin';
@@ -242,9 +233,9 @@ async function handleUsersRevoke(request, env, id) {
 // ---------------- Subscribers ----------------
 
 async function handleSubscribersGet(request, env) {
-  if (!env.DB) return json({ subscribers: [] });
+  if (!env.SITE_DB) return json({ subscribers: [] });
   try {
-    const rows = await env.DB.prepare(
+    const rows = await env.SITE_DB.prepare(
       `SELECT id, email, name, status, created_at FROM subscribers WHERE status = 'active' ORDER BY created_at DESC`
     ).all();
     const subscribers = (rows?.results || []).map((r) => ({
@@ -257,7 +248,7 @@ async function handleSubscribersGet(request, env) {
 }
 
 async function handleSubscribersPut(request, env) {
-  if (!env.DB) return json({ error: 'D1 database is not configured.' }, 500);
+  if (!env.SITE_DB) return json({ error: 'D1 database is not configured.' }, 500);
   const body = await request.json().catch(() => ({}));
   const list = Array.isArray(body?.subscribers) ? body.subscribers : [];
   const now = new Date().toISOString();
@@ -269,9 +260,9 @@ async function handleSubscribersPut(request, env) {
     }))
     .filter((s) => isValidEmail(s.email));
 
-  await env.DB.prepare(`DELETE FROM subscribers`).run();
+  await env.SITE_DB.prepare(`DELETE FROM subscribers`).run();
   for (const sub of normalized) {
-    await env.DB.prepare(
+    await env.SITE_DB.prepare(
       `INSERT INTO subscribers (id, email, name, status, created_at) VALUES (?, ?, ?, 'active', ?)
        ON CONFLICT(email) DO UPDATE SET name=excluded.name, status='active'`
     ).bind(crypto.randomUUID(), sub.email, sub.name, now).run();
@@ -302,30 +293,22 @@ function buildNewsletterEmailTemplate({ subject, message }) {
 }
 
 async function sendNewsletterEmail(env, { subject, message, emails }) {
-  const fromEmail = String(env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
+  const fromEmail = String(env.RESEND_FROM_EMAIL || env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
   const fromName = String(env.SUPPORT_FROM_NAME || 'MMMBC Newsletter').trim() || 'MMMBC Newsletter';
   const template = buildNewsletterEmailTemplate({ subject, message });
-  const content = [
-    { type: 'text/plain', value: template.text },
-    { type: 'text/html', value: template.html }
-  ];
 
-  // One personalization per recipient so recipients never see each other's addresses.
-  const BATCH_SIZE = 500;
-  let sent = 0;
-  for (let i = 0; i < emails.length; i += BATCH_SIZE) {
-    const batch = emails.slice(i, i + BATCH_SIZE);
-    const out = await sendgridSend(env, {
-      personalizations: batch.map((email) => ({ to: [{ email }], subject })),
-      from: { email: fromEmail, name: fromName },
-      content
-    });
-    if (out.status < 200 || out.status >= 300) {
-      return { ok: false, error: `Newsletter send failed (${out.status}).`, sent };
-    }
-    sent += batch.length;
-  }
-  return { ok: true, sent };
+  // Resend's batch endpoint sends one email per recipient (max 100/call), so recipients
+  // never see each other's addresses.
+  const out = await sendResendBatch(env, {
+    subject,
+    text: template.text,
+    html: template.html,
+    fromEmail,
+    fromName,
+    recipients: emails
+  });
+  if (!out.ok) return { ok: false, error: out.error || 'Newsletter send failed.', sent: out.sent };
+  return { ok: true, sent: out.sent };
 }
 
 function rowToRecord(r) {
@@ -373,8 +356,8 @@ async function validateNewsletterRecipients(env, emailsInput) {
     throw err;
   }
 
-  if (!env.DB) return unique;
-  const rows = await env.DB.prepare(`SELECT email FROM subscribers WHERE status='active'`).all();
+  if (!env.SITE_DB) return unique;
+  const rows = await env.SITE_DB.prepare(`SELECT email FROM subscribers WHERE status='active'`).all();
   const allowed = new Set((rows?.results || []).map((r) => r.email));
   const notSubscribed = unique.filter((e) => !allowed.has(e));
   if (notSubscribed.length) {

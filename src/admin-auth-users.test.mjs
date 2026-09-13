@@ -17,7 +17,7 @@ function createD1() {
     id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, role TEXT NOT NULL DEFAULT 'website_editor',
     status TEXT NOT NULL DEFAULT 'invited', invited_by TEXT, invited_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
-  database.exec(readFileSync(new URL('../migrations/0007_add_admin_users_and_audit_log.sql', import.meta.url), 'utf8'));
+  database.exec(readFileSync(new URL('../migrations/admin/0007_add_admin_users_and_audit_log.sql', import.meta.url), 'utf8'));
   return {
     database,
     prepare(sql) {
