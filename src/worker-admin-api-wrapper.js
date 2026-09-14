@@ -2,6 +2,7 @@ import worker from './worker-auth-wrapper.js';
 import { handleGivingRequest } from './worker-giving.js';
 import { handleGivingPageRequest } from './worker-giving-pages.js';
 import { maybeHandleFinanceReconciliationRequest } from './worker-finance-reconciliation.js';
+import { handlePublicSiteContentGet } from './worker-site-editor.js';
 import { PERMISSIONS } from './admin-rbac.js';
 import { honeypotTripped, verifyTurnstile, checkRateLimit, clientIp } from './public-forms-security.js';
 import { sendResendEmail } from './email-resend.js';
@@ -1093,6 +1094,11 @@ export default {
 
     if (url.pathname === '/api/csrf' && request.method === 'GET') {
       return worker.fetch(request, env, ctx);
+    }
+
+    if (url.pathname.startsWith('/api/site-content/') && request.method === 'GET') {
+      const page = decodeURIComponent(url.pathname.slice('/api/site-content/'.length));
+      return handlePublicSiteContentGet(request, env, page);
     }
 
     const outerPermission = requiredOuterPermission(url.pathname, request.method);
