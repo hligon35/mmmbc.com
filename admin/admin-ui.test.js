@@ -157,8 +157,10 @@ describe('Admin accessibility redesign guards', () => {
     expect(adminJs).toContain("await fetch('/api/csrf'");
     expect(adminJs).toContain("await api('/api/me', { method: 'GET' })");
     expect(adminJs).toContain("window.location.assign('/cdn-cgi/access/logout');");
-    expect(indexHtml).toContain('id="accessPanel"');
-    expect(indexHtml).toContain('href="/admin/"');
+    expect(adminJs).toContain("window.location.assign('/admin/');");
+    expect(adminJs).not.toContain('/cdn-cgi/access/login?returnTo=');
+    expect(indexHtml).not.toContain('id="authShell"');
+    expect(indexHtml).not.toContain('id="accessPanel"');
   });
 
   test('Legacy authentication and header invite UI are absent', () => {

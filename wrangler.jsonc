@@ -1,148 +1,220 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "mmmbc",
-  "main": "./src/worker-admin-api-wrapper.js",
-  "compatibility_date": "2026-01-21",
-  "workers_dev": true,
-  "preview_urls": true,
-  "assets": {
-    "directory": "./cf_site",
-    "binding": "ASSETS",
-    "run_worker_first": ["/api/*", "/cdn/*", "/scan", "/scan/*"]
-  },
-  "routes": [
-    { "pattern": "mmmbc.com/*", "zone_name": "mmmbc.com" },
-    { "pattern": "www.mmmbc.com/*", "zone_name": "mmmbc.com" }
-  ],
-  "r2_buckets": [
-    { "binding": "GALLERY_BUCKET", "bucket_name": "mmmbc" }
-  ],
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "admin",
-      "database_id": "b41e2b58-600a-4edf-a379-bfa71f4952ab",
-      "migrations_dir": "./migrations/admin"
-    },
-    {
-      "binding": "SITE_DB",
-      "database_name": "site",
-      "database_id": "77089d29-b050-4100-80b0-16edd7a3c070",
-      "migrations_dir": "./migrations/site"
-    }
-  ],
-  "triggers": { "crons": ["*/5 * * * *"] },
-  "observability": { "enabled": true, "head_sampling_rate": 1 },
-  "vars": {
-    "ENVIRONMENT": "production",
-    "CF_ACCESS_TEAM_DOMAIN": "",
-    "CF_ACCESS_AUD": "",
-    "ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-    "DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-    "CANONICAL_HOST": "mmmbc.com",
-    "ALLOW_SERVICE_TOKEN_ADMIN": "false",
-    "DEV_BYPASS_AUTH": "false",
-    "SUPPORT_TO_EMAIL": "hligon@getsparqd.com",
-    "SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
-    "SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church",
-    "RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
-    "RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church",
-    "PUBLIC_SITE_URL": "https://mmmbc.com"
-  },
-  "env": {
-    "production": {
-      "name": "mmmbc",
-      "routes": [
-        { "pattern": "mmmbc.com/*", "zone_name": "mmmbc.com" },
-        { "pattern": "www.mmmbc.com/*", "zone_name": "mmmbc.com" }
-      ],
-      "r2_buckets": [
-        { "binding": "GALLERY_BUCKET", "bucket_name": "mmmbc" }
-      ],
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "admin",
-          "database_id": "b41e2b58-600a-4edf-a379-bfa71f4952ab",
-          "migrations_dir": "./migrations/admin"
-        },
-        {
-          "binding": "SITE_DB",
-          "database_name": "site",
-          "database_id": "77089d29-b050-4100-80b0-16edd7a3c070",
-          "migrations_dir": "./migrations/site"
-        }
-      ],
-      "triggers": { "crons": ["*/5 * * * *"] },
-      "vars": {
-        "ENVIRONMENT": "production",
-        "CF_ACCESS_TEAM_DOMAIN": "",
-        "CF_ACCESS_AUD": "",
-        "ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-        "DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-        "CANONICAL_HOST": "mmmbc.com",
-        "ALLOW_SERVICE_TOKEN_ADMIN": "false",
-        "DEV_BYPASS_AUTH": "false",
-        "SUPPORT_TO_EMAIL": "hligon@getsparqd.com",
-        "SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
-        "SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church",
-        "RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
-        "RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church",
-        "PUBLIC_SITE_URL": "https://mmmbc.com"
-      }
-    },
-    "preview": {
-      "name": "mmmbc-preview",
-      "routes": [],
-      "r2_buckets": [
-        { "binding": "GALLERY_BUCKET", "bucket_name": "mmmbc-preview" }
-      ],
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "admin-preview",
-          "database_id": "00000000-0000-0000-0000-000000000001",
-          "migrations_dir": "./migrations/admin"
-        },
-        {
-          "binding": "SITE_DB",
-          "database_name": "site-preview",
-          "database_id": "00000000-0000-0000-0000-000000000002",
-          "migrations_dir": "./migrations/site"
-        }
-      ],
-      "triggers": { "crons": [] },
-      "vars": {
-        "ENVIRONMENT": "preview",
-        "CF_ACCESS_TEAM_DOMAIN": "",
-        "CF_ACCESS_AUD": "",
-        "ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com",
-        "DEVELOPER_EMAILS": "hligon@getsparqd.com",
-        "CANONICAL_HOST": "",
-        "ALLOW_SERVICE_TOKEN_ADMIN": "false",
-        "DEV_BYPASS_AUTH": "false",
-        "SUPPORT_TO_EMAIL": "hligon@getsparqd.com",
-        "SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
-        "SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church Preview",
-        "RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
-        "RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church Preview",
-        "PUBLIC_SITE_URL": ""
-      }
-    }
-  }
-  {
-  "observability": {
-    "logs": {
-      "enabled": true,
-      "head_sampling_rate": 1,
-      "invocation_logs": true,
-      "persist": true
-    },
-    "traces": {
-      "enabled": true,
-      "head_sampling_rate": 1,
-      "persist": true
-    }
-  }
-}
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "mmmbc",
+	"main": "./src/worker-admin-api-wrapper.js",
+	"compatibility_date": "2026-01-21",
+	"workers_dev": true,
+	"preview_urls": true,
+	"assets": {
+		"directory": "./cf_site",
+		"binding": "ASSETS",
+		"run_worker_first": [
+			"/api/*",
+			"/cdn/*",
+			"/scan",
+			"/scan/*"
+		]
+	},
+	"routes": [
+		{
+			"pattern": "mmmbc.alphazonelabs.com/*",
+			"zone_name": "alphazonelabs.com"
+		},
+		{
+			"pattern": "www.mmmbc.alphazonelabs.com/*",
+			"zone_name": "alphazonelabs.com"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "GALLERY_BUCKET",
+			"bucket_name": "mmmbc"
+		}
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "admin",
+			"database_id": "bcebd909-2b12-4164-8ba3-bd046dc3df0d",
+			"migrations_dir": "./migrations/admin"
+		},
+		{
+			"binding": "SITE_DB",
+			"database_name": "site",
+			"database_id": "36ee77c4-96f4-4f6b-8d2f-11ec1b09ade5",
+			"migrations_dir": "./migrations/site"
+		}
+	],
+	"triggers": {
+		"crons": [
+			"*/5 * * * *"
+		]
+	},
+	"observability": {
+		"enabled": true,
+		"head_sampling_rate": 1,
+		"logs": {
+			"enabled": true,
+			"head_sampling_rate": 1,
+			"invocation_logs": true,
+			"persist": true
+		},
+		"traces": {
+			"enabled": true,
+			"head_sampling_rate": 1,
+			"persist": true
+		}
+	},
+	"vars": {
+		"ENVIRONMENT": "production",
+		"CF_ACCESS_TEAM_DOMAIN": "https://getsparqd-server.cloudflareaccess.com",
+		"CF_ACCESS_AUD": "e02ea8e0b7fe319f04e2505df1138d4c",
+		"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+		"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+		"CANONICAL_HOST": "mmmbc.alphazonelabs.com",
+		"ALLOW_SERVICE_TOKEN_ADMIN": "false",
+		"DEV_BYPASS_AUTH": "false",
+		"SUPPORT_TO_EMAIL": "hligon@getsparqd.com",
+		"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
+		"SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church",
+		"RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
+		"RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church",
+		"PUBLIC_SITE_URL": "https://mmmbc.alphazonelabs.com"
+	},
+	"env": {
+		"production": {
+			"name": "mmmbc",
+			"routes": [
+				{
+					"pattern": "mmmbc.alphazonelabs.com/*",
+					"zone_name": "alphazonelabs.com"
+				},
+				{
+					"pattern": "www.mmmbc.alphazonelabs.com/*",
+					"zone_name": "alphazonelabs.com"
+				}
+			],
+			"r2_buckets": [
+				{
+					"binding": "GALLERY_BUCKET",
+					"bucket_name": "mmmbc"
+				}
+			],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "admin",
+					"database_id": "bcebd909-2b12-4164-8ba3-bd046dc3df0d",
+					"migrations_dir": "./migrations/admin"
+				},
+				{
+					"binding": "SITE_DB",
+					"database_name": "site",
+					"database_id": "36ee77c4-96f4-4f6b-8d2f-11ec1b09ade5",
+					"migrations_dir": "./migrations/site"
+				}
+			],
+			"triggers": {
+				"crons": [
+					"*/5 * * * *"
+				]
+			},
+			"vars": {
+				"ENVIRONMENT": "production",
+				"CF_ACCESS_TEAM_DOMAIN": "https://getsparqd-server.cloudflareaccess.com",
+				"CF_ACCESS_AUD": "e02ea8e0b7fe319f04e2505df1138d4c",
+				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+				"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+				"CANONICAL_HOST": "mmmbc.alphazonelabs.com",
+				"ALLOW_SERVICE_TOKEN_ADMIN": "false",
+				"DEV_BYPASS_AUTH": "false",
+				"SUPPORT_TO_EMAIL": "hligon@getsparqd.com",
+				"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
+				"SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church",
+				"RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
+				"RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church",
+				"PUBLIC_SITE_URL": "https://mmmbc.alphazonelabs.com"
+			}
+		},
+		"preview": {
+			"name": "mmmbc-preview",
+			"routes": [],
+			"r2_buckets": [
+				{
+					"binding": "GALLERY_BUCKET",
+					"bucket_name": "mmmbc-preview"
+				}
+			],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "admin-preview",
+					"database_id": "00000000-0000-0000-0000-000000000001",
+					"migrations_dir": "./migrations/admin"
+				},
+				{
+					"binding": "SITE_DB",
+					"database_name": "site-preview",
+					"database_id": "00000000-0000-0000-0000-000000000002",
+					"migrations_dir": "./migrations/site"
+				}
+			],
+			"triggers": {
+				"crons": []
+			},
+			"vars": {
+				"ENVIRONMENT": "preview",
+				"CF_ACCESS_TEAM_DOMAIN": "",
+				"CF_ACCESS_AUD": "",
+				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com",
+				"DEVELOPER_EMAILS": "hligon@getsparqd.com",
+				"CANONICAL_HOST": "",
+				"ALLOW_SERVICE_TOKEN_ADMIN": "false",
+				"DEV_BYPASS_AUTH": "false",
+				"SUPPORT_TO_EMAIL": "hligon@getsparqd.com",
+				"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
+				"SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church Preview",
+				"RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
+				"RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church Preview",
+				"PUBLIC_SITE_URL": ""
+			}
+		},
+		"legacy_alphazonelabs": {
+			"name": "mmmbc-legacy-alphazonelabs",
+			"routes": [],
+			"r2_buckets": [
+				{
+					"binding": "GALLERY_BUCKET",
+					"bucket_name": "mmmbc-gallery"
+				}
+			],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "mmdb",
+					"database_id": "a981265d-7e16-486c-9d02-48dfa5017bed",
+					"migrations_dir": "./migrations/admin"
+				}
+			],
+			"triggers": {
+				"crons": []
+			},
+			"vars": {
+				"ENVIRONMENT": "legacy_alphazonelabs",
+				"CF_ACCESS_TEAM_DOMAIN": "",
+				"CF_ACCESS_AUD": "",
+				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com",
+				"DEVELOPER_EMAILS": "hligon@getsparqd.com",
+				"CANONICAL_HOST": "mmmbc.com",
+				"ALLOW_SERVICE_TOKEN_ADMIN": "false",
+				"DEV_BYPASS_AUTH": "false",
+				"SUPPORT_TO_EMAIL": "hligon@getsparqd.com",
+				"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
+				"SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church",
+				"RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
+				"RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church",
+				"PUBLIC_SITE_URL": "https://mmmbc.alphazonelabs.com"
+			}
+		}
+	}
 }

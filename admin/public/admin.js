@@ -1364,6 +1364,10 @@ async function refreshAuthUI() {
     me = { user: null };
   }
   const loggedIn = !!me.user;
+  if (!loggedIn) {
+    window.location.assign('/admin/');
+    return;
+  }
   currentPermissions = new Set(Array.isArray(me.permissions) ? me.permissions.map(String) : []);
   if (loggedIn && isAdministratorRole(me?.user?.role)) currentPermissions.add(USERS_MANAGE_PERMISSION);
   const canViewDiagnostics = loggedIn
@@ -1374,14 +1378,10 @@ async function refreshAuthUI() {
       || (Array.isArray(me.permissions) && me.permissions.includes('diagnostics.view'))
     );
 
-  const showSignInScreen = !loggedIn;
-
-  document.body.classList.toggle('authMode', showSignInScreen);
+  document.body.classList.remove('authMode');
 
   setAuthenticatedHeaderVisible(loggedIn);
 
-  const authShell = $('authShell');
-  if (authShell) authShell.hidden = !showSignInScreen;
   $('dashboardCard').hidden = !loggedIn;
   $('logoutBtn').hidden = !loggedIn;
   if ($('adminStorageHealthCard')) $('adminStorageHealthCard').hidden = !canViewDiagnostics;
@@ -1401,11 +1401,6 @@ async function refreshAuthUI() {
     if (homeWelcome) homeWelcome.textContent = nameOrEmail ? `${greeting}, ${nameOrEmail}` : 'Welcome';
     const avatarText = $('avatarText');
     if (avatarText) avatarText.textContent = getInitials(me.user);
-  } else {
-    $('salutation').textContent = '';
-    const homeWelcome = $('homeWelcomeLine');
-    if (homeWelcome) homeWelcome.textContent = 'Welcome';
-    updateActiveSectionExtensions('');
   }
 
   if (loggedIn) {
