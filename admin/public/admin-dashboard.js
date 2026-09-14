@@ -293,6 +293,8 @@
 
   async function refreshDashboard() {
     if (!$('dashboardOverviewRoot')) return;
+    const dashboardCard = $('dashboardCard');
+    if (dashboardCard?.hidden) return;
 
     setBusy(true);
     setStatus('Loading dashboard overview...');

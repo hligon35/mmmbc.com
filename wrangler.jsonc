@@ -68,7 +68,7 @@
 	"vars": {
 		"ENVIRONMENT": "production",
 		"CF_ACCESS_TEAM_DOMAIN": "https://getsparqd-server.cloudflareaccess.com",
-		"CF_ACCESS_AUD": "e02ea8e0b7fe319f04e2505df1138d4c",
+		"CF_ACCESS_AUD": "c54638d506e1d93d7c7a744bb74481441df23e6e0db17df247679fff0e36d271,e02ea8e0b7fe319f04e2505df1138d4c",
 		"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 		"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 		"CANONICAL_HOST": "mmmbc.alphazonelabs.com",
@@ -122,7 +122,7 @@
 			"vars": {
 				"ENVIRONMENT": "production",
 				"CF_ACCESS_TEAM_DOMAIN": "https://getsparqd-server.cloudflareaccess.com",
-				"CF_ACCESS_AUD": "e02ea8e0b7fe319f04e2505df1138d4c",
+				"CF_ACCESS_AUD": "c54638d506e1d93d7c7a744bb74481441df23e6e0db17df247679fff0e36d271,e02ea8e0b7fe319f04e2505df1138d4c",
 				"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 				"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 				"CANONICAL_HOST": "mmmbc.alphazonelabs.com",

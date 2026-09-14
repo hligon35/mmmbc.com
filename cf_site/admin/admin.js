@@ -1365,7 +1365,7 @@ async function refreshAuthUI() {
   }
   const loggedIn = !!me.user;
   if (!loggedIn) {
-    window.location.assign('/admin/');
+    showSessionWarning('Cloudflare Access did not provide an administrator session. Confirm that the Access policy protects /api/*, then refresh this page.');
     return;
   }
   currentPermissions = new Set(Array.isArray(me.permissions) ? me.permissions.map(String) : []);
