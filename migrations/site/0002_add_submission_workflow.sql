@@ -1,0 +1,13 @@
+ALTER TABLE contact_messages ADD COLUMN subject TEXT NOT NULL DEFAULT 'General Website Inquiry';
+ALTER TABLE contact_messages ADD COLUMN read_at TEXT;
+ALTER TABLE contact_messages ADD COLUMN archived_at TEXT;
+ALTER TABLE contact_messages ADD COLUMN auto_reply_status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE contact_messages ADD COLUMN auto_reply_at TEXT;
+ALTER TABLE contact_messages ADD COLUMN auto_reply_error TEXT;
+ALTER TABLE facility_rental_requests ADD COLUMN read_at TEXT;
+ALTER TABLE facility_rental_requests ADD COLUMN archived_at TEXT;
+ALTER TABLE facility_rental_requests ADD COLUMN auto_reply_status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE facility_rental_requests ADD COLUMN auto_reply_at TEXT;
+ALTER TABLE facility_rental_requests ADD COLUMN auto_reply_error TEXT;
+CREATE INDEX IF NOT EXISTS idx_contact_messages_status ON contact_messages(status, archived_at, created_at);
+CREATE INDEX IF NOT EXISTS idx_facility_rental_status ON facility_rental_requests(status, archived_at, created_at);
