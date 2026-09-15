@@ -509,3 +509,50 @@
     top:var(--admin-header-height) !important;
   }
 }
+
+
+/* Final authenticated-header corrections: keep compact navigation a real vertical dropdown. */
+@media (min-width:901px){
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__top{
+    position:relative !important;
+  }
+
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__headline{
+    position:absolute !important;
+    left:50% !important;
+    top:50% !important;
+    transform:translate(-50%, -50%) !important;
+    width:min(920px, calc(100% - 540px)) !important;
+    max-width:none !important;
+    margin:0 !important;
+    text-align:center !important;
+  }
+
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
+    display:grid !important;
+    flex-direction:column !important;
+    flex-wrap:nowrap !important;
+    grid-auto-rows:min-content !important;
+    overflow-y:auto !important;
+    overflow-x:hidden !important;
+  }
+
+  html body.adminHeaderNavCollapsed:not(.adminDrawerOpen) #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
+    opacity:0 !important;
+    pointer-events:none !important;
+    visibility:hidden !important;
+  }
+
+  html body.adminHeaderNavCollapsed.adminDrawerOpen #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
+    opacity:1 !important;
+    pointer-events:auto !important;
+    visibility:visible !important;
+  }
+
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav .tab--nav{
+    display:block !important;
+    width:100% !important;
+    min-width:0 !important;
+    text-align:left !important;
+  }
+}
