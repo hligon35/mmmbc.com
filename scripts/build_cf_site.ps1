@@ -14,8 +14,8 @@ New-Item -ItemType Directory -Force -Path $dest | Out-Null
 
 $files=@(
   "index.html","robots.txt","sitemap.xml",
-  "public-base.css","public-components.css","public-responsive.css",
-  "theme.css","schedule_app.css","home-layout-updates.css","schedule_app.js","script.js",
+  "static-style.css",
+  "theme.css","schedule_app.js","script.js",
   "announcements_ticker.js","bulletins_widget.js","facility_rental_form.js","facility_rental_nonmembers_form.js",
   "site-content-loader.js",
   "announcements.json","bulletins.json","documents.json","gallery.json","livestream.json","schedule.json","site-settings.json"
@@ -48,11 +48,6 @@ if(Test-Path $adminUi){
   $adminIndex = Join-Path $adminDest "index.html"
   if(Test-Path $adminIndex){
     $html = Get-Content -Raw -Path $adminIndex
-
-    $structureCssTag = "  <link id=`"mmmbc-admin-structure-css`" rel=`"stylesheet`" href=`"/admin/admin-structure-overrides.css?v=$assetVersion`" />"
-    if(-not $html.Contains('id="mmmbc-admin-structure-css"')){
-      $html = $html.Replace('</head>', "$structureCssTag`r`n</head>")
-    }
 
     $structureScriptTag = "  <script id=`"mmmbc-admin-structure-js`" src=`"/admin/admin-structure-overrides.js?v=$assetVersion`" defer></script>"
     if(-not $html.Contains('id="mmmbc-admin-structure-js"')){

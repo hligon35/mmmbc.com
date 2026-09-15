@@ -28,9 +28,7 @@ function expect(actual) {
 describe('Admin accessibility redesign guards', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
-  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin.css'), 'utf8');
-  const canonicalCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-header-canonical.css'), 'utf8');
-  const overrideCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-structure-overrides.css'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-style.css'), 'utf8');
   const overrideJs = fs.readFileSync(path.join(__dirname, 'public', 'admin-structure-overrides.js'), 'utf8');
   const workerJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'worker.js'), 'utf8');
   const adminAuthJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin-auth.js'), 'utf8');
@@ -84,7 +82,7 @@ describe('Admin accessibility redesign guards', () => {
     expect(indexHtml).toContain('id="photoShowImageNames"');
     expect(indexHtml).toContain('class="photoSettingToggle__label"');
     expect(adminCss).toContain('.photoSettingToggle__label{');
-    expect(overrideCss).toContain('#tab-photos #photoToolbar > .photoSettingToggle .photoSettingToggle__label');
+    expect(adminCss).toContain('#tab-photos #photoToolbar > .photoSettingToggle .photoSettingToggle__label');
     expect(overrideJs).not.toContain('contentEventsSplit__eventHeader');
   });
 
@@ -119,7 +117,7 @@ describe('Admin accessibility redesign guards', () => {
     expect(indexHtml).toContain('id="newsletterWeekOfDate"');
     expect(indexHtml).toContain('id="newsletterScheduleTimezone"');
     expect(adminCss).toContain('.newsletterComposeGrid--schedule{');
-    expect(overrideCss).toContain('#tab-newsletter .newsletterComposeGrid--schedule');
+    expect(adminCss).toContain('#tab-newsletter .newsletterComposeGrid--schedule');
   });
 
   test('Unsaved-change warnings trigger only when dirty state exists', () => {
@@ -195,7 +193,7 @@ describe('Admin accessibility redesign guards', () => {
 describe('Users and roles settings', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
-  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin.css'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-style.css'), 'utf8');
 
   test('Settings navigation and administrator list expose the required structure', () => {
     expect(indexHtml).toContain('id="tabBtn-settings"');
@@ -256,7 +254,7 @@ describe('Users and roles settings', () => {
 describe('Church Finances wizard redesign', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
-  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin.css'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-style.css'), 'utf8');
   const serverJs = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
 
   test('Finance section keeps its section target and heading', () => {

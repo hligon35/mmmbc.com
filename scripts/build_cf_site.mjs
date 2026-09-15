@@ -10,16 +10,15 @@ const assetVersion = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 1
 
 const rootFiles = [
   'index.html', 'robots.txt', 'sitemap.xml',
-  'public-base.css', 'public-components.css', 'public-responsive.css',
-  'theme.css', 'schedule_app.css', 'home-layout-updates.css', 'schedule_app.js', 'script.js',
+  'static-style.css',
+  'theme.css', 'schedule_app.js', 'script.js',
   'announcements_ticker.js', 'bulletins_widget.js', 'facility_rental_form.js', 'facility_rental_nonmembers_form.js',
-  'site-content-loader.js', 'scan.html', 'scan.css', 'scan.js',
+  'site-content-loader.js', 'scan.html', 'scan.js',
   'announcements.json', 'bulletins.json', 'documents.json', 'gallery.json', 'livestream.json', 'schedule.json', 'site-settings.json'
 ];
 
 const rootDirs = ['Pages', 'Icons', 'ConImg', 'bulletins', 'rental'];
 const adminRemove = new Set(['login.html', 'login.js', 'login_legacy.html']);
-const structureCssTag = `  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=${assetVersion}" />`;
 const structureScriptTag = `  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=${assetVersion}" defer></script>`;
 
 async function exists(target) {
@@ -95,9 +94,7 @@ async function mirrorAdmin() {
   const indexPath = path.join(adminDest, 'index.html');
   if (!(await exists(indexPath))) return;
   let html = await fs.readFile(indexPath, 'utf8');
-  html = stripLineById(html, 'mmmbc-admin-structure-css');
   html = stripLineById(html, 'mmmbc-admin-structure-js');
-  html = html.replace('</head>', `${structureCssTag}\n</head>`);
   html = html.replace('</body>', `${structureScriptTag}\n</body>`);
   await fs.writeFile(indexPath, html, 'utf8');
 
