@@ -337,6 +337,7 @@ const SECTION_PERMISSIONS = Object.freeze({
   'tab-events': 'events.view',
   'tab-photos': 'photos.view',
   'tab-newsletter': 'newsletter.view',
+  'tab-submissions': 'submissions.view',
   'tab-finances': 'finance.view',
   'tab-directory': 'directory.view',
   'tab-support': 'support.send',
@@ -1221,6 +1222,7 @@ function setTab(activeId) {
     $('tabBtn-content'),
     $('tabBtn-finances'),
     $('tabBtn-directory'),
+    $('tabBtn-submissions'),
     $('tabBtn-newsletter'),
     $('tabBtn-support'),
     $('tabBtn-settings')
@@ -1232,6 +1234,7 @@ function setTab(activeId) {
     $('tab-content'),
     $('tab-finances'),
     $('tab-directory'),
+    $('tab-submissions'),
     $('tab-newsletter'),
     $('tab-support'),
     $('tab-settings')
@@ -1311,6 +1314,7 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
     'tab-content': subTabId === 'panel-content-bulletins' ? 'bulletins' : 'announcements',
     'tab-finances': 'finances',
     'tab-directory': 'directory',
+    'tab-submissions': 'submissions',
     'tab-newsletter': 'newsletter',
     'tab-support': 'support',
     'tab-settings': 'settings'
@@ -1339,6 +1343,38 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
       // ignore dashboard refresh signaling failures
     }
   }
+}
+
+async function loadWebsiteSubmissions() {
+  const body = $('submissionsTableBody');
+  if (!body) return;
+  body.innerHTML = '<tr><td colspan="6" class="muted">Loading…</td></tr>';
+  const q = String($('submissionsSearch')?.value || '').trim();
+  const archived = $('submissionsShowArchived')?.checked ? '&archived=true' : '';
+  try {
+    const data = await api(`/api/submissions?q=${encodeURIComponent(q)}${archived}`);
+    const rows = data?.submissions || [];
+    body.innerHTML = rows.length ? rows.map((row) => {
+      const unread = !row.read_at;
+      const type = row.type === 'facility_rental' ? 'Facility rental' : 'Contact';
+      return `<tr class="${unread ? 'isUnread' : ''}"><td>${unread ? '<strong>Unread</strong>' : 'Read'}</td><td>${escapeHtml(type)}</td><td>${escapeHtml(row.sender_name || '')}<br><span class="muted">${escapeHtml(row.sender_email || '')}</span></td><td>${escapeHtml(row.subject || '')}</td><td>${escapeHtml(new Date(row.created_at).toLocaleString())}</td><td><button class="btn btn--small" data-submission-open="${escapeHtml(row.id)}" data-submission-type="${escapeHtml(row.type)}">Open</button> <button class="btn btn--small" data-submission-archive="${escapeHtml(row.id)}" data-submission-type="${escapeHtml(row.type)}">${row.archived_at ? 'Restore' : 'Archive'}</button></td></tr>`;
+    }).join('') : '<tr><td colspan="6" class="muted">No website submissions found.</td></tr>';
+    body.querySelectorAll('[data-submission-open]').forEach((button) => button.addEventListener('click', () => openWebsiteSubmission(button.dataset.submissionOpen, button.dataset.submissionType, rows)));
+    body.querySelectorAll('[data-submission-archive]').forEach((button) => button.addEventListener('click', async () => { await api(`/api/submissions/${encodeURIComponent(button.dataset.submissionArchive)}`, { method: 'PATCH', body: JSON.stringify({ type: button.dataset.submissionType, action: button.textContent.trim() === 'Restore' ? 'restore' : 'archive' }) }); await loadWebsiteSubmissions(); }));
+  } catch (error) { body.innerHTML = `<tr><td colspan="6" class="errorText">${escapeHtml(error.message || 'Unable to load submissions.')}</td></tr>`; }
+}
+
+async function openWebsiteSubmission(id, type, rows) {
+  const row = rows.find((item) => item.id === id && item.type === type);
+  if (!row) return;
+  await api(`/api/submissions/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ type, action: 'read' }) });
+  const detail = $('submissionDetail');
+  if (!detail) return;
+  let content = row.body || '';
+  if (type === 'facility_rental') { try { content = JSON.stringify(JSON.parse(content), null, 2); } catch { /* retain raw */ } }
+  detail.hidden = false;
+  detail.innerHTML = `<h3>${escapeHtml(row.subject || 'Website submission')}</h3><p><strong>From:</strong> ${escapeHtml(row.sender_name || '')} &lt;${escapeHtml(row.sender_email || '')}&gt;</p><pre class="submissionBody">${escapeHtml(content)}</pre>`;
+  await loadWebsiteSubmissions();
 }
 
 function applyPermissionVisibility(loggedIn) {
@@ -1446,6 +1482,7 @@ function applyHashNavigation() {
   }
   if (h === 'finances' || h === 'finance') activateMainSection('tab-finances');
   if (h === 'directory') activateMainSection('tab-directory', { subTabId: 'panel-directory-contacts' });
+  if (h === 'submissions') activateMainSection('tab-submissions');
   if (h === 'newsletter') activateMainSection('tab-newsletter');
   if (h === 'support') activateMainSection('tab-support');
   if (h === 'settings') activateMainSection('tab-settings');
@@ -6265,6 +6302,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('tabBtn-content')) $('tabBtn-content').addEventListener('click', () => activateMainSection('tab-content', { subTabId: 'panel-content-announcements' }));
   if ($('tabBtn-finances')) $('tabBtn-finances').addEventListener('click', () => activateMainSection('tab-finances'));
   if ($('tabBtn-directory')) $('tabBtn-directory').addEventListener('click', () => activateMainSection('tab-directory', { subTabId: 'panel-directory-contacts' }));
+  if ($('tabBtn-submissions')) $('tabBtn-submissions').addEventListener('click', () => { activateMainSection('tab-submissions'); loadWebsiteSubmissions().catch(() => {}); });
   if ($('tabBtn-newsletter')) $('tabBtn-newsletter').addEventListener('click', () => activateMainSection('tab-newsletter'));
   if ($('tabBtn-support')) $('tabBtn-support').addEventListener('click', () => activateMainSection('tab-support'));
   if ($('tabBtn-settings')) $('tabBtn-settings').addEventListener('click', () => activateMainSection('tab-settings'));
