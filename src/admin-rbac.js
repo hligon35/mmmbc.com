@@ -17,6 +17,8 @@ export const PERMISSIONS = Object.freeze({
   DIRECTORY_VIEW: 'directory.view',
   DIRECTORY_MANAGE: 'directory.manage',
   SUPPORT_SEND: 'support.send',
+  SUBMISSIONS_VIEW: 'submissions.view',
+  SUBMISSIONS_MANAGE: 'submissions.manage',
   USERS_MANAGE: 'users.manage',
   SETTINGS_MANAGE: 'settings.manage'
 });
@@ -33,6 +35,8 @@ const WEBSITE_PERMISSIONS = [
   PERMISSIONS.DIRECTORY_VIEW,
   PERMISSIONS.DIRECTORY_MANAGE,
   PERMISSIONS.SUPPORT_SEND,
+  PERMISSIONS.SUBMISSIONS_VIEW,
+  PERMISSIONS.SUBMISSIONS_MANAGE,
   PERMISSIONS.SETTINGS_MANAGE
 ];
 

@@ -8,8 +8,8 @@
   <link rel="stylesheet" href="/admin/admin.css?v=20260802a" />
   <link rel="stylesheet" href="/admin/admin-dashboard.css?v=20260730a" />
   <link rel="stylesheet" href="/admin/admin-directory.css?v=20260730a" />
-  <link rel="stylesheet" href="/admin/admin-header-canonical.css?v=20260730d" />
-  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260913195003" />
+  <link rel="stylesheet" href="/admin/admin-header-canonical.css?v=20260915c" />
+  <link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260915195627" />
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
@@ -18,23 +18,6 @@
 
   <main id="app" class="app" role="main">
     <div class="srOnly" id="adminLiveRegion" aria-live="polite" aria-atomic="true"></div>
-    <section class="loginShell" id="authShell" aria-label="Administrator access" hidden>
-      <div class="loginBrand" aria-hidden="true">
-        <img class="loginBrand__logo" src="/ConImg/MtMoriahLogo-1.png" alt="" />
-      </div>
-
-      <div class="loginStage">
-        <section class="card loginCard accessPanel" id="accessPanel" aria-labelledby="accessPanelTitle">
-      <h1 class="card__title" id="accessPanelTitle">Administrator session expired</h1>
-      <p class="muted">Your Cloudflare Access session is missing, expired, or does not have permission to open this administrator area.</p>
-      <p>Sign in with an approved church administrator account, then return to this page.</p>
-      <a class="btn btn--primary" id="accessSignInLink" href="/admin/">Sign in to administrator area</a>
-      <div class="hint" id="accessStatus" role="status" aria-live="polite"></div>
-
-    </section>
-
-      </div>
-    </section>
     <section class="card" id="dashboardCard" aria-label="Admin dashboard" hidden>
       <header class="header" id="adminHeader" hidden>
         <div class="adminHeader__logo" aria-hidden="true">
@@ -67,6 +50,7 @@
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-photos" id="tabBtn-photos">Photos</button>
 
             <p class="sideNav__groupLabel" aria-hidden="true">Communication</p>
+            <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-submissions" id="tabBtn-submissions">Website Messages</button>
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-newsletter" id="tabBtn-newsletter">Newsletter</button>
 
             <p class="sideNav__groupLabel" aria-hidden="true">Administration</p>
@@ -1373,6 +1357,15 @@
         <div class="list list--scrollEvents" id="eventList"></div>
       </section>
 
+      <section class="tabPanel" role="tabpanel" id="tab-submissions" aria-labelledby="tabBtn-submissions" hidden data-header-crumb="Website Messages" data-header-description="Review contact and facility-rental submissions received through the website.">
+        <div class="card">
+          <div class="sectionHeading"><div><h2>Website Messages</h2><p class="muted">Website submissions only. This is not an external email mailbox.</p></div><button class="btn" id="submissionsRefreshBtn" type="button">Refresh</button></div>
+          <div class="formRow"><input class="input" id="submissionsSearch" type="search" placeholder="Search name, email, subject, or message" autocomplete="off" /><label class="checkboxLabel"><input id="submissionsShowArchived" type="checkbox" /> Show archived</label></div>
+          <div class="tableWrap"><table class="dataTable"><thead><tr><th>Status</th><th>Type</th><th>From</th><th>Subject</th><th>Received</th><th>Actions</th></tr></thead><tbody id="submissionsTableBody"><tr><td colspan="6" class="muted">No submissions loaded.</td></tr></tbody></table></div>
+          <div class="card" id="submissionDetail" hidden></div>
+        </div>
+      </section>
+
       <!-- Newsletter -->
       <section class="tabPanel" role="tabpanel" id="tab-newsletter" aria-labelledby="tabBtn-newsletter" hidden data-header-crumb="Newsletter" data-header-description="Create and send church updates to your congregation.">
 
@@ -1666,6 +1659,6 @@
   <script src="/admin/admin.js?v=20260730k" defer></script>
   <script src="/admin/admin-directory.js?v=20260730a" defer></script>
   <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260913195003" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260915195627" defer></script>
 </body>
 </html>

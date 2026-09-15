@@ -130,7 +130,7 @@
     overflow:visible !important;
   }
 
-  html body.adminHeaderNavCollapsed .adminDrawerBackdrop{
+  html body.adminHeaderNavCollapsed .adminDrawerBackdrop:not([hidden]){
     display:block !important;
     left:0;
     right:0;
@@ -235,19 +235,19 @@
     grid-area:top !important;
     position:relative !important;
     display:flex !important;
-    align-items:flex-end !important;
-    justify-content:flex-end !important;
-    padding-top:6px !important;
-    min-height:44px !important;
+    align-items:center !important;
+    justify-content:center !important;
+    padding:8px 0 10px !important;
+    min-height:96px !important;
   }
 
   /* Centered headline block inside the top area */
   html body #adminHeader .adminHeader__headline{
-    position:absolute !important;
-    left:50% !important;
-    transform:translateX(calc(-50% - 150px)) !important;
-    width:max-content !important;
-    max-width:min(64vw, 920px) !important;
+    position:static !important;
+    transform:none !important;
+    width:min(100%, 920px) !important;
+    max-width:calc(100% - 420px) !important;
+    margin:0 auto !important;
     text-align:center !important;
   }
 
@@ -259,16 +259,23 @@
   html body #adminHeader .adminHeader__contextDescription{
     font-size:1.02rem !important;
     font-weight:900 !important;
-    max-width:min(60vw, 860px) !important;
+    max-width:100% !important;
+    margin-top:4px !important;
+    white-space:nowrap !important;
+    overflow:hidden !important;
+    text-overflow:ellipsis !important;
   }
 
   /* Account controls and auth status aligned on the right */
   html body #adminHeader .adminHeader__account{
-    position:relative !important;
+    position:absolute !important;
+    top:8px !important;
+    right:0 !important;
+    transform:none !important;
     z-index:2 !important;
     width:auto !important;
-    align-items:flex-end !important;
-    align-self:flex-end !important;
+    align-items:center !important;
+    align-self:center !important;
     gap:12px !important;
     flex-wrap:nowrap !important;
     padding-bottom:2px !important;
@@ -279,11 +286,11 @@
     font-weight:900 !important;
     white-space:nowrap !important;
     max-width:none !important;
-    align-self:flex-end !important;
+    align-self:center !important;
   }
 
   html body #adminHeader .headerActions{
-    align-items:flex-end !important;
+    align-items:center !important;
     justify-content:flex-end !important;
     flex-wrap:nowrap !important;
     gap:8px !important;
@@ -500,5 +507,105 @@
 
   #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
     top:var(--admin-header-height) !important;
+  }
+}
+
+
+/* Final authenticated-header corrections: keep compact navigation a real vertical dropdown. */
+@media (min-width:901px){
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__top{
+    position:relative !important;
+  }
+
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__headline{
+    position:absolute !important;
+    left:50% !important;
+    top:50% !important;
+    transform:translate(-50%, -50%) !important;
+    width:min(920px, calc(100% - 540px)) !important;
+    max-width:none !important;
+    margin:0 !important;
+    text-align:center !important;
+  }
+
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
+    display:grid !important;
+    flex-direction:column !important;
+    flex-wrap:nowrap !important;
+    grid-auto-rows:min-content !important;
+    overflow-y:auto !important;
+    overflow-x:hidden !important;
+  }
+
+  html body.adminHeaderNavCollapsed:not(.adminDrawerOpen) #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
+    opacity:0 !important;
+    pointer-events:none !important;
+    visibility:hidden !important;
+  }
+
+  html body.adminHeaderNavCollapsed.adminDrawerOpen #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
+    opacity:1 !important;
+    pointer-events:auto !important;
+    visibility:visible !important;
+  }
+
+  html body.adminHeaderNavCollapsed #adminHeader .adminHeader__tabs #adminSideNav .tab--nav{
+    display:block !important;
+    width:100% !important;
+    min-width:0 !important;
+    text-align:left !important;
+  }
+}
+
+
+/* Definitive desktop header layout: one centered headline and one vertical menu. */
+@media (min-width:901px){
+  html body #adminHeader .adminHeader__top{position:relative !important;}
+  html body #adminHeader .adminHeader__headline{
+    position:absolute !important; left:50% !important; top:50% !important;
+    transform:translate(-50%, -50%) !important;
+    width:min(900px, calc(100% - 520px)) !important; max-width:none !important;
+    margin:0 !important; text-align:center !important; z-index:1 !important;
+  }
+  html body #adminHeader #navDrawerToggle{
+    display:inline-flex !important; width:40px !important; min-width:40px !important;
+    height:40px !important; min-height:40px !important; padding:0 !important;
+    align-items:center !important; justify-content:center !important;
+  }
+  html body #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
+    position:fixed !important; top:calc(var(--admin-header-height) + 6px) !important;
+    right:var(--admin-window-gutter) !important; left:auto !important; bottom:auto !important;
+    width:min(380px, calc(100vw - 28px)) !important;
+    max-height:calc(100dvh - var(--admin-header-height) - 18px) !important;
+    display:grid !important; grid-auto-rows:min-content !important;
+    flex-direction:column !important; flex-wrap:nowrap !important; gap:8px !important;
+    padding:12px !important; overflow-x:hidden !important; overflow-y:auto !important;
+    background:var(--panel) !important; border:1px solid rgba(26,26,26,.24) !important;
+    border-radius:14px !important; box-shadow:0 12px 30px rgba(0,0,0,.24) !important;
+    transform:translateY(-10px) scale(.98) !important; transform-origin:top right !important;
+    opacity:0 !important; visibility:hidden !important; pointer-events:none !important; z-index:265 !important;
+  }
+  html body.adminDrawerOpen #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
+    transform:translateY(0) scale(1) !important; opacity:1 !important;
+    visibility:visible !important; pointer-events:auto !important;
+  }
+  html body #adminHeader .adminHeader__tabs #adminSideNav .tab--nav{
+    display:block !important; width:100% !important; min-width:0 !important;
+    text-align:left !important; border-radius:10px !important;
+  }
+}
+
+
+/* Header refinement: place the desktop menu trigger in the lower header row. */
+@media (min-width:901px){
+  html body #adminHeader{position:fixed !important;}
+  html body #adminHeader #navDrawerToggle{
+    position:absolute !important;
+    right:var(--admin-window-gutter) !important;
+    bottom:4px !important;
+    z-index:270 !important;
+  }
+  html body #adminHeader .adminHeader__headline{
+    left:calc(50% - 70px) !important;
   }
 }

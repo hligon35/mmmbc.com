@@ -2,6 +2,7 @@ import worker from './worker-auth-wrapper.js';
 import { handleGivingRequest } from './worker-giving.js';
 import { handleGivingPageRequest } from './worker-giving-pages.js';
 import { maybeHandleFinanceReconciliationRequest } from './worker-finance-reconciliation.js';
+import { handlePublicSiteContentGet } from './worker-site-editor.js';
 import { PERMISSIONS } from './admin-rbac.js';
 import { honeypotTripped, verifyTurnstile, checkRateLimit, clientIp } from './public-forms-security.js';
 import { sendResendEmail } from './email-resend.js';
@@ -32,6 +33,60 @@ async function requireSession(request, env, ctx) {
   const state = data?.user ? { ...data, ...data.user } : null;
   authStateCache.set(request, state);
   return state;
+}
+
+async function handleWebsiteSubmissions(request, env, ctx) {
+  const session = await requireSession(request, env, ctx);
+  if (!session) return json({ error: 'Unauthorized' }, 401);
+  if (!session.permissions?.includes(PERMISSIONS.SUBMISSIONS_VIEW)) return json({ error: 'Permission denied.' }, 403);
+  if (!env.SITE_DB) return json({ error: 'Site database is not configured.' }, 500);
+  const url = new URL(request.url);
+  const id = url.pathname.startsWith('/api/submissions/') ? decodeURIComponent(url.pathname.slice('/api/submissions/'.length)) : '';
+  if (request.method === 'GET') {
+    const archived = url.searchParams.get('archived') === 'true' ? 1 : 0;
+    const q = String(url.searchParams.get('q') || '').trim().slice(0, 120);
+    const like = `%${q}%`;
+    const result = await env.SITE_DB.prepare(`
+      SELECT id, 'contact' AS type, name AS sender_name, email AS sender_email, subject,
+        message AS body, created_at, status, read_at, archived_at, auto_reply_status, auto_reply_at
+        FROM contact_messages WHERE (? = 1 OR archived_at IS NULL)
+          AND (? = '' OR name LIKE ? OR email LIKE ? OR subject LIKE ? OR message LIKE ?)
+      UNION ALL
+      SELECT id, 'facility_rental' AS type, person_responsible AS sender_name,
+        contact_email AS sender_email, 'Facility Rental Request' AS subject,
+        form_json AS body, created_at, status, read_at, archived_at, auto_reply_status, auto_reply_at
+        FROM facility_rental_requests WHERE (? = 1 OR archived_at IS NULL)
+          AND (? = '' OR person_responsible LIKE ? OR contact_email LIKE ? OR form_json LIKE ?)
+      ORDER BY created_at DESC LIMIT 300`)
+      .bind(archived, q, like, like, like, like, archived, q, like, like, like).all();
+    return json({ submissions: result.results || [] });
+  }
+  if (!session.permissions?.includes(PERMISSIONS.SUBMISSIONS_MANAGE)) return json({ error: 'Permission denied.' }, 403);
+  if (!id) return json({ error: 'Submission id is required.' }, 400);
+  const body = await request.json().catch(() => ({}));
+  const table = String(body.type || '').toLowerCase() === 'facility_rental' ? 'facility_rental_requests' : 'contact_messages';
+  const action = String(body.action || 'read').toLowerCase();
+  if (action === 'archive') {
+    await env.SITE_DB.prepare(`UPDATE ${table} SET archived_at = ? WHERE id = ?`).bind(new Date().toISOString(), id).run();
+  } else if (action === 'restore') {
+    await env.SITE_DB.prepare(`UPDATE ${table} SET archived_at = NULL WHERE id = ?`).bind(id).run();
+  } else {
+    await env.SITE_DB.prepare(`UPDATE ${table} SET read_at = COALESCE(read_at, ?) WHERE id = ?`).bind(new Date().toISOString(), id).run();
+  }
+  return json({ ok: true });
+}
+
+async function sendWebsiteAutoReply(env, { to, kind = 'contact' }) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(to || ''))) return { ok: true, skipped: true };
+  const facility = kind === 'facility_rental';
+  const subject = facility ? 'We received your facility rental request' : 'We received your message';
+  const text = facility
+    ? 'Thank you for submitting your facility rental request to Mt. Moriah Missionary Baptist Church. We received your request and will contact you after reviewing the details.'
+    : 'Thank you for contacting Mt. Moriah Missionary Baptist Church. We received your message and will respond as soon as possible.';
+  const html = facility
+    ? '<p>Thank you for submitting your facility rental request to Mt. Moriah Missionary Baptist Church.</p><p>We received your request and will contact you after reviewing the details.</p>'
+    : '<p>Thank you for contacting Mt. Moriah Missionary Baptist Church.</p><p>We received your message and will respond as soon as possible.</p>';
+  return sendResendEmail(env, { to, subject, text, html });
 }
 
 async function requireSessionState(request, env, ctx) {
@@ -981,6 +1036,8 @@ export default {
       ].join('\n');
 
       try {
+        const autoReply = await sendWebsiteAutoReply(env, { to: email, kind: 'contact' });
+        if (env.SITE_DB) await env.SITE_DB.prepare(`UPDATE contact_messages SET auto_reply_status = ?, auto_reply_at = ?, auto_reply_error = ? WHERE id = ?`).bind(autoReply.ok ? 'sent' : 'failed', autoReply.ok ? new Date().toISOString() : null, autoReply.error || '', id).run();
         await sendSupportEmailMessage(env, {
           subject: '[MMMBC Contact] New Website Message',
           textBody,
@@ -1058,6 +1115,8 @@ export default {
       ].join('\n');
 
       try {
+        const autoReply = await sendWebsiteAutoReply(env, { to: contactEmail, kind: 'facility_rental' });
+        if (env.SITE_DB && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) await env.SITE_DB.prepare(`UPDATE facility_rental_requests SET auto_reply_status = ?, auto_reply_at = ?, auto_reply_error = ? WHERE id = ?`).bind(autoReply.ok ? 'sent' : 'failed', autoReply.ok ? new Date().toISOString() : null, autoReply.error || '', id).run();
         await sendSupportEmailMessage(env, {
           subject: `[MMMBC Facility Rental] ${audience === 'non_member' ? 'Non-member' : 'Member'} Request`,
           textBody,
@@ -1081,6 +1140,10 @@ export default {
       }
     }
 
+    if (url.pathname === '/api/submissions' || url.pathname.startsWith('/api/submissions/')) {
+      return handleWebsiteSubmissions(request, env, ctx);
+    }
+
     // Core auth/session routes are implemented in worker-auth-wrapper.
     // Forward them explicitly so they are not caught by the generic /api 404 guard below.
     if (url.pathname === '/api/auth/logout' && (request.method === 'GET' || request.method === 'POST')) {
@@ -1093,6 +1156,11 @@ export default {
 
     if (url.pathname === '/api/csrf' && request.method === 'GET') {
       return worker.fetch(request, env, ctx);
+    }
+
+    if (url.pathname.startsWith('/api/site-content/') && request.method === 'GET') {
+      const page = decodeURIComponent(url.pathname.slice('/api/site-content/'.length));
+      return handlePublicSiteContentGet(request, env, page);
     }
 
     const outerPermission = requiredOuterPermission(url.pathname, request.method);
