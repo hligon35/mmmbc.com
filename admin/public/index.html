@@ -49,6 +49,7 @@
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-photos" id="tabBtn-photos">Photos</button>
 
             <p class="sideNav__groupLabel" aria-hidden="true">Communication</p>
+            <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-submissions" id="tabBtn-submissions">Website Messages</button>
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-newsletter" id="tabBtn-newsletter">Newsletter</button>
 
             <p class="sideNav__groupLabel" aria-hidden="true">Administration</p>
@@ -1353,6 +1354,15 @@
         </div>
 
         <div class="list list--scrollEvents" id="eventList"></div>
+      </section>
+
+      <section class="tabPanel" role="tabpanel" id="tab-submissions" aria-labelledby="tabBtn-submissions" hidden data-header-crumb="Website Messages" data-header-description="Review contact and facility-rental submissions received through the website.">
+        <div class="card">
+          <div class="sectionHeading"><div><h2>Website Messages</h2><p class="muted">Website submissions only. This is not an external email mailbox.</p></div><button class="btn" id="submissionsRefreshBtn" type="button">Refresh</button></div>
+          <div class="formRow"><input class="input" id="submissionsSearch" type="search" placeholder="Search name, email, subject, or message" autocomplete="off" /><label class="checkboxLabel"><input id="submissionsShowArchived" type="checkbox" /> Show archived</label></div>
+          <div class="tableWrap"><table class="dataTable"><thead><tr><th>Status</th><th>Type</th><th>From</th><th>Subject</th><th>Received</th><th>Actions</th></tr></thead><tbody id="submissionsTableBody"><tr><td colspan="6" class="muted">No submissions loaded.</td></tr></tbody></table></div>
+          <div class="card" id="submissionDetail" hidden></div>
+        </div>
       </section>
 
       <!-- Newsletter -->
