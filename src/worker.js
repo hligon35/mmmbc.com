@@ -626,6 +626,9 @@ function requiredWorkerPermission(pathname, method) {
     return PERMISSIONS.NEWSLETTER_MANAGE;
   }
   if (pathname === '/api/support/message') return PERMISSIONS.SUPPORT_SEND;
+  if (pathname === '/api/submissions' || pathname.startsWith('/api/submissions/')) {
+    return method === 'GET' ? PERMISSIONS.SUBMISSIONS_VIEW : PERMISSIONS.SUBMISSIONS_MANAGE;
+  }
   if (pathname === '/api/admin/site-pages' || pathname.startsWith('/api/admin/site-pages/')) {
     return PERMISSIONS.SETTINGS_MANAGE;
   }
