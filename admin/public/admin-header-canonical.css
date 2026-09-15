@@ -594,3 +594,18 @@
     text-align:left !important; border-radius:10px !important;
   }
 }
+
+
+/* Header refinement: place the desktop menu trigger in the lower header row. */
+@media (min-width:901px){
+  html body #adminHeader{position:fixed !important;}
+  html body #adminHeader #navDrawerToggle{
+    position:absolute !important;
+    right:var(--admin-window-gutter) !important;
+    bottom:4px !important;
+    z-index:270 !important;
+  }
+  html body #adminHeader .adminHeader__headline{
+    left:calc(50% - 70px) !important;
+  }
+}
