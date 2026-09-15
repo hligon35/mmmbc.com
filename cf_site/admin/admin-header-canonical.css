@@ -556,3 +556,41 @@
     text-align:left !important;
   }
 }
+
+
+/* Definitive desktop header layout: one centered headline and one vertical menu. */
+@media (min-width:901px){
+  html body #adminHeader .adminHeader__top{position:relative !important;}
+  html body #adminHeader .adminHeader__headline{
+    position:absolute !important; left:50% !important; top:50% !important;
+    transform:translate(-50%, -50%) !important;
+    width:min(900px, calc(100% - 520px)) !important; max-width:none !important;
+    margin:0 !important; text-align:center !important; z-index:1 !important;
+  }
+  html body #adminHeader #navDrawerToggle{
+    display:inline-flex !important; width:40px !important; min-width:40px !important;
+    height:40px !important; min-height:40px !important; padding:0 !important;
+    align-items:center !important; justify-content:center !important;
+  }
+  html body #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
+    position:fixed !important; top:calc(var(--admin-header-height) + 6px) !important;
+    right:var(--admin-window-gutter) !important; left:auto !important; bottom:auto !important;
+    width:min(380px, calc(100vw - 28px)) !important;
+    max-height:calc(100dvh - var(--admin-header-height) - 18px) !important;
+    display:grid !important; grid-auto-rows:min-content !important;
+    flex-direction:column !important; flex-wrap:nowrap !important; gap:8px !important;
+    padding:12px !important; overflow-x:hidden !important; overflow-y:auto !important;
+    background:var(--panel) !important; border:1px solid rgba(26,26,26,.24) !important;
+    border-radius:14px !important; box-shadow:0 12px 30px rgba(0,0,0,.24) !important;
+    transform:translateY(-10px) scale(.98) !important; transform-origin:top right !important;
+    opacity:0 !important; visibility:hidden !important; pointer-events:none !important; z-index:265 !important;
+  }
+  html body.adminDrawerOpen #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav{
+    transform:translateY(0) scale(1) !important; opacity:1 !important;
+    visibility:visible !important; pointer-events:auto !important;
+  }
+  html body #adminHeader .adminHeader__tabs #adminSideNav .tab--nav{
+    display:block !important; width:100% !important; min-width:0 !important;
+    text-align:left !important; border-radius:10px !important;
+  }
+}
