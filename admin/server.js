@@ -78,7 +78,7 @@ const GALLERY_DIR = path.join(ROOT_DIR, 'ConImg', 'gallery');
 // injects at runtime via transformAdminHtml() in src/worker-admin-api-wrapper.js.
 // Without this, the local admin/public/index.html (served as-is by express.static)
 // is missing the gallery layout fixes, the moved photo-bulk-action bar, and the
-// admin-structure-overrides.css/.js include — making dev visually diverge from prod.
+// admin-structure-overrides.js include — making dev behavior match the Worker.
 // Keep these constants and the transform logic in sync with the Worker copy.
 const DEV_HEADER_BULK_BAR = `
             <div class="photoBulkBar photoBulkBar--header" id="photoBulkBar" hidden>
@@ -160,7 +160,6 @@ const DEV_FINAL_GALLERY_STYLE = `
   }
 </style>`;
 
-const DEV_STRUCTURE_STYLESHEET = '<link id="mmmbc-admin-structure-css" rel="stylesheet" href="/admin/admin-structure-overrides.css?v=20260724-1" />';
 const DEV_STRUCTURE_SCRIPT = '<script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260724-1" defer></script>';
 
 function transformAdminHtmlForDev(html) {
@@ -178,10 +177,6 @@ function transformAdminHtmlForDev(html) {
 
   if (!html.includes('id="mmmbc-gallery-layout-final"')) {
     html = html.replace('</head>', `${DEV_FINAL_GALLERY_STYLE}\n</head>`);
-  }
-
-  if (!html.includes('id="mmmbc-admin-structure-css"')) {
-    html = html.replace('</head>', `${DEV_STRUCTURE_STYLESHEET}\n</head>`);
   }
 
   if (!html.includes('id="mmmbc-admin-structure-js"')) {

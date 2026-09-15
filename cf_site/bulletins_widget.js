@@ -104,10 +104,10 @@
   function applyHomepageUpdates() {
     if (!document.body.classList.contains('home')) return;
 
-    if (!document.querySelector('link[href="home-layout-updates.css"]')) {
+    if (!document.querySelector('link[href*="static-style.css"]')) {
       const stylesheet = document.createElement('link');
       stylesheet.rel = 'stylesheet';
-      stylesheet.href = 'home-layout-updates.css';
+      stylesheet.href = 'static-style.css';
       document.head.appendChild(stylesheet);
     }
 
