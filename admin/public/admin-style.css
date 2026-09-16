@@ -2909,6 +2909,7 @@ body.theme-system.theme-effective-dark .sideNav__groupLabel{
 .settingsAddForm{display:flex;flex-wrap:wrap;align-items:end;gap:16px;}
 .settingsAddForm .label{flex:1 1 180px;min-width:160px;}
 .settingsAddForm__submit{flex:0 0 auto;min-height:44px;align-self:end;}
+.settingsRoleSummary{margin-top:20px;}
 .settingsRolesDialog__inner{max-width:min(900px, calc(100vw - 32px));width:100%;}
 .settingsRoleSummary{border:1px solid var(--border);border-radius:8px;padding:12px;background:rgba(196,97,35,.08);}
 .settingsRoleSummary p{margin:6px 0 0;}
@@ -2918,6 +2919,7 @@ body.theme-system.theme-effective-dark .sideNav__groupLabel{
 .settingsUsersTable,.settingsAuditTable{table-layout:fixed;width:100%;}
 .settingsUsersTable th,.settingsUsersTable td,
 .settingsAuditTable th,.settingsAuditTable td{text-align:center;}
+.settingsUsersTable th:nth-child(2),.settingsUsersTable td:nth-child(2){width:26%;padding-right:24px;}
 .settingsUserActions{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;}
 .settingsUserActions .btn{min-height:36px;padding:6px 10px;}
 .settingsRoleSelect{min-width:165px;}
