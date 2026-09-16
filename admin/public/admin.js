@@ -344,6 +344,8 @@ const SECTION_PERMISSIONS = Object.freeze({
   'tab-settings': USERS_MANAGE_PERMISSION
 });
 let currentPermissions = new Set();
+let submissionsTypeFilter = 'all';
+let submissionsSearchTimer = 0;
 const UNSAVED_WARNING_TEXT = 'You have unsaved changes. Leave this page without saving them?';
 const NEWSLETTER_BODY_TEMPLATE = [
   'Week of date',
@@ -718,13 +720,16 @@ function applyAppearancePreference(pref) {
       const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
       document.body.classList.toggle('theme-effective-dark', !!prefersDark);
       document.body.classList.toggle('theme-effective-light', !prefersDark);
+      document.documentElement.style.colorScheme = prefersDark ? 'dark' : 'light';
     } catch {
       document.body.classList.remove('theme-effective-dark');
       document.body.classList.add('theme-effective-light');
+      document.documentElement.style.colorScheme = 'light';
     }
   } else {
     document.body.classList.toggle('theme-effective-dark', selected === 'dark');
     document.body.classList.toggle('theme-effective-light', selected === 'light');
+    document.documentElement.style.colorScheme = selected === 'dark' ? 'dark' : 'light';
   }
 }
 
@@ -1354,14 +1359,47 @@ async function loadWebsiteSubmissions() {
   try {
     const data = await api(`/api/submissions?q=${encodeURIComponent(q)}${archived}`);
     const rows = data?.submissions || [];
-    body.innerHTML = rows.length ? rows.map((row) => {
+    updateSubmissionTypeFilters(rows);
+    const visibleRows = submissionsTypeFilter === 'all'
+      ? rows
+      : rows.filter((row) => String(row?.type || '').toLowerCase() === submissionsTypeFilter);
+    body.innerHTML = visibleRows.length ? visibleRows.map((row) => {
       const unread = !row.read_at;
-      const type = row.type === 'facility_rental' ? 'Facility rental' : 'Contact';
+      const type = submissionTypeLabel(row.type);
       return `<tr class="${unread ? 'isUnread' : ''}"><td>${unread ? '<strong>Unread</strong>' : 'Read'}</td><td>${escapeHtml(type)}</td><td>${escapeHtml(row.sender_name || '')}<br><span class="muted">${escapeHtml(row.sender_email || '')}</span></td><td>${escapeHtml(row.subject || '')}</td><td>${escapeHtml(new Date(row.created_at).toLocaleString())}</td><td><button class="btn btn--small" data-submission-open="${escapeHtml(row.id)}" data-submission-type="${escapeHtml(row.type)}">Open</button> <button class="btn btn--small" data-submission-archive="${escapeHtml(row.id)}" data-submission-type="${escapeHtml(row.type)}">${row.archived_at ? 'Restore' : 'Archive'}</button></td></tr>`;
-    }).join('') : '<tr><td colspan="6" class="muted">No website submissions found.</td></tr>';
+    }).join('') : `<tr><td colspan="6" class="muted">No ${escapeHtml(submissionsTypeFilter === 'all' ? 'website submissions' : submissionTypeLabel(submissionsTypeFilter).toLowerCase() + ' messages')} found.</td></tr>`;
     body.querySelectorAll('[data-submission-open]').forEach((button) => button.addEventListener('click', () => openWebsiteSubmission(button.dataset.submissionOpen, button.dataset.submissionType, rows)));
     body.querySelectorAll('[data-submission-archive]').forEach((button) => button.addEventListener('click', async () => { await api(`/api/submissions/${encodeURIComponent(button.dataset.submissionArchive)}`, { method: 'PATCH', body: JSON.stringify({ type: button.dataset.submissionType, action: button.textContent.trim() === 'Restore' ? 'restore' : 'archive' }) }); await loadWebsiteSubmissions(); }));
-  } catch (error) { body.innerHTML = `<tr><td colspan="6" class="errorText">${escapeHtml(error.message || 'Unable to load submissions.')}</td></tr>`; }
+  } catch (error) { updateSubmissionTypeFilters([]); body.innerHTML = `<tr><td colspan="6" class="errorText">${escapeHtml(error.message || 'Unable to load submissions.')}</td></tr>`; }
+}
+
+function submissionTypeLabel(type) {
+  return String(type || '').toLowerCase() === 'facility_rental' ? 'Facility Rental' : 'Contact';
+}
+
+function updateSubmissionTypeFilters(rows) {
+  const submissions = Array.isArray(rows) ? rows : [];
+  const counts = submissions.reduce((totals, row) => {
+    const type = String(row?.type || '').toLowerCase();
+    if (type === 'facility_rental') totals.facility_rental += 1;
+    else totals.contact += 1;
+    totals.all += 1;
+    return totals;
+  }, { all: 0, contact: 0, facility_rental: 0 });
+
+  const badgeMap = {
+    all: $('submissionsTypeCountAll'),
+    contact: $('submissionsTypeCountContact'),
+    facility_rental: $('submissionsTypeCountFacility')
+  };
+  Object.entries(badgeMap).forEach(([type, badge]) => {
+    if (badge) badge.textContent = String(counts[type] || 0);
+  });
+
+  document.querySelectorAll('[data-submission-type-filter]').forEach((chip) => {
+    const type = String(chip.getAttribute('data-submission-type-filter') || 'all').toLowerCase();
+    chip.setAttribute('aria-pressed', type === submissionsTypeFilter ? 'true' : 'false');
+  });
 }
 
 async function openWebsiteSubmission(id, type, rows) {
@@ -1425,9 +1463,19 @@ async function refreshAuthUI() {
 
   const nameOrEmail = String(me?.user?.name || me?.user?.email || '').trim();
   const roleLabel = formatUserRoleLabel(me?.user?.role);
-  $('authStatus').textContent = loggedIn
-    ? `Signed in as ${nameOrEmail || String(me.user.email || '').trim()}`
-    : '';
+  const authStatus = $('authStatus');
+  if (authStatus) {
+    authStatus.replaceChildren();
+    if (loggedIn) {
+      const label = document.createElement('span');
+      label.className = 'headerSignedIn__label';
+      label.textContent = 'Signed in as';
+      const name = document.createElement('span');
+      name.className = 'headerSignedIn__name';
+      name.textContent = nameOrEmail || String(me.user.email || '').trim();
+      authStatus.append(label, name);
+    }
+  }
 
   if (loggedIn) {
     const nowHour = new Date().getHours();
@@ -3606,7 +3654,7 @@ function renderR2Breadcrumb(prefix) {
   }
 }
 
-function formatBytes(n) {
+function formatR2ObjectBytes(n) {
   const num = Number(n);
   if (!Number.isFinite(num) || num < 0) return '';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -3678,7 +3726,7 @@ function renderR2Tree(prefix, data) {
     const meta = document.createElement('div');
     meta.className = 'r2Row__meta muted';
     const when = o.uploaded ? ` • ${formatDate(o.uploaded)}` : '';
-    meta.textContent = `${formatBytes(o.size)}${when}`.trim();
+    meta.textContent = `${formatR2ObjectBytes(o.size)}${when}`.trim();
 
     main.appendChild(title);
     main.appendChild(meta);
@@ -5326,7 +5374,7 @@ async function saveLivestream() {
 // -------- Settings --------
 let settings = null;
 
-async function loadSettings() {
+async function loadSiteSettings() {
   if (!$('socialForm') || !$('themeForm')) return;
   settings = await api('/api/settings', { method: 'GET' });
 
@@ -5354,7 +5402,7 @@ async function loadSettings() {
 async function saveSettingsPatch(patch) {
   const res = await api('/api/settings', { method: 'PUT', body: JSON.stringify(patch) });
   settings = res.data;
-  await loadSettings();
+  await loadSiteSettings();
 }
 
 function normalizeHex(value) {
@@ -6306,6 +6354,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('tabBtn-newsletter')) $('tabBtn-newsletter').addEventListener('click', () => activateMainSection('tab-newsletter'));
   if ($('tabBtn-support')) $('tabBtn-support').addEventListener('click', () => activateMainSection('tab-support'));
   if ($('tabBtn-settings')) $('tabBtn-settings').addEventListener('click', () => activateMainSection('tab-settings'));
+
+  if ($('submissionsRefreshBtn')) $('submissionsRefreshBtn').addEventListener('click', () => loadWebsiteSubmissions().catch(() => {}));
+  if ($('submissionsSearch')) $('submissionsSearch').addEventListener('input', () => {
+    window.clearTimeout(submissionsSearchTimer);
+    submissionsSearchTimer = window.setTimeout(() => loadWebsiteSubmissions().catch(() => {}), 250);
+  });
+  if ($('submissionsShowArchived')) $('submissionsShowArchived').addEventListener('change', () => loadWebsiteSubmissions().catch(() => {}));
+  document.querySelectorAll('[data-submission-type-filter]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      submissionsTypeFilter = String(chip.getAttribute('data-submission-type-filter') || 'all').toLowerCase();
+      loadWebsiteSubmissions().catch(() => {});
+    });
+  });
 
   for (const trigger of Array.from(document.querySelectorAll('[data-section-target]'))) {
     trigger.addEventListener('click', (e) => {

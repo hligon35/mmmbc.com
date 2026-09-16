@@ -1355,8 +1355,13 @@
 
       <section class="tabPanel" role="tabpanel" id="tab-submissions" aria-labelledby="tabBtn-submissions" hidden data-header-crumb="Website Messages" data-header-description="Review contact and facility-rental submissions received through the website.">
         <div class="card">
-          <div class="sectionHeading"><div><h2>Website Messages</h2><p class="muted">Website submissions only. This is not an external email mailbox.</p></div><button class="btn" id="submissionsRefreshBtn" type="button">Refresh</button></div>
-          <div class="formRow"><input class="input" id="submissionsSearch" type="search" placeholder="Search name, email, subject, or message" autocomplete="off" /><label class="checkboxLabel"><input id="submissionsShowArchived" type="checkbox" /> Show archived</label></div>
+          <div class="sectionHeading"><div><h2>Website Messages</h2><p class="muted">Website submissions only. This is not an external email mailbox.</p></div></div>
+          <div class="formRow submissionsControls"><button class="btn" id="submissionsRefreshBtn" type="button">Refresh</button><input class="input" id="submissionsSearch" type="search" placeholder="Search name, email, subject, or message" autocomplete="off" /><label class="checkboxLabel"><input id="submissionsShowArchived" type="checkbox" /> Show archived</label></div>
+          <div class="submissionsTypeFilters" id="submissionsTypeFilters" aria-label="Filter website messages by type">
+            <button class="submissionsTypeChip" type="button" data-submission-type-filter="all" aria-pressed="true">All <span class="submissionsTypeChip__badge" id="submissionsTypeCountAll">0</span></button>
+            <button class="submissionsTypeChip" type="button" data-submission-type-filter="contact" aria-pressed="false">Contact <span class="submissionsTypeChip__badge" id="submissionsTypeCountContact">0</span></button>
+            <button class="submissionsTypeChip" type="button" data-submission-type-filter="facility_rental" aria-pressed="false">Facility Rental <span class="submissionsTypeChip__badge" id="submissionsTypeCountFacility">0</span></button>
+          </div>
           <div class="tableWrap"><table class="dataTable"><thead><tr><th>Status</th><th>Type</th><th>From</th><th>Subject</th><th>Received</th><th>Actions</th></tr></thead><tbody id="submissionsTableBody"><tr><td colspan="6" class="muted">No submissions loaded.</td></tr></tbody></table></div>
           <div class="card" id="submissionDetail" hidden></div>
         </div>

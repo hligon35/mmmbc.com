@@ -64,6 +64,14 @@ describe('Admin accessibility redesign guards', () => {
     expect(adminJs).toContain("const label = isOpen ? 'Close menu' : 'Open menu';");
   });
 
+  test('Signed-in status stacks label above username', () => {
+    expect(indexHtml).toContain('id="authStatus"');
+    expect(adminJs).toContain("label.className = 'headerSignedIn__label';");
+    expect(adminJs).toContain("name.className = 'headerSignedIn__name';");
+    expect(adminCss).toContain('#adminHeader .headerSignedIn__label{');
+    expect(adminCss).toContain('#adminHeader .headerSignedIn__name{');
+  });
+
   test('Advanced Photo Tools are collapsed by default', () => {
     expect(indexHtml).toContain('id="advancedPhotoTools"');
     expect(indexHtml).toContain('Advanced Photo Tools');
@@ -103,6 +111,20 @@ describe('Admin accessibility redesign guards', () => {
     expect(adminJs).toContain('This newsletter will be sent to ${recipients}');
   });
 
+  test('Website Messages type filters show count badges and drive filtering', () => {
+    expect(indexHtml).toContain('class="formRow submissionsControls"');
+    expect(indexHtml).toContain('data-submission-type-filter="all"');
+    expect(indexHtml).toContain('data-submission-type-filter="contact"');
+    expect(indexHtml).toContain('data-submission-type-filter="facility_rental"');
+    expect(indexHtml).toContain('id="submissionsTypeCountAll"');
+    expect(indexHtml).toContain('id="submissionsTypeCountContact"');
+    expect(indexHtml).toContain('id="submissionsTypeCountFacility"');
+    expect(adminCss).toContain('#tab-submissions .submissionsTypeFilters{');
+    expect(adminJs).toContain('let submissionsTypeFilter = \'all\';');
+    expect(adminJs).toContain('function updateSubmissionTypeFilters(rows)');
+    expect(adminJs).toContain("String(row?.type || '').toLowerCase() === submissionsTypeFilter");
+  });
+
   test('Newsletter actions retain send/test/draft/schedule behavior', () => {
     expect(adminJs).toContain("await api('/api/newsletter/send'");
     expect(adminJs).toContain("await api('/api/newsletter/test'");
@@ -137,6 +159,14 @@ describe('Admin accessibility redesign guards', () => {
     expect(indexHtml).toContain('option value="dark"');
     expect(indexHtml).toContain('option value="system"');
     expect(adminJs).toContain('applyAppearancePreference');
+    expect(adminJs).toContain('document.documentElement.style.colorScheme');
+    expect(adminCss).toContain('body.theme-light,');
+    expect(adminCss).toContain('body.theme-system.theme-effective-light');
+    expect(adminCss).toContain('body.theme-dark .input:not([type="time"])');
+    expect(adminCss).toContain('body.theme-light .select,');
+    expect(adminCss).toContain('body.theme-dark .settingsMatrix td[data-access="manage"]');
+    expect(adminCss).toContain('body.theme-dark .newsletterTemplate,');
+    expect(adminCss).toContain('body[data-page] .card{background:#1b212b;');
   });
 
   test('Keyboard accessibility handlers remain for tabs and popovers', () => {
@@ -208,6 +238,7 @@ describe('Users and roles settings', () => {
   });
 
   test('Settings uses all canonical user, role, audit, and lifecycle endpoints', () => {
+    expect(adminJs).toContain('async function loadSiteSettings()');
     expect(adminJs).toContain("api('/api/admin/settings/roles'");
     expect(adminJs).toContain("api('/api/admin/settings/users'");
     expect(adminJs).toContain("api('/api/admin/settings/users/audit?page=1&pageSize=10'");
