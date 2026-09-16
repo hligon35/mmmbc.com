@@ -289,7 +289,7 @@ describe('Users and roles settings', () => {
     expect(adminJs).toContain("return 'No access'");
     expect(adminJs).toContain('role.description');
     expect(adminCss).toContain('.settingsMatrix td[data-access="manage"]');
-    expect(adminCss).toContain('.settingsGrid{');
+    expect(adminCss).toContain('.settingsRolesDialog__inner{');
   });
 });
 

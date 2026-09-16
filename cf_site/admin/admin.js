@@ -6407,6 +6407,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if ($('settingsRefreshBtn')) $('settingsRefreshBtn').addEventListener('click', () => loadSettings());
   if ($('settingsAddRole')) $('settingsAddRole').addEventListener('change', renderSettingsRoleSummary);
+  const settingsRolesDialog = $('settingsRolesDialog');
+  if ($('settingsRolesBtn') && settingsRolesDialog instanceof HTMLDialogElement) {
+    $('settingsRolesBtn').addEventListener('click', () => openManagedDialog(settingsRolesDialog, { initialFocusId: 'settingsRolesDialogCloseBtn' }));
+  }
+  if ($('settingsRolesDialogCloseBtn') && settingsRolesDialog instanceof HTMLDialogElement) {
+    $('settingsRolesDialogCloseBtn').addEventListener('click', () => closeManagedDialog(settingsRolesDialog));
+  }
+  if (settingsRolesDialog instanceof HTMLDialogElement) wireDialogDismissBehavior(settingsRolesDialog);
   if ($('settingsUserFilters')) {
     $('settingsUserFilters').addEventListener('submit', async (event) => {
       event.preventDefault();

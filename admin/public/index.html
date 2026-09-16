@@ -1584,39 +1584,30 @@
             <h2 class="sectionHeader__title">Users &amp; Roles</h2>
             <p class="muted">Add administrators and control exactly what each standard role can access.</p>
           </div>
-          <button class="btn" id="settingsRefreshBtn" type="button">Refresh</button>
+          <div class="settingsHeaderActions">
+            <button class="btn" id="settingsRolesBtn" type="button">Standard role permissions</button>
+            <button class="btn" id="settingsRefreshBtn" type="button">Refresh</button>
+          </div>
         </div>
 
-        <div class="settingsGrid">
-          <section class="card settingsAddCard" aria-labelledby="settingsAddTitle">
-            <h3 class="card__subtitle" id="settingsAddTitle">Add administrator</h3>
-            <form class="form" id="settingsAddUserForm">
-              <div class="formRow">
-                <label class="label">Full name<input class="input" name="fullName" type="text" maxlength="120" autocomplete="name" required /></label>
-                <label class="label">Email<input class="input" name="email" type="email" maxlength="254" autocomplete="email" required /></label>
-              </div>
-              <div class="formRow">
-                <label class="label">Role<select class="select" id="settingsAddRole" name="role" required></select></label>
-                <label class="label">Status
-                  <select class="select" id="settingsAddStatus" name="status" required>
-                    <option value="pending" selected>Pending</option>
-                    <option value="active">Active</option>
-                    <option value="suspended">Suspended</option>
-                  </select>
-                </label>
-              </div>
-              <div class="settingsRoleSummary" id="settingsSelectedRoleSummary" aria-live="polite"></div>
-              <button class="btn btn--primary" type="submit">Add administrator</button>
-              <div class="hint" id="settingsAddHint" aria-live="polite"></div>
-            </form>
-          </section>
-
-          <section class="card settingsRolesCard" aria-labelledby="settingsRolesTitle">
-            <h3 class="card__subtitle" id="settingsRolesTitle">Standard role permissions</h3>
-            <p class="muted">View means read-only access. Manage means the role can create or change records.</p>
-            <div class="tableWrap"><table class="table settingsMatrix"><thead id="settingsRolesHead"></thead><tbody id="settingsRolesBody"></tbody></table></div>
-          </section>
-        </div>
+        <section class="card settingsAddCard settingsAddCard--horizontal" aria-labelledby="settingsAddTitle">
+          <h3 class="card__subtitle" id="settingsAddTitle">Add administrator</h3>
+          <form class="form settingsAddForm" id="settingsAddUserForm">
+            <label class="label">Full name<input class="input" name="fullName" type="text" maxlength="120" autocomplete="name" required /></label>
+            <label class="label">Email<input class="input" name="email" type="email" maxlength="254" autocomplete="email" required /></label>
+            <label class="label">Role<select class="select" id="settingsAddRole" name="role" required></select></label>
+            <label class="label">Status
+              <select class="select" id="settingsAddStatus" name="status" required>
+                <option value="pending" selected>Pending</option>
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+              </select>
+            </label>
+            <button class="btn btn--primary settingsAddForm__submit" type="submit">Add administrator</button>
+          </form>
+          <div class="settingsRoleSummary" id="settingsSelectedRoleSummary" aria-live="polite"></div>
+          <div class="hint" id="settingsAddHint" aria-live="polite"></div>
+        </section>
 
         <section class="card settingsUsersCard" aria-labelledby="settingsUsersTitle">
           <div class="sectionHeader sectionHeader--compact">
@@ -1639,9 +1630,21 @@
 
         <section class="card settingsAuditCard" aria-labelledby="settingsAuditTitle">
           <h3 class="card__subtitle" id="settingsAuditTitle">Recent administrator activity</h3>
-          <div class="tableWrap"><table class="table"><thead><tr><th>Actor</th><th>Action</th><th>Target</th><th>Date</th></tr></thead><tbody id="settingsAuditBody"></tbody></table></div>
+          <div class="tableWrap"><table class="table settingsAuditTable"><thead><tr><th>Actor</th><th>Action</th><th>Target</th><th>Date</th></tr></thead><tbody id="settingsAuditBody"></tbody></table></div>
         </section>
       </section>
+
+      <dialog class="dialog" id="settingsRolesDialog" aria-labelledby="settingsRolesDialogTitle" aria-modal="true">
+        <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
+        <div class="card dialog__inner settingsRolesDialog__inner">
+          <div class="sectionHeader sectionHeader--compact">
+            <h3 class="sectionHeader__title" id="settingsRolesDialogTitle">Standard role permissions</h3>
+            <button class="btn" id="settingsRolesDialogCloseBtn" type="button">Close</button>
+          </div>
+          <p class="muted">View means read-only access. Manage means the role can create or change records.</p>
+          <div class="tableWrap"><table class="table settingsMatrix"><thead id="settingsRolesHead"></thead><tbody id="settingsRolesBody"></tbody></table></div>
+        </div>
+      </dialog>
 
 
 
@@ -1662,7 +1665,7 @@
     </div>
   </dialog>
 
-  <script src="/admin/admin.js?v=20260730k" defer></script>
+  <script src="/admin/admin.js?v=20260730l" defer></script>
   <script src="/admin/admin-directory.js?v=20260730a" defer></script>
   <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>
 </body>
