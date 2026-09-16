@@ -76,7 +76,7 @@ export const ROLES = Object.freeze({
   }),
   website_editor: Object.freeze({
     key: 'website_editor',
-    label: 'Website Manager',
+    label: 'Site Editor',
     description: 'Manages website content, communications, directory records, and general settings. No finance or administrator management.',
     permissions: Object.freeze(WEBSITE_PERMISSIONS)
   }),
@@ -88,7 +88,7 @@ export const ROLES = Object.freeze({
   }),
   treasurer: Object.freeze({
     key: 'treasurer',
-    label: 'Treasurer',
+    label: 'Finance Officer',
     description: 'Broad finance, fund, donor, statement, report, export, and control access. No website or administrator management.',
     permissions: Object.freeze(TREASURER_PERMISSIONS)
   }),
@@ -104,8 +104,9 @@ export const ROLE_KEYS = Object.freeze(Object.keys(ROLES));
 
 export function normalizeRole(value) {
   const role = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
-  if (role === 'admin') return 'administrator';
+  if (role === 'master' || role === 'master_admin' || role === 'master_administrator' || role === 'admin') return 'administrator';
   if (role === 'site_editor' || role === 'editor' || role === 'website_manager') return 'website_editor';
+  if (role === 'finance_officer' || role === 'finance') return 'treasurer';
   return Object.hasOwn(ROLES, role) ? role : '';
 }
 

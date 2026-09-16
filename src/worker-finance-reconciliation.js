@@ -296,7 +296,7 @@ async function resolveFinanceAccess(env, email) {
     canViewSensitiveChecks: false
   };
 
-  if (role === 'administrator' || role === 'treasurer') {
+  if (role === 'master_admin' || role === 'administrator' || role === 'finance_officer' || role === 'treasurer') {
     permissions.canWrite = true;
     permissions.canAssignCounters = true;
     permissions.canApprove = true;

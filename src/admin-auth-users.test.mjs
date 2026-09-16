@@ -6,7 +6,7 @@ import { generateKeyPair, SignJWT } from 'jose';
 
 import { authenticateAccessRequest, handleMeRequest } from './admin-auth.js';
 import { handleAdminUserSettingsRequest } from './admin-user-settings.js';
-import { PERMISSIONS, permissionsForRole, roleHasPermission } from './admin-rbac.js';
+import { normalizeRole, PERMISSIONS, permissionsForRole, roleHasPermission } from './admin-rbac.js';
 
 const ISSUER = 'https://mmmbc-test.cloudflareaccess.com';
 const AUDIENCE = 'test-access-audience';
@@ -95,6 +95,9 @@ test('RBAC matrix grants only the intended finance and user permissions', () => 
   assert.equal(roleHasPermission('auditor', PERMISSIONS.FINANCE_VIEW), true);
   assert.equal(roleHasPermission('auditor', PERMISSIONS.FINANCE_RECORD), false);
   assert.deepEqual(new Set(permissionsForRole('admin')), new Set(permissionsForRole('administrator')));
+  assert.equal(normalizeRole('Master Admin'), 'administrator');
+  assert.equal(normalizeRole('Finance Officer'), 'treasurer');
+  assert.equal(normalizeRole('Site Editor'), 'website_editor');
 });
 
 test('Access authentication verifies JWT crypto and never trusts the email header', async () => {
