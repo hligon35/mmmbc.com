@@ -1204,7 +1204,15 @@ export default {
       url.pathname === '/api/newsletter/records' ||
       url.pathname === '/api/users' ||
       url.pathname === '/api/users/invite' ||
-      url.pathname.startsWith('/api/users/')
+      url.pathname.startsWith('/api/users/') ||
+      url.pathname === '/api/users/roles' ||
+      url.pathname === '/api/audit-log' ||
+      url.pathname === '/api/admin/audit-log' ||
+      url.pathname === '/api/admin/settings/roles' ||
+      url.pathname === '/api/admin/settings/users' ||
+      url.pathname.startsWith('/api/admin/settings/users/') ||
+      url.pathname === '/api/admin/users' ||
+      url.pathname.startsWith('/api/admin/users/')
     ) {
       return worker.fetch(request, env, ctx);
     }
