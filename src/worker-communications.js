@@ -72,11 +72,14 @@ async function isEmailInvited(env, email) {
 
 function roleDisplayName(role) {
   const normalized = String(role || '').trim().toLowerCase();
+  if (normalized === 'master_admin') return 'Master Admin';
   if (normalized === 'administrator') return 'Administrator';
+  if (normalized === 'finance_officer') return 'Finance Officer';
   if (normalized === 'finance_entry') return 'Finance Entry';
-  if (normalized === 'treasurer') return 'Treasurer';
+  if (normalized === 'treasurer') return 'Finance Officer';
   if (normalized === 'auditor') return 'Auditor';
-  return 'Website Editor';
+  if (normalized === 'site_editor') return 'Site Editor';
+  return 'Site Editor';
 }
 
 function buildAdminInviteEmailTemplate({ inviteUrl, role }) {

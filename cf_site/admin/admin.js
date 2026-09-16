@@ -731,6 +731,18 @@ function applyAppearancePreference(pref) {
     document.body.classList.toggle('theme-effective-light', selected === 'light');
     document.documentElement.style.colorScheme = selected === 'dark' ? 'dark' : 'light';
   }
+
+  syncAppearanceControls(selected);
+}
+
+function syncAppearanceControls(selected) {
+  const mode = (selected === 'dark' || selected === 'system') ? selected : 'light';
+  const select = $('appearanceSelect');
+  if (select) select.value = mode;
+  document.querySelectorAll('[data-appearance-mode]').forEach((button) => {
+    const buttonMode = String(button.getAttribute('data-appearance-mode') || '').toLowerCase();
+    button.setAttribute('aria-pressed', buttonMode === mode ? 'true' : 'false');
+  });
 }
 
 function fileSignature(file) {
@@ -1148,17 +1160,20 @@ function getInitials(user) {
 
 function formatUserRoleLabel(roleValue) {
   const role = String(roleValue || '').trim().toLowerCase().replace(/\s+/g, '_');
+  if (role === 'master_admin' || role === 'master') return 'Master Admin';
   if (role === 'administrator' || role === 'admin') return 'Administrator';
+  if (role === 'finance_officer') return 'Finance Officer';
   if (role === 'finance_entry' || role === 'financeentry' || role === 'finance') return 'Finance Entry';
-  if (role === 'treasurer') return 'Treasurer';
+  if (role === 'treasurer') return 'Finance Officer';
   if (role === 'auditor') return 'Auditor';
-  if (role === 'website_editor' || role === 'editor' || role === 'website') return 'Website Manager';
+  if (role === 'site_editor') return 'Site Editor';
+  if (role === 'website_editor' || role === 'editor' || role === 'website') return 'Site Editor';
   return role ? role.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase()) : 'Member';
 }
 
 function isAdministratorRole(roleValue) {
   const role = String(roleValue || '').trim().toLowerCase().replace(/\s+/g, '_');
-  return role === 'administrator' || role === 'admin';
+  return role === 'master_admin' || role === 'administrator' || role === 'admin';
 }
 
 function syncHeaderBreadcrumbs() {
@@ -6262,6 +6277,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   resetTransientUiState();
 
   applyAppearancePreference(getAppearancePreference());
+  document.querySelectorAll('[data-appearance-mode]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const value = String(button.getAttribute('data-appearance-mode') || 'light').toLowerCase();
+      try { window.localStorage.setItem(APPEARANCE_PREF_KEY, value); } catch { /* ignore */ }
+      applyAppearancePreference(value);
+      if ($('appearanceHint')) {
+        $('appearanceHint').textContent = value === 'system' ? 'Using your device appearance setting.' : `${value[0].toUpperCase()}${value.slice(1)} appearance selected.`;
+      }
+    });
+  });
   if ($('adminStorageHealthRefreshBtn')) {
     $('adminStorageHealthRefreshBtn').addEventListener('click', async () => {
       await loadAdminStorageHealth();

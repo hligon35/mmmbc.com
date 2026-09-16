@@ -585,9 +585,9 @@ function roleDisplayName(role) {
   const normalized = normalizeRole(role);
   if (normalized === ROLE.ADMINISTRATOR) return 'Administrator';
   if (normalized === ROLE.FINANCE_ENTRY) return 'Finance Entry';
-  if (normalized === ROLE.TREASURER) return 'Treasurer';
+  if (normalized === ROLE.TREASURER) return 'Finance Officer';
   if (normalized === ROLE.AUDITOR) return 'Auditor';
-  return 'Website Manager';
+  return 'Site Editor';
 }
 
 function buildAdminInviteEmailTemplate({ inviteLink, expiresAt, role }) {
@@ -854,12 +854,12 @@ const ROLE_PERMISSIONS = Object.freeze({
 });
 
 function normalizeRole(inputRole) {
-  const raw = String(inputRole || '').trim().toLowerCase();
+  const raw = String(inputRole || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
   if (!raw) return ROLE.WEBSITE_EDITOR;
-  if (raw === 'admin') return ROLE.ADMINISTRATOR;
-  if (raw === 'website' || raw === 'editor' || raw === 'website manager') return ROLE.WEBSITE_EDITOR;
+  if (raw === 'admin' || raw === 'master' || raw === 'master_admin' || raw === 'master_administrator') return ROLE.ADMINISTRATOR;
+  if (raw === 'website' || raw === 'editor' || raw === 'website_manager' || raw === 'site_editor') return ROLE.WEBSITE_EDITOR;
   if (raw === 'finance' || raw === 'financeentry' || raw === 'finance_entry') return ROLE.FINANCE_ENTRY;
-  if (raw === 'treasurer') return ROLE.TREASURER;
+  if (raw === 'treasurer' || raw === 'finance_officer') return ROLE.TREASURER;
   if (raw === 'auditor' || raw === 'read-only' || raw === 'readonly') return ROLE.AUDITOR;
   if (Object.prototype.hasOwnProperty.call(ROLE_PERMISSIONS, raw)) return raw;
   return ROLE.WEBSITE_EDITOR;
@@ -868,6 +868,99 @@ function normalizeRole(inputRole) {
 function permissionsForRole(role) {
   const normalized = normalizeRole(role);
   return ROLE_PERMISSIONS[normalized] || [];
+}
+
+// Role/permission definitions surfaced to the admin.js "Users & Roles" settings panel.
+// Keys/labels/permission strings mirror src/admin-rbac.js (the Worker's canonical RBAC module)
+// so the local dev server renders the same roles matrix as production.
+const SETTINGS_ROLE_DEFINITIONS = Object.freeze([
+  Object.freeze({
+    key: 'administrator',
+    label: 'Administrator',
+    description: 'Full access to website, finance, directory, settings, and administrator management.',
+    permissions: Object.freeze([
+      'announcements.view', 'announcements.manage', 'events.view', 'events.manage',
+      'photos.view', 'photos.manage', 'newsletter.view', 'newsletter.manage',
+      'finance.view', 'finance.record', 'finance.edit_void', 'finance.reports_receipts',
+      'finance.funds_categories', 'finance.export', 'finance.statements_controls',
+      'directory.view', 'directory.manage', 'support.send', 'submissions.view',
+      'submissions.manage', 'users.manage', 'settings.manage'
+    ])
+  }),
+  Object.freeze({
+    key: 'website_editor',
+    label: 'Site Editor',
+    description: 'Manages website content, communications, directory records, and general settings. No finance or administrator management.',
+    permissions: Object.freeze([
+      'announcements.view', 'announcements.manage', 'events.view', 'events.manage',
+      'photos.view', 'photos.manage', 'newsletter.view', 'newsletter.manage',
+      'directory.view', 'directory.manage', 'support.send', 'submissions.view',
+      'submissions.manage', 'settings.manage'
+    ])
+  }),
+  Object.freeze({
+    key: 'finance_entry',
+    label: 'Finance Entry',
+    description: 'Views finance, records transactions, maintains donor and contact information, and uses support.',
+    permissions: Object.freeze(['finance.view', 'finance.record', 'directory.view', 'directory.manage', 'support.send'])
+  }),
+  Object.freeze({
+    key: 'treasurer',
+    label: 'Finance Officer',
+    description: 'Broad finance, fund, donor, statement, report, export, and control access. No website or administrator management.',
+    permissions: Object.freeze([
+      'finance.view', 'finance.record', 'finance.edit_void', 'finance.reports_receipts',
+      'finance.funds_categories', 'finance.export', 'finance.statements_controls',
+      'directory.view', 'directory.manage', 'support.send'
+    ])
+  }),
+  Object.freeze({
+    key: 'auditor',
+    label: 'Auditor',
+    description: 'Read-only finance and report access, plus Help & Support. No create, edit, void, export, approval, or administrator management.',
+    permissions: Object.freeze(['finance.view', 'finance.reports_receipts', 'support.send'])
+  })
+]);
+
+const ADMIN_ACCOUNT_STATUSES = new Set(['pending', 'active', 'suspended', 'revoked']);
+
+function deriveUserStatus(user) {
+  if (user && ADMIN_ACCOUNT_STATUSES.has(user.status)) return user.status;
+  return user?.mustOnboard ? 'pending' : 'active';
+}
+
+function serializeSettingsUser(user) {
+  return {
+    id: String(user.id),
+    email: String(user.email || ''),
+    fullName: String(user.name || ''),
+    name: String(user.name || ''),
+    role: normalizeRole(user.role),
+    status: deriveUserStatus(user),
+    lastLoginAt: String(user.lastLoginAt || ''),
+    createdAt: String(user.createdAt || '')
+  };
+}
+
+function loadAdminSettingsAudit() {
+  const data = readJson(ADMIN_SETTINGS_AUDIT_PATH, { entries: [] });
+  return Array.isArray(data?.entries) ? data.entries : [];
+}
+
+function saveAdminSettingsAudit(entries) {
+  writeJsonAtomic(ADMIN_SETTINGS_AUDIT_PATH, { entries: Array.isArray(entries) ? entries : [] });
+}
+
+function appendAdminSettingsAudit(actor, action, target) {
+  const entries = loadAdminSettingsAudit();
+  entries.unshift({
+    id: newId(),
+    actorEmail: String(actor?.email || ''),
+    action: String(action || ''),
+    targetEmail: String(target?.email || ''),
+    createdAt: new Date().toISOString()
+  });
+  saveAdminSettingsAudit(entries.slice(0, 500));
 }
 
 function hasPermission(role, permission) {
@@ -1343,6 +1436,7 @@ const BULLETINS_DATA_PATH = path.join(DATA_DIR, 'bulletins.json');
 const LIVESTREAM_DATA_PATH = path.join(DATA_DIR, 'livestream.json');
 const SETTINGS_DATA_PATH = path.join(DATA_DIR, 'settings.json');
 const FINANCES_DATA_PATH = path.join(DATA_DIR, 'finances.json');
+const ADMIN_SETTINGS_AUDIT_PATH = path.join(DATA_DIR, 'admin_settings_audit.json');
 const PROFILES_DATA_PATH = path.join(DATA_DIR, 'profiles.json');
 const NEWSLETTER_RECORDS_DATA_PATH = path.join(DATA_DIR, 'newsletter_records.json');
 const FUNDS_DATA_PATH = path.join(DATA_DIR, 'funds.json');
@@ -2761,6 +2855,12 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     return res.status(403).json({ error: 'Account setup required. Use your invite link to finish setup.' });
   }
 
+  const accountStatus = deriveUserStatus(user);
+  if (!user.isMaster && (accountStatus === 'suspended' || accountStatus === 'revoked')) {
+    audit('auth_login_failed', { at: new Date().toISOString(), email, ip: req.ip, reason: `account_${accountStatus}` });
+    return res.status(403).json({ error: 'This administrator account is not active. Contact another administrator.' });
+  }
+
   const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) {
     audit('auth_login_failed', { at: new Date().toISOString(), email, ip: req.ip, reason: 'bad_password' });
@@ -2785,6 +2885,13 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       mustOnboard: !!user.mustOnboard,
       twoFactorEnabled: false
     };
+    const usersAfterLogin = loadUsers();
+    const storedUser = (usersAfterLogin.users || []).find((u) => u.id === user.id);
+    if (storedUser) {
+      storedUser.lastLoginAt = new Date().toISOString();
+      if (!ADMIN_ACCOUNT_STATUSES.has(storedUser.status)) storedUser.status = 'active';
+      saveUsers(usersAfterLogin);
+    }
     audit('auth_login_success', { at: new Date().toISOString(), email, ip: req.ip, userId: user.id });
     res.json({ ok: true });
   });
@@ -2887,6 +2994,12 @@ app.post('/api/auth/google', loginLimiter, async (req, res) => {
     return res.status(403).json({ error: 'Account setup required. Use your invite link to finish setup.' });
   }
 
+  const googleAccountStatus = deriveUserStatus(user);
+  if (!user.isMaster && (googleAccountStatus === 'suspended' || googleAccountStatus === 'revoked')) {
+    audit('auth_login_failed', { at: new Date().toISOString(), email, ip: req.ip, reason: `account_${googleAccountStatus}` });
+    return res.status(403).json({ error: 'This administrator account is not active. Contact another administrator.' });
+  }
+
   req.session.regenerate((err) => {
     if (err) {
       logger.error('session_regenerate_failed', { err, email, ip: req.ip });
@@ -2902,6 +3015,13 @@ app.post('/api/auth/google', loginLimiter, async (req, res) => {
       mustOnboard: !!user.mustOnboard,
       twoFactorEnabled: false
     };
+    const usersAfterGoogleLogin = loadUsers();
+    const storedGoogleUser = (usersAfterGoogleLogin.users || []).find((u) => u.id === user.id);
+    if (storedGoogleUser) {
+      storedGoogleUser.lastLoginAt = new Date().toISOString();
+      if (!ADMIN_ACCOUNT_STATUSES.has(storedGoogleUser.status)) storedGoogleUser.status = 'active';
+      saveUsers(usersAfterGoogleLogin);
+    }
     audit('auth_login_success', {
       at: new Date().toISOString(),
       email,
@@ -3259,6 +3379,164 @@ app.delete('/api/users/:id', requirePermission(PERMISSIONS.USERS_MANAGE), (req, 
   const next = users.filter((u) => u.id !== id);
   saveUsers({ users: next });
   res.json({ ok: true });
+});
+
+// ----------------- ADMIN SETTINGS (Users & Roles panel) -----------------
+app.get('/api/admin/settings/roles', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
+  res.json({ roles: SETTINGS_ROLE_DEFINITIONS });
+});
+
+app.get('/api/admin/settings/users', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
+  const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
+  const pageSize = Math.min(100, Math.max(1, Number.parseInt(String(req.query.pageSize || '25'), 10) || 25));
+  const roleFilter = req.query.role ? normalizeRole(String(req.query.role)) : '';
+  const statusFilter = String(req.query.status || '').trim().toLowerCase();
+  const query = String(req.query.q || '').trim().toLowerCase();
+  if (statusFilter && !ADMIN_ACCOUNT_STATUSES.has(statusFilter)) {
+    return res.status(400).json({ error: 'Status is invalid.' });
+  }
+
+  const usersData = loadUsers();
+  let users = (usersData.users || []).map(serializeSettingsUser);
+  if (roleFilter) users = users.filter((u) => u.role === roleFilter);
+  if (statusFilter) users = users.filter((u) => u.status === statusFilter);
+  if (query) {
+    users = users.filter((u) => u.email.toLowerCase().includes(query) || u.fullName.toLowerCase().includes(query));
+  }
+  const statusOrder = { active: 0, pending: 1, suspended: 2, revoked: 3 };
+  users.sort((a, b) => (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4) || a.email.localeCompare(b.email));
+
+  const total = users.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pageUsers = users.slice((page - 1) * pageSize, page * pageSize);
+  res.json({ users: pageUsers, pagination: { page, pageSize, total, totalPages } });
+});
+
+app.get('/api/admin/settings/users/audit', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
+  const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
+  const pageSize = Math.min(100, Math.max(1, Number.parseInt(String(req.query.pageSize || '25'), 10) || 25));
+  const entries = loadAdminSettingsAudit();
+  const total = entries.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pageEntries = entries.slice((page - 1) * pageSize, page * pageSize);
+  res.json({ audit: pageEntries, entries: pageEntries, pagination: { page, pageSize, total, totalPages } });
+});
+
+app.post('/api/admin/settings/users', requirePermission(PERMISSIONS.USERS_MANAGE), async (req, res) => {
+  const email = String(req.body?.email || '').toLowerCase().trim();
+  const role = normalizeRole(req.body?.role || ROLE.WEBSITE_EDITOR);
+  const fullName = String(req.body?.fullName ?? req.body?.name ?? '').trim().slice(0, 120);
+  const status = String(req.body?.status || 'pending').trim().toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'A valid email is required.' });
+  if (!ADMIN_ACCOUNT_STATUSES.has(status) || status === 'revoked') {
+    return res.status(400).json({ error: 'New administrators may be pending, active, or suspended.' });
+  }
+
+  const usersData = loadUsers();
+  const users = usersData.users || [];
+  if (users.some((u) => String(u.email).toLowerCase() === email)) {
+    return res.status(409).json({ error: 'A user with this email already exists.' });
+  }
+
+  const token = randomToken();
+  const newUser = {
+    id: newId(),
+    email,
+    passwordHash: await bcrypt.hash(randomToken(), 12),
+    role,
+    createdAt: new Date().toISOString(),
+    isMaster: false,
+    name: fullName,
+    mustOnboard: status !== 'active',
+    onboardedAt: status === 'active' ? new Date().toISOString() : '',
+    status,
+    lastLoginAt: '',
+    inviteTokenHash: sha256Hex(token),
+    inviteExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  };
+  users.push(newUser);
+  saveUsers({ users });
+
+  const actor = sessionUser(req);
+  appendAdminSettingsAudit(actor, 'user.created', newUser);
+  audit('admin_settings_user_created', { at: new Date().toISOString(), actorEmail: actor?.email, email, role, status, ip: req.ip });
+
+  res.status(201).json({
+    ok: true,
+    user: serializeSettingsUser(newUser),
+    inviteLink: `${getBaseUrl(req)}/admin/#invite=${token}`,
+    emailSent: false
+  });
+});
+
+app.patch('/api/admin/settings/users/:id', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
+  const usersData = loadUsers();
+  const users = usersData.users || [];
+  const target = users.find((u) => u.id === String(req.params.id));
+  if (!target) return res.status(404).json({ error: 'Administrator user was not found.' });
+
+  const actor = sessionUser(req);
+  const hasRole = Object.hasOwn(req.body || {}, 'role');
+  const hasName = Object.hasOwn(req.body || {}, 'fullName') || Object.hasOwn(req.body || {}, 'name');
+  if (!hasRole && !hasName) return res.status(400).json({ error: 'Provide a role or full name to update.' });
+
+  const nextRole = hasRole ? normalizeRole(req.body.role) : normalizeRole(target.role);
+  if (actor?.id === target.id && nextRole !== normalizeRole(target.role)) {
+    return res.status(409).json({ error: 'You cannot change your own role or account status.' });
+  }
+  if (target.isMaster && hasRole && nextRole !== ROLE.ADMINISTRATOR) {
+    return res.status(400).json({ error: 'Master admin role cannot be changed.' });
+  }
+
+  target.role = nextRole;
+  if (hasName) target.name = String(req.body.fullName ?? req.body.name ?? '').trim().slice(0, 120);
+  saveUsers({ users });
+
+  appendAdminSettingsAudit(actor, 'user.updated', target);
+  res.json({ ok: true, user: serializeSettingsUser(target) });
+});
+
+app.post('/api/admin/settings/users/:id/:action(activate|suspend|reactivate|revoke)', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
+  const usersData = loadUsers();
+  const users = usersData.users || [];
+  const target = users.find((u) => u.id === String(req.params.id));
+  if (!target) return res.status(404).json({ error: 'Administrator user was not found.' });
+
+  const actor = sessionUser(req);
+  const action = req.params.action;
+  const currentStatus = deriveUserStatus(target);
+  const transitions = {
+    activate: new Set(['pending', 'suspended']),
+    reactivate: new Set(['suspended', 'revoked']),
+    suspend: new Set(['active']),
+    revoke: new Set(['pending', 'active', 'suspended'])
+  };
+  if (!transitions[action]?.has(currentStatus)) {
+    return res.status(409).json({ error: `A ${currentStatus} user cannot be ${action}d.` });
+  }
+  if (target.isMaster && (action === 'suspend' || action === 'revoke')) {
+    return res.status(400).json({ error: 'Master admin access cannot be suspended or revoked.' });
+  }
+  if (actor?.id === target.id) {
+    return res.status(409).json({ error: 'You cannot change your own account status.' });
+  }
+
+  const nextStatus = action === 'activate' || action === 'reactivate' ? 'active' : action === 'suspend' ? 'suspended' : 'revoked';
+  const activeAdminCount = users.filter((u) => normalizeRole(u.role) === ROLE.ADMINISTRATOR && deriveUserStatus(u) === 'active').length;
+  if (normalizeRole(target.role) === ROLE.ADMINISTRATOR && currentStatus === 'active' && nextStatus !== 'active' && activeAdminCount <= 1) {
+    return res.status(409).json({ error: 'At least one active administrator must remain.' });
+  }
+
+  target.status = nextStatus;
+  if (nextStatus === 'active') {
+    target.mustOnboard = false;
+    if (!target.onboardedAt) target.onboardedAt = new Date().toISOString();
+  }
+  saveUsers({ users });
+
+  const auditAction = { activate: 'activated', suspend: 'suspended', reactivate: 'reactivated', revoke: 'revoked' }[action];
+  appendAdminSettingsAudit(actor, `user.${auditAction}`, target);
+  res.json({ ok: true, user: serializeSettingsUser(target) });
 });
 
 // ----------------- GALLERY -----------------

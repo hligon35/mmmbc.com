@@ -120,6 +120,7 @@ describe('Admin accessibility redesign guards', () => {
     expect(indexHtml).toContain('id="submissionsTypeCountContact"');
     expect(indexHtml).toContain('id="submissionsTypeCountFacility"');
     expect(adminCss).toContain('#tab-submissions .submissionsTypeFilters{');
+    expect(adminCss).toContain('background:var(--danger);');
     expect(adminJs).toContain('let submissionsTypeFilter = \'all\';');
     expect(adminJs).toContain('function updateSubmissionTypeFilters(rows)');
     expect(adminJs).toContain("String(row?.type || '').toLowerCase() === submissionsTypeFilter");
@@ -155,15 +156,25 @@ describe('Admin accessibility redesign guards', () => {
 
   test('Appearance controls support light dark and device options', () => {
     expect(indexHtml).toContain('id="appearanceSelect"');
+    expect(indexHtml).toContain('id="headerThemeToggle"');
+    expect(indexHtml).toContain('data-appearance-mode="light"');
+    expect(indexHtml).toContain('data-appearance-mode="system"');
+    expect(indexHtml).toContain('data-appearance-mode="dark"');
     expect(indexHtml).toContain('option value="light"');
     expect(indexHtml).toContain('option value="dark"');
     expect(indexHtml).toContain('option value="system"');
     expect(adminJs).toContain('applyAppearancePreference');
+    expect(adminJs).toContain('function syncAppearanceControls(selected)');
+    expect(adminJs).toContain("document.querySelectorAll('[data-appearance-mode]')");
     expect(adminJs).toContain('document.documentElement.style.colorScheme');
+    expect(adminCss).toContain('#adminHeader .headerThemeToggle{');
+    expect(adminCss).toContain('html body #adminHeader .headerThemeToggle{');
+    expect(adminCss).toContain('html body #adminHeader .adminHeader__tabs #adminSideNav .sideNav__groupLabel');
     expect(adminCss).toContain('body.theme-light,');
     expect(adminCss).toContain('body.theme-system.theme-effective-light');
     expect(adminCss).toContain('body.theme-dark .input:not([type="time"])');
     expect(adminCss).toContain('body.theme-light .select,');
+    expect(adminCss).toContain('background-repeat:no-repeat;');
     expect(adminCss).toContain('body.theme-dark .settingsMatrix td[data-access="manage"]');
     expect(adminCss).toContain('body.theme-dark .newsletterTemplate,');
     expect(adminCss).toContain('body[data-page] .card{background:#1b212b;');

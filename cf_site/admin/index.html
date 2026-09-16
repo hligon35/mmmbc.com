@@ -30,6 +30,11 @@
           <div class="adminHeader__account">
             <div class="headerSignedIn status" id="authStatus" aria-live="polite"></div>
             <div class="headerActions">
+              <div class="headerThemeToggle" id="headerThemeToggle" role="group" aria-label="Appearance mode">
+                <button class="headerThemeToggle__btn" type="button" data-appearance-mode="light" aria-label="Light mode" title="Light mode">☀</button>
+                <button class="headerThemeToggle__btn" type="button" data-appearance-mode="system" aria-label="Use device appearance" title="Use device appearance">◐</button>
+                <button class="headerThemeToggle__btn" type="button" data-appearance-mode="dark" aria-label="Dark mode" title="Dark mode">☾</button>
+              </div>
               <button class="btn btn--drawerToggle" id="navDrawerToggle" type="button" aria-expanded="false" aria-controls="adminSideNav" aria-label="Open Menu">Open Menu</button>
               <button class="btn" id="logoutBtn" type="button" hidden>Log out</button>
             </div>
@@ -1660,6 +1665,6 @@
   <script src="/admin/admin.js?v=20260730k" defer></script>
   <script src="/admin/admin-directory.js?v=20260730a" defer></script>
   <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260916011717" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260916025223" defer></script>
 </body>
 </html>
