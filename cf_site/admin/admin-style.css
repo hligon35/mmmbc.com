@@ -5466,3 +5466,12 @@ th{background:#0f141c;text-align:left;}
     width:100%;
   }
 }
+
+/* Keep the event time control compact without shrinking the date field. */
+@media (min-width:721px){
+  #eventForm input[type="time"].input{
+    width:calc(100% - 25px);
+    max-width:calc(100% - 25px);
+    justify-self:start;
+  }
+}
