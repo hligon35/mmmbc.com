@@ -47,6 +47,7 @@
 
             <p class="sideNav__groupLabel" aria-hidden="true">Website Updates</p>
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-content" id="tabBtn-content">Announcements</button>
+            <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-ministries" id="tabBtn-ministries">Ministry Profiles</button>
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-events" id="tabBtn-events">Events</button>
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-photos" id="tabBtn-photos">Photos</button>
 
@@ -1298,6 +1299,85 @@
         <div class="srOnly" id="directoryLiveRegion" aria-live="polite" aria-atomic="true"></div>
       </section>
 
+      <!-- Ministry Profiles -->
+      <section class="tabPanel ministryProfilesPanel" role="tabpanel" id="tab-ministries" aria-labelledby="tabBtn-ministries" hidden data-header-crumb="Ministry Profiles" data-header-description="Add, edit, reorder, and publish the individual profiles shown on the Ministries page.">
+        <div class="sectionHeader ministryProfilesHeader">
+          <div>
+            <h2 class="sectionHeader__title">Ministry Profiles</h2>
+            <p class="muted">Manage the individual ministry leader cards shown on the public Ministries page. Save a draft first, then publish when the page is ready.</p>
+          </div>
+          <div class="toolbar ministryProfilesHeader__actions">
+            <button class="btn" id="ministriesRefreshBtn" type="button">Refresh</button>
+            <button class="btn btn--primary" id="ministriesAddProfileBtn" type="button">Add Profile</button>
+          </div>
+        </div>
+
+        <form class="card form ministryPageForm" id="ministriesPageForm">
+          <input type="hidden" name="profilesState" id="ministriesProfilesState" value="[]" />
+          <div class="formRow ministryPageForm__fields">
+            <label class="label">Page heading<input class="input" id="ministriesPageTitle" name="pageTitle" type="text" maxlength="100" required /></label>
+            <label class="label ministryPageForm__intro">Intro text<textarea class="textarea" id="ministriesPageIntro" name="pageIntro" rows="3" maxlength="2000"></textarea></label>
+          </div>
+          <div class="toolbar ministryPageForm__actions">
+            <button class="btn btn--primary" id="ministriesSaveDraftBtn" type="button">Save Draft</button>
+            <button class="btn" id="ministriesPublishBtn" type="button">Publish to Website</button>
+            <button class="btn btn--danger" id="ministriesRestoreBtn" type="button">Restore Previous Publish</button>
+          </div>
+          <div class="hint" id="ministriesEditorStatus" role="status" aria-live="polite">Loading ministry profiles…</div>
+          <div class="error" id="ministriesEditorError" role="alert" hidden></div>
+        </form>
+
+        <section class="card ministryProfilesListCard" aria-labelledby="ministriesProfilesListTitle">
+          <div class="sectionHeader sectionHeader--compact">
+            <div>
+              <h3 class="card__subtitle" id="ministriesProfilesListTitle">Profiles on the page</h3>
+              <p class="muted" id="ministriesProfilesCount">0 profiles</p>
+            </div>
+            <p class="hint" id="ministriesVersionSummary" aria-live="polite"></p>
+          </div>
+          <div class="ministryProfileAdminGrid" id="ministriesProfilesList" aria-live="polite"></div>
+          <div class="directoryState" id="ministriesProfilesEmpty" hidden>No profiles have been added yet. Select Add Profile to create the first card.</div>
+        </section>
+      </section>
+
+      <dialog class="dialog ministryProfileDialog" id="ministryProfileDialog" aria-labelledby="ministryProfileDialogTitle" aria-modal="true">
+        <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
+        <div class="card dialog__inner ministryProfileDialog__inner">
+          <div class="sectionHeader sectionHeader--compact">
+            <div>
+              <h2 class="sectionHeader__title" id="ministryProfileDialogTitle">Add Ministry Profile</h2>
+              <p class="muted">This edits one card. Save the page draft after making your card changes.</p>
+            </div>
+            <button class="btn" id="ministryProfileDialogCloseBtn" type="button">Close</button>
+          </div>
+          <form class="form" id="ministryProfileForm">
+            <input type="hidden" id="ministryProfileId" name="id" />
+            <div class="formRow">
+              <label class="label">Name<input class="input" id="ministryProfileName" name="name" type="text" maxlength="120" required /></label>
+              <label class="label">Title or role<input class="input" id="ministryProfileTitle" name="title" type="text" maxlength="160" placeholder="Optional" /></label>
+            </div>
+            <label class="label">Biography<textarea class="textarea" id="ministryProfileBio" name="bio" rows="10" maxlength="4000" placeholder="Write the biography shown on the public card."></textarea></label>
+            <div class="ministryProfileImageEditor">
+              <div class="ministryProfileImagePreviewWrap">
+                <img id="ministryProfileImagePreview" class="ministryProfileImagePreview" alt="" hidden />
+                <div id="ministryProfileImageEmpty" class="ministryProfileImageEmpty">No photo selected</div>
+              </div>
+              <div class="form">
+                <label class="label">Photo file<input class="input" id="ministryProfileImageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
+                <label class="label">Photo URL<input class="input" id="ministryProfileImageUrl" name="imageUrl" type="url" maxlength="500" placeholder="Optional existing image URL" /></label>
+                <label class="label">Photo description<input class="input" id="ministryProfileImageAlt" name="imageAlt" type="text" maxlength="200" placeholder="Accessible description" /></label>
+                <p class="hint">Choose a file to upload it to Cloudflare storage when you save this profile. A URL may be used for an existing image.</p>
+              </div>
+            </div>
+            <div class="toolbar ministryProfileDialog__actions">
+              <button class="btn" id="ministryProfileCancelBtn" type="button">Cancel</button>
+              <button class="btn btn--primary" type="submit">Save Profile</button>
+            </div>
+            <div class="error" id="ministryProfileFormError" role="alert" hidden></div>
+          </form>
+        </div>
+      </dialog>
+
       <!-- Events -->
       <section class="tabPanel" role="tabpanel" id="tab-events" aria-labelledby="tabBtn-events" hidden data-header-crumb="Events" data-header-description="Add service times, meetings, and church programs.">
         <div class="sectionHeader sectionHeader--compact eventsHeaderRow">
@@ -1663,8 +1743,9 @@
   </dialog>
 
   <script src="/admin/admin.js?v=20260730k" defer></script>
+  <script src="/admin/admin-ministry-profiles.js?v=20260919a" defer></script>
   <script src="/admin/admin-directory.js?v=20260730a" defer></script>
   <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260918024433" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260919195739" defer></script>
 </body>
 </html>

@@ -5500,3 +5500,171 @@ body[data-page] .stackListRow{display:grid;grid-template-columns:minmax(0,1fr) m
     justify-self:start;
   }
 }
+
+/* ============================================================
+   Ministry profile editor
+   ============================================================ */
+
+.ministryProfilesHeader,
+.ministryPageForm__actions,
+.ministryProfileDialog__actions{
+  align-items:center;
+}
+
+.ministryProfilesHeader__actions{
+  justify-content:flex-end;
+}
+
+.ministryPageForm{
+  display:grid;
+  gap:16px;
+  margin-bottom:16px;
+}
+
+.ministryPageForm__fields{
+  grid-template-columns:minmax(220px,.75fr) minmax(320px,1.25fr);
+  align-items:start;
+}
+
+.ministryPageForm__intro{
+  min-width:0;
+}
+
+.ministryPageForm__actions{
+  justify-content:flex-end;
+  border-top:1px solid var(--border);
+  padding-top:14px;
+}
+
+.ministryProfileAdminGrid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:16px;
+}
+
+.ministryProfileAdminCard{
+  display:grid;
+  grid-template-columns:92px minmax(0,1fr);
+  gap:14px;
+  align-items:start;
+  min-width:0;
+  padding:14px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:rgba(255,255,255,.025);
+}
+
+.ministryProfileAdminCard__image,
+.ministryProfileImagePreview{
+  width:92px;
+  height:92px;
+  object-fit:cover;
+  object-position:center;
+  border-radius:12px;
+  background:#1a1a1a;
+  border:1px solid var(--border);
+}
+
+.ministryProfileAdminCard__image--empty{
+  display:grid;
+  place-items:center;
+  color:var(--muted);
+  font-size:.8rem;
+  text-align:center;
+  padding:8px;
+}
+
+.ministryProfileAdminCard__body{
+  min-width:0;
+}
+
+.ministryProfileAdminCard__name{
+  margin:0 0 3px;
+  font-size:1.05rem;
+  overflow-wrap:anywhere;
+}
+
+.ministryProfileAdminCard__title{
+  margin:0 0 8px;
+  color:var(--muted);
+  font-size:.9rem;
+}
+
+.ministryProfileAdminCard__bio{
+  margin:0;
+  color:var(--muted);
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:4;
+  overflow:hidden;
+  white-space:pre-line;
+}
+
+.ministryProfileAdminCard__actions{
+  grid-column:1 / -1;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  padding-top:10px;
+  border-top:1px solid var(--border);
+}
+
+.ministryProfileAdminCard__actions .btn{
+  min-height:38px;
+}
+
+.ministryProfileDialog__inner{
+  width:min(860px,calc(100vw - 28px));
+  max-height:min(90vh,900px);
+  overflow:auto;
+}
+
+.ministryProfileImageEditor{
+  display:grid;
+  grid-template-columns:112px minmax(0,1fr);
+  gap:16px;
+  align-items:start;
+}
+
+.ministryProfileImagePreviewWrap{
+  display:grid;
+  place-items:center;
+  min-height:112px;
+}
+
+.ministryProfileImagePreview{
+  width:112px;
+  height:112px;
+}
+
+.ministryProfileImageEmpty{
+  display:grid;
+  place-items:center;
+  width:112px;
+  height:112px;
+  padding:10px;
+  border:1px dashed var(--border);
+  border-radius:12px;
+  color:var(--muted);
+  text-align:center;
+  font-size:.85rem;
+}
+
+@media (max-width:760px){
+  .ministryPageForm__fields,
+  .ministryProfileImageEditor{
+    grid-template-columns:1fr;
+  }
+
+  .ministryProfilesHeader,
+  .ministryProfilesHeader__actions,
+  .ministryPageForm__actions{
+    align-items:stretch;
+    justify-content:stretch;
+  }
+
+  .ministryProfilesHeader__actions .btn,
+  .ministryPageForm__actions .btn{
+    flex:1 1 160px;
+  }
+}

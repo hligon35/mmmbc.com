@@ -34,12 +34,47 @@ function parseJsonColumn(raw, fallback) {
   }
 }
 
+function isLegacySeedRow(row) {
+  return String(row?.draft_updated_by || '') === 'system:migration'
+    && String(row?.published_updated_by || '') === 'system:migration'
+    && Number(row?.draft_version || 0) <= 1
+    && Number(row?.published_version || 0) <= 1;
+}
+
+function needsMinistryProfileSeed(row) {
+  if (!isLegacySeedRow(row)) return false;
+  const draft = parseJsonColumn(row?.draft_fields, {});
+  const published = parseJsonColumn(row?.published_fields, {});
+  return Array.isArray(draft.profiles) && draft.profiles.length === 0
+    && Array.isArray(published.profiles) && published.profiles.length === 0;
+}
+
+async function backfillLegacyMinistryProfiles(env, row) {
+  if (!row || !needsMinistryProfileSeed(row)) return row;
+
+  const seed = INITIAL_PUBLISHED_CONTENT.ministries || {};
+  const seedJson = JSON.stringify(seed);
+  try {
+    await env.DB.prepare(
+      `UPDATE site_page_content
+         SET draft_fields = ?, published_fields = ?, draft_updated_by = 'system:migration', published_updated_by = 'system:migration'
+       WHERE page = ? AND draft_version <= 1 AND published_version <= 1`
+    ).bind(seedJson, seedJson, 'ministries').run();
+  } catch {
+    // The existing row remains a safe fallback; a later read can retry the backfill.
+  }
+  return env.DB.prepare('SELECT * FROM site_page_content WHERE page = ?').bind('ministries').first();
+}
+
 // Idempotent migration: creates the D1 row for a page the first time it's needed,
 // seeded from INITIAL_PUBLISHED_CONTENT so the public site's appearance is unchanged.
 // Never overwrites an existing row.
 async function ensurePageRow(env, page) {
   const existing = await env.DB.prepare('SELECT * FROM site_page_content WHERE page = ?').bind(page).first();
-  if (existing) return existing;
+  if (existing) {
+    if (page === 'ministries') return backfillLegacyMinistryProfiles(env, existing);
+    return existing;
+  }
 
   const seed = INITIAL_PUBLISHED_CONTENT[page] || {};
   const seedJson = JSON.stringify(seed);
@@ -296,7 +331,14 @@ export async function handlePublicSiteContentGet(request, env, page) {
         'SELECT published_fields, published_version, published_updated_at FROM site_page_content WHERE page = ?'
       ).bind(key).first();
       if (row) {
-        fields = mergeWithSeed(key, parseJsonColumn(row.published_fields, fields));
+        const storedFields = parseJsonColumn(row.published_fields, fields);
+        const legacyMinistryRow = key === 'ministries'
+          && Array.isArray(storedFields.profiles)
+          && storedFields.profiles.length === 0
+          && Number(row.published_version || 0) <= 1;
+        fields = legacyMinistryRow
+          ? mergeWithSeed(key, { ...storedFields, profiles: INITIAL_PUBLISHED_CONTENT.ministries.profiles })
+          : mergeWithSeed(key, storedFields);
         version = row.published_version;
         updatedAt = row.published_updated_at;
       }
