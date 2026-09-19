@@ -3610,7 +3610,9 @@ body.navDrawerCollapsed .sideNav{display:flex;}
 .dashboardList,
 .dashboardStats {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
   gap: 8px;
+  align-items: stretch;
 }
 
 .dashboardItem {
@@ -3683,6 +3685,9 @@ body.navDrawerCollapsed .sideNav{display:flex;}
 }
 
 .dashboardEmpty {
+  grid-column: 1 / -1;
+  width: 100%;
+  box-sizing: border-box;
   border: 1px dashed var(--dash-border);
   border-radius: 10px;
   padding: 10px;

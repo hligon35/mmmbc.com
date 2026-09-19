@@ -218,30 +218,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const answer = item.querySelector('.faq-answer');
         if (!question) return;
         if (!question.hasAttribute('tabindex')) question.setAttribute('tabindex', '0');
-        question.setAttribute('role', 'button');
         if (answer) {
             if (!answer.id) answer.id = `faq-answer-${Math.random().toString(36).slice(2, 9)}`;
             question.setAttribute('aria-controls', answer.id);
         }
-        question.setAttribute('aria-expanded', item.classList.contains('active') ? 'true' : 'false');
-        question.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                question.click();
-            }
-        });
-        question.addEventListener('click', () => {
-            const isActive = item.classList.contains('active');
-            faqItems.forEach((otherItem) => {
-                otherItem.classList.remove('active');
-                const otherQuestion = otherItem.querySelector('.faq-question');
-                if (otherQuestion) otherQuestion.setAttribute('aria-expanded', 'false');
-            });
-            if (!isActive) {
-                item.classList.add('active');
-                question.setAttribute('aria-expanded', 'true');
-            }
-        });
+        question.setAttribute('aria-expanded', 'false');
+        const syncFaqState = () => {
+            question.setAttribute('aria-expanded', item.matches(':hover, :focus-within') ? 'true' : 'false');
+        };
+        item.addEventListener('mouseenter', syncFaqState);
+        item.addEventListener('mouseleave', syncFaqState);
+        item.addEventListener('focusin', syncFaqState);
+        item.addEventListener('focusout', syncFaqState);
     });
 
     const menuButton = document.getElementById('menuButton');

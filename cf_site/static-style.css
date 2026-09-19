@@ -1083,6 +1083,9 @@ section div p {
 }
 
 .faq-item {
+    position: relative;
+    min-height: 122px;
+    overflow: hidden;
     background-color: rgba(255, 255, 255, 0.1);
     margin-bottom: 15px;
     border-radius: 10px;
@@ -1090,6 +1093,11 @@ section div p {
 }
 
 .faq-question {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    min-height: 122px;
+    place-items: center;
     padding: 16px;
     margin: 0;
     cursor: pointer;
@@ -1097,41 +1105,53 @@ section div p {
     color: #ffffff;
     background-color: rgba(196, 97, 35, 0.5); /* Semi-transparent accent color */
     border-radius: 10px 10px 10px 10px; /* Round top corners if answer is hidden initially */
-    transition: background-color 0.3s ease;
+    transition: opacity 0.28s ease;
 }
 
-.faq-question:hover {
-    background-color: rgba(196, 97, 35, 0.7);
+.faq-item:hover .faq-question,
+.faq-item:focus-within .faq-question {
+    opacity: 0;
 }
 
 .faq-answer {
-    padding: 0 4px; /* Add padding only to sides initially */
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    padding: 16px;
     margin: 0;
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.5s ease-out, padding 0.5s ease-out; /* Smooth transition for height and padding */
-    background-color: rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    background-color: rgba(0, 0, 0, 0.86);
     border-radius: 10px 10px 10px 10px; /* Round bottom corners */
+    transition: opacity 0.28s ease, visibility 0s linear 0.28s;
 }
 
 .faq-answer p {
-    padding: 15px 0; /* Add vertical padding when answer is shown */
+    padding: 0;
     margin: 0;
     color: #f0f0f0; /* Lighter text for answer */
     font-size: 1em;
     line-height: 1.6;
 }
 
-/***** Style for when the FAQ item is active/open *****/
-
-.faq-item.active .faq-answer {
-    max-height: 500px; /* Adjust as needed to fit content */
-    padding: 0 15px; /* Ensure side padding is maintained */
+.faq-item:hover .faq-answer,
+.faq-item:focus-within .faq-answer {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition-delay: 0s;
 }
 
-.faq-item.active .faq-question {
-    background-color: #c46123cc;
-    border-radius: 10px 10px 10px 10px;
+@media (prefers-reduced-motion: reduce) {
+    .faq-question,
+    .faq-answer {
+        transition-duration: 0.01ms;
+    }
 }
 
 /********** Footer Styles **********/
@@ -2042,6 +2062,27 @@ button.youtube-live-placeholder__button {
 .youtube-live-placeholder__button:hover,
 .youtube-section__button:hover {
     background: rgba(196, 97, 35, 0.35);
+}
+
+.youtube-subscribe-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 14px;
+    border: 1px solid #ff0000;
+    border-radius: 999px;
+    background: #ff0000;
+    color: #fff;
+    text-decoration: none;
+    font-weight: 800;
+    box-shadow: 0 8px 18px rgba(120, 0, 0, 0.22);
+}
+
+.youtube-subscribe-button:hover,
+.youtube-subscribe-button:focus-visible {
+    background: #cc0000;
+    border-color: #cc0000;
+    color: #fff;
 }
 
 .youtube-section {

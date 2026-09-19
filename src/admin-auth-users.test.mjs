@@ -100,6 +100,26 @@ test('RBAC matrix grants only the intended finance and user permissions', () => 
   assert.equal(normalizeRole('Site Editor'), 'website_editor');
 });
 
+test('approved administrator roster is seeded with canonical roles', () => {
+  const DB = createD1();
+  DB.database.exec(readFileSync(new URL('../migrations/admin/0008_implement_admin_roster_roles.sql', import.meta.url), 'utf8'));
+  DB.database.exec(readFileSync(new URL('../migrations/admin/0009_sync_admin_roster_roles.sql', import.meta.url), 'utf8'));
+
+  const rows = DB.database.prepare('SELECT email, full_name, role, status FROM admin_users ORDER BY email').all();
+  assert.equal(rows.length, 9);
+  assert.deepEqual(rows.map((row) => [row.email, row.full_name, row.role, row.status]), [
+    ['calvin.cole@att.net', 'Calvin Cole, Jr.', 'website_editor', 'pending'],
+    ['ddstrong40@bellsouth.net', 'Derek Strong', 'website_editor', 'pending'],
+    ['hligon@getsparqd.com', 'Harold Ligon', 'administrator', 'pending'],
+    ['johnburnett313@icloud.com', 'John Burnett', 'administrator', 'pending'],
+    ['lifeisgood35@msn.com', 'Elbert Spears', 'website_editor', 'pending'],
+    ['mrstree1961@gmail.com', 'Marsha Roundtree', 'administrator', 'pending'],
+    ['sfhcrown@yahoo.com', 'Rev. Steve Harvey', 'administrator', 'pending'],
+    ['sheronacrim@yahoo.com', 'Sherona Waldon', 'website_editor', 'pending'],
+    ['stokes9119@bellsouth.net', 'Weldon Stokes', 'treasurer', 'pending']
+  ]);
+});
+
 test('Access authentication verifies JWT crypto and never trusts the email header', async () => {
   const { publicKey, privateKey } = await generateKeyPair('RS256');
   const env = createEnv(createD1(), publicKey);
