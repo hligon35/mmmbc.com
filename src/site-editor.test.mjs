@@ -5,6 +5,7 @@
 //
 // Run with: node --test src/site-editor.test.mjs
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { test } from 'node:test';
 import { validatePageFields } from './site-editor-validate.js';
 import { getPageSchema, INITIAL_PUBLISHED_CONTENT } from './site-editor-schema.js';
@@ -65,12 +66,15 @@ test('publish-time validation enforces required page.title on ministries page', 
   assert.ok(errors.some((e) => /page.title.*required/i.test(e)));
 });
 
-test('ministries editor seed preserves the existing six public profile cards', () => {
+test('ministries editor seed exposes the fourteen ministry profiles', () => {
   const profiles = INITIAL_PUBLISHED_CONTENT.ministries.profiles;
-  assert.equal(profiles.length, 6);
+  assert.equal(profiles.length, 14);
   assert.deepEqual(profiles.map((profile) => profile.id), [
     'ministries-1', 'ministries-2', 'ministries-3',
-    'ministries-4', 'ministries-5', 'ministries-6'
+    'ministries-4', 'ministries-5', 'ministries-6',
+    'ministries-7', 'ministries-8', 'ministries-9',
+    'ministries-10', 'ministries-11', 'ministries-12',
+    'ministries-13', 'ministries-14'
   ]);
   assert.ok(profiles.every((profile) => profile.name && profile.image.url && profile.bio));
 
@@ -82,4 +86,34 @@ test('ministries editor seed preserves the existing six public profile cards', (
   assert.equal(errors.length, 0, `expected no errors, got: ${JSON.stringify(errors)}`);
   assert.ok(ok);
   assert.equal(fields.profiles.length, profiles.length);
+});
+
+test('leadership editor seed contains the staff profiles', () => {
+  const profiles = INITIAL_PUBLISHED_CONTENT.leadership.profiles;
+  assert.deepEqual(profiles.map((profile) => profile.name), [
+    'Rev. Stephen Harvey', 'Marsha Roundtree', 'Weldon Stokes', 'John Burnett'
+  ]);
+  assert.ok(profiles.every((profile) => profile.group === 'staff' && profile.image.url && profile.bio));
+
+  const { ok, errors } = validatePageFields('leadership', {
+    ...INITIAL_PUBLISHED_CONTENT.leadership,
+    profiles
+  }, { partial: false });
+  assert.equal(errors.length, 0, `expected no errors, got: ${JSON.stringify(errors)}`);
+  assert.ok(ok);
+});
+
+test('public profile pages keep their corrected assignments', () => {
+  const leadership = fs.readFileSync(new URL('../Pages/leadership.html', import.meta.url), 'utf8');
+  const associates = fs.readFileSync(new URL('../Pages/associate_ministers.html', import.meta.url), 'utf8');
+  const ministries = fs.readFileSync(new URL('../Pages/ministries.html', import.meta.url), 'utf8');
+
+  assert.match(leadership, /Rev\. Stephen Harvey/);
+  assert.match(leadership, /Marsha Roundtree/);
+  assert.doesNotMatch(leadership, /meta http-equiv="refresh"/i);
+  assert.match(associates, /Evangelist Melanie Nunn/);
+  assert.match(associates, /Rev\. Dennis Gray/);
+  assert.match(ministries, /Music Department/);
+  assert.match(ministries, /Video \/ Audio Ministry/);
+  assert.doesNotMatch(ministries, /Evangelist Melanie Nunn/);
 });
