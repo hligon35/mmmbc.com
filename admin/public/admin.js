@@ -334,6 +334,7 @@ const APPEARANCE_PREF_KEY = 'mmmbc_admin_appearance_v1';
 const USERS_MANAGE_PERMISSION = 'users.manage';
 const SECTION_PERMISSIONS = Object.freeze({
   'tab-content': 'announcements.view',
+  'tab-ministries': 'settings.manage',
   'tab-events': 'events.view',
   'tab-photos': 'photos.view',
   'tab-newsletter': 'newsletter.view',
@@ -1240,6 +1241,7 @@ function setTab(activeId) {
     $('tabBtn-photos'),
     $('tabBtn-events'),
     $('tabBtn-content'),
+    $('tabBtn-ministries'),
     $('tabBtn-finances'),
     $('tabBtn-directory'),
     $('tabBtn-submissions'),
@@ -1252,6 +1254,7 @@ function setTab(activeId) {
     $('tab-photos'),
     $('tab-events'),
     $('tab-content'),
+    $('tab-ministries'),
     $('tab-finances'),
     $('tab-directory'),
     $('tab-submissions'),
@@ -1332,6 +1335,7 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
     'tab-photos': 'photos',
     'tab-events': 'events',
     'tab-content': subTabId === 'panel-content-bulletins' ? 'bulletins' : 'announcements',
+    'tab-ministries': 'ministries',
     'tab-finances': 'finances',
     'tab-directory': 'directory',
     'tab-submissions': 'submissions',
@@ -1543,6 +1547,7 @@ function applyHashNavigation() {
   if (h === 'content') {
     activateMainSection('tab-content', { subTabId: 'panel-content-announcements' });
   }
+  if (h === 'ministries') activateMainSection('tab-ministries');
   if (h === 'finances' || h === 'finance') activateMainSection('tab-finances');
   if (h === 'directory') activateMainSection('tab-directory', { subTabId: 'panel-directory-contacts' });
   if (h === 'submissions') activateMainSection('tab-submissions');
@@ -6277,6 +6282,16 @@ async function loadAdminStorageHealth() {
   }
 }
 
+// Small public bridge for focused admin modules. Keeping the shared request and
+// unsaved-change handling here means section-specific editors use the same CSRF,
+// session-expiry, and navigation behavior as the rest of the dashboard.
+window.MMBCAdmin = Object.assign(window.MMBCAdmin || {}, {
+  api,
+  confirmWrite,
+  resetUnsavedBaseline,
+  updateUnsavedForForm
+});
+
 // -------- Wire UI --------
 document.addEventListener('DOMContentLoaded', async () => {
   updateHeaderBumper();
@@ -6385,6 +6400,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('tabBtn-photos')) $('tabBtn-photos').addEventListener('click', () => activateMainSection('tab-photos', { subTabId: 'panel-photos-manage' }));
   if ($('tabBtn-events')) $('tabBtn-events').addEventListener('click', () => activateMainSection('tab-events'));
   if ($('tabBtn-content')) $('tabBtn-content').addEventListener('click', () => activateMainSection('tab-content', { subTabId: 'panel-content-announcements' }));
+  if ($('tabBtn-ministries')) $('tabBtn-ministries').addEventListener('click', () => activateMainSection('tab-ministries'));
   if ($('tabBtn-finances')) $('tabBtn-finances').addEventListener('click', () => activateMainSection('tab-finances'));
   if ($('tabBtn-directory')) $('tabBtn-directory').addEventListener('click', () => activateMainSection('tab-directory', { subTabId: 'panel-directory-contacts' }));
   if ($('tabBtn-submissions')) $('tabBtn-submissions').addEventListener('click', () => { activateMainSection('tab-submissions'); loadWebsiteSubmissions().catch(() => {}); });
@@ -6538,7 +6554,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     'newsletterForm',
     'photoUploadForm',
     'supportForm',
-    'directoryContactForm'
+    'directoryContactForm',
+    'ministriesPageForm'
   ];
   for (const formId of unsavedFormIds) {
     const form = $(formId);

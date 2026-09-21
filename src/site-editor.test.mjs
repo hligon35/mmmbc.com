@@ -64,3 +64,22 @@ test('publish-time validation enforces required page.title on ministries page', 
   assert.equal(ok, false);
   assert.ok(errors.some((e) => /page.title.*required/i.test(e)));
 });
+
+test('ministries editor seed preserves the existing six public profile cards', () => {
+  const profiles = INITIAL_PUBLISHED_CONTENT.ministries.profiles;
+  assert.equal(profiles.length, 6);
+  assert.deepEqual(profiles.map((profile) => profile.id), [
+    'ministries-1', 'ministries-2', 'ministries-3',
+    'ministries-4', 'ministries-5', 'ministries-6'
+  ]);
+  assert.ok(profiles.every((profile) => profile.name && profile.image.url && profile.bio));
+
+  const { ok, fields, errors } = validatePageFields('ministries', {
+    'page.title': INITIAL_PUBLISHED_CONTENT.ministries['page.title'],
+    'page.intro': INITIAL_PUBLISHED_CONTENT.ministries['page.intro'],
+    profiles
+  }, { partial: false });
+  assert.equal(errors.length, 0, `expected no errors, got: ${JSON.stringify(errors)}`);
+  assert.ok(ok);
+  assert.equal(fields.profiles.length, profiles.length);
+});

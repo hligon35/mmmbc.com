@@ -3620,7 +3620,9 @@ body.navDrawerCollapsed .sideNav{display:flex;}
 .dashboardList,
 .dashboardStats {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
   gap: 8px;
+  align-items: stretch;
 }
 
 .dashboardItem {
@@ -3693,6 +3695,9 @@ body.navDrawerCollapsed .sideNav{display:flex;}
 }
 
 .dashboardEmpty {
+  grid-column: 1 / -1;
+  width: 100%;
+  box-sizing: border-box;
   border: 1px dashed var(--dash-border);
   border-radius: 10px;
   padding: 10px;
@@ -5450,5 +5455,231 @@ body[data-page] .stackListRow{display:grid;grid-template-columns:minmax(0,1fr) m
   svg{
     max-width:100% !important;
     height:auto !important;
+  }
+}
+
+/* ============================================================
+   Bulletin and event form field alignment
+   ============================================================ */
+
+/* Keep the event row balanced: title, date, time, and action remain
+   readable at desktop widths instead of collapsing date/time controls. */
+#eventForm{
+  grid-template-columns:minmax(240px,1.35fr) minmax(190px,1fr) minmax(220px,1fr) auto;
+  gap:16px;
+  align-items:end;
+}
+#eventForm > .label,
+#eventForm > .btn{
+  min-width:0;
+}
+#eventForm input[type="date"].input,
+#eventForm input[type="time"].input{
+  width:100%;
+  min-width:0;
+}
+#eventForm > button.btn{
+  min-height:48px;
+  white-space:nowrap;
+}
+
+/* Bulletin scheduling fields share one clean two-column row. */
+#bulletinForm > .formRow{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:16px;
+}
+#bulletinForm > .formRow > .label,
+#bulletinForm input[type="datetime-local"].input{
+  min-width:0;
+  width:100%;
+}
+#bulletinForm input[type="datetime-local"].input{
+  min-height:48px;
+}
+
+@media (max-width:720px){
+  #eventForm,
+  #bulletinForm > .formRow{
+    grid-template-columns:1fr;
+  }
+  #eventForm > button.btn{
+    width:100%;
+  }
+}
+
+/* Keep the event time control compact without shrinking the date field. */
+@media (min-width:721px){
+  #eventForm input[type="time"].input{
+    width:calc(100% - 25px);
+    max-width:calc(100% - 25px);
+    justify-self:start;
+  }
+}
+
+/* ============================================================
+   Ministry profile editor
+   ============================================================ */
+
+.ministryProfilesHeader,
+.ministryPageForm__actions,
+.ministryProfileDialog__actions{
+  align-items:center;
+}
+
+.ministryProfilesHeader__actions{
+  justify-content:flex-end;
+}
+
+.ministryPageForm{
+  display:grid;
+  gap:16px;
+  margin-bottom:16px;
+}
+
+.ministryPageForm__fields{
+  grid-template-columns:minmax(220px,.75fr) minmax(320px,1.25fr);
+  align-items:start;
+}
+
+.ministryPageForm__intro{
+  min-width:0;
+}
+
+.ministryPageForm__actions{
+  justify-content:flex-end;
+  border-top:1px solid var(--border);
+  padding-top:14px;
+}
+
+.ministryProfileAdminGrid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:16px;
+}
+
+.ministryProfileAdminCard{
+  display:grid;
+  grid-template-columns:92px minmax(0,1fr);
+  gap:14px;
+  align-items:start;
+  min-width:0;
+  padding:14px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:rgba(255,255,255,.025);
+}
+
+.ministryProfileAdminCard__image,
+.ministryProfileImagePreview{
+  width:92px;
+  height:92px;
+  object-fit:cover;
+  object-position:center;
+  border-radius:12px;
+  background:#1a1a1a;
+  border:1px solid var(--border);
+}
+
+.ministryProfileAdminCard__image--empty{
+  display:grid;
+  place-items:center;
+  color:var(--muted);
+  font-size:.8rem;
+  text-align:center;
+  padding:8px;
+}
+
+.ministryProfileAdminCard__body{
+  min-width:0;
+}
+
+.ministryProfileAdminCard__name{
+  margin:0 0 3px;
+  font-size:1.05rem;
+  overflow-wrap:anywhere;
+}
+
+.ministryProfileAdminCard__title{
+  margin:0 0 8px;
+  color:var(--muted);
+  font-size:.9rem;
+}
+
+.ministryProfileAdminCard__bio{
+  margin:0;
+  color:var(--muted);
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:4;
+  overflow:hidden;
+  white-space:pre-line;
+}
+
+.ministryProfileAdminCard__actions{
+  grid-column:1 / -1;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  padding-top:10px;
+  border-top:1px solid var(--border);
+}
+
+.ministryProfileAdminCard__actions .btn{
+  min-height:38px;
+}
+
+.ministryProfileDialog__inner{
+  width:min(860px,calc(100vw - 28px));
+  max-height:min(90vh,900px);
+  overflow:auto;
+}
+
+.ministryProfileImageEditor{
+  display:grid;
+  grid-template-columns:112px minmax(0,1fr);
+  gap:16px;
+  align-items:start;
+}
+
+.ministryProfileImagePreviewWrap{
+  display:grid;
+  place-items:center;
+  min-height:112px;
+}
+
+.ministryProfileImagePreview{
+  width:112px;
+  height:112px;
+}
+
+.ministryProfileImageEmpty{
+  display:grid;
+  place-items:center;
+  width:112px;
+  height:112px;
+  padding:10px;
+  border:1px dashed var(--border);
+  border-radius:12px;
+  color:var(--muted);
+  text-align:center;
+  font-size:.85rem;
+}
+
+@media (max-width:760px){
+  .ministryPageForm__fields,
+  .ministryProfileImageEditor{
+    grid-template-columns:1fr;
+  }
+
+  .ministryProfilesHeader,
+  .ministryProfilesHeader__actions,
+  .ministryPageForm__actions{
+    align-items:stretch;
+    justify-content:stretch;
+  }
+
+  .ministryProfilesHeader__actions .btn,
+  .ministryPageForm__actions .btn{
+    flex:1 1 160px;
   }
 }

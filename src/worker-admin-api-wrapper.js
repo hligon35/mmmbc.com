@@ -1606,6 +1606,13 @@ export default {
       return json({ ok: true, exported: false, warning: 'File export is not available in this Worker runtime.' });
     }
 
+    // The visual site editor is implemented by the primary Worker. Forward its
+    // authenticated draft/publish/media routes before the wrapper's unknown-API
+    // guard so Cloudflare production uses the same D1-backed editor surface.
+    if (url.pathname === '/api/admin/site-pages' || url.pathname.startsWith('/api/admin/site-pages/')) {
+      return worker.fetch(request, env, ctx);
+    }
+
     // Ensure unknown API paths never fall through to static-asset handling.
     if (url.pathname.startsWith('/api/')) {
       return json({ error: 'API endpoint not found.' }, 404);
