@@ -27,6 +27,7 @@ function expect(actual) {
 
 describe('Admin accessibility redesign guards', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+  const cloudflareIndexHtml = fs.readFileSync(path.join(__dirname, '..', 'cf_site', 'admin', 'index.html'), 'utf8');
   const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
   const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-style.css'), 'utf8');
   const overrideJs = fs.readFileSync(path.join(__dirname, 'public', 'admin-structure-overrides.js'), 'utf8');
@@ -39,6 +40,13 @@ describe('Admin accessibility redesign guards', () => {
     expect(indexHtml).toContain('id="tabBtn-home"');
     expect(indexHtml).toContain('aria-controls="tab-home"');
     expect(adminJs).toContain("activateMainSection('tab-home')");
+  });
+
+  test('Admin HTML contains no unresolved merge-conflict markers', () => {
+    expect(indexHtml).not.toMatch(/^(<<<<<<<|=======|>>>>>>>)/m);
+    expect(cloudflareIndexHtml).not.toMatch(/^(<<<<<<<|=======|>>>>>>>)/m);
+    expect(indexHtml).toContain('/admin/admin-ministry-profiles.js');
+    expect(cloudflareIndexHtml).toContain('/admin/admin-ministry-profiles.js');
   });
 
   test('Home task cards map to expected sections', () => {
