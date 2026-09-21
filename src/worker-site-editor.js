@@ -41,12 +41,18 @@ function isLegacySeedRow(row) {
     && Number(row?.published_version || 0) <= 1;
 }
 
+function isLegacyMinistryProfiles(fields) {
+  const profiles = Array.isArray(fields?.profiles) ? fields.profiles : [];
+  return profiles.length === 6
+    && profiles.every((profile, index) => String(profile?.id || '') === `ministries-${index + 1}`);
+}
+
 function needsMinistryProfileSeed(row) {
   if (!isLegacySeedRow(row)) return false;
   const draft = parseJsonColumn(row?.draft_fields, {});
   const published = parseJsonColumn(row?.published_fields, {});
-  return Array.isArray(draft.profiles) && draft.profiles.length === 0
-    && Array.isArray(published.profiles) && published.profiles.length === 0;
+  return (Array.isArray(draft.profiles) && (draft.profiles.length === 0 || isLegacyMinistryProfiles(draft)))
+    && (Array.isArray(published.profiles) && (published.profiles.length === 0 || isLegacyMinistryProfiles(published)));
 }
 
 async function backfillLegacyMinistryProfiles(env, row) {
@@ -328,13 +334,13 @@ export async function handlePublicSiteContentGet(request, env, page) {
   if (env.DB) {
     try {
       const row = await env.DB.prepare(
-        'SELECT published_fields, published_version, published_updated_at FROM site_page_content WHERE page = ?'
+        'SELECT published_fields, published_version, published_updated_at, published_updated_by FROM site_page_content WHERE page = ?'
       ).bind(key).first();
       if (row) {
         const storedFields = parseJsonColumn(row.published_fields, fields);
         const legacyMinistryRow = key === 'ministries'
-          && Array.isArray(storedFields.profiles)
-          && storedFields.profiles.length === 0
+          && (Array.isArray(storedFields.profiles) && (storedFields.profiles.length === 0 || isLegacyMinistryProfiles(storedFields)))
+          && String(row.published_updated_by || '') === 'system:migration'
           && Number(row.published_version || 0) <= 1;
         fields = legacyMinistryRow
           ? mergeWithSeed(key, { ...storedFields, profiles: INITIAL_PUBLISHED_CONTENT.ministries.profiles })
