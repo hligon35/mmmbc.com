@@ -1327,6 +1327,23 @@
           <div class="error" id="ministriesEditorError" role="alert" hidden></div>
         </form>
 
+        <div class="card ministryProfilesFilters" aria-label="Filter ministry profiles">
+          <div class="toolbar ministryProfilesFilters__toolbar">
+            <label class="label label--inline">Page
+              <select class="select" id="ministriesProfilePageFilter">
+                <option value="__all__">All pages</option>
+              </select>
+            </label>
+            <label class="label label--inline">Section
+              <select class="select" id="ministriesProfileSectionFilter">
+                <option value="__all__">All sections</option>
+              </select>
+            </label>
+            <button class="btn" id="ministriesProfileClearFiltersBtn" type="button">Clear filters</button>
+          </div>
+          <p class="hint" id="ministriesProfileFilterSummary" role="status" aria-live="polite"></p>
+        </div>
+
         <section class="card ministryProfilesListCard" aria-labelledby="ministriesProfilesListTitle">
           <div class="sectionHeader sectionHeader--compact">
             <div>
@@ -1355,6 +1372,10 @@
             <div class="formRow">
               <label class="label">Name<input class="input" id="ministryProfileName" name="name" type="text" maxlength="120" required /></label>
               <label class="label">Title or role<input class="input" id="ministryProfileTitle" name="title" type="text" maxlength="160" placeholder="Optional" /></label>
+            </div>
+            <div class="formRow">
+              <label class="label">Page key<input class="input" id="ministryProfilePage" name="page" type="text" maxlength="120" placeholder="ministries" /></label>
+              <label class="label">Section<input class="input" id="ministryProfileSection" name="section" type="text" maxlength="120" placeholder="ministries" /></label>
             </div>
             <label class="label">Biography<textarea class="textarea" id="ministryProfileBio" name="bio" rows="10" maxlength="4000" placeholder="Write the biography shown on the public card."></textarea></label>
             <div class="ministryProfileImageEditor">
@@ -1750,6 +1771,6 @@
   <script src="/admin/admin-ministry-profiles.js?v=20260919a" defer></script>
   <script src="/admin/admin-directory.js?v=20260730a" defer></script>
   <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260921200331" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260921213745" defer></script>
 </body>
 </html>

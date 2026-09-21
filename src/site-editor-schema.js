@@ -25,7 +25,9 @@ const profileItemFields = {
   name: { type: 'text', label: 'Name', required: true, maxLength: 120 },
   title: { type: 'text', label: 'Title / role', maxLength: 160 },
   bio: { type: 'textarea', label: 'Biography', maxLength: 4000 },
-  image: { type: 'image', label: 'Photo' }
+  image: { type: 'image', label: 'Photo' },
+  page: { type: 'text', label: 'Page key', maxLength: 120 },
+  section: { type: 'text', label: 'Section', maxLength: 120 }
 };
 
 // Shared shape for both weekly-schedule collections on the Home page. Each item is one

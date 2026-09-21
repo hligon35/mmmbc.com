@@ -16,6 +16,8 @@
   const updateUnsavedForForm = admin.updateUnsavedForForm;
   const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
   const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+  const FILTER_ALL = '__all__';
+  const FILTER_UNASSIGNED = '__unassigned__';
 
   const state = {
     loaded: false,
@@ -24,6 +26,8 @@
     publishedVersion: 0,
     draftFields: { 'page.title': '', 'page.intro': '', profiles: [] },
     publishedFields: { 'page.title': '', 'page.intro': '', profiles: [] },
+    profileFilterPage: FILTER_ALL,
+    profileFilterSection: FILTER_ALL,
     editingId: '',
     applying: false
   };
@@ -53,6 +57,8 @@
       name: safeText(raw?.name, 120).trim(),
       title: safeText(raw?.title, 160).trim(),
       bio: safeText(raw?.bio, 4000).trim(),
+      page: safeText(raw?.page || 'ministries', 120).trim(),
+      section: safeText(raw?.section || 'ministries', 120).trim(),
       image: safeImage(raw?.image)
     };
   }
@@ -136,6 +142,61 @@
     return button;
   }
 
+  function filterOptionValue(value) {
+    return String(value || '').trim() || FILTER_UNASSIGNED;
+  }
+
+  function filterOptionLabel(value) {
+    return String(value || '').trim() || 'Unassigned';
+  }
+
+  function matchesProfileFilter(value, filter) {
+    return filter === FILTER_ALL || filterOptionValue(value) === filter;
+  }
+
+  function getFilteredProfiles() {
+    const profiles = Array.isArray(state.draftFields.profiles) ? state.draftFields.profiles : [];
+    return profiles
+      .map((profile, index) => ({ profile, index }))
+      .filter(({ profile }) => matchesProfileFilter(profile.page, state.profileFilterPage)
+        && matchesProfileFilter(profile.section, state.profileFilterSection));
+  }
+
+  function renderProfileFilters() {
+    const profiles = Array.isArray(state.draftFields.profiles) ? state.draftFields.profiles : [];
+    const pageSelect = $('ministriesProfilePageFilter');
+    const sectionSelect = $('ministriesProfileSectionFilter');
+    if (!pageSelect || !sectionSelect) return;
+
+    const pages = [...new Set(profiles.map((profile) => filterOptionValue(profile.page)))].sort();
+    if (state.profileFilterPage !== FILTER_ALL && !pages.includes(state.profileFilterPage)) state.profileFilterPage = FILTER_ALL;
+    const pagePool = state.profileFilterPage === FILTER_ALL
+      ? profiles
+      : profiles.filter((profile) => matchesProfileFilter(profile.page, state.profileFilterPage));
+    const sections = [...new Set(pagePool.map((profile) => filterOptionValue(profile.section)))].sort();
+    if (state.profileFilterSection !== FILTER_ALL && !sections.includes(state.profileFilterSection)) state.profileFilterSection = FILTER_ALL;
+
+    pageSelect.replaceChildren(new Option('All pages', FILTER_ALL));
+    pages.forEach((value) => pageSelect.appendChild(new Option(filterOptionLabel(value === FILTER_UNASSIGNED ? '' : value), value)));
+    pageSelect.value = state.profileFilterPage;
+
+    sectionSelect.replaceChildren(new Option('All sections', FILTER_ALL));
+    sections.forEach((value) => sectionSelect.appendChild(new Option(filterOptionLabel(value === FILTER_UNASSIGNED ? '' : value), value)));
+    sectionSelect.value = state.profileFilterSection;
+    sectionSelect.disabled = sections.length === 0;
+
+    const summary = $('ministriesProfileFilterSummary');
+    if (summary) {
+      const visibleCount = getFilteredProfiles().length;
+      const filterParts = [];
+      if (state.profileFilterPage !== FILTER_ALL) filterParts.push(`page: ${filterOptionLabel(state.profileFilterPage === FILTER_UNASSIGNED ? '' : state.profileFilterPage)}`);
+      if (state.profileFilterSection !== FILTER_ALL) filterParts.push(`section: ${filterOptionLabel(state.profileFilterSection === FILTER_UNASSIGNED ? '' : state.profileFilterSection)}`);
+      summary.textContent = filterParts.length
+        ? `Showing ${visibleCount} of ${profiles.length} profiles · ${filterParts.join(' · ')}`
+        : `Showing all ${profiles.length} profiles`;
+    }
+  }
+
   function renderProfiles() {
     const list = $('ministriesProfilesList');
     const empty = $('ministriesProfilesEmpty');
@@ -143,11 +204,20 @@
     if (!list) return;
 
     const profiles = Array.isArray(state.draftFields.profiles) ? state.draftFields.profiles : [];
+    const visibleProfiles = getFilteredProfiles();
+    renderProfileFilters();
     list.replaceChildren();
-    if (count) count.textContent = `${profiles.length} profile${profiles.length === 1 ? '' : 's'}`;
-    if (empty) empty.hidden = profiles.length > 0;
+    if (count) count.textContent = state.profileFilterPage === FILTER_ALL && state.profileFilterSection === FILTER_ALL
+      ? `${profiles.length} profile${profiles.length === 1 ? '' : 's'}`
+      : `${visibleProfiles.length} of ${profiles.length} profiles`;
+    if (empty) {
+      empty.hidden = visibleProfiles.length > 0;
+      empty.textContent = profiles.length && visibleProfiles.length === 0
+        ? 'No profiles match the selected page and section filters.'
+        : 'No profiles have been added yet. Select Add Profile to create the first card.';
+    }
 
-    profiles.forEach((profile, index) => {
+    visibleProfiles.forEach(({ profile, index }) => {
       const card = document.createElement('article');
       card.className = 'ministryProfileAdminCard';
       card.dataset.profileId = profile.id;
@@ -178,6 +248,10 @@
         title.textContent = profile.title;
         body.appendChild(title);
       }
+      const location = document.createElement('p');
+      location.className = 'ministryProfileAdminCard__location';
+      location.textContent = `Page: ${filterOptionLabel(profile.page)} · Section: ${filterOptionLabel(profile.section)}`;
+      body.appendChild(location);
       const bio = document.createElement('p');
       bio.className = 'ministryProfileAdminCard__bio';
       bio.textContent = profile.bio || 'No biography entered.';
@@ -209,6 +283,8 @@
       name: $('ministryProfileName')?.value || '',
       title: $('ministryProfileTitle')?.value || '',
       bio: $('ministryProfileBio')?.value || '',
+      page: $('ministryProfilePage')?.value || 'ministries',
+      section: $('ministryProfileSection')?.value || 'ministries',
       image: {
         url: $('ministryProfileImageUrl')?.value || '',
         alt: $('ministryProfileImageAlt')?.value || ''
@@ -237,12 +313,14 @@
     const dialog = $('ministryProfileDialog');
     const form = $('ministryProfileForm');
     if (!dialog || !form) return;
-    const current = profile || { id: '', name: '', title: '', bio: '', image: { url: '', alt: '' } };
+    const current = profile || { id: '', name: '', title: '', bio: '', page: 'ministries', section: 'ministries', image: { url: '', alt: '' } };
     state.editingId = current.id || '';
     $('ministryProfileDialogTitle').textContent = current.id ? 'Edit Ministry Profile' : 'Add Ministry Profile';
     $('ministryProfileId').value = current.id || '';
     $('ministryProfileName').value = current.name || '';
     $('ministryProfileTitle').value = current.title || '';
+    $('ministryProfilePage').value = current.page || 'ministries';
+    $('ministryProfileSection').value = current.section || 'ministries';
     $('ministryProfileBio').value = current.bio || '';
     $('ministryProfileImageUrl').value = current.image?.url || '';
     $('ministryProfileImageAlt').value = current.image?.alt || current.name || '';
@@ -450,6 +528,20 @@
       markEditorDirty();
     });
     $('ministriesProfilesList')?.addEventListener('click', handleProfileAction);
+    $('ministriesProfilePageFilter')?.addEventListener('change', (event) => {
+      state.profileFilterPage = event.target.value || FILTER_ALL;
+      state.profileFilterSection = FILTER_ALL;
+      renderProfiles();
+    });
+    $('ministriesProfileSectionFilter')?.addEventListener('change', (event) => {
+      state.profileFilterSection = event.target.value || FILTER_ALL;
+      renderProfiles();
+    });
+    $('ministriesProfileClearFiltersBtn')?.addEventListener('click', () => {
+      state.profileFilterPage = FILTER_ALL;
+      state.profileFilterSection = FILTER_ALL;
+      renderProfiles();
+    });
     $('ministriesAddProfileBtn')?.addEventListener('click', () => openProfileDialog());
     $('ministriesRefreshBtn')?.addEventListener('click', () => loadEditor());
     $('ministriesSaveDraftBtn')?.addEventListener('click', () => saveDraft());

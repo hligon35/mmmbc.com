@@ -5551,6 +5551,31 @@ body[data-page] .stackListRow{display:grid;grid-template-columns:minmax(0,1fr) m
   padding-top:14px;
 }
 
+.ministryProfilesFilters{
+  margin-bottom:16px;
+}
+
+.ministryProfilesFilters__toolbar{
+  align-items:end;
+  flex-wrap:wrap;
+}
+
+.ministryProfilesFilters__toolbar .label{
+  min-width:180px;
+}
+
+.ministryProfilesFilters__toolbar .btn{
+  align-self:end;
+}
+
+.ministryProfileAdminCard__location{
+  margin:0 0 8px;
+  color:var(--accent);
+  font-size:.8rem;
+  font-weight:700;
+  overflow-wrap:anywhere;
+}
+
 .ministryProfileAdminGrid{
   display:grid;
   grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
