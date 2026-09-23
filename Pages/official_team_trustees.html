@@ -44,7 +44,7 @@
 
 <main>
 <section class="content-section content-section--wide">
-<h1>Official Team &amp; Trustees</h1>
+<h1 data-cms-field="page.title" data-cms-type="text">Official Team &amp; Trustees</h1>
 <ul class="content-subnav">
 <li><a href="associate_ministers.html">Associate Ministers</a></li>
 <li><a href="deacons.html">Deacons</a></li>
@@ -56,8 +56,18 @@
 <p>The Trustee Board is responsible for church property and takes necessary measures for its protection and management.</p>
 <p>Includes the Pastor, all deacons, and the members listed below.</p>
 
-<div class="leadership-profiles-grid">
+<div class="leadership-profiles-grid" data-cms-collection="profiles">
+<template data-cms-item-template>
 <div class="leadership-profile">
+<img alt="" class="profile-image" data-cms-item-field="image" data-cms-type="image"/>
+<div class="profile-details">
+<h2 data-cms-item-field="name" data-cms-type="text"></h2>
+<p data-cms-item-field="title" data-cms-type="text"></p>
+<p data-cms-item-field="bio" data-cms-type="textarea"></p>
+</div>
+</div>
+</template>
+<div class="leadership-profile" data-cms-item data-cms-item-id="official-team-trustees-1">
 <img alt="Carrie Jones" class="profile-image" src="../ConImg/webPages/official_team_image1.png"/>
 <div class="profile-details">
 <h2>Carrie Jones</h2>
@@ -65,7 +75,7 @@
 </div>
 </div>
 
-<div class="leadership-profile">
+<div class="leadership-profile" data-cms-item data-cms-item-id="official-team-trustees-2">
 <img alt="Derek Strong" class="profile-image" src="../ConImg/webPages/official_team_image2.png"/>
 <div class="profile-details">
 <h2>Derek Strong</h2>
@@ -73,7 +83,7 @@
 </div>
 </div>
 
-<div class="leadership-profile">
+<div class="leadership-profile" data-cms-item data-cms-item-id="official-team-trustees-3">
 <img alt="Richard Washington" class="profile-image" src="../ConImg/webPages/official_team_image3.png"/>
 <div class="profile-details">
 <h2>Richard Washington</h2>
@@ -81,7 +91,7 @@
 </div>
 </div>
 
-<div class="leadership-profile">
+<div class="leadership-profile" data-cms-item data-cms-item-id="official-team-trustees-4">
 <img alt="Brenda Stokes" class="profile-image" src="../ConImg/webPages/official_team_image4.png"/>
 <div class="profile-details">
 <h2>Brenda Stokes</h2>
@@ -89,7 +99,7 @@
 </div>
 </div>
 
-<div class="leadership-profile">
+<div class="leadership-profile" data-cms-item data-cms-item-id="official-team-trustees-5">
 <img alt="Tonya Gill" class="profile-image" src="../ConImg/webPages/official_team_image5.png"/>
 <div class="profile-details">
 <h2>Tonya Gill</h2>
@@ -97,7 +107,7 @@
 </div>
 </div>
 
-<div class="leadership-profile">
+<div class="leadership-profile" data-cms-item data-cms-item-id="official-team-trustees-6">
 <img alt="Elbert Speers" class="profile-image" src="../ConImg/webPages/official_team_image6.png"/>
 <div class="profile-details">
 <h2>Elbert Speers</h2>
@@ -105,7 +115,7 @@
 </div>
 </div>
 
-<div class="leadership-profile">
+<div class="leadership-profile" data-cms-item data-cms-item-id="official-team-trustees-7">
 <img alt="Marsha Roundtree" class="profile-image" src="../ConImg/webPages/official_team_image7.jpeg"/>
 <div class="profile-details">
 <h2>Marsha Roundtree</h2>
@@ -113,7 +123,7 @@
 </div>
 </div>
 
-<div class="leadership-profile">
+<div class="leadership-profile" data-cms-item data-cms-item-id="official-team-trustees-8">
 <img alt="Bessie Newbern" class="profile-image" src="../ConImg/webPages/official_team_image8.png"/>
 <div class="profile-details">
 <h2>Bessie Newbern</h2>
@@ -125,7 +135,7 @@
 </main>
 
 <footer></footer>
-<script src="../script.js?v=20260730d"></script>
+<script src="../script.js?v=20260923a"></script>
+<script src="../site-content-loader.js" defer data-cms-page="official_team_trustees"></script>
 </body>
 </html>
-

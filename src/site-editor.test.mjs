@@ -103,9 +103,35 @@ test('leadership editor seed contains the staff profiles', () => {
   assert.ok(ok);
 });
 
+test('profile editor exposes every leadership subpage with seeded profiles', () => {
+  const pages = [
+    ['leadership', 4],
+    ['associate_ministers', 6],
+    ['deacons', 6],
+    ['deaconesses', 7],
+    ['official_team_trustees', 8]
+  ];
+  pages.forEach(([page, count]) => {
+    const schema = getPageSchema(page);
+    assert.ok(schema, `${page} schema should exist`);
+    assert.equal(schema.fields.profiles.type, 'collection');
+    const profiles = INITIAL_PUBLISHED_CONTENT[page].profiles;
+    assert.equal(profiles.length, count);
+    const { ok, errors } = validatePageFields(page, {
+      ...INITIAL_PUBLISHED_CONTENT[page],
+      profiles
+    }, { partial: false });
+    assert.equal(errors.length, 0, `${page} should validate: ${JSON.stringify(errors)}`);
+    assert.ok(ok);
+  });
+});
+
 test('public profile pages keep their corrected assignments', () => {
   const leadership = fs.readFileSync(new URL('../Pages/leadership.html', import.meta.url), 'utf8');
   const associates = fs.readFileSync(new URL('../Pages/associate_ministers.html', import.meta.url), 'utf8');
+  const deacons = fs.readFileSync(new URL('../Pages/deacons.html', import.meta.url), 'utf8');
+  const deaconesses = fs.readFileSync(new URL('../Pages/deaconesses.html', import.meta.url), 'utf8');
+  const officialTeam = fs.readFileSync(new URL('../Pages/official_team_trustees.html', import.meta.url), 'utf8');
   const ministries = fs.readFileSync(new URL('../Pages/ministries.html', import.meta.url), 'utf8');
 
   assert.match(leadership, /Rev\. Stephen Harvey/);
@@ -113,6 +139,9 @@ test('public profile pages keep their corrected assignments', () => {
   assert.doesNotMatch(leadership, /meta http-equiv="refresh"/i);
   assert.match(associates, /Evangelist Melanie Nunn/);
   assert.match(associates, /Rev\. Dennis Gray/);
+  assert.match(deacons, /data-cms-page="deacons"/);
+  assert.match(deaconesses, /data-cms-page="deaconesses"/);
+  assert.match(officialTeam, /data-cms-page="official_team_trustees"/);
   assert.match(ministries, /Music Department/);
   assert.match(ministries, /Video \/ Audio Ministry/);
   assert.doesNotMatch(ministries, /Evangelist Melanie Nunn/);

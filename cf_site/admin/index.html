@@ -1300,11 +1300,11 @@
       </section>
 
       <!-- Ministry Profiles -->
-      <section class="tabPanel ministryProfilesPanel" role="tabpanel" id="tab-ministries" aria-labelledby="tabBtn-ministries" hidden data-header-crumb="Ministry Profiles" data-header-description="Add, edit, reorder, and publish the individual profiles shown on the Ministries page.">
+      <section class="tabPanel ministryProfilesPanel" role="tabpanel" id="tab-ministries" aria-labelledby="tabBtn-ministries" hidden data-header-crumb="Ministry Profiles" data-header-description="Add, edit, reorder, and publish profiles across the leadership and ministry pages.">
         <div class="sectionHeader ministryProfilesHeader">
           <div>
             <h2 class="sectionHeader__title">Ministry Profiles</h2>
-            <p class="muted">Manage the individual ministry leader cards shown on the public Ministries page. Save a draft first, then publish when the page is ready.</p>
+            <p class="muted">Manage the profile cards shown on Leadership &amp; Staff and its related public pages. Select a page chip, edit its profiles, then save and publish that page.</p>
           </div>
           <div class="toolbar ministryProfilesHeader__actions">
             <button class="btn" id="ministriesRefreshBtn" type="button">Refresh</button>
@@ -1327,20 +1327,8 @@
           <div class="error" id="ministriesEditorError" role="alert" hidden></div>
         </form>
 
-        <div class="card ministryProfilesFilters" aria-label="Filter ministry profiles">
-          <div class="toolbar ministryProfilesFilters__toolbar">
-            <label class="label label--inline">Page
-              <select class="select" id="ministriesProfilePageFilter">
-                <option value="__all__">All pages</option>
-              </select>
-            </label>
-            <label class="label label--inline">Section
-              <select class="select" id="ministriesProfileSectionFilter">
-                <option value="__all__">All sections</option>
-              </select>
-            </label>
-            <button class="btn" id="ministriesProfileClearFiltersBtn" type="button">Clear filters</button>
-          </div>
+        <div class="card ministryProfilesFilters" aria-label="Filter profiles by page or section">
+          <div class="ministryProfilePageChips" id="ministriesProfilePageChips" role="tablist" aria-label="Profile pages"></div>
           <p class="hint" id="ministriesProfileFilterSummary" role="status" aria-live="polite"></p>
         </div>
 
@@ -1374,8 +1362,16 @@
               <label class="label">Title or role<input class="input" id="ministryProfileTitle" name="title" type="text" maxlength="160" placeholder="Optional" /></label>
             </div>
             <div class="formRow">
-              <label class="label">Page key<input class="input" id="ministryProfilePage" name="page" type="text" maxlength="120" placeholder="ministries" /></label>
-              <label class="label">Section<input class="input" id="ministryProfileSection" name="section" type="text" maxlength="120" placeholder="ministries" /></label>
+              <label class="label">Page key<input class="input" id="ministryProfilePage" name="page" type="text" maxlength="120" readonly /></label>
+              <label class="label" id="ministryProfileGroupField" hidden>Leadership section
+                <select class="select" id="ministryProfileGroup" name="group">
+                  <option value="staff">Leadership &amp; Staff</option>
+                  <option value="deacons">Deacons</option>
+                  <option value="deaconesses">Deaconesses</option>
+                  <option value="official_team">Official Team &amp; Trustees</option>
+                </select>
+              </label>
+              <label class="label" id="ministryProfileSectionField">Section<input class="input" id="ministryProfileSection" name="section" type="text" maxlength="120" readonly /></label>
             </div>
             <label class="label">Biography<textarea class="textarea" id="ministryProfileBio" name="bio" rows="10" maxlength="4000" placeholder="Write the biography shown on the public card."></textarea></label>
             <div class="ministryProfileImageEditor">
@@ -1768,13 +1764,9 @@
   </dialog>
 
   <script src="/admin/admin.js?v=20260730l" defer></script>
-  <script src="/admin/admin-ministry-profiles.js?v=20260919a" defer></script>
+  <script src="/admin/admin-ministry-profiles.js?v=20260923a" defer></script>
   <script src="/admin/admin-directory.js?v=20260730a" defer></script>
   <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>
-<<<<<<< HEAD
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260921202238" defer></script>
-=======
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260921213745" defer></script>
->>>>>>> 52d87e2d5d03500fd603fa107e9b7a585d8ff2af
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260923013411" defer></script>
 </body>
 </html>

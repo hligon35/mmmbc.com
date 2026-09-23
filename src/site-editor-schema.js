@@ -76,6 +76,33 @@ export const PAGE_SCHEMAS = {
       }
     }
   },
+  deacons: {
+    label: 'Deacons',
+    fields: {
+      'page.title': { type: 'text', label: 'Page heading', required: true, maxLength: 100 },
+      profiles: {
+        type: 'collection', label: 'Deacons', itemLabel: 'Deacon', maxItems: 30, itemFields: profileItemFields
+      }
+    }
+  },
+  deaconesses: {
+    label: 'Deaconesses',
+    fields: {
+      'page.title': { type: 'text', label: 'Page heading', required: true, maxLength: 100 },
+      profiles: {
+        type: 'collection', label: 'Deaconesses', itemLabel: 'Deaconess', maxItems: 30, itemFields: profileItemFields
+      }
+    }
+  },
+  official_team_trustees: {
+    label: 'Official Team & Trustees',
+    fields: {
+      'page.title': { type: 'text', label: 'Page heading', required: true, maxLength: 100 },
+      profiles: {
+        type: 'collection', label: 'Official Team & Trustees', itemLabel: 'Official team member', maxItems: 30, itemFields: profileItemFields
+      }
+    }
+  },
   leadership: {
     label: 'Leadership & Staff',
     fields: {
@@ -394,6 +421,129 @@ INITIAL_PUBLISHED_CONTENT.associate_ministers = {
       id: 'associate-ministers-6', name: 'Rev. Dennis Gray', title: '',
       bio: 'Pastor Dennis Gray, a native of Hickman, Kentucky, is a commissioned minister of the Christian Church (Disciple of Christ). He served as pastor of Second Christian Church in Mayfield, KY for 23 years and now serves Mt. Moriah Missionary Baptist Church in Paducah, Kentucky as an Associate Minister. Pastor Gray is the husband of Sue Gray, and they have three children and four grandchildren.',
       image: { url: '../ConImg/webPages/ministries_image6.jpeg', alt: 'Rev. Dennis Gray' }
+    }
+  ]
+};
+
+INITIAL_PUBLISHED_CONTENT.deacons = {
+  'page.title': 'Deacons',
+  profiles: [
+    {
+      id: 'deacons-1', name: 'John Burnett', title: 'Chairman of Deacons',
+      bio: 'Deacon Burnett has served for over 20 years, serves as vice-president of the Ushers Ministry, Finance Vice-Chairman, and is a member of Culinary Ministry and the Official Team.',
+      image: { url: '../ConImg/webPages/deacons_image1.jpeg', alt: 'John Burnett' }
+    },
+    {
+      id: 'deacons-2', name: 'Thomas L. Biles', title: '',
+      bio: 'Deacon for over 40 years, member of the Male Chorus, Discipleship Training teacher, and member of the Official Team.',
+      image: { url: '../ConImg/webPages/deacons_image2.jpeg', alt: 'Thomas L. Biles' }
+    },
+    {
+      id: 'deacons-3', name: 'Mario Johnson', title: '',
+      bio: 'Deacon for more than 15 years and member of the Official Team.',
+      image: { url: '../ConImg/webPages/deacons_image3.jpeg', alt: 'Mario Johnson' }
+    },
+    {
+      id: 'deacons-4', name: 'William S. Jones', title: '',
+      bio: 'Deacon for over 30 years, Vice-chairman Trustee Board, and member of the Usher Ministry, Male Chorus, Official Team, and Discipleship Training team.',
+      image: { url: '../ConImg/webPages/deacons_image4.jpeg', alt: 'William S. Jones' }
+    },
+    {
+      id: 'deacons-5', name: 'Weldon Stokes', title: '',
+      bio: 'Deacon for over 30 years, Finance Chief, member of the Usher Ministry and Culinary Ministry, and Official Team Secretary.',
+      image: { url: '../ConImg/webPages/deacons_image5.png', alt: 'Weldon Stokes' }
+    },
+    {
+      id: 'deacons-6', name: 'David Jones, Sr.', title: '',
+      bio: 'Ordained as a deacon on June 21, 2013. Member of the Male Chorus and Official Team.',
+      image: { url: '../ConImg/webPages/deacons_image6.jpeg', alt: 'David Jones, Sr.' }
+    }
+  ]
+};
+
+INITIAL_PUBLISHED_CONTENT.deaconesses = {
+  'page.title': 'Deaconesses',
+  profiles: [
+    {
+      id: 'deaconesses-1', name: 'Angela Johnson', title: 'President',
+      bio: 'President of the Deaconess Board. Member of the Usher Ministry and Women\'s Ministry.',
+      image: { url: '../ConImg/webPages/deaconesses_image1.jpeg', alt: 'Angela Johnson' }
+    },
+    {
+      id: 'deaconesses-2', name: 'Carrie Jones', title: 'Deaconess Vice President',
+      bio: 'Member of Mt. Moriah since childhood, member of the Deaconess Board for more than 5 years, and member of the Official Team. Former member of the Music and Missionary ministries.',
+      image: { url: '../ConImg/webPages/deaconesses_image2.png', alt: 'Carrie Jones' }
+    },
+    {
+      id: 'deaconesses-3', name: 'Mattie Bryant', title: '',
+      bio: 'Longtime member of Mt. Moriah. Former member of the Missionary Ministry and Music Ministry.',
+      image: { url: '../ConImg/webPages/deaconesses_image3.png', alt: 'Mattie Bryant' }
+    },
+    {
+      id: 'deaconesses-4', name: 'L. Joyce Biles', title: '',
+      bio: 'Former member of the Missionary Ministry, Women\'s Ministry, bulletin board ministry, and represented Mt. Moriah at Community Kitchen.',
+      image: { url: '../ConImg/webPages/deaconesses_image4.jpeg', alt: 'L. Joyce Biles' }
+    },
+    {
+      id: 'deaconesses-5', name: 'Ruthie Washington', title: '',
+      bio: 'Former Missionary Ministry Treasurer, Women\'s Ministry member, and secretary for the Usher Ministry.',
+      image: { url: '../ConImg/webPages/deaconesses_image5.png', alt: 'Ruthie Washington' }
+    },
+    {
+      id: 'deaconesses-6', name: 'Mildred Arnold', title: '',
+      bio: 'Oldest member of the Usher Ministry, former member of the Missionary Ministry, and retired head of the Culinary Ministry.',
+      image: { url: '../ConImg/webPages/deaconesses_image6.png', alt: 'Mildred Arnold' }
+    },
+    {
+      id: 'deaconesses-7', name: 'Sherona Waldon', title: '',
+      bio: 'Member of Mt. Moriah for 61 years, President of Women\'s Ministry, former Administrative Assistant to Pastor Calvin Cole Sr., and former choir member.',
+      image: { url: '../ConImg/webPages/deaconesses_image7.png', alt: 'Sherona Waldon' }
+    }
+  ]
+};
+
+INITIAL_PUBLISHED_CONTENT.official_team_trustees = {
+  'page.title': 'Official Team & Trustees',
+  profiles: [
+    {
+      id: 'official-team-trustees-1', name: 'Carrie Jones', title: '',
+      bio: 'Member of Mt. Moriah since childhood, member of the Deaconess Board for more than 5 years, and member of the Official Team. Former member of the Music and Missionary ministries.',
+      image: { url: '../ConImg/webPages/official_team_image1.png', alt: 'Carrie Jones' }
+    },
+    {
+      id: 'official-team-trustees-2', name: 'Derek Strong', title: '',
+      bio: 'Member for over 10 years, member of Official Team, lawn keeper, and Audio or Video Ministry.',
+      image: { url: '../ConImg/webPages/official_team_image2.png', alt: 'Derek Strong' }
+    },
+    {
+      id: 'official-team-trustees-3', name: 'Richard Washington', title: '',
+      bio: 'President of Usher Ministry, member of the Official Team, and driver for the Transportation Ministry.',
+      image: { url: '../ConImg/webPages/official_team_image3.png', alt: 'Richard Washington' }
+    },
+    {
+      id: 'official-team-trustees-4', name: 'Brenda Stokes', title: '',
+      bio: 'Member for over 40 years, member of Usher Ministry and Women\'s Ministry, head of Culinary Ministry, and member of the Official Team.',
+      image: { url: '../ConImg/webPages/official_team_image4.png', alt: 'Brenda Stokes' }
+    },
+    {
+      id: 'official-team-trustees-5', name: 'Tonya Gill', title: '',
+      bio: 'Head of the Youth Department.',
+      image: { url: '../ConImg/webPages/official_team_image5.png', alt: 'Tonya Gill' }
+    },
+    {
+      id: 'official-team-trustees-6', name: 'Elbert Speers', title: '',
+      bio: 'Audio or Video technician, photographer, and member of the Official Board.',
+      image: { url: '../ConImg/webPages/official_team_image6.png', alt: 'Elbert Speers' }
+    },
+    {
+      id: 'official-team-trustees-7', name: 'Marsha Roundtree', title: '',
+      bio: 'Church Administrative Assistant, member of Women\'s Ministry, and member of the Official Board.',
+      image: { url: '../ConImg/webPages/official_team_image7.jpeg', alt: 'Marsha Roundtree' }
+    },
+    {
+      id: 'official-team-trustees-8', name: 'Bessie Newbern', title: '',
+      bio: 'Member for over 20 years, member of Official Team, and former head of the Decorations Ministry.',
+      image: { url: '../ConImg/webPages/official_team_image8.png', alt: 'Bessie Newbern' }
     }
   ]
 };

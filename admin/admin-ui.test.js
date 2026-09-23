@@ -445,3 +445,28 @@ describe('Church Finances wizard redesign', () => {
     expect(eventsSectionMatch[0]).toContain('printEventsAllBtn');
   });
 });
+
+describe('Profile page editor', () => {
+  const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+  const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin-ministry-profiles.js'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-style.css'), 'utf8');
+
+  test('page chips cover all leadership and staff profile pages', () => {
+    expect(indexHtml).toContain('id="ministriesProfilePageChips"');
+    expect(adminJs).toContain("label: 'Leadership & Staff'");
+    expect(adminJs).toContain("label: 'Associate Ministers'");
+    expect(adminJs).toContain("label: 'Deacons'");
+    expect(adminJs).toContain("label: 'Deaconesses'");
+    expect(adminJs).toContain("label: 'Official Team & Trustees'");
+    expect(adminJs).toContain("/api/admin/site-pages/${page}/media");
+    expect(adminCss).toContain('.ministryProfilePageChip');
+  });
+
+  test('editor loads and saves each page independently', () => {
+    expect(adminJs).toContain('Promise.all(PROFILE_PAGES.map');
+    expect(adminJs).toContain('/draft');
+    expect(adminJs).toContain('/publish');
+    expect(adminJs).toContain('/restore-previous');
+    expect(indexHtml).toContain('id="ministryProfileGroup"');
+  });
+});
