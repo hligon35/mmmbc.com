@@ -370,7 +370,7 @@ INITIAL_PUBLISHED_CONTENT.leadership.profiles = [
   {
     id: 'leadership-1', group: 'staff', name: 'Rev. Stephen Harvey', title: 'Pastor',
     bio: 'Stephen Harvey, a native of Paducah, Kentucky, received his Bachelor of Social Work and minor in Physical Education from Murray State University and is pursuing a Master’s in Human Development and Leadership. He was licensed to preach in 2005, ordained in 2011, and has served as an associate minister, youth director, teacher, treasurer, and pastor. He is retired from the Mayfield Youth Development Center and continues to give God all the praise, honor, and glory for the opportunity to be His humble servant.',
-    image: { url: '../ConImg/SteveHarvey1.png', alt: 'Rev. Stephen Harvey' }
+    image: { url: '/cdn/gallery/site/pastorHarvey.jpeg', alt: 'Rev. Stephen Harvey' }
   },
   {
     id: 'leadership-2', group: 'staff', name: 'Marsha Roundtree', title: 'Church Administrative Assistant',

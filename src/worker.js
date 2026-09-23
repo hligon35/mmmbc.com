@@ -1525,7 +1525,20 @@ async function handleCdn(request, env) {
   const key = decodeURI(url.pathname.slice(prefix.length));
   if (!key) return new Response('Not found', { status: 404 });
 
-  const obj = await env.GALLERY_BUCKET.get(key);
+  let obj = await env.GALLERY_BUCKET.get(key);
+  // The pastor's profile image is shipped with the site source. Seed the
+  // canonical site/ R2 key lazily when the public URL is first requested so
+  // the image is available through the same bucket-backed CDN as editor uploads.
+  if (!obj && key === 'site/pastorHarvey.jpeg' && env.ASSETS && typeof env.ASSETS.fetch === 'function') {
+    const assetUrl = new URL('/pastorHarvey.jpeg', request.url);
+    const assetResponse = await env.ASSETS.fetch(new Request(assetUrl, { method: 'GET' }));
+    if (assetResponse.ok) {
+      await env.GALLERY_BUCKET.put(key, await assetResponse.arrayBuffer(), {
+        httpMetadata: { contentType: 'image/jpeg' }
+      });
+      obj = await env.GALLERY_BUCKET.get(key);
+    }
+  }
   if (!obj) return new Response('Not found', { status: 404 });
 
   const headers = new Headers();

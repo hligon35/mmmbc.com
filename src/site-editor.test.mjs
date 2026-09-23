@@ -94,6 +94,7 @@ test('leadership editor seed contains the staff profiles', () => {
     'Rev. Stephen Harvey', 'Marsha Roundtree', 'Weldon Stokes', 'John Burnett'
   ]);
   assert.ok(profiles.every((profile) => profile.group === 'staff' && profile.image.url && profile.bio));
+  assert.equal(profiles[0].image.url, '/cdn/gallery/site/pastorHarvey.jpeg');
 
   const { ok, errors } = validatePageFields('leadership', {
     ...INITIAL_PUBLISHED_CONTENT.leadership,
