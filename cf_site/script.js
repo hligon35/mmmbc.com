@@ -50,7 +50,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const parentLink = document.createElement('a');
             parentLink.className = 'nav-parent-link';
-            parentLink.href = buildLeadershipHref(baseHref, 'leadership.html');
+            const leadershipHref = buildLeadershipHref(baseHref, 'leadership.html');
+            parentLink.href = leadershipHref;
+            parentLink.setAttribute('href', leadershipHref);
             parentLink.textContent = parentLabel;
             parentLink.setAttribute('aria-haspopup', 'true');
             parentLink.setAttribute('aria-expanded', 'false');
