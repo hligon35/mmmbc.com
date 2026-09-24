@@ -2904,14 +2904,23 @@ body.theme-system.theme-effective-dark .sideNav__groupLabel{
 .accessPanel .btn{justify-self:start;}
 
 .settingsPanel{display:grid;gap:18px;}
-.settingsGrid{display:grid;grid-template-columns:minmax(320px, .8fr) minmax(520px, 1.2fr);gap:18px;align-items:start;}
-.settingsAddCard,.settingsRolesCard,.settingsUsersCard,.settingsAuditCard{min-width:0;}
+.settingsHeaderActions{display:flex;gap:10px;flex-wrap:wrap;}
+.settingsAddCard,.settingsUsersCard,.settingsAuditCard{min-width:0;}
+.settingsAddForm{display:flex;flex-wrap:wrap;align-items:end;gap:16px;}
+.settingsAddForm .label{flex:1 1 180px;min-width:160px;}
+.settingsAddForm__submit{flex:0 0 auto;min-height:44px;align-self:end;}
+.settingsRoleSummary{margin-top:20px;}
+.settingsRolesDialog__inner{max-width:min(900px, calc(100vw - 32px));width:100%;}
 .settingsRoleSummary{border:1px solid var(--border);border-radius:8px;padding:12px;background:rgba(196,97,35,.08);}
 .settingsRoleSummary p{margin:6px 0 0;}
 .settingsFilters{display:grid;grid-template-columns:minmax(240px, 2fr) minmax(160px, 1fr) minmax(160px, 1fr) auto;gap:12px;align-items:end;margin-bottom:14px;}
 .settingsFilters .btn{min-height:44px;}
 .settingsPager{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;}
-.settingsUserActions{display:flex;flex-wrap:wrap;gap:6px;min-width:170px;}
+.settingsUsersTable,.settingsAuditTable{table-layout:fixed;width:100%;}
+.settingsUsersTable th,.settingsUsersTable td,
+.settingsAuditTable th,.settingsAuditTable td{text-align:center;}
+.settingsUsersTable th:nth-child(2),.settingsUsersTable td:nth-child(2){width:26%;padding-right:24px;}
+.settingsUserActions{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;}
 .settingsUserActions .btn{min-height:36px;padding:6px 10px;}
 .settingsRoleSelect{min-width:165px;}
 .settingsMatrix th,.settingsMatrix td{text-align:center;white-space:nowrap;}
@@ -2928,11 +2937,12 @@ body.theme-dark .settingsRoleSummary,
 body.theme-system.theme-effective-dark .settingsRoleSummary{background:rgba(196,97,35,.16);}
 
 @media (max-width:1100px){
-  .settingsGrid{grid-template-columns:1fr;}
   .settingsFilters{grid-template-columns:repeat(2, minmax(0, 1fr));}
 }
 
 @media (max-width:700px){
+  .settingsAddForm{flex-direction:column;align-items:stretch;}
+  .settingsAddForm__submit{width:100%;}
   .settingsFilters{grid-template-columns:1fr;}
   .settingsFilters .btn,.accessPanel .btn{width:100%;justify-self:stretch;}
   .settingsPager{justify-content:space-between;}
@@ -5539,6 +5549,71 @@ body[data-page] .stackListRow{display:grid;grid-template-columns:minmax(0,1fr) m
   justify-content:flex-end;
   border-top:1px solid var(--border);
   padding-top:14px;
+}
+
+.ministryProfilesFilters{
+  margin-bottom:16px;
+}
+
+.ministryProfilePageChips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+}
+
+.ministryProfilePageChip{
+  appearance:none;
+  border:1px solid var(--border);
+  border-radius:999px;
+  padding:9px 14px;
+  background:transparent;
+  color:var(--text);
+  cursor:pointer;
+  font:inherit;
+  font-size:.9rem;
+  font-weight:700;
+  line-height:1.2;
+  transition:background-color .15s ease,border-color .15s ease,color .15s ease,transform .15s ease;
+}
+
+.ministryProfilePageChip:hover,
+.ministryProfilePageChip:focus-visible{
+  border-color:var(--accent);
+  color:var(--accent);
+  outline:none;
+}
+
+.ministryProfilePageChip.is-active,
+.ministryProfilePageChip[aria-pressed="true"]{
+  border-color:var(--accent);
+  background:var(--accent);
+  color:#fff;
+}
+
+.ministryProfilePageChip:active{
+  transform:translateY(1px);
+}
+
+.ministryProfilesFilters__toolbar{
+  align-items:end;
+  flex-wrap:wrap;
+}
+
+.ministryProfilesFilters__toolbar .label{
+  min-width:180px;
+}
+
+.ministryProfilesFilters__toolbar .btn{
+  align-self:end;
+}
+
+.ministryProfileAdminCard__location{
+  margin:0 0 8px;
+  color:var(--accent);
+  font-size:.8rem;
+  font-weight:700;
+  overflow-wrap:anywhere;
 }
 
 .ministryProfileAdminGrid{

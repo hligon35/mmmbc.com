@@ -25,7 +25,9 @@ const profileItemFields = {
   name: { type: 'text', label: 'Name', required: true, maxLength: 120 },
   title: { type: 'text', label: 'Title / role', maxLength: 160 },
   bio: { type: 'textarea', label: 'Biography', maxLength: 4000 },
-  image: { type: 'image', label: 'Photo' }
+  image: { type: 'image', label: 'Photo' },
+  page: { type: 'text', label: 'Page key', maxLength: 120 },
+  section: { type: 'text', label: 'Section', maxLength: 120 }
 };
 
 // Shared shape for both weekly-schedule collections on the Home page. Each item is one
@@ -62,6 +64,42 @@ export const PAGE_SCHEMAS = {
       'page.intro': { type: 'rich_text', label: 'Intro text', maxLength: 2000 },
       profiles: {
         type: 'collection', label: 'Ministry leaders', itemLabel: 'Leader', maxItems: 40, itemFields: profileItemFields
+      }
+    }
+  },
+  associate_ministers: {
+    label: 'Associate Ministers',
+    fields: {
+      'page.title': { type: 'text', label: 'Page heading', required: true, maxLength: 100 },
+      profiles: {
+        type: 'collection', label: 'Associate ministers', itemLabel: 'Minister', maxItems: 20, itemFields: profileItemFields
+      }
+    }
+  },
+  deacons: {
+    label: 'Deacons',
+    fields: {
+      'page.title': { type: 'text', label: 'Page heading', required: true, maxLength: 100 },
+      profiles: {
+        type: 'collection', label: 'Deacons', itemLabel: 'Deacon', maxItems: 30, itemFields: profileItemFields
+      }
+    }
+  },
+  deaconesses: {
+    label: 'Deaconesses',
+    fields: {
+      'page.title': { type: 'text', label: 'Page heading', required: true, maxLength: 100 },
+      profiles: {
+        type: 'collection', label: 'Deaconesses', itemLabel: 'Deaconess', maxItems: 30, itemFields: profileItemFields
+      }
+    }
+  },
+  official_team_trustees: {
+    label: 'Official Team & Trustees',
+    fields: {
+      'page.title': { type: 'text', label: 'Page heading', required: true, maxLength: 100 },
+      profiles: {
+        type: 'collection', label: 'Official Team & Trustees', itemLabel: 'Official team member', maxItems: 30, itemFields: profileItemFields
       }
     }
   },
@@ -250,6 +288,264 @@ export const INITIAL_PUBLISHED_CONTENT = {
     'contact.email': 'mtmoriahmbc1201@gmail.com',
     'contact.fax': '(270) 443-7125'
   }
+};
+
+// The public page assignments were corrected after an earlier migration swapped
+// the associate-minister and ministry profile collections. Keep the canonical
+// values here so new D1 rows and legacy migration rows use the corrected pages.
+INITIAL_PUBLISHED_CONTENT.ministries.profiles = [
+  {
+    id: 'ministries-1', name: 'Music Department', title: 'Elaine Fletcher, Pianist',
+    bio: 'The music department is responsible for music at morning service, midweek, the Lord’s Supper, Discipleship Training, and all evening and outside programs designated. The Music Department includes the Mass Choir, Women’s Choir, Youth Choir, and Male Chorus.',
+    image: { url: 'https://mmmbc.com/wp-content/uploads/2025/05/Elaine.jpeg', alt: 'Elaine Fletcher' }
+  },
+  {
+    id: 'ministries-2', name: 'Women’s Ministry', title: 'Earlie Fugate, President',
+    bio: 'Our focus is to be a ministry where women are encouraged and enriched by studying and applying God’s Word.',
+    image: { url: 'https://mmmbc.com/wp-content/uploads/2025/05/Earlie.jpeg', alt: 'Earlie Fugate' }
+  },
+  {
+    id: 'ministries-3', name: 'Usher Board', title: 'Richard Washington, President',
+    bio: 'The ushers shall attend to the seating of the congregation and to such other duties as may be directed.',
+    image: { url: 'https://mmmbc.com/wp-content/uploads/2024/10/Richard-Washington.png', alt: 'Richard Washington' }
+  },
+  {
+    id: 'ministries-4', name: 'Culinary Department', title: 'Brenda Stokes, Department Head',
+    bio: 'It shall be the duty of this committee to organize feeding functions of the church.',
+    image: { url: 'https://mmmbc.com/wp-content/uploads/2024/10/Brenda-Stokes.png', alt: 'Brenda Stokes' }
+  },
+  {
+    id: 'ministries-5', name: 'First Aid Care Committee', title: 'Tawanda Maxwell, President',
+    bio: 'Render services needed to the congregation.',
+    image: { url: 'https://mmmbc.com/wp-content/uploads/2024/10/Image-Coming-Soon.png', alt: 'First Aid Care Committee' }
+  },
+  {
+    id: 'ministries-6', name: 'Discipleship Training', title: 'Minister Doralyn Warren & William Stanley Jones, Superintendents',
+    bio: 'Shall be responsible for training and teaching the membership how to become more like Christ.',
+    image: { url: 'https://mmmbc.com/wp-content/uploads/2024/11/disciple-training.png', alt: 'Discipleship Training' }
+  },
+  {
+    id: 'ministries-7', name: 'Transportation Committee', title: 'Jesse Shields, Department Head',
+    bio: 'It shall be the responsibility of this committee to provide transportation for church services and activities. A schedule of drivers will be prepared, and drivers must possess a valid driver’s license.',
+    image: { url: 'https://mmmbc.com/wp-content/uploads/2024/11/Jesse-Shields.jpg', alt: 'Jesse Shields' }
+  },
+  {
+    id: 'ministries-8', name: 'Youth Department', title: 'Tonya Gill, Department Head',
+    bio: 'To assist boys and girls, ages 5 and up, in the stages of transition to becoming healthy and strong Christian men and women.',
+    image: { url: 'https://mmmbc.com/wp-content/uploads/2024/10/Tonya-Gill.png', alt: 'Tonya Gill' }
+  },
+  {
+    id: 'ministries-9', name: 'Decorations', title: 'Janice Jones, Department Head',
+    bio: 'It shall be the responsibility of this committee to decorate the sanctuary with seasonal decorations or decorations to present a particular theme. This committee is also responsible for decorations for special events.',
+    image: { url: 'https://mmmbc.com/wp-content/uploads/2024/11/Janice-Jones.jpg', alt: 'Janice Jones' }
+  },
+  {
+    id: 'ministries-10', name: 'Custodial', title: 'Uvette Kizer & Margaret Faulkner',
+    bio: 'It shall be the responsibility of this committee to provide for the maintenance and upkeep of buildings.',
+    image: { url: 'https://mmmbc.com/wp-content/uploads/2024/11/Custodial.png', alt: 'Custodial Ministry' }
+  },
+  {
+    id: 'ministries-11', name: 'Lawn Keeper', title: 'Derek Strong, Department Head',
+    bio: 'It shall be the responsibility of this committee to provide for the maintenance and upkeep of buildings and grounds. This shall consist of exterior and interior.',
+    image: { url: 'https://mmmbc.com/wp-content/uploads/2024/10/Derek-Strong.png', alt: 'Derek Strong' }
+  },
+  {
+    id: 'ministries-12', name: 'Courtesy / Hospitality', title: 'Mary Dumas, Department Head',
+    bio: 'It shall be the duty of this committee to welcome visitors to church services, membership to church services, and visiting churches.',
+    image: { url: 'https://mmmbc.com/wp-content/uploads/2024/11/Mary-Dumas.jpg', alt: 'Mary Dumas' }
+  },
+  {
+    id: 'ministries-13', name: 'Photographer', title: 'Elbert Speers',
+    bio: 'It shall be the duty of the committee to gather and maintain any and all pictures that will contribute to the cumulative history of the church.',
+    image: { url: 'https://mmmbc.com/wp-content/uploads/2024/10/Elbert-Speers.png', alt: 'Elbert Speers' }
+  },
+  {
+    id: 'ministries-14', name: 'Video / Audio Ministry', title: 'Calvin Cole, Jr., Elbert Spears, Derek Strong',
+    bio: 'One who controls the sound/volume. Also, one who records the services for those who desire a copy or cannot attend service in person.',
+    image: { url: 'https://mmmbc.com/wp-content/uploads/2024/11/Video.png', alt: 'Video / Audio Ministry' }
+  }
+];
+
+INITIAL_PUBLISHED_CONTENT.leadership.profiles = [
+  {
+    id: 'leadership-1', group: 'staff', name: 'Rev. Stephen Harvey', title: 'Pastor',
+    bio: 'Stephen Harvey, a native of Paducah, Kentucky, received his Bachelor of Social Work and minor in Physical Education from Murray State University and is pursuing a Master’s in Human Development and Leadership. He was licensed to preach in 2005, ordained in 2011, and has served as an associate minister, youth director, teacher, treasurer, and pastor. He is retired from the Mayfield Youth Development Center and continues to give God all the praise, honor, and glory for the opportunity to be His humble servant.',
+    image: { url: '/cdn/gallery/site/pastorHarvey.jpeg', alt: 'Rev. Stephen Harvey' }
+  },
+  {
+    id: 'leadership-2', group: 'staff', name: 'Marsha Roundtree', title: 'Church Administrative Assistant',
+    bio: 'Keeps complete records of the transactions of all business meetings; keeps records of church membership and baptism; prepares bulletins and correspondence; sends annual giving statements to members; and serves as finance secretary in assisting the finance chairman.',
+    image: { url: '../ConImg/webPages/leadership_staff_image1.jpeg', alt: 'Marsha Roundtree' }
+  },
+  {
+    id: 'leadership-3', group: 'staff', name: 'Weldon Stokes', title: 'Finance Chairman',
+    bio: 'The Finance Chairman is responsible for the financial records of the church. Weldon Stokes has served as a deacon for over 30 years and is a member of the Usher Ministry, Culinary Ministry, and Official Team.',
+    image: { url: '../ConImg/webPages/leadership_staff_image2.png', alt: 'Weldon Stokes' }
+  },
+  {
+    id: 'leadership-4', group: 'staff', name: 'John Burnett', title: 'Finance Vice Chair',
+    bio: 'The Finance Vice Chairman supports the finance chairman and is responsible for financial records when the chairman is not available. John Burnett has served as a deacon for over 20 years and is active in the Ushers Ministry, Culinary Ministry, and Official Team.',
+    image: { url: '../ConImg/webPages/leadership_staff_image3.jpeg', alt: 'John Burnett' }
+  }
+];
+
+INITIAL_PUBLISHED_CONTENT.associate_ministers = {
+  'page.title': 'Associate Ministers',
+  profiles: [
+    {
+      id: 'associate-ministers-1', name: 'Evangelist Melanie Nunn', title: '',
+      bio: 'Before moving to Paducah, she and her family lived in Detroit, MI for twenty-five years where she taught English and Journalism at Henry Ford High School. Evangelist Nunn responded to God’s call in 2000 and has never looked back. She is an associate minister at Mount Moriah Missionary Baptist Church in Paducah, KY where she also served as Superintendent of Disciples in Training. She considers it an honor to be both licensed and ordained by her father in the ministry and pastor, Reverend Dr. Calvin Cole, Sr.',
+      image: { url: '../ConImg/webPages/ministries_image1.png', alt: 'Evangelist Melanie Nunn' }
+    },
+    {
+      id: 'associate-ministers-2', name: 'Elder Jimmy Jones', title: '',
+      bio: 'Elder Jones was born in Cairo IL, graduated from Sumner High School and West KY Vocational-Technical School, and attended Coyne Electronic Institute for 15 months. He was an employee of USEC for 37 years in instrument maintenance. He was married to Teressia Jones for 38 years and from this union they have four children. Elder Jones was ordained February 18, 1996, at Higher Dimensions Church, Paducah, KY by Rev. Zachery Strong.',
+      image: { url: '../ConImg/webPages/ministries_image2.jpeg', alt: 'Elder Jimmy Jones' }
+    },
+    {
+      id: 'associate-ministers-3', name: 'Rev. Fairly Taylor', title: '',
+      bio: 'Reverend Fairley Taylor Jr. is the son of Brenda Taylor and the late Fairley Taylor Sr. He grew up in Hopkinsville, KY, received his commission in 1988 as a U.S. Army officer, and graduated from Murray State University in 1989 with a Bachelor of Science degree in Animal Science. He was ordained as a deacon in 1991, called into ministry in 2005, and received his license to preach January 4, 2007 from Reverend Dr. W.G. Harvey Sr. at New Greater Love Missionary Baptist Church in Paducah, KY.',
+      image: { url: '../ConImg/webPages/ministries_image3.png', alt: 'Rev. Fairly Taylor' }
+    },
+    {
+      id: 'associate-ministers-4', name: 'Minister Joyce Shields', title: '',
+      bio: 'Joyce Marie Harden-Shields is the second oldest of five children born to Leon (deceased) and Joyce Harden. She accepted Jesus Christ as her Lord and Savior at fourteen, moved to Paducah in 1996, joined White Oak Missionary Baptist Church in 1997, and moved her membership to Mt. Moriah in 2001. She accepted the call into ministry on March 31, 2019 and has served as president of the Missionary Circle, Discipleship Training Superintendent, and Women’s Ministry secretary.',
+      image: { url: '../ConImg/webPages/ministries_image4.jpeg', alt: 'Minister Joyce Shields' }
+    },
+    {
+      id: 'associate-ministers-5', name: 'Minister Doralyn Warren', title: '',
+      bio: 'Doralyn Warren is an instructor in the Nursing Assistant Program at West Kentucky Community and Technical College. She previously worked in long-term care for over 40 years and sees caring for the elderly as a calling. She earned a Bachelor of Science in Nursing from Wesleyan University in 2010 and is attending Newburgh Seminary for a Master of Ministry degree.',
+      image: { url: '../ConImg/webPages/ministries_image5.png', alt: 'Minister Doralyn Warren' }
+    },
+    {
+      id: 'associate-ministers-6', name: 'Rev. Dennis Gray', title: '',
+      bio: 'Pastor Dennis Gray, a native of Hickman, Kentucky, is a commissioned minister of the Christian Church (Disciple of Christ). He served as pastor of Second Christian Church in Mayfield, KY for 23 years and now serves Mt. Moriah Missionary Baptist Church in Paducah, Kentucky as an Associate Minister. Pastor Gray is the husband of Sue Gray, and they have three children and four grandchildren.',
+      image: { url: '../ConImg/webPages/ministries_image6.jpeg', alt: 'Rev. Dennis Gray' }
+    }
+  ]
+};
+
+INITIAL_PUBLISHED_CONTENT.deacons = {
+  'page.title': 'Deacons',
+  profiles: [
+    {
+      id: 'deacons-1', name: 'John Burnett', title: 'Chairman of Deacons',
+      bio: 'Deacon Burnett has served for over 20 years, serves as vice-president of the Ushers Ministry, Finance Vice-Chairman, and is a member of Culinary Ministry and the Official Team.',
+      image: { url: '../ConImg/webPages/deacons_image1.jpeg', alt: 'John Burnett' }
+    },
+    {
+      id: 'deacons-2', name: 'Thomas L. Biles', title: '',
+      bio: 'Deacon for over 40 years, member of the Male Chorus, Discipleship Training teacher, and member of the Official Team.',
+      image: { url: '../ConImg/webPages/deacons_image2.jpeg', alt: 'Thomas L. Biles' }
+    },
+    {
+      id: 'deacons-3', name: 'Mario Johnson', title: '',
+      bio: 'Deacon for more than 15 years and member of the Official Team.',
+      image: { url: '../ConImg/webPages/deacons_image3.jpeg', alt: 'Mario Johnson' }
+    },
+    {
+      id: 'deacons-4', name: 'William S. Jones', title: '',
+      bio: 'Deacon for over 30 years, Vice-chairman Trustee Board, and member of the Usher Ministry, Male Chorus, Official Team, and Discipleship Training team.',
+      image: { url: '../ConImg/webPages/deacons_image4.jpeg', alt: 'William S. Jones' }
+    },
+    {
+      id: 'deacons-5', name: 'Weldon Stokes', title: '',
+      bio: 'Deacon for over 30 years, Finance Chief, member of the Usher Ministry and Culinary Ministry, and Official Team Secretary.',
+      image: { url: '../ConImg/webPages/deacons_image5.png', alt: 'Weldon Stokes' }
+    },
+    {
+      id: 'deacons-6', name: 'David Jones, Sr.', title: '',
+      bio: 'Ordained as a deacon on June 21, 2013. Member of the Male Chorus and Official Team.',
+      image: { url: '../ConImg/webPages/deacons_image6.jpeg', alt: 'David Jones, Sr.' }
+    }
+  ]
+};
+
+INITIAL_PUBLISHED_CONTENT.deaconesses = {
+  'page.title': 'Deaconesses',
+  profiles: [
+    {
+      id: 'deaconesses-1', name: 'Angela Johnson', title: 'President',
+      bio: 'President of the Deaconess Board. Member of the Usher Ministry and Women\'s Ministry.',
+      image: { url: '../ConImg/webPages/deaconesses_image1.jpeg', alt: 'Angela Johnson' }
+    },
+    {
+      id: 'deaconesses-2', name: 'Carrie Jones', title: 'Deaconess Vice President',
+      bio: 'Member of Mt. Moriah since childhood, member of the Deaconess Board for more than 5 years, and member of the Official Team. Former member of the Music and Missionary ministries.',
+      image: { url: '../ConImg/webPages/deaconesses_image2.png', alt: 'Carrie Jones' }
+    },
+    {
+      id: 'deaconesses-3', name: 'Mattie Bryant', title: '',
+      bio: 'Longtime member of Mt. Moriah. Former member of the Missionary Ministry and Music Ministry.',
+      image: { url: '../ConImg/webPages/deaconesses_image3.png', alt: 'Mattie Bryant' }
+    },
+    {
+      id: 'deaconesses-4', name: 'L. Joyce Biles', title: '',
+      bio: 'Former member of the Missionary Ministry, Women\'s Ministry, bulletin board ministry, and represented Mt. Moriah at Community Kitchen.',
+      image: { url: '../ConImg/webPages/deaconesses_image4.jpeg', alt: 'L. Joyce Biles' }
+    },
+    {
+      id: 'deaconesses-5', name: 'Ruthie Washington', title: '',
+      bio: 'Former Missionary Ministry Treasurer, Women\'s Ministry member, and secretary for the Usher Ministry.',
+      image: { url: '../ConImg/webPages/deaconesses_image5.png', alt: 'Ruthie Washington' }
+    },
+    {
+      id: 'deaconesses-6', name: 'Mildred Arnold', title: '',
+      bio: 'Oldest member of the Usher Ministry, former member of the Missionary Ministry, and retired head of the Culinary Ministry.',
+      image: { url: '../ConImg/webPages/deaconesses_image6.png', alt: 'Mildred Arnold' }
+    },
+    {
+      id: 'deaconesses-7', name: 'Sherona Waldon', title: '',
+      bio: 'Member of Mt. Moriah for 61 years, President of Women\'s Ministry, former Administrative Assistant to Pastor Calvin Cole Sr., and former choir member.',
+      image: { url: '../ConImg/webPages/deaconesses_image7.png', alt: 'Sherona Waldon' }
+    }
+  ]
+};
+
+INITIAL_PUBLISHED_CONTENT.official_team_trustees = {
+  'page.title': 'Official Team & Trustees',
+  profiles: [
+    {
+      id: 'official-team-trustees-1', name: 'Carrie Jones', title: '',
+      bio: 'Member of Mt. Moriah since childhood, member of the Deaconess Board for more than 5 years, and member of the Official Team. Former member of the Music and Missionary ministries.',
+      image: { url: '../ConImg/webPages/official_team_image1.png', alt: 'Carrie Jones' }
+    },
+    {
+      id: 'official-team-trustees-2', name: 'Derek Strong', title: '',
+      bio: 'Member for over 10 years, member of Official Team, lawn keeper, and Audio or Video Ministry.',
+      image: { url: '../ConImg/webPages/official_team_image2.png', alt: 'Derek Strong' }
+    },
+    {
+      id: 'official-team-trustees-3', name: 'Richard Washington', title: '',
+      bio: 'President of Usher Ministry, member of the Official Team, and driver for the Transportation Ministry.',
+      image: { url: '../ConImg/webPages/official_team_image3.png', alt: 'Richard Washington' }
+    },
+    {
+      id: 'official-team-trustees-4', name: 'Brenda Stokes', title: '',
+      bio: 'Member for over 40 years, member of Usher Ministry and Women\'s Ministry, head of Culinary Ministry, and member of the Official Team.',
+      image: { url: '../ConImg/webPages/official_team_image4.png', alt: 'Brenda Stokes' }
+    },
+    {
+      id: 'official-team-trustees-5', name: 'Tonya Gill', title: '',
+      bio: 'Head of the Youth Department.',
+      image: { url: '../ConImg/webPages/official_team_image5.png', alt: 'Tonya Gill' }
+    },
+    {
+      id: 'official-team-trustees-6', name: 'Elbert Speers', title: '',
+      bio: 'Audio or Video technician, photographer, and member of the Official Board.',
+      image: { url: '../ConImg/webPages/official_team_image6.png', alt: 'Elbert Speers' }
+    },
+    {
+      id: 'official-team-trustees-7', name: 'Marsha Roundtree', title: '',
+      bio: 'Church Administrative Assistant, member of Women\'s Ministry, and member of the Official Board.',
+      image: { url: '../ConImg/webPages/official_team_image7.jpeg', alt: 'Marsha Roundtree' }
+    },
+    {
+      id: 'official-team-trustees-8', name: 'Bessie Newbern', title: '',
+      bio: 'Member for over 20 years, member of Official Team, and former head of the Decorations Ministry.',
+      image: { url: '../ConImg/webPages/official_team_image8.png', alt: 'Bessie Newbern' }
+    }
+  ]
 };
 
 export function getPageSchema(page) {

@@ -1300,11 +1300,11 @@
       </section>
 
       <!-- Ministry Profiles -->
-      <section class="tabPanel ministryProfilesPanel" role="tabpanel" id="tab-ministries" aria-labelledby="tabBtn-ministries" hidden data-header-crumb="Ministry Profiles" data-header-description="Add, edit, reorder, and publish the individual profiles shown on the Ministries page.">
+      <section class="tabPanel ministryProfilesPanel" role="tabpanel" id="tab-ministries" aria-labelledby="tabBtn-ministries" hidden data-header-crumb="Ministry Profiles" data-header-description="Add, edit, reorder, and publish profiles across the leadership and ministry pages.">
         <div class="sectionHeader ministryProfilesHeader">
           <div>
             <h2 class="sectionHeader__title">Ministry Profiles</h2>
-            <p class="muted">Manage the individual ministry leader cards shown on the public Ministries page. Save a draft first, then publish when the page is ready.</p>
+            <p class="muted">Manage the profile cards shown on Leadership &amp; Staff and its related public pages. Select a page chip, edit its profiles, then save and publish that page.</p>
           </div>
           <div class="toolbar ministryProfilesHeader__actions">
             <button class="btn" id="ministriesRefreshBtn" type="button">Refresh</button>
@@ -1326,6 +1326,11 @@
           <div class="hint" id="ministriesEditorStatus" role="status" aria-live="polite">Loading ministry profiles…</div>
           <div class="error" id="ministriesEditorError" role="alert" hidden></div>
         </form>
+
+        <div class="card ministryProfilesFilters" aria-label="Filter profiles by page or section">
+          <div class="ministryProfilePageChips" id="ministriesProfilePageChips" role="tablist" aria-label="Profile pages"></div>
+          <p class="hint" id="ministriesProfileFilterSummary" role="status" aria-live="polite"></p>
+        </div>
 
         <section class="card ministryProfilesListCard" aria-labelledby="ministriesProfilesListTitle">
           <div class="sectionHeader sectionHeader--compact">
@@ -1355,6 +1360,18 @@
             <div class="formRow">
               <label class="label">Name<input class="input" id="ministryProfileName" name="name" type="text" maxlength="120" required /></label>
               <label class="label">Title or role<input class="input" id="ministryProfileTitle" name="title" type="text" maxlength="160" placeholder="Optional" /></label>
+            </div>
+            <div class="formRow">
+              <label class="label">Page key<input class="input" id="ministryProfilePage" name="page" type="text" maxlength="120" readonly /></label>
+              <label class="label" id="ministryProfileGroupField" hidden>Leadership section
+                <select class="select" id="ministryProfileGroup" name="group">
+                  <option value="staff">Leadership &amp; Staff</option>
+                  <option value="deacons">Deacons</option>
+                  <option value="deaconesses">Deaconesses</option>
+                  <option value="official_team">Official Team &amp; Trustees</option>
+                </select>
+              </label>
+              <label class="label" id="ministryProfileSectionField">Section<input class="input" id="ministryProfileSection" name="section" type="text" maxlength="120" readonly /></label>
             </div>
             <label class="label">Biography<textarea class="textarea" id="ministryProfileBio" name="bio" rows="10" maxlength="4000" placeholder="Write the biography shown on the public card."></textarea></label>
             <div class="ministryProfileImageEditor">
@@ -1664,40 +1681,30 @@
             <h2 class="sectionHeader__title">Users &amp; Roles</h2>
             <p class="muted">Add administrators and control exactly what each standard role can access.</p>
           </div>
-          <button class="btn" id="settingsRefreshBtn" type="button">Refresh</button>
+          <div class="settingsHeaderActions">
+            <button class="btn" id="settingsRolesBtn" type="button">Standard role permissions</button>
+            <button class="btn" id="settingsRefreshBtn" type="button">Refresh</button>
+          </div>
         </div>
 
-        <div class="settingsGrid">
-          <section class="card settingsAddCard" aria-labelledby="settingsAddTitle">
-            <h3 class="card__subtitle" id="settingsAddTitle">Add administrator</h3>
-            <form class="form" id="settingsAddUserForm">
-              <div class="formRow">
-                <label class="label">Full name<input class="input" name="fullName" type="text" maxlength="120" autocomplete="name" required /></label>
-                <label class="label">Email<input class="input" name="email" type="email" maxlength="254" autocomplete="email" required /></label>
-              </div>
-              <div class="formRow">
-                <label class="label">Role<select class="select" id="settingsAddRole" name="role" required></select></label>
-                <label class="label">Status
-                  <select class="select" id="settingsAddStatus" name="status" required>
-                    <option value="pending" selected>Pending</option>
-                    <option value="active">Active</option>
-                    <option value="suspended">Suspended</option>
-                  </select>
-                </label>
-              </div>
-              <div class="settingsRoleSummary" id="settingsSelectedRoleSummary" aria-live="polite"></div>
-              <button class="btn btn--primary" type="submit">Add administrator</button>
-              <div class="hint" id="settingsAddHint" aria-live="polite"></div>
-            </form>
-          </section>
-
-          <section class="card settingsRolesCard" aria-labelledby="settingsRolesTitle">
-            <h3 class="card__subtitle" id="settingsRolesTitle">Standard role permissions</h3>
-            <p class="muted">View means read-only access. Manage means the role can create or change records.</p>
-            <p class="hint">Roster labels are mapped to these standard roles: Master Admin uses the full-access Administrator role, Finance Officer uses Finance Officer, and Site Editor uses Site Editor.</p>
-            <div class="tableWrap"><table class="table settingsMatrix"><thead id="settingsRolesHead"></thead><tbody id="settingsRolesBody"></tbody></table></div>
-          </section>
-        </div>
+        <section class="card settingsAddCard settingsAddCard--horizontal" aria-labelledby="settingsAddTitle">
+          <h3 class="card__subtitle" id="settingsAddTitle">Add administrator</h3>
+          <form class="form settingsAddForm" id="settingsAddUserForm">
+            <label class="label">Full name<input class="input" name="fullName" type="text" maxlength="120" autocomplete="name" required /></label>
+            <label class="label">Email<input class="input" name="email" type="email" maxlength="254" autocomplete="email" required /></label>
+            <label class="label">Role<select class="select" id="settingsAddRole" name="role" required></select></label>
+            <label class="label">Status
+              <select class="select" id="settingsAddStatus" name="status" required>
+                <option value="pending" selected>Pending</option>
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+              </select>
+            </label>
+            <button class="btn btn--primary settingsAddForm__submit" type="submit">Add administrator</button>
+          </form>
+          <div class="settingsRoleSummary" id="settingsSelectedRoleSummary" aria-live="polite"></div>
+          <div class="hint" id="settingsAddHint" aria-live="polite"></div>
+        </section>
 
         <section class="card settingsUsersCard" aria-labelledby="settingsUsersTitle">
           <div class="sectionHeader sectionHeader--compact">
@@ -1720,9 +1727,22 @@
 
         <section class="card settingsAuditCard" aria-labelledby="settingsAuditTitle">
           <h3 class="card__subtitle" id="settingsAuditTitle">Recent administrator activity</h3>
-          <div class="tableWrap"><table class="table"><thead><tr><th>Actor</th><th>Action</th><th>Target</th><th>Date</th></tr></thead><tbody id="settingsAuditBody"></tbody></table></div>
+          <div class="tableWrap"><table class="table settingsAuditTable"><thead><tr><th>Actor</th><th>Action</th><th>Target</th><th>Date</th></tr></thead><tbody id="settingsAuditBody"></tbody></table></div>
         </section>
       </section>
+
+      <dialog class="dialog" id="settingsRolesDialog" aria-labelledby="settingsRolesDialogTitle" aria-modal="true">
+        <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
+        <div class="card dialog__inner settingsRolesDialog__inner">
+          <div class="sectionHeader sectionHeader--compact">
+            <h3 class="sectionHeader__title" id="settingsRolesDialogTitle">Standard role permissions</h3>
+            <button class="btn" id="settingsRolesDialogCloseBtn" type="button">Close</button>
+          </div>
+          <p class="muted">View means read-only access. Manage means the role can create or change records.</p>
+          <p class="hint">Roster labels are mapped to these standard roles: Master Admin uses the full-access Administrator role, Finance Officer uses Finance Officer, and Site Editor uses Site Editor.</p>
+          <div class="tableWrap"><table class="table settingsMatrix"><thead id="settingsRolesHead"></thead><tbody id="settingsRolesBody"></tbody></table></div>
+        </div>
+      </dialog>
 
 
 
@@ -1743,10 +1763,10 @@
     </div>
   </dialog>
 
-  <script src="/admin/admin.js?v=20260730k" defer></script>
-  <script src="/admin/admin-ministry-profiles.js?v=20260919a" defer></script>
+  <script src="/admin/admin.js?v=20260730l" defer></script>
+  <script src="/admin/admin-ministry-profiles.js?v=20260923a" defer></script>
   <script src="/admin/admin-directory.js?v=20260730a" defer></script>
   <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>
-  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260919203612" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20260923172040" defer></script>
 </body>
 </html>

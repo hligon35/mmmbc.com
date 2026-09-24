@@ -26,7 +26,7 @@
 <div class="nav-links" id="navLinks">
 <a href="../index.html">Home</a>
 <a href="ministries.html">Ministries</a>
-<a href="associate_ministers.html">Leadership &amp; Staff</a>
+<a href="leadership.html">Leadership &amp; Staff</a>
 <a href="church_history.html">Church History</a>
 <a href="facility_rental.html">Facility Rental</a>
 <a href="photo_gallery.html">Photo Gallery</a>
@@ -44,7 +44,7 @@
 
 <main>
 <section class="content-section content-section--wide">
-<h1>Deaconesses</h1>
+<h1 data-cms-field="page.title" data-cms-type="text">Deaconesses</h1>
 <ul class="content-subnav">
 <li><a href="associate_ministers.html">Associate Ministers</a></li>
 <li><a href="deacons.html">Deacons</a></li>
@@ -55,8 +55,18 @@
 <p>The Board of Deaconesses are sisters in the church who are moral, spiritual, and of good report among the members as suggested in the New Testament: 1 Timothy 3:11 and Titus 2:2-5.</p>
 <p>Their duties include assisting the deacons in maintaining moral and spiritual life among members and assisting the pastor in developing the spiritual life of women and girls for Christian service. The board also assists in visiting and caring for sick, needy, and distressed church members.</p>
 
-<div class="leadership-profiles-grid">
+<div class="leadership-profiles-grid" data-cms-collection="profiles">
+<template data-cms-item-template>
 <div class="leadership-profile">
+<img alt="" class="profile-image" data-cms-item-field="image" data-cms-type="image"/>
+<div class="profile-details">
+<h2 data-cms-item-field="name" data-cms-type="text"></h2>
+<p data-cms-item-field="title" data-cms-type="text"></p>
+<p data-cms-item-field="bio" data-cms-type="textarea"></p>
+</div>
+</div>
+</template>
+<div class="leadership-profile" data-cms-item data-cms-item-id="deaconesses-1">
 <img alt="Angela Johnson" class="profile-image" src="../ConImg/webPages/deaconesses_image1.jpeg"/>
 <div class="profile-details">
 <h2>Angela Johnson</h2>
@@ -65,7 +75,7 @@
 </div>
 </div>
 
-<div class="leadership-profile">
+<div class="leadership-profile" data-cms-item data-cms-item-id="deaconesses-2">
 <img alt="Carrie Jones" class="profile-image" src="../ConImg/webPages/deaconesses_image2.png"/>
 <div class="profile-details">
 <h2>Carrie Jones</h2>
@@ -74,7 +84,7 @@
 </div>
 </div>
 
-<div class="leadership-profile">
+<div class="leadership-profile" data-cms-item data-cms-item-id="deaconesses-3">
 <img alt="Mattie Bryant" class="profile-image" src="../ConImg/webPages/deaconesses_image3.png"/>
 <div class="profile-details">
 <h2>Mattie Bryant</h2>
@@ -82,7 +92,7 @@
 </div>
 </div>
 
-<div class="leadership-profile">
+<div class="leadership-profile" data-cms-item data-cms-item-id="deaconesses-4">
 <img alt="L. Joyce Biles" class="profile-image" src="../ConImg/webPages/deaconesses_image4.jpeg"/>
 <div class="profile-details">
 <h2>L. Joyce Biles</h2>
@@ -90,7 +100,7 @@
 </div>
 </div>
 
-<div class="leadership-profile">
+<div class="leadership-profile" data-cms-item data-cms-item-id="deaconesses-5">
 <img alt="Ruthie Washington" class="profile-image" src="../ConImg/webPages/deaconesses_image5.png"/>
 <div class="profile-details">
 <h2>Ruthie Washington</h2>
@@ -98,7 +108,7 @@
 </div>
 </div>
 
-<div class="leadership-profile">
+<div class="leadership-profile" data-cms-item data-cms-item-id="deaconesses-6">
 <img alt="Mildred Arnold" class="profile-image" src="../ConImg/webPages/deaconesses_image6.png"/>
 <div class="profile-details">
 <h2>Mildred Arnold</h2>
@@ -106,7 +116,7 @@
 </div>
 </div>
 
-<div class="leadership-profile">
+<div class="leadership-profile" data-cms-item data-cms-item-id="deaconesses-7">
 <img alt="Sherona Waldon" class="profile-image" src="../ConImg/webPages/deaconesses_image7.png"/>
 <div class="profile-details">
 <h2>Sherona Waldon</h2>
@@ -118,7 +128,7 @@
 </main>
 
 <footer></footer>
-<script src="../script.js?v=20260730d"></script>
+<script src="../script.js?v=20260923a"></script>
+<script src="../site-content-loader.js" defer data-cms-page="deaconesses"></script>
 </body>
 </html>
-

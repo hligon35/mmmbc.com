@@ -5956,6 +5956,18 @@ function settingsDate(value, fallback = 'Never') {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(timestamp));
 }
 
+function settingsShortDate(value, fallback = 'Never') {
+  const raw = String(value || '').trim();
+  if (!raw) return fallback;
+  const timestamp = Date.parse(raw);
+  if (!Number.isFinite(timestamp)) return raw;
+  const date = new Date(timestamp);
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const yy = String(date.getFullYear()).slice(-2);
+  return `${mm}/${dd}/${yy}`;
+}
+
 function settingsRoleByKey(key) {
   return settingsState.roles.find((role) => String(role.key) === String(key));
 }
@@ -6106,8 +6118,8 @@ function renderSettingsUsers(data) {
     const statusCell = settingsCell(String(user.status || 'unknown').replace(/\b\w/g, (character) => character.toUpperCase()));
     statusCell.dataset.status = String(user.status || '').toLowerCase();
     row.appendChild(statusCell);
-    row.appendChild(settingsCell(settingsDate(user.lastLoginAt)));
-    row.appendChild(settingsCell(settingsDate(user.createdAt, 'Unknown')));
+    row.appendChild(settingsCell(settingsShortDate(user.lastLoginAt)));
+    row.appendChild(settingsCell(settingsShortDate(user.createdAt, 'Unknown')));
 
     const actionsCell = document.createElement('td');
     actionsCell.className = 'settingsUserActions';
@@ -6423,6 +6435,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if ($('settingsRefreshBtn')) $('settingsRefreshBtn').addEventListener('click', () => loadSettings());
   if ($('settingsAddRole')) $('settingsAddRole').addEventListener('change', renderSettingsRoleSummary);
+  const settingsRolesDialog = $('settingsRolesDialog');
+  if ($('settingsRolesBtn') && settingsRolesDialog instanceof HTMLDialogElement) {
+    $('settingsRolesBtn').addEventListener('click', () => openManagedDialog(settingsRolesDialog, { initialFocusId: 'settingsRolesDialogCloseBtn' }));
+  }
+  if ($('settingsRolesDialogCloseBtn') && settingsRolesDialog instanceof HTMLDialogElement) {
+    $('settingsRolesDialogCloseBtn').addEventListener('click', () => closeManagedDialog(settingsRolesDialog));
+  }
+  if (settingsRolesDialog instanceof HTMLDialogElement) wireDialogDismissBehavior(settingsRolesDialog);
   if ($('settingsUserFilters')) {
     $('settingsUserFilters').addEventListener('submit', async (event) => {
       event.preventDefault();

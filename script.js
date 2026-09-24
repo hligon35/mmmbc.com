@@ -23,8 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeLeadershipMenus = () => {
         document.querySelectorAll('.nav-item-group--leadership.is-open').forEach((group) => {
             group.classList.remove('is-open');
-            const btn = group.querySelector('.nav-parent-toggle');
-            if (btn) btn.setAttribute('aria-expanded', 'false');
+            group.querySelectorAll('.nav-parent-toggle, .nav-parent-link').forEach((control) => {
+                control.setAttribute('aria-expanded', 'false');
+            });
         });
     };
 
@@ -47,12 +48,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const group = document.createElement('div');
             group.className = 'nav-item-group nav-item-group--leadership';
 
+            const parentLink = document.createElement('a');
+            parentLink.className = 'nav-parent-link';
+            const leadershipHref = buildLeadershipHref(baseHref, 'leadership.html');
+            parentLink.href = leadershipHref;
+            parentLink.setAttribute('href', leadershipHref);
+            parentLink.textContent = parentLabel;
+            parentLink.setAttribute('aria-haspopup', 'true');
+            parentLink.setAttribute('aria-expanded', 'false');
+
             const toggle = document.createElement('button');
             toggle.type = 'button';
             toggle.className = 'nav-parent-toggle';
             toggle.setAttribute('aria-haspopup', 'true');
             toggle.setAttribute('aria-expanded', 'false');
-            toggle.innerHTML = `${parentLabel}<span class="nav-parent-caret" aria-hidden="true">&#9662;</span>`;
+            toggle.setAttribute('aria-label', `Show ${parentLabel} menu`);
+            toggle.innerHTML = '<span class="nav-parent-caret" aria-hidden="true">&#9662;</span>';
 
             const submenu = document.createElement('div');
             submenu.className = 'nav-submenu';
@@ -67,19 +78,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 submenu.appendChild(a);
             });
 
+            group.appendChild(parentLink);
             group.appendChild(toggle);
             group.appendChild(submenu);
             leadershipLink.replaceWith(group);
+
+            const openLeadershipMenu = () => {
+                group.classList.add('is-open');
+                toggle.setAttribute('aria-expanded', 'true');
+                parentLink.setAttribute('aria-expanded', 'true');
+            };
 
             toggle.addEventListener('click', (event) => {
                 event.preventDefault();
                 event.stopPropagation();
                 const isOpen = group.classList.contains('is-open');
                 closeLeadershipMenus();
-                if (!isOpen) {
-                    group.classList.add('is-open');
-                    toggle.setAttribute('aria-expanded', 'true');
-                }
+                if (!isOpen) openLeadershipMenu();
+            });
+
+            group.addEventListener('mouseenter', openLeadershipMenu);
+            group.addEventListener('mouseleave', closeLeadershipMenus);
+            group.addEventListener('focusin', openLeadershipMenu);
+            group.addEventListener('focusout', (event) => {
+                if (!group.contains(event.relatedTarget)) closeLeadershipMenus();
             });
 
             submenu.querySelectorAll('a').forEach((a) => {
@@ -179,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <ul>
                         <li><a href="${root}index.html"><img src="${root}Icons/home.png" alt="Home icon" class="link-icon"><span class="link-text">Home</span></a></li>
                         <li><a href="${page('ministries.html')}"><img src="${root}Icons/ministries.png" alt="Ministries icon" class="link-icon"><span class="link-text">Ministries</span></a></li>
-                        <li><a href="${page('associate_ministers.html')}"><img src="${root}Icons/leadership.png" alt="Leadership icon" class="link-icon"><span class="link-text">Leadership</span></a></li>
+                        <li><a href="${page('leadership.html')}"><img src="${root}Icons/leadership.png" alt="Leadership icon" class="link-icon"><span class="link-text">Leadership</span></a></li>
                         <li><a href="${page('church_history.html')}"><img src="${root}Icons/churchhistory.png" alt="Church History icon" class="link-icon"><span class="link-text">Church History</span></a></li>
                         <li><a href="${page('giving.html')}"><img src="${root}Icons/give.png" alt="Give icon" class="link-icon"><span class="link-text">Give</span></a></li>
                         <li><a href="${page('facility_rental.html')}"><img src="${root}Icons/facilityrental.png" alt="Facility Rental icon" class="link-icon"><span class="link-text">Facility Rental</span></a></li>
