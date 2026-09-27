@@ -1809,9 +1809,9 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
 
 .eventsPrintMenu--inline > summary.actionIconBtn:hover,
 .eventsPrintMenu--inline > summary.actionIconBtn:focus-visible{
-  background:#fff;
+  background:var(--accent);
   border-color:var(--accent);
-  color:var(--accent);
+  color:#fff;
 }
 
 .announceItem{
