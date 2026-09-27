@@ -1,0 +1,12 @@
+{
+  "active": {
+    "platform": "website",
+    "status": "offline"
+  },
+  "embeds": {
+    "youtube": "",
+    "facebook": "",
+    "website": ""
+  },
+  "recurring": []
+}

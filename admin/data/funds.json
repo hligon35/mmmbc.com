@@ -1,0 +1,40 @@
+{
+  "funds": [
+    {
+      "id": "a0434adb-1eab-481a-ae7a-15c2f76e662e",
+      "fundName": "Automation Verification Fund",
+      "fundCode": "AUTO-VERIFY",
+      "description": "",
+      "fundType": "Other",
+      "restrictionStatus": "needs_treasurer_review",
+      "restrictionType": "none",
+      "restrictionPurpose": "",
+      "restrictionSource": "",
+      "effectiveDate": "",
+      "endDate": "",
+      "openingBalanceCents": 0,
+      "minimumBalanceWarningCents": 0,
+      "budgetAmountCents": 0,
+      "associatedBudget": "",
+      "responsibleMinistry": "",
+      "responsibleAdministrator": "",
+      "defaultIncomeCategory": "",
+      "defaultExpenseCategory": "",
+      "publicGivingAvailable": false,
+      "displayOrder": 999,
+      "active": true,
+      "archivedAt": "",
+      "notes": "",
+      "attachments": [],
+      "bankAccounts": [],
+      "createdAt": "2026-08-19T01:49:23.519Z",
+      "createdBy": "1b73e4ca-dec5-449d-a3ce-6f1c0a5e5f7e",
+      "updatedAt": "2026-08-19T01:49:23.519Z",
+      "updatedBy": "1b73e4ca-dec5-449d-a3ce-6f1c0a5e5f7e"
+    }
+  ],
+  "customFundTypes": [],
+  "transfers": [],
+  "releases": [],
+  "audit": []
+}

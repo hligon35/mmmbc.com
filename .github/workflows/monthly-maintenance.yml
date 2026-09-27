@@ -1,0 +1,101 @@
+name: Monthly maintenance
+
+on:
+  schedule:
+    - cron: "17 9 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: monthly-maintenance
+  cancel-in-progress: false
+
+jobs:
+  maintain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Create maintenance branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin master
+          if git ls-remote --exit-code --heads origin monthlyUpdate >/dev/null 2>&1; then
+            git fetch origin monthlyUpdate
+            git switch monthlyUpdate 2>/dev/null || git switch --create monthlyUpdate --track origin/monthlyUpdate
+            git merge --no-edit origin/master
+          else
+            git switch -c monthlyUpdate origin/master
+          fi
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Apply safe in-range updates
+        run: |
+          npm update
+          npm ci
+          npm --prefix admin update
+          npm --prefix admin ci
+
+      - name: Verify repository privacy
+        id: privacy
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          visibility="$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.visibility')"
+          echo "Repository visibility: ${visibility}"
+          test "${visibility}" = "private"
+
+      - name: Run maintenance checks
+        id: checks
+        continue-on-error: true
+        run: npm run maintenance
+
+      - name: Record workflow findings
+        if: always()
+        run: |
+          {
+            echo
+            echo "## Workflow guards"
+            echo
+            echo "- Maintenance checks: ${{ steps.checks.outcome }}"
+            echo "- Repository privacy guard: ${{ steps.privacy.outcome }}"
+          } >> monthlyReport.md
+
+      - name: Commit report and safe updates
+        if: always() && steps.privacy.outcome == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json admin/package.json admin/package-lock.json monthlyReport.md
+          git diff --cached --quiet || git commit -m "chore: monthly maintenance report"
+          git push origin monthlyUpdate
+
+      - name: Open or update pull request
+        if: always() && steps.privacy.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_number="$(gh pr list --base master --head monthlyUpdate --state open --json number --jq '.[0].number')"
+          if [ -n "${pr_number}" ]; then
+            gh pr edit "${pr_number}" --title "Monthly maintenance" --body-file monthlyReport.md
+          else
+            gh pr create --base master --head monthlyUpdate --title "Monthly maintenance" --body-file monthlyReport.md
+          fi
+
+      - name: Fail after preserving report
+        if: steps.checks.outcome == 'failure' || steps.privacy.outcome == 'failure'
+        run: exit 1

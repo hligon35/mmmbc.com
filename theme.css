@@ -1,0 +1,11 @@
+:root{
+  --mmmbc-accent:#c46123;
+  --mmmbc-text:#ffffff;
+  --mmmbc-bg:#8d2020;
+}
+
+/* Optional theme overrides using variables */
+.top-nav .menu-button span{background-color:var(--mmmbc-accent);} 
+.nav-links a:hover{background-color:var(--mmmbc-accent);} 
+.home section h2{color:var(--mmmbc-accent);} 
+.btn-contact{background-color:var(--mmmbc-accent);}

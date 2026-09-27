@@ -1,0 +1,51 @@
+{
+  "entries": [
+    {
+      "id": "31cd2d67-cdf3-4273-b21d-4445ac65ce87",
+      "date": "2026-08-18",
+      "type": "income",
+      "source": "manual",
+      "sourceLabel": "Manual",
+      "amountCents": 1500,
+      "category": "Offering",
+      "fund": "Automation Verification Fund",
+      "fundId": "a0434adb-1eab-481a-ae7a-15c2f76e662e",
+      "accountId": "",
+      "accountName": "",
+      "donorId": "",
+      "donorName": "",
+      "vendorId": "",
+      "vendorName": "",
+      "party": "Automation Verification",
+      "method": "cash",
+      "checkNumber": "",
+      "depositBatchId": "",
+      "stripeSourceId": "",
+      "description": "",
+      "memo": "Automation finance verification 1787104190356",
+      "note": "",
+      "attachmentCount": 0,
+      "status": "posted",
+      "reconciliationStatus": "unreconciled",
+      "statementReviewStatus": "needs_review",
+      "goodsServicesValueCents": 0,
+      "createdBy": "1b73e4ca-dec5-449d-a3ce-6f1c0a5e5f7e",
+      "createdAt": "2026-08-19T01:49:50.406Z",
+      "lastEditedBy": "",
+      "updatedAt": "2026-08-19T01:49:50.406Z",
+      "voidedBy": "",
+      "voidedAt": "",
+      "voidReason": "",
+      "reversalTransactionId": "",
+      "auditVersion": 1
+    }
+  ],
+  "meta": {
+    "categories": [
+      "Offering"
+    ],
+    "funds": [
+      "Automation Verification Fund"
+    ]
+  }
+}

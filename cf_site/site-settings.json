@@ -1,0 +1,14 @@
+{
+  "subscribers": [
+    {
+      "email": "member1@example.com",
+      "name": "Member One",
+      "group": "members"
+    },
+    {
+      "email": "member2@example.com",
+      "name": "Member Two",
+      "group": "members"
+    }
+  ]
+}
