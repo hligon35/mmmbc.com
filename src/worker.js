@@ -2114,7 +2114,22 @@ export default {
     }
 
     // Avoid stale admin assets at the edge during frequent updates.
-    const assetRes = await env.ASSETS.fetch(request);
+    // The wrapper may inspect and transform HTML responses after this fetch.
+    // Ask the Assets binding for an identity-encoded body for HTML routes so
+    // response.text() never interprets gzip/Brotli bytes as UTF-8 characters.
+    const isHtmlAsset = (request.method === 'GET' || request.method === 'HEAD')
+      && (url.pathname === '/'
+        || url.pathname === '/index.html'
+        || url.pathname === '/admin'
+        || url.pathname === '/admin/'
+        || url.pathname.endsWith('.html'));
+    let assetRequest = request;
+    if (isHtmlAsset) {
+      const assetHeaders = new Headers(request.headers);
+      assetHeaders.set('Accept-Encoding', 'identity');
+      assetRequest = new Request(request, { headers: assetHeaders });
+    }
+    const assetRes = await env.ASSETS.fetch(assetRequest);
     const headers = new Headers(assetRes.headers);
     applySecurityHeaders(headers, { isHttps });
 

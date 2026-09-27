@@ -922,6 +922,7 @@ async function transformAdminHtml(response) {
 
   const headers = new Headers(response.headers);
   headers.delete('Content-Length');
+  headers.delete('Content-Encoding');
   headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
   headers.set('Pragma', 'no-cache');
   return new Response(html, { status: response.status, headers });
@@ -960,6 +961,7 @@ async function transformPublicHtml(response, pathname) {
 
   const headers = new Headers(response.headers);
   headers.delete('Content-Length');
+  headers.delete('Content-Encoding');
   headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
   headers.set('Pragma', 'no-cache');
   return new Response(html, { status: response.status, headers });
