@@ -1871,6 +1871,23 @@ footer {
     margin: 0 0 12px;
 }
 
+.contact-form > .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 14px;
+}
+
+.contact-form .form-grid > div {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+}
+
+.contact-form .form-grid > .form-field--full {
+    grid-column: 1 / -1;
+}
+
 .contact-form label {
     font-weight: 700;
     letter-spacing: 0.2px;
@@ -1912,6 +1929,21 @@ footer {
 .contact-form h2 {
     text-align: center;
     margin-top: 12px;
+}
+
+.form-status {
+    min-height: 1.35em;
+    margin: 10px 0 0;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.form-status:empty {
+    min-height: 0;
+}
+
+.contact-form input:invalid:not(:placeholder-shown),
+.contact-form textarea:invalid:not(:placeholder-shown) {
+    border-color: #e78b75;
 }
 
 .form-note {
@@ -2462,6 +2494,10 @@ button.youtube-live-placeholder__button {
 }
 
 @media (max-width: 768px) {
+    .contact-form > .form-grid {
+        grid-template-columns: 1fr;
+    }
+
     .form-grid {
         grid-template-columns: 1fr;
     }

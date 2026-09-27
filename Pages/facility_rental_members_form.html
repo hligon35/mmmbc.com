@@ -104,48 +104,70 @@
 <p>Call: John Burnett <a href="tel:2702103809">(270) 210-3809</a> or Weldon Stokes <a href="tel:2705199017">(270) 519-9017</a></p>
 </div>
 
-<form class="contact-form" id="facilityRentalMembersForm" novalidate>
-<input id="emailTo" type="hidden" value="mtmoriahmbc@comcast.net"/>
-
+<form class="contact-form" data-cloudflare-form id="facilityRentalMembersForm" novalidate>
 <h2>Reservation Request</h2>
 <div class="form-grid">
 <div class="form-field">
 <label for="eventGroup">1. Name(s) of Event/Group <span aria-hidden="true">*</span></label>
-<input id="eventGroup" name="eventGroup" required type="text" placeholder="Event or group name"/>
+<input id="eventGroup" maxlength="140" name="eventGroup" required type="text" placeholder="Event or group name"/>
 </div>
 <div class="form-field">
-<label for="personResponsible">2. Person responsible <span aria-hidden="true">*</span></label>
-<input id="personResponsible" name="personResponsible" required type="text" autocomplete="name"/>
+<label for="firstName">2. First name <span aria-hidden="true">*</span></label>
+<input id="firstName" maxlength="60" name="firstName" required type="text" autocomplete="given-name"/>
 </div>
 <div class="form-field">
-<label for="address">3. Address</label>
-<input id="address" name="address" type="text" autocomplete="street-address" placeholder="Street, City, State, Zip"/>
+<label for="lastName">Last name <span aria-hidden="true">*</span></label>
+<input id="lastName" maxlength="80" name="lastName" required type="text" autocomplete="family-name"/>
 </div>
 <div class="form-field">
-<label for="phone">4. Phone Number <span aria-hidden="true">*</span></label>
-<input id="phone" name="phone" required type="tel" autocomplete="tel" placeholder="(270) 555-1234"/>
+<label for="contactEmail">3. Email <span aria-hidden="true">*</span></label>
+<input id="contactEmail" maxlength="254" name="contactEmail" required type="email" autocomplete="email" placeholder="you@example.com"/>
+</div>
+<div class="form-field">
+<label for="phone">4. Phone number <span aria-hidden="true">*</span></label>
+<input id="phone" data-format="phone" inputmode="tel" maxlength="18" name="phone" required type="tel" autocomplete="tel" pattern="(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}" placeholder="(270) 555-1234"/>
+</div>
+<div class="form-field form-field--full">
+<label for="addressLine1">5. Address line 1</label>
+<input id="addressLine1" maxlength="120" name="addressLine1" type="text" autocomplete="address-line1" placeholder="Street address"/>
+</div>
+<div class="form-field form-field--full">
+<label for="addressLine2">Address line 2</label>
+<input id="addressLine2" maxlength="120" name="addressLine2" type="text" autocomplete="address-line2" placeholder="Apartment, suite, or unit (optional)"/>
+</div>
+<div class="form-field">
+<label for="city">City</label>
+<input id="city" maxlength="80" name="city" type="text" autocomplete="address-level2"/>
+</div>
+<div class="form-field">
+<label for="state">State</label>
+<input id="state" inputmode="text" maxlength="2" name="state" pattern="[A-Za-z]{2}" placeholder="KY" type="text" autocomplete="address-level1"/>
+</div>
+<div class="form-field">
+<label for="postalCode">ZIP code</label>
+<input id="postalCode" data-format="postal-code" inputmode="numeric" maxlength="10" name="postalCode" pattern="\d{5}(?:-\d{4})?" placeholder="42003" type="text" autocomplete="postal-code"/>
 </div>
 </div>
 
 <div class="form-grid">
 <div class="form-field">
-<label for="purpose">5. Purpose <span aria-hidden="true">*</span></label>
+<label for="purpose">6. Purpose <span aria-hidden="true">*</span></label>
 <input id="purpose" name="purpose" required type="text" placeholder="Purpose of facility use"/>
 </div>
 <div class="form-field">
-<label for="dateOfUse">6. Date of Use <span aria-hidden="true">*</span></label>
+<label for="dateOfUse">7. Date of Use <span aria-hidden="true">*</span></label>
 <input id="dateOfUse" name="dateOfUse" required type="date"/>
 </div>
 <div class="form-field">
-<label for="timeFrom">7. Time (From) <span aria-hidden="true">*</span></label>
+<label for="timeFrom">8. Time (From) <span aria-hidden="true">*</span></label>
 <input id="timeFrom" name="timeFrom" required type="time"/>
 </div>
 <div class="form-field">
-<label for="timeTo">7. Time (To) <span aria-hidden="true">*</span></label>
+<label for="timeTo">8. Time (To) <span aria-hidden="true">*</span></label>
 <input id="timeTo" name="timeTo" required type="time"/>
 </div>
 <div class="form-field">
-<label for="numberOfPeople">8. Number of People (Approximately)</label>
+<label for="numberOfPeople">9. Number of People (Approximately)</label>
 <input id="numberOfPeople" name="numberOfPeople" type="number" min="1" step="1" placeholder="e.g., 150"/>
 </div>
 </div>
@@ -153,7 +175,7 @@
 <h2>Facilities Needed</h2>
 <div class="form-grid">
 <div class="form-field">
-<label>9. Facility(s) Needed <span aria-hidden="true">*</span></label>
+<label>10. Facility(s) Needed <span aria-hidden="true">*</span></label>
 <div class="form-checklist form-checklist--tight form-checklist--rowwrap" role="group" aria-label="Facility selection">
 <label class="form-check"><input type="checkbox" name="facility" value="Sanctuary"/> Sanctuary</label>
 <label class="form-check"><input type="checkbox" name="facility" value="Fellowship Hall"/> Fellowship Hall</label>
@@ -163,7 +185,7 @@
 </div>
 
 <div class="form-field form-field--center">
-<label class="form-label--center">10. Audio/Visual will be utilized</label>
+<label class="form-label--center">11. Audio/Visual will be utilized</label>
 <div class="form-checklist form-checklist--compact form-checklist--tight form-checklist--fit" role="group" aria-label="A/V selection">
 <label class="form-check"><input type="radio" name="avUtilized" value="Yes"/> Yes</label>
 <label class="form-check"><input type="radio" name="avUtilized" value="No"/> No</label>
@@ -172,8 +194,8 @@
 </div>
 
 <h2>Deposits &amp; Signatures</h2>
-<p class="form-note">11. <strong>Classroom or Nursery</strong> will not be utilized under “Any Circumstance.”</p>
-<p class="form-note">12. <strong>Security Deposits</strong> — Refund based on condition facility is returned.</p>
+<p class="form-note">12. <strong>Classroom or Nursery</strong> will not be utilized under “Any Circumstance.”</p>
+<p class="form-note">13. <strong>Security Deposits</strong> — Refund based on condition facility is returned.</p>
 
 <div class="form-grid">
 <div class="form-field">
@@ -202,11 +224,13 @@
 </div>
 
 <div class="form-actions">
-<button class="submit-btn" type="submit">Create Email Request</button>
+<button class="submit-btn" type="submit">Send Reservation Request</button>
 <button class="submit-btn secondary" id="copySummaryBtn" type="button">Copy Summary</button>
 </div>
 
-<p class="form-note">This form opens your email app with the request filled in. If you don’t have an email app configured on your device, use the PDF form links or email <a href="mailto:mtmoriahmbc@comcast.net">mtmoriahmbc@comcast.net</a>.</p>
+<p aria-live="polite" class="form-status" id="facilityRentalFormStatus" role="status"></p>
+<div class="form-turnstile" data-turnstile-container hidden></div>
+<p class="form-note">Your request is sent securely to the church website inbox. We will email a confirmation to you after submission.</p>
 </form>
 </section>
 </main>
@@ -247,8 +271,8 @@
 </div>
 </footer>
 
+<script src="../public-form-utils.js"></script>
 <script src="../script.js?v=20260730d"></script>
-<script src="../facility_rental_form.js"></script>
+<script src="../facility_rental_form_shared.js"></script>
 </body>
 </html>
-

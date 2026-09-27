@@ -15,8 +15,8 @@ New-Item -ItemType Directory -Force -Path $dest | Out-Null
 $files=@(
   "index.html","robots.txt","sitemap.xml",
   "static-style.css",
-  "theme.css","schedule_app.js","script.js",
-  "announcements_ticker.js","bulletins_widget.js","facility_rental_form.js","facility_rental_nonmembers_form.js",
+  "theme.css","schedule_app.js","script.js","public-form-utils.js","facility_rental_form_shared.js",
+  "announcements_ticker.js","bulletins_widget.js",
   "site-content-loader.js",
   "announcements.json","bulletins.json","documents.json","gallery.json","livestream.json","schedule.json","site-settings.json"
 )

@@ -446,7 +446,7 @@ export async function submitDemoForms({ baseUrl, count = DEFAULT_COUNT, asOf = n
     result.contact.push(await postJson(fetchImpl, baseUrl, '/api/public/contact-message', { name: `Demo Form Contact ${pad(i)}`, email: demoEmail('contact-form', i), phone: `(270) 555-${String(4000 + i).slice(-4)}`, address: `${300 + i} Demo Submission Way`, message: `Synthetic contact form submission ${pad(i)} created by seed_demo_data.mjs at ${asOf}.` }));
   }
   for (let i = 1; i <= count; i += 1) {
-    result.facilityRental.push(await postJson(fetchImpl, baseUrl, '/api/public/facility-rental-request', { audience: i % 2 ? 'member' : 'non_member', form: { personResponsible: `Demo Rental Contact ${pad(i)}`, phone: `(270) 555-${String(5000 + i).slice(-4)}`, purpose: `Synthetic facility rental request ${pad(i)}`, dateOfUse: dateAt(asOf, 14 + i), timeFrom: '10:00', timeTo: '14:00', contactEmail: demoEmail('rental-form', i), synthetic: true } }));
+    result.facilityRental.push(await postJson(fetchImpl, baseUrl, '/api/public/facility-rental-request', { audience: i % 2 ? 'member' : 'non_member', form: { eventGroup: `Demo Rental Group ${pad(i)}`, firstName: 'Demo', lastName: `Renter${pad(i)}`, personResponsible: `Demo Renter${pad(i)}`, phone: `(270) 555-${String(5000 + i).slice(-4)}`, contactEmail: demoEmail('rental-form', i), addressLine1: `${200 + i} Demo Rental Way`, city: 'Paducah', state: 'KY', postalCode: '42003', purpose: `Synthetic facility rental request ${pad(i)}`, dateOfUse: dateAt(asOf, 14 + i), timeFrom: '10:00', timeTo: '14:00', facilities: ['Fellowship Hall'], responsibleSignature: `Demo Renter${pad(i)}`, responsibleSignatureDate: dateAt(asOf), synthetic: true } }));
   }
   return result;
 }

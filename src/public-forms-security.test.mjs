@@ -21,12 +21,15 @@ test('honeypot rejects filled bot fields', () => {
 
 function mockSiteDb() {
   const calls = [];
+  const binds = [];
   return {
     calls,
+    binds,
     prepare(sql) {
       calls.push(sql);
       return {
-        bind() {
+        bind(...args) {
+          binds.push({ sql, args });
           return {
             all: async () => ({ results: [] }),
             run: async () => ({ success: true })
@@ -48,7 +51,7 @@ test('preview demo mode stores public submissions without invoking email or anti
   const rental = await worker.fetch(new Request('https://preview.example/api/public/facility-rental-request', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ audience: 'member', form: { personResponsible: 'Demo Renter', phone: '(270) 555-0100', purpose: 'Synthetic rental', dateOfUse: '2026-10-10', timeFrom: '10:00', timeTo: '12:00', contactEmail: 'demo-renter@example.com' } })
+    body: JSON.stringify({ audience: 'member', form: { eventGroup: 'Demo Event', firstName: 'Demo', lastName: 'Renter', personResponsible: 'Demo Renter', phone: '(270) 555-0100', purpose: 'Synthetic rental', dateOfUse: '2026-10-10', timeFrom: '10:00', timeTo: '12:00', contactEmail: 'demo-renter@example.com', facilities: ['Fellowship Hall'], responsibleSignature: 'Demo Renter', responsibleSignatureDate: '2026-09-27' } })
   }), env, {});
   assert.equal(contact.status, 200);
   assert.equal((await contact.json()).demo, true);
@@ -56,6 +59,26 @@ test('preview demo mode stores public submissions without invoking email or anti
   assert.equal((await rental.json()).demo, true);
   assert.ok(db.calls.some((sql) => /UPDATE contact_messages/.test(sql)));
   assert.ok(db.calls.some((sql) => /UPDATE facility_rental_requests/.test(sql)));
+  const contactInsert = db.binds.find(({ sql }) => /INSERT INTO contact_messages/.test(sql));
+  assert.equal(contactInsert.args[2], 'Demo');
+  assert.equal(contactInsert.args[3], 'Contact');
+  assert.equal(contactInsert.args[5], '');
+  const rentalInsert = db.binds.find(({ sql }) => /INSERT INTO facility_rental_requests/.test(sql));
+  assert.equal(rentalInsert.args[2], 'Demo Renter');
+  assert.equal(rentalInsert.args[5], '(270) 555-0100');
+});
+
+test('public form endpoints reject malformed contact details before persistence', async () => {
+  const db = mockSiteDb();
+  const env = { ENVIRONMENT: 'preview', DEMO_MODE: 'true', SITE_DB: db };
+  const response = await worker.fetch(new Request('https://preview.example/api/public/contact-message', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ firstName: 'Demo', lastName: 'Contact', email: 'demo@example.com', phone: 'not-a-phone', message: 'Synthetic message.' })
+  }), env, {});
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /phone/i);
+  assert.equal(db.calls.filter((sql) => /INSERT INTO contact_messages/.test(sql)).length, 0);
 });
 
 test('the demo flag cannot disable production form verification', async () => {

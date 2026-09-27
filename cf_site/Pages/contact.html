@@ -71,29 +71,52 @@
 <p data-cms-field="sections.form.intro" data-cms-type="rich_text">We value your connection. Use the form below to send us a message.</p>
 
 <!-- Contact Form -->
-<form action="mailto:info@mmmbc.com" class="contact-form" enctype="text/plain" id="contactInfoForm" method="POST">
+<form class="contact-form" data-cloudflare-form id="contactInfoForm" novalidate>
 <h2>Send a Message</h2>
-<input name="Subject" type="hidden" value="New Contact Message"/>
+<div class="form-grid">
 <div>
-<label for="contactName">Name:</label>
-<input id="contactName" name="Name" required="" type="text"/>
+<label for="contactFirstName">First name <span aria-hidden="true">*</span></label>
+<input autocomplete="given-name" id="contactFirstName" maxlength="60" name="firstName" required type="text"/>
 </div>
 <div>
-<label for="contactPhone">Phone Number:</label>
-<input id="contactPhone" name="PhoneNumber" placeholder="e.g., (555) 123-4567" type="tel"/>
+<label for="contactLastName">Last name <span aria-hidden="true">*</span></label>
+<input autocomplete="family-name" id="contactLastName" maxlength="80" name="lastName" required type="text"/>
 </div>
 <div>
-<label for="contactAddress">Address (optional):</label>
-<input id="contactAddress" name="Address" placeholder="Street, City, State, Zip" type="text"/>
+<label for="contactEmail">Email <span aria-hidden="true">*</span></label>
+<input autocomplete="email" id="contactEmail" maxlength="254" name="email" placeholder="you@example.com" required type="email"/>
 </div>
 <div>
-<label for="contactEmail">Email:</label>
-<input id="contactEmail" name="EmailAddress" placeholder="you@example.com" required="" type="email"/>
+<label for="contactPhone">Phone number</label>
+<input autocomplete="tel" data-format="phone" id="contactPhone" inputmode="tel" maxlength="18" name="phone" pattern="(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}" placeholder="(270) 555-1234" type="tel"/>
+</div>
+<div class="form-field--full">
+<label for="contactAddressLine1">Address line 1</label>
+<input autocomplete="address-line1" id="contactAddressLine1" maxlength="120" name="addressLine1" placeholder="Street address" type="text"/>
+</div>
+<div class="form-field--full">
+<label for="contactAddressLine2">Address line 2</label>
+<input autocomplete="address-line2" id="contactAddressLine2" maxlength="120" name="addressLine2" placeholder="Apartment, suite, or unit (optional)" type="text"/>
 </div>
 <div>
-<label for="contactMessage">Message (optional):</label>
-<textarea id="contactMessage" name="Message" placeholder="How can we help you?" rows="5"></textarea>
+<label for="contactCity">City</label>
+<input autocomplete="address-level2" id="contactCity" maxlength="80" name="city" type="text"/>
 </div>
+<div>
+<label for="contactState">State</label>
+<input autocomplete="address-level1" id="contactState" inputmode="text" maxlength="2" name="state" pattern="[A-Za-z]{2}" placeholder="KY" type="text"/>
+</div>
+<div>
+<label for="contactPostalCode">ZIP code</label>
+<input autocomplete="postal-code" data-format="postal-code" id="contactPostalCode" inputmode="numeric" maxlength="10" name="postalCode" pattern="\d{5}(?:-\d{4})?" placeholder="42003" type="text"/>
+</div>
+</div>
+<div>
+<label for="contactMessage">Message <span aria-hidden="true">*</span></label>
+<textarea id="contactMessage" maxlength="4000" name="message" placeholder="How can we help you?" required rows="5"></textarea>
+</div>
+<p aria-live="polite" class="form-status" id="contactFormStatus" role="status"></p>
+<div class="form-turnstile" data-turnstile-container hidden></div>
 <button class="submit-btn" type="submit">Send Message</button>
 </form>
 
@@ -144,8 +167,8 @@
 <p>&copy; 2026 Mt. Moriah Missionary Baptist Church. All rights reserved.</p>
 </div>
 </footer>
+<script src="../public-form-utils.js"></script>
 <script src="../script.js?v=20260730d"></script>
 <script src="../site-content-loader.js" defer data-cms-page="contact"></script>
 </body>
 </html>
-

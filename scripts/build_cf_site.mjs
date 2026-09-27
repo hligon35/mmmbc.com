@@ -12,7 +12,8 @@ const rootFiles = [
   'index.html', 'robots.txt', 'sitemap.xml',
   'static-style.css',
   'theme.css', 'schedule_app.js', 'script.js',
-  'announcements_ticker.js', 'bulletins_widget.js', 'facility_rental_form.js', 'facility_rental_nonmembers_form.js',
+  'public-form-utils.js', 'facility_rental_form_shared.js',
+  'announcements_ticker.js', 'bulletins_widget.js',
   'site-content-loader.js', 'scan.html', 'scan.js',
   'announcements.json', 'bulletins.json', 'documents.json', 'gallery.json', 'livestream.json', 'schedule.json', 'site-settings.json', 'profiles.json',
   'pastorHarvey.jpeg'

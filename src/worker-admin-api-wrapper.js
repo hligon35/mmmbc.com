@@ -58,17 +58,23 @@ async function handleWebsiteSubmissions(request, env, ctx) {
     const like = `%${q}%`;
     const result = await env.SITE_DB.prepare(`
       SELECT id, 'contact' AS type, name AS sender_name, email AS sender_email, subject,
-        message AS body, created_at, status, read_at, archived_at, auto_reply_status, auto_reply_at
+        phone AS sender_phone, address AS sender_address, message AS body, created_at, status,
+        read_at, archived_at, auto_reply_status, auto_reply_at
         FROM contact_messages WHERE (? = 1 OR archived_at IS NULL)
-          AND (? = '' OR name LIKE ? OR email LIKE ? OR subject LIKE ? OR message LIKE ?)
+          AND (? = '' OR name LIKE ? OR email LIKE ? OR subject LIKE ? OR message LIKE ? OR phone LIKE ? OR address LIKE ?)
       UNION ALL
       SELECT id, 'facility_rental' AS type, person_responsible AS sender_name,
-        contact_email AS sender_email, 'Facility Rental Request' AS subject,
-        form_json AS body, created_at, status, read_at, archived_at, auto_reply_status, auto_reply_at
+        contact_email AS sender_email, 'Facility Rental Request' AS subject, phone AS sender_phone,
+        address AS sender_address, form_json AS body, created_at, status, read_at, archived_at,
+        auto_reply_status, auto_reply_at
         FROM facility_rental_requests WHERE (? = 1 OR archived_at IS NULL)
-          AND (? = '' OR person_responsible LIKE ? OR contact_email LIKE ? OR form_json LIKE ?)
+          AND (? = '' OR person_responsible LIKE ? OR first_name LIKE ? OR last_name LIKE ?
+            OR contact_email LIKE ? OR form_json LIKE ? OR phone LIKE ? OR address LIKE ?)
       ORDER BY created_at DESC LIMIT 300`)
-      .bind(archived, q, like, like, like, like, archived, q, like, like, like).all();
+      .bind(
+        archived, q, like, like, like, like, like, like,
+        archived, q, like, like, like, like, like, like, like
+      ).all();
     return json({ submissions: result.results || [] });
   }
   if (!session.permissions?.includes(PERMISSIONS.SUBMISSIONS_MANAGE)) return json({ error: 'Permission denied.' }, 403);
@@ -97,6 +103,101 @@ async function sendWebsiteAutoReply(env, { to, kind = 'contact' }) {
     ? '<p>Thank you for submitting your facility rental request to Mt. Moriah Missionary Baptist Church.</p><p>We received your request and will contact you after reviewing the details.</p>'
     : '<p>Thank you for contacting Mt. Moriah Missionary Baptist Church.</p><p>We received your message and will respond as soon as possible.</p>';
   return sendResendEmail(env, { to, subject, text, html });
+}
+
+const FORM_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function formText(value, max = 240) {
+  return String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, max);
+}
+
+function formMessage(value, max = 4000) {
+  return String(value ?? '').trim().slice(0, max);
+}
+
+function normalizeFormEmail(value) {
+  const email = formText(value, 254).toLowerCase();
+  return email && email.length <= 254 && FORM_EMAIL_PATTERN.test(email) ? email : '';
+}
+
+function normalizeFormPhone(value) {
+  const raw = formText(value, 80);
+  if (!raw) return { value: '', valid: true };
+  const digits = raw.replace(/\D/g, '');
+  const national = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+  if (national.length !== 10) return { value: '', valid: false };
+  return { value: `(${national.slice(0, 3)}) ${national.slice(3, 6)}-${national.slice(6)}`, valid: true };
+}
+
+function normalizeFormPostalCode(value) {
+  const raw = formText(value, 20);
+  if (!raw) return { value: '', valid: true };
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 5) return { value: digits, valid: true };
+  if (digits.length === 9) return { value: `${digits.slice(0, 5)}-${digits.slice(5)}`, valid: true };
+  return { value: '', valid: false };
+}
+
+function normalizeFormState(value) {
+  const state = formText(value, 2).toUpperCase();
+  return { value: state, valid: !state || /^[A-Z]{2}$/.test(state) };
+}
+
+function splitLegacyName(value) {
+  const name = formText(value, 140);
+  if (!name) return { firstName: '', lastName: '', name: '' };
+  const parts = name.split(/\s+/);
+  return {
+    firstName: parts.shift() || '',
+    lastName: parts.join(' '),
+    name
+  };
+}
+
+function normalizeFormAddress(body) {
+  const structuredKeys = ['addressLine1', 'addressLine2', 'city', 'state', 'postalCode'];
+  const hasStructuredAddress = structuredKeys.some((key) => String(body?.[key] ?? '').trim() !== '');
+  const addressLine1 = formText(body?.addressLine1, 120);
+  const addressLine2 = formText(body?.addressLine2, 120);
+  const city = formText(body?.city, 80);
+  const stateResult = normalizeFormState(body?.state);
+  const postalResult = normalizeFormPostalCode(body?.postalCode);
+  const address = formText(body?.address, 240);
+  return {
+    addressLine1,
+    addressLine2,
+    city,
+    state: stateResult.value,
+    postalCode: postalResult.value,
+    address: address || [addressLine1, addressLine2, city, stateResult.value, postalResult.value].filter(Boolean).join(', '),
+    hasStructuredAddress,
+    valid: (!hasStructuredAddress || Boolean(addressLine1)) && stateResult.valid && postalResult.valid
+  };
+}
+
+function normalizeFormPerson(body, legacyField = 'name') {
+  const legacy = splitLegacyName(body?.[legacyField] || body?.personResponsible);
+  const hasStructuredName = Object.prototype.hasOwnProperty.call(body || {}, 'firstName')
+    || Object.prototype.hasOwnProperty.call(body || {}, 'lastName');
+  const firstName = formText(body?.firstName || legacy.firstName, 60);
+  const lastName = formText(body?.lastName || legacy.lastName, 80);
+  return {
+    firstName,
+    lastName,
+    name: [firstName, lastName].filter(Boolean).join(' ') || legacy.name,
+    hasStructuredName,
+    valid: !hasStructuredName || (Boolean(firstName) && Boolean(lastName))
+  };
+}
+
+function normalizeRentalDate(value) {
+  const date = formText(value, 10);
+  return { value: date, valid: /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(`${date}T00:00:00Z`)) };
+}
+
+function normalizeRentalTime(value) {
+  const time = formText(value, 5);
+  return { value: time, valid: /^([01]\d|2[0-3]):[0-5]\d$/.test(time) };
 }
 
 async function requireSessionState(request, env, ctx) {
@@ -963,6 +1064,7 @@ export default {
       const out = (raw && typeof raw === 'object') ? raw : {};
       if (!out.email) out.email = String(env.SUPPORT_TO_EMAIL || 'mtmoriahmbc1201@gmail.com');
       if (!Array.isArray(out.subscribers)) out.subscribers = [];
+      if (env.TURNSTILE_SITE_KEY) out.turnstileSiteKey = String(env.TURNSTILE_SITE_KEY).trim();
       return json(out);
     }
 
@@ -1008,15 +1110,23 @@ export default {
 
     if (url.pathname === '/api/public/contact-message' && request.method === 'POST') {
       const body = await request.json().catch(() => ({}));
+      if (JSON.stringify(body).length > 20000) return json({ error: 'Submission is too large.' }, 413);
       if (honeypotTripped(body)) return json({ ok: true });
       const demoMode = previewDemoModeEnabled(env);
-      const name = String(body?.name || '').trim().slice(0, 120);
-      const email = String(body?.email || '').trim().toLowerCase();
-      const phone = String(body?.phone || '').trim().slice(0, 80);
-      const address = String(body?.address || '').trim().slice(0, 240);
-      const message = String(body?.message || '').trim().slice(0, 4000);
-      if (!name || !message) return json({ error: 'Name and message are required.' }, 400);
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: 'A valid email is required.' }, 400);
+      const person = normalizeFormPerson(body);
+      const email = normalizeFormEmail(body?.email);
+      const phoneResult = normalizeFormPhone(body?.phone);
+      const addressResult = normalizeFormAddress(body);
+      const message = formMessage(body?.message);
+      if (!person.name || !message) return json({ error: 'First name, last name, and message are required.' }, 400);
+      if (!person.valid) return json({ error: 'First name and last name are required.' }, 400);
+      if (!email) return json({ error: 'A valid email is required.' }, 400);
+      if (!phoneResult.valid) return json({ error: 'Enter a valid 10-digit phone number.' }, 400);
+      if (!addressResult.valid) return json({ error: 'Enter a complete address with a valid state and ZIP code.' }, 400);
+      if (!env.SITE_DB) return json({ error: 'The website inbox is temporarily unavailable. Please try again later.' }, 503);
+      const name = person.name.slice(0, 140);
+      const phone = phoneResult.value;
+      const address = addressResult.address;
 
       if (!demoMode) {
         const rate = await checkRateLimit(env, request, 'contact_message', { max: 5, windowSeconds: 600 });
@@ -1028,12 +1138,16 @@ export default {
       const id = crypto.randomUUID();
       const createdAt = new Date().toISOString();
       // Persist before attempting email so the submission is never lost if Resend/email fails.
-      if (env.SITE_DB) {
-        await env.SITE_DB.prepare(
-          `INSERT INTO contact_messages (id, name, email, phone, address, message, status, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, 'received', ?)`
-        ).bind(id, name, email, phone, address, message, createdAt).run();
-      }
+      await env.SITE_DB.prepare(
+        `INSERT INTO contact_messages
+           (id, name, first_name, last_name, email, phone, address, address_line1, address_line2,
+            city, state, postal_code, message, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?)`
+      ).bind(
+        id, name, person.firstName, person.lastName, email, phone, address,
+        addressResult.addressLine1, addressResult.addressLine2, addressResult.city,
+        addressResult.state, addressResult.postalCode, message, createdAt
+      ).run();
 
       if (demoMode) {
         if (env.SITE_DB) {
@@ -1087,20 +1201,59 @@ export default {
 
     if (url.pathname === '/api/public/facility-rental-request' && request.method === 'POST') {
       const body = await request.json().catch(() => ({}));
+      if (JSON.stringify(body).length > 20000) return json({ error: 'Submission is too large.' }, 413);
       if (honeypotTripped(body)) return json({ ok: true });
       const demoMode = previewDemoModeEnabled(env);
       const audience = String(body?.audience || '').trim().toLowerCase() === 'non_member' ? 'non_member' : 'member';
       const form = (body?.form && typeof body.form === 'object') ? body.form : {};
-      const personResponsible = String(form.personResponsible || '').trim().slice(0, 140);
-      const phone = String(form.phone || '').trim().slice(0, 80);
-      const purpose = String(form.purpose || '').trim().slice(0, 240);
-      const dateOfUse = String(form.dateOfUse || '').trim().slice(0, 40);
-      const timeFrom = String(form.timeFrom || '').trim().slice(0, 20);
-      const timeTo = String(form.timeTo || '').trim().slice(0, 20);
-      const contactEmail = String(form.contactEmail || '').trim().toLowerCase().slice(0, 200);
-      if (!personResponsible || !phone || !purpose || !dateOfUse || !timeFrom || !timeTo) {
+      const person = normalizeFormPerson(form, 'personResponsible');
+      const phoneResult = normalizeFormPhone(form.phone);
+      const addressResult = normalizeFormAddress(form);
+      const contactEmail = normalizeFormEmail(form.contactEmail);
+      const eventGroup = formText(form.eventGroup, 140);
+      const purpose = formText(form.purpose, 240);
+      const dateResult = normalizeRentalDate(form.dateOfUse);
+      const timeFromResult = normalizeRentalTime(form.timeFrom);
+      const timeToResult = normalizeRentalTime(form.timeTo);
+      const facilities = Array.isArray(form.facilities)
+        ? form.facilities.map((item) => formText(item, 120)).filter(Boolean).slice(0, 10)
+        : [];
+      const responsibleSignature = formText(form.responsibleSignature, 140);
+      const responsibleSignatureDate = formText(form.responsibleSignatureDate, 10);
+      if (!eventGroup || !person.name || !purpose || !dateResult.value || !timeFromResult.value || !timeToResult.value || !facilities.length || !responsibleSignature || !responsibleSignatureDate) {
         return json({ error: 'Please complete all required rental fields.' }, 400);
       }
+      if (!person.valid) return json({ error: 'First name and last name are required.' }, 400);
+      if (!phoneResult.valid || !phoneResult.value) return json({ error: 'Enter a valid 10-digit phone number.' }, 400);
+      if (!contactEmail) return json({ error: 'A valid email is required for your confirmation.' }, 400);
+      if (!addressResult.valid) return json({ error: 'Enter a complete address with a valid state and ZIP code.' }, 400);
+      if (!dateResult.valid || !timeFromResult.valid || !timeToResult.valid || timeToResult.value <= timeFromResult.value) {
+        return json({ error: 'Choose a valid date and a start/end time range.' }, 400);
+      }
+      if (!env.SITE_DB) return json({ error: 'The website inbox is temporarily unavailable. Please try again later.' }, 503);
+
+      const normalizedForm = {
+        ...form,
+        eventGroup,
+        firstName: person.firstName,
+        lastName: person.lastName,
+        personResponsible: person.name,
+        phone: phoneResult.value,
+        addressLine1: addressResult.addressLine1,
+        addressLine2: addressResult.addressLine2,
+        city: addressResult.city,
+        state: addressResult.state,
+        postalCode: addressResult.postalCode,
+        address: addressResult.address,
+        purpose,
+        dateOfUse: dateResult.value,
+        timeFrom: timeFromResult.value,
+        timeTo: timeToResult.value,
+        facilities,
+        responsibleSignature,
+        responsibleSignatureDate,
+        contactEmail
+      };
 
       if (!demoMode) {
         const rate = await checkRateLimit(env, request, 'facility_rental_request', { max: 5, windowSeconds: 600 });
@@ -1110,28 +1263,29 @@ export default {
       }
 
       const formLines = [];
-      for (const [key, value] of Object.entries(form)) {
+      for (const [key, value] of Object.entries(normalizedForm)) {
         if (value == null) continue;
         if (Array.isArray(value)) {
           formLines.push(`${key}: ${value.join(', ')}`);
           continue;
         }
-        formLines.push(`${key}: ${String(value).trim()}`);
+        formLines.push(`${key}: ${formText(value, 500)}`);
       }
 
       const id = crypto.randomUUID();
       const createdAt = new Date().toISOString();
-      if (env.SITE_DB) {
-        await env.SITE_DB.prepare(
+      await env.SITE_DB.prepare(
           `INSERT INTO facility_rental_requests
-             (id, audience, person_responsible, phone, purpose, date_of_use, time_from, time_to,
-              contact_email, form_json, status, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?)`
+             (id, audience, person_responsible, first_name, last_name, phone, purpose, date_of_use,
+              time_from, time_to, contact_email, address, address_line1, address_line2, city, state,
+              postal_code, form_json, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?)`
         ).bind(
-          id, audience, personResponsible, phone, purpose, dateOfUse, timeFrom, timeTo,
-          contactEmail, JSON.stringify(form), createdAt
+          id, audience, person.name, person.firstName, person.lastName, phoneResult.value, purpose,
+          dateResult.value, timeFromResult.value, timeToResult.value, contactEmail, addressResult.address,
+          addressResult.addressLine1, addressResult.addressLine2, addressResult.city, addressResult.state,
+          addressResult.postalCode, JSON.stringify(normalizedForm).slice(0, 20000), createdAt
         ).run();
-      }
 
       if (demoMode) {
         if (env.SITE_DB) {
@@ -1154,7 +1308,7 @@ export default {
 
       try {
         const autoReply = await sendWebsiteAutoReply(env, { to: contactEmail, kind: 'facility_rental' });
-        if (env.SITE_DB && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) await env.SITE_DB.prepare(`UPDATE facility_rental_requests SET auto_reply_status = ?, auto_reply_at = ?, auto_reply_error = ? WHERE id = ?`).bind(autoReply.ok ? 'sent' : 'failed', autoReply.ok ? new Date().toISOString() : null, autoReply.error || '', id).run();
+        await env.SITE_DB.prepare(`UPDATE facility_rental_requests SET auto_reply_status = ?, auto_reply_at = ?, auto_reply_error = ? WHERE id = ?`).bind(autoReply.ok ? 'sent' : 'failed', autoReply.ok ? new Date().toISOString() : null, autoReply.error || '', id).run();
         await sendSupportEmailMessage(env, {
           subject: `[MMMBC Facility Rental] ${audience === 'non_member' ? 'Non-member' : 'Member'} Request`,
           textBody,

@@ -308,6 +308,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const applySiteSettings = (settings) => {
         if (!settings || typeof settings !== 'object') return;
+        const forms = window.MMmbcForms || {};
+        if (settings.turnstileSiteKey && typeof forms.loadTurnstile === 'function') {
+            document.querySelectorAll('form[data-cloudflare-form]').forEach((form) => {
+                forms.loadTurnstile(form, settings.turnstileSiteKey).catch(() => {});
+            });
+        }
         const subscribers = Array.isArray(settings.subscribers)
             ? settings.subscribers.map((s) => typeof s === 'string' ? { email: s.trim(), name: '', group: 'general' } : {
                 email: String(s?.email || '').trim(), name: String(s?.name || '').trim(), group: String(s?.group || 'general').trim() || 'general'
@@ -369,20 +375,74 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const wireContactForm = (settings) => {
         if (!contactForm) return;
+        const forms = window.MMmbcForms || {};
         const submitBtn = contactForm.querySelector('button[type="submit"]');
+        const status = contactForm.querySelector('#contactFormStatus');
+        if (typeof forms.wireFormatting === 'function') forms.wireFormatting(contactForm);
         contactForm.addEventListener('submit', async (event) => {
             event.preventDefault();
 
+            if (!contactForm.reportValidity()) {
+                if (status) status.textContent = 'Please correct the highlighted fields before sending.';
+                return;
+            }
+
+            const phoneInput = contactForm.querySelector('#contactPhone');
+            const postalInput = contactForm.querySelector('#contactPostalCode');
+            const email = typeof forms.normalizeEmail === 'function'
+                ? forms.normalizeEmail(contactForm.querySelector('#contactEmail')?.value)
+                : String(contactForm.querySelector('#contactEmail')?.value || '').trim().toLowerCase();
+            const phone = typeof forms.normalizePhone === 'function'
+                ? forms.normalizePhone(phoneInput?.value)
+                : String(phoneInput?.value || '').trim();
+            const postalCode = typeof forms.normalizePostalCode === 'function'
+                ? forms.normalizePostalCode(postalInput?.value)
+                : String(postalInput?.value || '').trim();
+            const state = typeof forms.normalizeState === 'function'
+                ? forms.normalizeState(contactForm.querySelector('#contactState')?.value)
+                : String(contactForm.querySelector('#contactState')?.value || '').trim().toUpperCase();
+
+            if (phoneInput && String(phoneInput.value || '').trim() && !phone) {
+                phoneInput.setCustomValidity('Enter a valid 10-digit phone number.');
+            } else if (phoneInput) {
+                phoneInput.setCustomValidity('');
+            }
+            if (postalInput && String(postalInput.value || '').trim() && !postalCode) {
+                postalInput.setCustomValidity('Enter a 5-digit ZIP code or ZIP+4.');
+            } else if (postalInput) {
+                postalInput.setCustomValidity('');
+            }
+            if (typeof forms.isValidEmail === 'function' && !forms.isValidEmail(email)) {
+                contactForm.querySelector('#contactEmail')?.setCustomValidity('Enter a valid email address.');
+            } else {
+                contactForm.querySelector('#contactEmail')?.setCustomValidity('');
+            }
+            if (!contactForm.reportValidity()) {
+                if (status) status.textContent = 'Please correct the highlighted fields before sending.';
+                return;
+            }
+
+            if (phoneInput && phone) phoneInput.value = phone;
+            if (postalInput && postalCode) postalInput.value = postalCode;
+            const firstName = String(contactForm.querySelector('#contactFirstName')?.value || '').trim();
+            const lastName = String(contactForm.querySelector('#contactLastName')?.value || '').trim();
             const payload = {
-                name: String(contactForm.querySelector('#contactName')?.value || '').trim(),
-                phone: String(contactForm.querySelector('#contactPhone')?.value || '').trim(),
-                address: String(contactForm.querySelector('#contactAddress')?.value || '').trim(),
-                email: String(contactForm.querySelector('#contactEmail')?.value || '').trim(),
-                message: String(contactForm.querySelector('#contactMessage')?.value || '').trim()
+                firstName,
+                lastName,
+                name: `${firstName} ${lastName}`.trim(),
+                phone,
+                addressLine1: String(contactForm.querySelector('#contactAddressLine1')?.value || '').trim(),
+                addressLine2: String(contactForm.querySelector('#contactAddressLine2')?.value || '').trim(),
+                city: String(contactForm.querySelector('#contactCity')?.value || '').trim(),
+                state,
+                postalCode,
+                email,
+                message: String(contactForm.querySelector('#contactMessage')?.value || '').trim(),
+                turnstileToken: typeof forms.getTurnstileToken === 'function' ? forms.getTurnstileToken(contactForm) : ''
             };
 
-            if (!payload.name || !payload.email || !payload.message) {
-                alert('Please complete your name, email, and message.');
+            if (contactForm.querySelector('[data-turnstile-container]')?.hidden === false && !payload.turnstileToken) {
+                if (status) status.textContent = 'Please complete the Cloudflare verification before sending.';
                 return;
             }
 
@@ -391,22 +451,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Sending...';
             }
+            if (status) status.textContent = 'Sending your message securely...';
 
             try {
                 await postJson('/api/public/contact-message', payload);
-                alert('Thank you. Your message has been sent.');
+                if (status) status.textContent = 'Thank you. Your message has been sent.';
                 contactForm.reset();
-            } catch {
-                const to = String(settings?.email || 'info@mmmbc.com').trim();
-                const body = [
-                    `Name: ${payload.name}`,
-                    `Phone: ${payload.phone || ''}`,
-                    `Address: ${payload.address || ''}`,
-                    `Email: ${payload.email}`,
-                    '',
-                    payload.message
-                ].join('\n');
-                window.location.href = `mailto:${to}?subject=${encodeURIComponent('New Contact Message')}&body=${encodeURIComponent(body)}`;
+                if (typeof forms.resetTurnstile === 'function') forms.resetTurnstile(contactForm);
+            } catch (error) {
+                if (status) status.textContent = String(error?.message || 'Unable to send your message. Please try again.');
             } finally {
                 if (submitBtn) {
                     submitBtn.disabled = false;
