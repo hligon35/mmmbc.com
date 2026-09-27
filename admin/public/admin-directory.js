@@ -223,13 +223,8 @@
 
   function actionIconSvg(kind) {
     const type = String(kind || '').trim().toLowerCase();
-    if (type === 'edit') {
-      return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20h4l10-10-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M13 7l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
-    }
-    if (type === 'delete') {
-      return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 7h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M9 7V5h6v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8 7l1 12h6l1-12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
-    }
-    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+    const iconNames = { edit: 'edit', delete: 'delete', view: 'visibility' };
+    return `<span class="material-icons-round" aria-hidden="true">${iconNames[type] || 'visibility'}</span>`;
   }
 
   function actionIconButtonHtml(kind, label, attrs = '', { danger = false } = {}) {

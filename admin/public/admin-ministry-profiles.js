@@ -192,9 +192,19 @@
   function createButton(label, action, { danger = false, disabled = false } = {}) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = `btn${danger ? ' btn--danger' : ''}`;
+    button.className = `btn actionIconBtn${danger ? ' btn--danger' : ''}`;
     button.dataset.profileAction = action;
-    button.textContent = label;
+    button.setAttribute('aria-label', label);
+    button.title = label;
+    const iconNames = { edit: 'edit', up: 'arrow_upward', down: 'arrow_downward', delete: 'delete' };
+    const accessibleLabel = document.createElement('span');
+    accessibleLabel.className = 'srOnly';
+    accessibleLabel.textContent = label;
+    const icon = document.createElement('span');
+    icon.className = 'material-icons-round';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = iconNames[action] || 'more_horiz';
+    button.replaceChildren(accessibleLabel, icon);
     button.disabled = disabled;
     return button;
   }

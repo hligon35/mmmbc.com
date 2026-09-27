@@ -449,6 +449,8 @@ describe('Church Finances wizard redesign', () => {
 describe('Profile page editor', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin-ministry-profiles.js'), 'utf8');
+  const sharedAdminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
+  const directoryJs = fs.readFileSync(path.join(__dirname, 'public', 'admin-directory.js'), 'utf8');
   const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-style.css'), 'utf8');
 
   test('page chips cover all leadership and staff profile pages', () => {
@@ -468,5 +470,27 @@ describe('Profile page editor', () => {
     expect(adminJs).toContain('/publish');
     expect(adminJs).toContain('/restore-previous');
     expect(indexHtml).toContain('id="ministryProfileGroup"');
+  });
+
+  test('profile controls use Material Icons and the requested form layout', () => {
+    expect(indexHtml).toContain('https://fonts.googleapis.com/icon?family=Material+Icons+Round');
+    expect(indexHtml).toContain('id="ministriesRefreshBtn"');
+    expect(indexHtml).toContain('title="Refresh ministry profiles"');
+    expect(indexHtml).toContain('title="Add ministry profile"');
+    expect(indexHtml).toContain('>person_add</span>');
+    expect(indexHtml).toContain('id="ministriesProfilePageChips"');
+    expect(indexHtml).toContain('class="ministryPageForm__divider"');
+    assert.ok(indexHtml.indexOf('id="ministriesProfilePageChips"') < indexHtml.indexOf('class="ministryPageForm__divider"'));
+    assert.ok(indexHtml.indexOf('class="ministryPageForm__divider"') < indexHtml.indexOf('id="ministriesPageTitle"'));
+    expect(adminJs).toContain("icon.className = 'material-icons-round';");
+    expect(adminJs).not.toContain('actionIconBtn__svg');
+    expect(sharedAdminJs).toContain("return `<span class=\"material-icons-round\"");
+    expect(directoryJs).toContain('material-icons-round');
+    expect(directoryJs).not.toContain('actionIconBtn__svg');
+    expect(adminCss).toContain('.material-icons-round{');
+    expect(adminCss).toContain('.actionIconBtn .material-icons-round');
+    expect(sharedAdminJs).toContain("el.setAttribute('title', safeLabel);");
+    expect(directoryJs).toContain("title=\"${safeLabel}\"");
+    expect(adminJs).toContain("iconNames = { edit: 'edit', up: 'arrow_upward', down: 'arrow_downward', delete: 'delete' }");
   });
 });
