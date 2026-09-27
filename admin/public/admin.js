@@ -2150,7 +2150,3916 @@ async function financeHandleCreateSelect(kind) {
 
   const label = kind === 'fund' ? 'fund' : 'category';
   const next = normalizeFinanceName(prompt(`Create new ${label} name`));
-  if (!next)�{��$z{-���jםent = String(message || 'Confirm this administrator change.');
+  if (!next) return;
+
+  if (kind === 'fund') {
+    const activeFunds = financeActiveFunds();
+    const exists = activeFunds.some((fund) => financeNormalizeKey(fund?.fundName) === financeNormalizeKey(next));
+    if (exists) {
+      setFinanceHint('That fund already exists.');
+      return;
+    }
+
+    setFinanceHint('Saving…');
+    try {
+      const res = await api('/api/finances/funds', {
+        method: 'POST',
+        body: JSON.stringify({ fundName: next })
+      });
+      await loadFinanceFundsRegistry();
+      populateFinanceDatalists();
+      const newId = String(res?.fund?.id || '');
+      if (newId && $('financeFund')) $('financeFund').value = newId;
+      setFinanceHint('Saved.');
+    } catch (e) {
+      setFinanceHint(String(e?.message || e || 'Unable to save.'));
+    }
+    return;
+  }
+
+  const currentCats = Array.isArray(finances?.meta?.categories) ? finances.meta.categories : [];
+  const currentFunds = Array.isArray(finances?.meta?.funds) ? finances.meta.funds : [];
+
+  const cats = (kind === 'category') ? Array.from(new Set([...currentCats, next])) : currentCats;
+  const funds = (kind === 'fund') ? Array.from(new Set([...currentFunds, next])) : currentFunds;
+
+  setFinanceHint('Saving…');
+  try {
+    const res = await api('/api/finances/meta', {
+      method: 'PUT',
+      body: JSON.stringify({ categories: cats, funds })
+    });
+    finances = res.data;
+    populateFinanceDatalists();
+    if (kind === 'category') $('financeCategory').value = next;
+    else $('financeFund').value = next;
+    setFinanceHint('Saved.');
+  } catch (e) {
+    setFinanceHint(String(e?.message || e || 'Unable to save.'));
+  }
+}
+
+function financeSetEditMode(isEditing) {
+  const saveBtn = $('financeSaveBtn');
+  const heading = $('financeWizardHeading');
+  const reviewHeading = $('financeReviewHeading');
+  if (saveBtn) saveBtn.textContent = isEditing ? 'Save Changes' : 'Save Entry';
+  if (heading) heading.textContent = isEditing ? 'Edit Transaction' : 'Record Money';
+  if (reviewHeading) reviewHeading.textContent = isEditing ? 'Review changes' : 'Review this entry';
+  financeWizard.mode = isEditing ? 'edit' : 'add';
+}
+
+function financeResetForm() {
+  $('financeEditId').value = '';
+  $('financeType').value = 'income';
+  $('financeCategory').value = '';
+  $('financeFund').value = '';
+  $('financeMethod').value = '';
+  $('financeAmount').value = '';
+  $('financeParty').value = '';
+  $('financeMemo').value = '';
+
+  // Default date to today if empty.
+  if (!$('financeDate').value) {
+    $('financeDate').value = new Date().toISOString().slice(0, 10);
+  }
+
+  financeSetEditMode(false);
+  financeApplyKindToForm('income');
+  financeClearAllFieldErrors();
+  financeWizard.maxStepIndex = 0;
+  financeWizard.dirty = false;
+  try { resetUnsavedBaseline($('financeEntryForm')); } catch { /* ignore */ }
+  financeGoToStep('direction', { focus: false });
+}
+
+function financeStartEdit(entry) {
+  if (!entry) return;
+  setFinanceSubTab('panel-finances-record');
+  const kind = financeDetectKindFromEntry(entry) === 'expense' ? 'expense' : 'income';
+  $('financeEditId').value = String(entry.id || '');
+  $('financeDate').value = String(entry.date || '');
+  $('financeType').value = String(entry.type || 'income');
+  $('financeCategory').value = String(entry.category || '');
+  // The fund select's option values are fund ids; prefer the entry's stored fundId,
+  // falling back to matching by fund name for older entries saved before that field existed.
+  const entryFundId = String(entry.fundId || '');
+  const fundByName = entryFundId ? null : financeActiveFunds().find((f) => financeNormalizeKey(f.fundName) === financeNormalizeKey(entry.fund));
+  $('financeFund').value = entryFundId || (fundByName ? String(fundByName.id) : '');
+  $('financeMethod').value = String(entry.method || '');
+  $('financeAmount').value = (Number(entry.amountCents || 0) / 100).toFixed(2);
+  $('financeParty').value = String(entry.party || '');
+  $('financeMemo').value = String(entry.memo || '');
+  financeApplyKindToForm(kind);
+  financeSetEditMode(true);
+  financeClearAllFieldErrors();
+  financeWizard.maxStepIndex = FINANCE_WIZARD_STEPS.indexOf('details');
+  financeWizard.dirty = false;
+  try { resetUnsavedBaseline($('financeEntryForm')); } catch { /* ignore */ }
+  financeGoToStep('details');
+}
+
+// ---------------------------------------------------------------------------
+// Record Money wizard engine
+// ---------------------------------------------------------------------------
+const FINANCE_WIZARD_STEPS = ['direction', 'details', 'payment', 'review', 'saved'];
+const financeWizard = { mode: 'add', step: 'direction', maxStepIndex: 0, dirty: false, saving: false, lastSavedId: '' };
+
+function financeClearAllFieldErrors() {
+  for (const id of ['financeCategoryError', 'financeFundError', 'financeAmountError', 'financeMethodError', 'financePartyError']) {
+    const el = $(id);
+    if (el) { el.textContent = ''; el.hidden = true; }
+  }
+}
+
+function financeSetFieldError(id, message) {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = message;
+  el.hidden = !message;
+}
+
+function financeMarkDirty() {
+  financeWizard.dirty = true;
+}
+
+function financeWizardHasUnsavedChanges() {
+  return financeWizard.dirty && financeWizard.step !== 'saved';
+}
+
+function financeGoToStep(step, { focus = true } = {}) {
+  if (!FINANCE_WIZARD_STEPS.includes(step)) return;
+  const idx = FINANCE_WIZARD_STEPS.indexOf(step);
+  if (idx > financeWizard.maxStepIndex) financeWizard.maxStepIndex = idx;
+  financeWizard.step = step;
+
+  for (const s of FINANCE_WIZARD_STEPS) {
+    const panel = document.querySelector(`.wizardStep[data-step-panel="${s}"]`);
+    if (panel) panel.hidden = s !== step;
+  }
+
+  const progress = $('financeWizardProgress');
+  if (progress) {
+    const navSteps = ['direction', 'details', 'payment', 'review'];
+    for (const btn of progress.querySelectorAll('[data-wizard-goto]')) {
+      const target = btn.getAttribute('data-wizard-goto');
+      const targetIdx = navSteps.indexOf(target);
+      const isCurrent = target === step;
+      // Keep the chip compact (just the step number) until it becomes the active step,
+      // where it expands to show the full step name too.
+      const label = btn.getAttribute('aria-label') || '';
+      btn.textContent = isCurrent ? `${targetIdx + 1} ${label}` : String(targetIdx + 1);
+      btn.classList.toggle('wizardProgress__step--current', isCurrent);
+      btn.classList.toggle('wizardProgress__step--done', targetIdx < navSteps.indexOf(step) || (step === 'saved'));
+      if (isCurrent) btn.setAttribute('aria-current', 'step'); else btn.removeAttribute('aria-current');
+      // Only allow returning to steps already reached.
+      btn.disabled = targetIdx > financeWizard.maxStepIndex;
+    }
+  }
+
+  if (step === 'review') financeRenderReviewSummary();
+
+  if (focus) {
+    const panel = document.querySelector(`.wizardStep[data-step-panel="${step}"]`);
+    const heading = panel?.querySelector('.wizardStep__question, .wizardStep__heading');
+    try {
+      if (heading) { heading.setAttribute('tabindex', '-1'); heading.focus(); }
+      else panel?.querySelector('input, select, button')?.focus();
+    } catch { /* ignore */ }
+  }
+}
+
+function financeValidateDirectionStep() {
+  const value = String($('financeType')?.value || '').trim();
+  if (value !== 'income' && value !== 'expense') {
+    setFinanceHint('Choose whether this is money received or money spent.');
+    return false;
+  }
+  return true;
+}
+
+function financeValidateDetailsStep() {
+  financeClearAllFieldErrors();
+  let ok = true;
+  let focusEl = null;
+
+  const category = String($('financeCategory')?.value || '').trim();
+  if (!category) {
+    const kind = String($('financeType')?.value || 'income');
+    financeSetFieldError('financeCategoryError', kind === 'expense' ? 'Choose what this expense was for.' : 'Choose what the money was received for.');
+    focusEl = focusEl || $('financeCategory');
+    ok = false;
+  }
+
+  const fundId = String($('financeFund')?.value || '').trim();
+  if (!fundId) {
+    financeSetFieldError('financeFundError', 'Choose which church fund this belongs to.');
+    focusEl = focusEl || $('financeFund');
+    ok = false;
+  }
+
+  const amountRaw = String($('financeAmount')?.value || '').trim();
+  const amount = Number(amountRaw);
+  if (!amountRaw || !Number.isFinite(amount) || amount <= 0) {
+    financeSetFieldError('financeAmountError', 'Enter an amount greater than $0.00.');
+    focusEl = focusEl || $('financeAmount');
+    ok = false;
+  }
+
+  if (!ok && focusEl) { try { focusEl.focus(); } catch { /* ignore */ } }
+  return ok;
+}
+
+function financeValidatePaymentStep() {
+  financeClearAllFieldErrors();
+  let ok = true;
+  let focusEl = null;
+
+  const method = String($('financeMethod')?.value || '').trim();
+  if (!method) {
+    financeSetFieldError('financeMethodError', 'Choose a payment method.');
+    focusEl = focusEl || $('financeMethod');
+    ok = false;
+  }
+
+  const kind = String($('financeType')?.value || 'income');
+  const party = String($('financeParty')?.value || '').trim();
+  if (kind === 'expense' && !party) {
+    financeSetFieldError('financePartyError', 'Enter who was paid.');
+    focusEl = focusEl || $('financeParty');
+    ok = false;
+  }
+
+  if (!ok && focusEl) { try { focusEl.focus(); } catch { /* ignore */ } }
+  return ok;
+}
+
+function financeFormatReviewDate(dateStr) {
+  const s = String(dateStr || '');
+  if (!s) return '';
+  const d = new Date(`${s}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function financeMethodLabel(value) {
+  const map = { cash: 'Cash', check: 'Check', card: 'Card', online: 'Online', other: 'Other' };
+  return map[String(value || '').trim()] || String(value || '');
+}
+
+function financeRenderReviewSummary() {
+  const dl = $('financeReviewSummary');
+  if (!dl) return;
+  const kind = String($('financeType')?.value || 'income');
+  const isExpense = kind === 'expense';
+  const amount = Number($('financeAmount')?.value || 0) || 0;
+  const date = financeFormatReviewDate($('financeDate')?.value);
+  const category = String($('financeCategory')?.value || '').trim();
+  const fund = financeFundNameById($('financeFund')?.value);
+  const method = financeMethodLabel($('financeMethod')?.value);
+  const party = String($('financeParty')?.value || '').trim();
+  const memo = String($('financeMemo')?.value || '').trim();
+
+  const rows = [];
+  rows.push(['', `${formatMoneyCents(Math.round(amount * 100))} ${isExpense ? 'paid' : 'received'} on ${date}`]);
+  if (category) rows.push(['Category', category]);
+  if (fund) rows.push(['Fund', fund]);
+  if (method) rows.push(['Payment method', method]);
+  if (party) rows.push([isExpense ? 'Paid to' : 'Received from', party]);
+  if (memo) rows.push(['Note', memo]);
+
+  dl.innerHTML = '';
+  for (const [label, value] of rows) {
+    if (label) {
+      const dt = document.createElement('dt');
+      dt.textContent = label;
+      dl.appendChild(dt);
+    }
+    const dd = document.createElement('dd');
+    dd.className = label ? '' : 'wizardReview__headline';
+    dd.textContent = value;
+    dl.appendChild(dd);
+  }
+}
+
+function financeRenderSavedPanel(entry) {
+  const summary = $('financeSavedSummary');
+  if (!summary || !entry) return;
+  const isExpense = String(entry.type) === 'expense';
+  const amount = formatMoneyCents(Number(entry.amountCents || 0));
+  const date = financeFormatReviewDate(entry.date);
+  const category = String(entry.category || '').trim();
+  const descriptor = category ? category.toLowerCase() : (isExpense ? 'expense' : 'income');
+  summary.textContent = `The ${amount} ${descriptor} ${isExpense ? 'paid' : 'received'} on ${date} was saved.`;
+  const heading = $('financeSavedHeading');
+  try { heading?.focus(); } catch { /* ignore */ }
+}
+
+function financeOpenUnsavedDialog(onDiscard) {
+  const dialog = $('financeUnsavedDialog');
+  if (!(dialog instanceof HTMLDialogElement)) {
+    if (confirmWrite('You have entered information for a new transaction that has not been saved. Discard this entry?')) onDiscard();
+    return;
+  }
+  openManagedDialog(dialog);
+  const keepBtn = $('financeUnsavedKeepBtn');
+  const discardBtn = $('financeUnsavedDiscardBtn');
+  const cleanup = () => {
+    keepBtn?.removeEventListener('click', onKeep);
+    discardBtn?.removeEventListener('click', onDiscardClick);
+  };
+  const onKeep = () => { cleanup(); closeManagedDialog(dialog); };
+  const onDiscardClick = () => { cleanup(); closeManagedDialog(dialog); onDiscard(); };
+  keepBtn?.addEventListener('click', onKeep);
+  discardBtn?.addEventListener('click', onDiscardClick);
+}
+
+function financeOpenDeleteDialog(entry) {
+  const dialog = $('financeDeleteDialog');
+  const isExpense = String(entry?.type) === 'expense';
+  const body = $('financeDeleteDialogBody');
+  const reasonEl = $('financeDeleteReason');
+  if (reasonEl) reasonEl.value = '';
+  if (body) {
+    const amount = formatMoneyCents(Number(entry?.amountCents || 0));
+    const category = String(entry?.category || '').trim();
+    const descriptor = category ? `${category.toLowerCase()} ${isExpense ? 'expense' : 'income'}` : (isExpense ? 'expense' : 'income');
+    const date = financeFormatReviewDate(entry?.date);
+    const party = String(entry?.party || '').trim();
+    const partyLine = party ? `${isExpense ? 'Paid to' : 'Received from'} ${party}` : '';
+    body.innerHTML = '';
+    const p1 = document.createElement('p');
+    p1.textContent = `${amount} ${descriptor}`;
+    const p2 = document.createElement('p');
+    p2.textContent = date;
+    body.appendChild(p1);
+    body.appendChild(p2);
+    if (partyLine) {
+      const p3 = document.createElement('p');
+      p3.textContent = partyLine;
+      body.appendChild(p3);
+    }
+  }
+
+  if (!(dialog instanceof HTMLDialogElement)) {
+    if (confirmWrite('Void this transaction? The record stays in history.')) financeDeleteEntry(entry, 'Legacy confirmation flow');
+    return;
+  }
+
+  openManagedDialog(dialog);
+  const confirmBtn = $('financeDeleteConfirmBtn');
+  const keepBtn = $('financeDeleteKeepBtn');
+  const cleanup = () => {
+    confirmBtn?.removeEventListener('click', onConfirm);
+    keepBtn?.removeEventListener('click', onKeep);
+  };
+  const onConfirm = () => {
+    const reason = String(reasonEl?.value || '').trim();
+    if (!reason) {
+      setFinanceHint('Enter a reason to void this transaction.');
+      try { reasonEl?.focus(); } catch { /* ignore */ }
+      return;
+    }
+    cleanup();
+    closeManagedDialog(dialog);
+    financeDeleteEntry(entry, reason);
+  };
+  const onKeep = () => { cleanup(); closeManagedDialog(dialog); };
+  confirmBtn?.addEventListener('click', onConfirm);
+  keepBtn?.addEventListener('click', onKeep);
+}
+
+async function financeDeleteEntry(entry, reason) {
+  if (!entry?.id) return;
+  setFinanceHint('Voiding…');
+  try {
+    const res = await api(`/api/finances/entries/${encodeURIComponent(String(entry.id))}/void`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: String(reason || '').trim() })
+    });
+    finances = res.data;
+    financeResetForm();
+    renderFinances();
+    setFinanceHint('Transaction voided.');
+  } catch (err) {
+    setFinanceHint(err.message);
+  }
+}
+
+function setFinanceSubTab(panelId) {
+  const previous = document.querySelector('#panel-finances-record:not([hidden])');
+  if (previous && panelId !== 'panel-finances-record' && financeWizardHasUnsavedChanges()) {
+    financeOpenUnsavedDialog(() => {
+      financeResetForm();
+      setFinanceSubTab(panelId);
+    });
+    return;
+  }
+
+  setSubTab(
+    ['subTabBtn-finances-record', 'subTabBtn-finances-review', 'subTabBtn-finances-reports'],
+    ['panel-finances-record', 'panel-finances-review', 'panel-finances-reports'],
+    panelId
+  );
+
+  if (panelId === 'panel-finances-review' || panelId === 'panel-finances-reports') {
+    renderFinances();
+  }
+}
+
+function populateFinancePartyDatalist() {
+  const dl = $('financePartiesList');
+  if (!dl) return;
+
+  const all = Array.isArray(finances?.entries) ? finances.entries : [];
+  const seen = new Set();
+  const names = [];
+
+  for (const e of all) {
+    const raw = String(e?.party || '').trim();
+    if (!raw) continue;
+    const key = raw.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    names.push(raw);
+  }
+
+  names.sort((a, b) => a.localeCompare(b));
+  dl.innerHTML = '';
+  for (const n of names) {
+    const opt = document.createElement('option');
+    opt.value = n;
+    dl.appendChild(opt);
+  }
+}
+
+function financeBuildDescription(e) {
+  const status = String(e?.status || '').trim().toLowerCase();
+  const baseCategory = String(e?.category || '').trim() || (String(e?.type) === 'expense' ? 'Expense' : 'Income');
+  const category = status === 'voided' ? `${baseCategory} (Voided)` : (status === 'reversed' ? `${baseCategory} (Reversed)` : baseCategory);
+  const parts = [e?.fund, financeMethodLabel(e?.method), e?.party].map((v) => String(v || '').trim()).filter(Boolean);
+  return { title: category, subtitle: parts.join(' · ') };
+}
+
+function financeBuildDetailFields(e) {
+  const isExpense = String(e?.type) === 'expense';
+  const fields = [];
+  fields.push(['Transaction type', isExpense ? 'Money Spent' : 'Money Received']);
+  if (e?.sourceLabel || e?.source) fields.push(['Source', String(e.sourceLabel || e.source || '').replace(/_/g, ' ')]);
+  if (e?.status) fields.push(['Status', String(e.status || '').replace(/_/g, ' ')]);
+  if (e?.reconciliationStatus) fields.push(['Reconciliation', String(e.reconciliationStatus || '').replace(/_/g, ' ')]);
+  if (e?.category) fields.push(['Category', e.category]);
+  if (e?.fund) fields.push(['Fund', e.fund]);
+  if (e?.accountName) fields.push(['Account', e.accountName]);
+  if (e?.checkNumber) fields.push(['Check number', e.checkNumber]);
+  if (e?.method) fields.push(['Payment method', financeMethodLabel(e.method)]);
+  if (e?.party) fields.push([isExpense ? 'Paid to' : 'Received from', e.party]);
+  if (e?.memo) fields.push(['Note', e.memo]);
+  if (e?.voidReason) fields.push(['Void reason', e.voidReason]);
+  if (e?.createdAt) fields.push(['Created', formatLocalTimestamp(new Date(e.createdAt))]);
+  if (e?.updatedAt && e.updatedAt !== e.createdAt) fields.push(['Last edited', formatLocalTimestamp(new Date(e.updatedAt))]);
+  return fields;
+}
+
+function financeRowActionButtons(e, { onToggle }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'row__actions financeRowActions';
+
+  const viewBtn = document.createElement('button');
+  viewBtn.type = 'button';
+  viewBtn.className = 'btn btn--sm';
+  setActionIconButton(viewBtn, 'view', 'View details');
+  viewBtn.setAttribute('aria-expanded', 'false');
+  viewBtn.addEventListener('click', () => onToggle(viewBtn));
+
+  const editBtn = document.createElement('button');
+  editBtn.type = 'button';
+  editBtn.className = 'btn btn--sm';
+  setActionIconButton(editBtn, 'edit', 'Edit entry');
+  editBtn.addEventListener('click', () => financeStartEdit(e));
+
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.className = 'btn btn--sm btn--danger';
+  delBtn.textContent = 'Void';
+  if (String(e?.status || '').toLowerCase() === 'voided' || String(e?.status || '').toLowerCase() === 'reversed') {
+    delBtn.disabled = true;
+  }
+  delBtn.addEventListener('click', () => financeOpenDeleteDialog(e));
+
+  wrap.appendChild(viewBtn);
+  wrap.appendChild(editBtn);
+  if (financeCanPrintReceipt(e)) {
+    const receiptBtn = document.createElement('button');
+    receiptBtn.type = 'button';
+    receiptBtn.className = 'btn btn--sm';
+    receiptBtn.textContent = 'Print Receipt';
+    receiptBtn.addEventListener('click', () => financePrintReceipts([e]));
+    wrap.appendChild(receiptBtn);
+  }
+  wrap.appendChild(delBtn);
+  return wrap;
+}
+
+function renderFinances() {
+  populateFinanceDatalists();
+  populateFinancePartyDatalist();
+
+  const filters = financeCurrentFilters();
+  const all = Array.isArray(finances?.entries) ? finances.entries : [];
+  const rows = all.filter((e) => financeEntryMatches(e, filters));
+  const rangeHint = $('financeDateRangeHint');
+  if (rangeHint) rangeHint.textContent = String(filters?.rangeError || '');
+
+  const totalsRows = rows;
+
+  let income = 0;
+  let expense = 0;
+  for (const e of totalsRows) {
+    const cents = Number(e?.amountCents || 0);
+    const t = financeNormalizeKey(e?.type);
+    if (t === 'income') income += cents;
+    if (t === 'expense') expense += cents;
+  }
+  const net = income - expense;
+
+  if ($('financeIncomeTotal')) $('financeIncomeTotal').textContent = formatMoneyCents(income);
+  if ($('financeExpenseTotal')) $('financeExpenseTotal').textContent = formatMoneyCents(expense);
+  const netEl = $('financeNetTotal');
+  if (netEl) {
+    netEl.textContent = formatMoneyCents(net);
+    netEl.classList.toggle('financeAmt--income', net > 0);
+    netEl.classList.toggle('financeAmt--expense', net < 0);
+  }
+
+  renderFinancePieChart('financeFlowPie', [
+    { label: 'Money Received', value: income, color: '#2f9e44' },
+    { label: 'Money Spent', value: expense, color: 'var(--danger)' }
+  ], 'No money movement for the selected filters.');
+
+  const meta = $('financePrintMeta');
+  if (meta) {
+    const range = financeDateRangeLabel(filters);
+    meta.textContent = `Printed: ${formatLocalTimestamp()} • Report: Transaction History • ${range} • ${rows.length} entries • Money Received ${formatMoneyCents(income)} • Money Spent ${formatMoneyCents(expense)} • Net Total ${formatMoneyCents(net)}`;
+  }
+
+  financeRenderFilterSummary(filters, rows.length);
+
+  const tbody = $('financeTableBody');
+  const cardList = $('financeCardList');
+  if (tbody) tbody.innerHTML = '';
+  if (cardList) cardList.innerHTML = '';
+
+  renderWeeklyGiving(filters);
+
+  if (!tbody && !cardList) return;
+
+  if (!rows.length) {
+    if (tbody) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 5;
+      td.textContent = 'No transactions match the current filters.';
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    }
+    if (cardList) {
+      const empty = document.createElement('p');
+      empty.className = 'hint';
+      empty.textContent = 'No transactions match the current filters.';
+      cardList.appendChild(empty);
+    }
+    return;
+  }
+
+  const sorted = [...rows].sort((a, b) => String(b?.date || '').localeCompare(String(a?.date || '')));
+
+  for (const e of sorted) {
+    const amountCents = Number(e?.amountCents || 0);
+    const isExpense = String(e?.type) === 'expense';
+    const { title, subtitle } = financeBuildDescription(e);
+    const detailFields = financeBuildDetailFields(e);
+
+    // Desktop table row
+    if (tbody) {
+      const tr = document.createElement('tr');
+      const detailRow = document.createElement('tr');
+      detailRow.className = 'financeDetailRow';
+      detailRow.hidden = true;
+
+      const mkTd = (text) => { const td = document.createElement('td'); td.textContent = String(text || ''); return td; };
+      tr.appendChild(mkTd(financeFormatReviewDate(e?.date)));
+
+      const descTd = document.createElement('td');
+      descTd.className = 'financeDescCell';
+      const titleEl = document.createElement('div');
+      titleEl.className = 'financeDescCell__title';
+      titleEl.textContent = title;
+      descTd.appendChild(titleEl);
+      if (subtitle) {
+        const subEl = document.createElement('div');
+        subEl.className = 'financeDescCell__subtitle';
+        subEl.textContent = subtitle;
+        descTd.appendChild(subEl);
+      }
+      tr.appendChild(descTd);
+
+      const inTd = document.createElement('td');
+      inTd.className = 'num';
+      inTd.textContent = isExpense ? '' : formatMoneyCents(amountCents);
+      tr.appendChild(inTd);
+
+      const outTd = document.createElement('td');
+      outTd.className = 'num';
+      outTd.textContent = isExpense ? formatMoneyCents(amountCents) : '';
+      tr.appendChild(outTd);
+
+      const actionsTd = document.createElement('td');
+      actionsTd.className = 'noPrint';
+      const toggleDetail = (btn) => {
+        const expanded = !detailRow.hidden;
+        detailRow.hidden = expanded;
+        btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        const label = expanded ? 'View details' : 'Hide details';
+        setActionIconButton(btn, 'view', label);
+      };
+      actionsTd.appendChild(financeRowActionButtons(e, { onToggle: toggleDetail }));
+      tr.appendChild(actionsTd);
+
+      const detailTd = document.createElement('td');
+      detailTd.colSpan = 5;
+      const dl = document.createElement('dl');
+      dl.className = 'wizardReview financeDetailFields';
+      for (const [label, value] of detailFields) {
+        const dt = document.createElement('dt'); dt.textContent = label;
+        const dd = document.createElement('dd'); dd.textContent = value;
+        dl.appendChild(dt); dl.appendChild(dd);
+      }
+      detailTd.appendChild(dl);
+      detailRow.appendChild(detailTd);
+
+      tbody.appendChild(tr);
+      tbody.appendChild(detailRow);
+    }
+
+    // Mobile stacked card
+    if (cardList) {
+      const card = document.createElement('div');
+      card.className = 'financeCard';
+
+      const head = document.createElement('div');
+      head.className = 'financeCard__head';
+      const dateEl = document.createElement('div');
+      dateEl.className = 'financeCard__date';
+      dateEl.textContent = financeFormatReviewDate(e?.date);
+      const amtEl = document.createElement('div');
+      amtEl.className = `financeCard__amount ${isExpense ? 'financeAmt--expense' : 'financeAmt--income'}`;
+      amtEl.textContent = `${isExpense ? '-' : ''}${formatMoneyCents(amountCents)}`;
+      head.appendChild(dateEl);
+      head.appendChild(amtEl);
+
+      const titleEl = document.createElement('div');
+      titleEl.className = 'financeCard__title';
+      titleEl.textContent = title;
+      const subEl = document.createElement('div');
+      subEl.className = 'financeCard__subtitle';
+      subEl.textContent = subtitle;
+
+      const detailWrap = document.createElement('dl');
+      detailWrap.className = 'wizardReview financeDetailFields';
+      detailWrap.hidden = true;
+      for (const [label, value] of detailFields) {
+        const dt = document.createElement('dt'); dt.textContent = label;
+        const dd = document.createElement('dd'); dd.textContent = value;
+        detailWrap.appendChild(dt); detailWrap.appendChild(dd);
+      }
+
+      const toggleDetail = (btn) => {
+        const expanded = !detailWrap.hidden;
+        detailWrap.hidden = expanded;
+        btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        const label = expanded ? 'View details' : 'Hide details';
+        setActionIconButton(btn, 'view', label);
+      };
+      const actions = financeRowActionButtons(e, { onToggle: toggleDetail });
+
+      card.appendChild(head);
+      card.appendChild(titleEl);
+      if (subtitle) card.appendChild(subEl);
+      card.appendChild(actions);
+      card.appendChild(detailWrap);
+      cardList.appendChild(card);
+    }
+  }
+
+  renderWeeklyGiving(filters);
+}
+
+async function loadFinances() {
+  const [data] = await Promise.all([
+    api('/api/finances', { method: 'GET' }),
+    loadFinanceFundsRegistry()
+  ]);
+  finances = data;
+  financeResetForm();
+  // Hide custom range UI unless the user explicitly opens it.
+  if ($('financeCustomRange')) {
+    const customToggle = $('financeRangeCustom');
+    const wantsCustom = (customToggle instanceof HTMLInputElement) ? !!customToggle.checked : false;
+    setFinanceCustomMode(wantsCustom);
+  }
+  renderFinances();
+}
+
+function financeCsvEscape(value) {
+  const raw = String(value ?? '');
+  const s = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+  if (/[\n\r,\"]/g.test(s)) return `"${s.replace(/\"/g, '""')}"`;
+  return s;
+}
+
+function downloadTextFile(name, text, mime) {
+  const blob = new Blob([text], { type: mime || 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function downloadBinaryFile(name, bytes, mime) {
+  const blob = new Blob([bytes], { type: mime || 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function financeExportRows(filters = financeCurrentFilters()) {
+  const rows = Array.isArray(finances?.entries) ? finances.entries : [];
+  return rows
+    .filter((entry) => financeEntryMatches(entry, filters))
+    .sort((a, b) => String(a?.date || '').localeCompare(String(b?.date || '')));
+}
+
+function financeExportColumns(entries) {
+  return (Array.isArray(entries) ? entries : []).map((entry, index) => ({
+    'Receipt Number': financeCanPrintReceipt(entry) ? financeReceiptNoForEntry(entry, index) : '',
+    'Date': String(entry?.date || '').trim(),
+    'Transaction Type': financeNormalizeKey(entry?.type) === 'expense' ? 'Money Spent' : 'Money Received',
+    'Category': String(entry?.category || '').trim(),
+    'Fund': String(entry?.fund || '').trim(),
+    'Payment Method': financeMethodLabel(entry?.method),
+    'From / To': String(entry?.party || '').trim(),
+    'Amount': (Number(entry?.amountCents || 0) / 100).toFixed(2),
+    'Memo': String(entry?.memo || '').trim()
+  }));
+}
+
+function financeExportFileStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function financeExportToCsv(rows, { announce = true } = {}) {
+  const dataRows = financeExportColumns(rows);
+  const headers = ['Receipt Number', 'Date', 'Transaction Type', 'Category', 'Fund', 'Payment Method', 'From / To', 'Amount', 'Memo'];
+  const lines = [headers.map(financeCsvEscape).join(',')];
+  for (const row of dataRows) {
+    lines.push(headers.map((header) => financeCsvEscape(row[header])).join(','));
+  }
+  downloadTextFile(`finance-transactions-${financeExportFileStamp()}.csv`, lines.join('\n'), 'text/csv;charset=utf-8');
+  if (announce) setFinanceExportHint(`Downloaded CSV for ${rows.length} transaction${rows.length === 1 ? '' : 's'}.`);
+}
+
+async function financeExportToGoogleSheets(rows) {
+  const headers = ['Receipt Number', 'Date', 'Transaction Type', 'Category', 'Fund', 'Payment Method', 'From / To', 'Amount', 'Memo'];
+  const sheetRows = financeExportColumns(rows);
+  const tsv = [
+    headers.join('\t'),
+    ...sheetRows.map((row) => headers.map((header) => String(row[header] ?? '')).join('\t'))
+  ].join('\n');
+
+  const sheetWindow = window.open('https://sheets.new', '_blank', 'noopener');
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(tsv);
+    copied = true;
+  } catch {
+    copied = false;
+  }
+
+  closeDetailsMenu('financeExportMenu');
+
+  if (sheetWindow && copied) {
+    setFinanceExportHint('Opened a new Google Sheet and copied the filtered transactions. Paste into cell A1.');
+    return;
+  }
+
+  financeExportToCsv(rows, { announce: false });
+  if (!sheetWindow && !copied) {
+    setFinanceExportHint('Google Sheets could not be opened and clipboard access was blocked. A CSV download was provided instead.');
+    return;
+  }
+  if (!sheetWindow) {
+    setFinanceExportHint('Google Sheets was blocked by your browser. The data was copied to your clipboard and a CSV download was provided as a fallback.');
+    return;
+  }
+  setFinanceExportHint('Opened a new Google Sheet, but clipboard access was blocked. A CSV download was provided; paste it into cell A1 after opening the file if needed.');
+}
+
+function isoDateToday() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function addDaysToIsoDate(isoDate, days) {
+  const d = new Date(`${isoDate}T00:00:00`);
+  d.setDate(d.getDate() + Number(days || 0));
+  return d.toISOString().slice(0, 10);
+}
+
+function startOfMonth(isoDate) {
+  const d = new Date(`${isoDate}T00:00:00`);
+  d.setDate(1);
+  return d.toISOString().slice(0, 10);
+}
+
+function startOfWeekSunday(isoDate) {
+  const d = new Date(`${isoDate}T00:00:00`);
+  const day = d.getDay(); // 0=Sun
+  d.setDate(d.getDate() - day);
+  return d.toISOString().slice(0, 10);
+}
+
+function normalizeCategoryKey(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function renderWeeklyGiving(baseFilters = financeCurrentFilters()) {
+  const today = isoDateToday();
+  let from = '';
+  let to = '';
+
+  if (financeGivingPeriod === 'month') {
+    from = startOfMonth(today);
+    to = today;
+  } else {
+    from = startOfWeekSunday(today);
+    to = addDaysToIsoDate(from, 6);
+  }
+
+  const tithesKey = 'tithes';
+  const offeringsKey = 'offerings';
+
+  const entries = Array.isArray(finances?.entries) ? finances.entries : [];
+  const effectiveFilters = {
+    ...(baseFilters || {}),
+    from,
+    to,
+    dateRange: 'custom'
+  };
+  const inRange = entries.filter((e) => financeEntryMatches(e, effectiveFilters));
+
+  let tithes = 0;
+  let offerings = 0;
+
+  for (const e of inRange) {
+    if (financeNormalizeKey(e?.type) !== 'income') continue;
+    const cat = normalizeCategoryKey(e?.category);
+    const cents = Number(e?.amountCents || 0);
+    if (!Number.isFinite(cents)) continue;
+    if (cat === tithesKey || (tithesKey === 'tithes' && cat.includes('tithe'))) tithes += cents;
+    if (cat === offeringsKey || (offeringsKey === 'offerings' && cat.includes('offering'))) offerings += cents;
+  }
+
+  const total = tithes + offerings;
+  const periodLabel = $('financeGivingPeriodLabel');
+  if (periodLabel) periodLabel.textContent = financeGivingPeriod === 'month' ? '(This Month)' : '(This Week)';
+  if ($('financeTithesTotal')) $('financeTithesTotal').textContent = formatMoneyCents(tithes);
+  if ($('financeOfferingsTotal')) $('financeOfferingsTotal').textContent = formatMoneyCents(offerings);
+  if ($('financeGivingTotal')) $('financeGivingTotal').textContent = formatMoneyCents(total);
+
+  renderFinancePieChart('financeGivingPie', [
+    { label: 'Tithes', value: tithes, color: 'var(--accent)' },
+    { label: 'Offerings', value: offerings, color: '#2f9e44' }
+  ], 'No giving entries in the selected period.');
+}
+
+function renderFinancePieChart(pieId, slices, emptyLabel) {
+  const pie = $(pieId);
+  if (!pie) return;
+
+  const normalized = Array.isArray(slices)
+    ? slices.map((slice) => ({
+      label: String(slice?.label || '').trim(),
+      color: String(slice?.color || 'rgba(255,255,255,.2)'),
+      value: Math.max(0, Number(slice?.value || 0))
+    }))
+    : [];
+
+  const total = normalized.reduce((sum, slice) => sum + slice.value, 0);
+  if (!(total > 0)) {
+    pie.style.background = 'conic-gradient(rgba(255,255,255,.18) 0deg 360deg)';
+    pie.setAttribute('aria-label', String(emptyLabel || 'No data available.'));
+    return;
+  }
+
+  let start = 0;
+  const parts = [];
+  const labels = [];
+
+  for (const slice of normalized) {
+    if (!(slice.value > 0)) continue;
+    const degrees = (slice.value / total) * 360;
+    const end = start + degrees;
+    parts.push(`${slice.color} ${start}deg ${end}deg`);
+    const pct = Math.round((slice.value / total) * 1000) / 10;
+    labels.push(`${slice.label} ${pct}%`);
+    start = end;
+  }
+
+  pie.style.background = `conic-gradient(${parts.join(', ')})`;
+  pie.setAttribute('aria-label', labels.join(', '));
+}
+
+function setSubTab(buttonIds, panelIds, activePanelId) {
+  for (const bid of buttonIds) {
+    const b = $(bid);
+    if (!b) continue;
+    const isActive = b.getAttribute('aria-controls') === activePanelId;
+    b.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  }
+  for (const pid of panelIds) {
+    const p = $(pid);
+    if (!p) continue;
+    p.hidden = pid !== activePanelId;
+  }
+}
+
+function setContentSubTab(panelId) {
+  setSubTab(
+    ['subTabBtn-content-announcements', 'subTabBtn-content-bulletins'],
+    ['panel-content-announcements', 'panel-content-bulletins'],
+    panelId
+  );
+}
+
+function setPhotosSubTab(panelId) {
+  setSubTab(
+    ['subTabBtn-photos-manage', 'subTabBtn-photos-bucket'],
+    ['panel-photos-manage', 'panel-photos-bucket'],
+    panelId
+  );
+}
+
+function setDirectorySubTab(panelId) {
+  setSubTab(
+    ['subTabBtn-directory-contacts', 'subTabBtn-directory-subscribers', 'subTabBtn-directory-groups'],
+    ['panel-directory-contacts', 'panel-directory-subscribers', 'panel-directory-groups'],
+    panelId
+  );
+}
+
+// -------- Photo Gallery --------
+let galleryItems = [];
+let photoArrangeAlbum = '';
+let photoSelectedIds = new Set();
+let photoFilteredItems = [];
+let photoCurrentPage = 1;
+let photoGalleryDisplaySettings = { showImageNames: true };
+const PHOTO_ROWS_PER_PAGE = 6;
+
+const FIN_CREATE_VALUE = '__CREATE__';
+const FIN_DELETE_VALUE = '__DELETE__';
+
+function photoGetColumns() {
+  const grid = $('photoGrid');
+  if (!grid) return 1;
+  try {
+    const tpl = String(getComputedStyle(grid).gridTemplateColumns || '').trim();
+    const cols = tpl.split(' ').filter(Boolean).length;
+    return Math.max(1, cols || 1);
+  } catch {
+    return 1;
+  }
+}
+
+function photoPageSize() {
+  return photoGetColumns() * PHOTO_ROWS_PER_PAGE;
+}
+
+function renderPhotoDisplayNameToggle() {
+  const input = $('photoShowImageNames');
+  const hint = $('photoDisplayNameToggleHint');
+  if (!(input instanceof HTMLInputElement)) return;
+  input.checked = photoGalleryDisplaySettings.showImageNames !== false;
+  if (hint) {
+    hint.textContent = input.checked
+      ? 'Live photo names are currently visible on the public gallery page.'
+      : 'Live photo names are currently hidden on the public gallery page.';
+  }
+}
+
+async function loadPhotoDisplayNameSetting() {
+  const input = $('photoShowImageNames');
+  if (!(input instanceof HTMLInputElement)) return;
+  const data = await api('/api/gallery/settings', { method: 'GET' });
+  const current = data?.settings?.showImageNames;
+  photoGalleryDisplaySettings.showImageNames = current !== false;
+  renderPhotoDisplayNameToggle();
+}
+
+async function savePhotoDisplayNameSetting(showImageNames) {
+  const input = $('photoShowImageNames');
+  const hint = $('photoDisplayNameToggleHint');
+  if (!(input instanceof HTMLInputElement)) return;
+
+  input.disabled = true;
+  if (hint) hint.textContent = 'Saving photo display preference…';
+
+  try {
+    const data = await api('/api/gallery/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ showImageNames: Boolean(showImageNames) })
+    });
+    photoGalleryDisplaySettings.showImageNames = data?.settings?.showImageNames !== false;
+    renderPhotoDisplayNameToggle();
+    showToast('Photo gallery name display preference updated.', { variant: 'success' });
+  } catch (err) {
+    input.checked = photoGalleryDisplaySettings.showImageNames !== false;
+    if (hint) hint.textContent = err instanceof Error ? err.message : 'Unable to save photo display preference.';
+    showToast('Unable to save photo name display preference.', { variant: 'danger' });
+  } finally {
+    input.disabled = false;
+  }
+}
+
+function photoUpdateBulkBar() {
+  const bar = $('photoBulkBar');
+  const count = $('photoBulkCount');
+  if (!bar) return;
+  const n = photoSelectedIds.size;
+  bar.hidden = n === 0;
+  if (count) count.textContent = n ? `${n} selected` : '';
+
+  const editBtn = $('photoBulkEditBtn');
+  const deleteBtn = $('photoBulkDeleteBtn');
+  if (editBtn) {
+    const label = n === 1 ? 'Edit 1 selected photo' : `Edit ${n} selected photos`;
+    setActionIconButton(editBtn, 'edit', label);
+  }
+  if (deleteBtn) {
+    const label = n === 1 ? 'Delete 1 selected photo' : `Delete ${n} selected photos`;
+    setActionIconButton(deleteBtn, 'delete', label);
+  }
+
+  // (Fallback) Stick in-view while scrolling down, but never let it move
+  // higher than where it first appeared.
+  if (n > 0 && bar.dataset.stickyTopSet !== '1') {
+    requestAnimationFrame(() => {
+      if (bar.hidden) return;
+      try {
+        const r = bar.getBoundingClientRect();
+        const top = Math.max(0, Math.round(r.top));
+        bar.style.setProperty('--photo-bulk-top', `${top}px`);
+        bar.dataset.stickyTopSet = '1';
+      } catch {
+        // ignore
+      }
+    });
+  }
+}
+
+function photoUpdatePager() {
+  const pagerTop = $('photoPager');
+  const infoTop = $('photoPageInfo');
+  const prevTop = $('photoPrevPageBtn');
+  const nextTop = $('photoNextPageBtn');
+
+  const pagerBottom = $('photoPagerBottom');
+  const infoBottom = $('photoPageInfoBottom');
+  const prevBottom = $('photoPrevPageBtnBottom');
+  const nextBottom = $('photoNextPageBtnBottom');
+
+  const pageSize = photoPageSize();
+  const total = photoFilteredItems.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  if (photoCurrentPage > totalPages) photoCurrentPage = totalPages;
+  if (photoCurrentPage < 1) photoCurrentPage = 1;
+
+  const showPager = total > pageSize;
+  const text = total ? `Page ${photoCurrentPage} of ${totalPages} • ${total} photo(s)` : '';
+
+  if (pagerTop) pagerTop.hidden = !showPager;
+  if (infoTop) {
+    infoTop.textContent = text;
+    infoTop.setAttribute('aria-disabled', showPager ? 'false' : 'true');
+    infoTop.setAttribute('title', showPager ? `Jump to page (1-${totalPages})` : '');
+  }
+  if (prevTop) prevTop.disabled = photoCurrentPage <= 1;
+  if (nextTop) nextTop.disabled = photoCurrentPage >= totalPages;
+
+  if (pagerBottom) pagerBottom.hidden = !showPager;
+  if (infoBottom) {
+    infoBottom.textContent = text;
+    infoBottom.setAttribute('aria-disabled', showPager ? 'false' : 'true');
+    infoBottom.setAttribute('title', showPager ? `Jump to page (1-${totalPages})` : '');
+  }
+  if (prevBottom) prevBottom.disabled = photoCurrentPage <= 1;
+  if (nextBottom) nextBottom.disabled = photoCurrentPage >= totalPages;
+}
+
+function photoPromptJumpToPage() {
+  const pageSize = photoPageSize();
+  const totalPages = Math.max(1, Math.ceil(photoFilteredItems.length / pageSize));
+  if (totalPages <= 1) return;
+
+  const raw = window.prompt(`Go to photo page (1-${totalPages}):`, String(photoCurrentPage));
+  if (raw === null) return;
+
+  const next = Number.parseInt(String(raw || '').trim(), 10);
+  if (!Number.isInteger(next) || next < 1 || next > totalPages) {
+    showToast(`Enter a valid page number from 1 to ${totalPages}.`, { variant: 'danger' });
+    return;
+  }
+
+  photoCurrentPage = next;
+  applyPhotoFilters({ resetPage: false });
+}
+
+function bindPhotoPageJump(id) {
+  const el = $(id);
+  if (!(el instanceof HTMLElement) || el.dataset.pageJumpBound === '1') return;
+  el.dataset.pageJumpBound = '1';
+  el.classList.add('pageJumpInfo');
+  el.setAttribute('role', 'button');
+  el.tabIndex = 0;
+
+  const trigger = () => {
+    if (el.getAttribute('aria-disabled') === 'true') return;
+    photoPromptJumpToPage();
+  };
+
+  el.addEventListener('click', trigger);
+  el.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      trigger();
+    }
+  });
+}
+
+function toNumberOrNull(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function buildAlbumList(items) {
+  const albums = Array.from(new Set((items || []).map((i) => String(i.album || '').trim()).filter(Boolean)));
+  albums.sort((a, b) => a.localeCompare(b));
+  return albums;
+}
+
+function renderArrangeAlbumOptions() {
+  const select = $('photoArrangeAlbum');
+  if (!select) return;
+  const albums = buildAlbumList(galleryItems);
+  const current = String(photoArrangeAlbum || '');
+
+  select.innerHTML = '<option value="">(Pick an album)</option>';
+  for (const a of albums) {
+    const opt = document.createElement('option');
+    opt.value = a;
+    opt.textContent = a;
+    select.appendChild(opt);
+  }
+  if (albums.includes(current)) select.value = current;
+}
+
+function isManualMode() {
+  return $('photoSort')?.value === 'manual' && String(photoArrangeAlbum || '').trim();
+}
+
+function applyPhotoFilters({ resetPage = true } = {}) {
+  const sort = $('photoSort').value;
+  const albumFilter = $('photoAlbumFilter').value.trim().toLowerCase();
+  const tagFilter = $('photoTagFilter').value.trim().toLowerCase();
+
+  let items = [...galleryItems];
+  if (albumFilter) items = items.filter((i) => String(i.album || '').toLowerCase().includes(albumFilter));
+  if (tagFilter) items = items.filter((i) => (i.tags || []).some((t) => String(t).toLowerCase().includes(tagFilter)));
+
+  const manualAlbum = String(photoArrangeAlbum || '').trim();
+  if (sort === 'manual' && manualAlbum) {
+    items = items.filter((i) => String(i.album || '') === manualAlbum);
+    items.sort((a, b) => {
+      const ap = toNumberOrNull(a.position);
+      const bp = toNumberOrNull(b.position);
+      if (ap === null && bp === null) return String(b.createdAt).localeCompare(String(a.createdAt));
+      if (ap === null) return 1;
+      if (bp === null) return -1;
+      if (ap !== bp) return ap - bp;
+      return String(b.createdAt).localeCompare(String(a.createdAt));
+    });
+  } else {
+    items.sort((a, b) => {
+      if (sort === 'name-asc') return String(a.originalName).localeCompare(String(b.originalName));
+      if (sort === 'name-desc') return String(b.originalName).localeCompare(String(a.originalName));
+      if (sort === 'date-asc') return String(a.createdAt).localeCompare(String(b.createdAt));
+      return String(b.createdAt).localeCompare(String(a.createdAt));
+    });
+  }
+
+  photoFilteredItems = items;
+  if (resetPage) photoCurrentPage = 1;
+
+  const pageSize = photoPageSize();
+  const start = (photoCurrentPage - 1) * pageSize;
+  const pageItems = items.slice(start, start + pageSize);
+  photoUpdatePager();
+  renderPhotoGrid(pageItems);
+}
+
+async function saveManualOrder(album, orderedIds) {
+  await api('/api/gallery/order', {
+    method: 'PUT',
+    body: JSON.stringify({ album, orderedIds })
+  });
+
+  // Update local positions so the UI stays in sync without a full reload.
+  const byId = new Map(galleryItems.map((it) => [String(it.id), it]));
+  orderedIds.forEach((id, idx) => {
+    const it = byId.get(String(id));
+    if (it) it.position = idx;
+  });
+}
+
+function openPhotoViewDialog(item) {
+  const dlg = $('photoViewDialog');
+  if (!(dlg instanceof HTMLElement)) return;
+
+  const src = String(item?.file || item?.thumb || '').trim();
+  if (!src) return;
+
+  const img = $('photoViewImage');
+  const name = $('photoViewName');
+  const details = $('photoViewDetails');
+
+  if (img instanceof HTMLImageElement) {
+    img.src = src;
+    img.alt = String(item?.label || item?.album || 'Photo preview').trim();
+  }
+  if (name) {
+    name.textContent = String(item?.label || item?.originalName || item?.album || 'Photo').trim();
+  }
+  if (details) {
+    const album = String(item?.album || 'General').trim();
+    const created = formatDate(item?.createdAt);
+    const tags = Array.isArray(item?.tags) && item.tags.length ? `Tags: ${item.tags.join(', ')}` : '';
+    details.textContent = [album, created, tags].filter(Boolean).join(' • ');
+  }
+
+  openManagedDialog(dlg, { initialFocusId: 'photoViewCloseBtn' });
+}
+
+function renderPhotoGrid(items) {
+  const grid = $('photoGrid');
+  grid.innerHTML = '';
+
+  if (!items.length) {
+    grid.innerHTML = '<div class="muted">No photos yet.</div>';
+    return;
+  }
+
+  for (const item of items) {
+    const card = document.createElement('div');
+    card.className = 'thumb';
+    card.setAttribute('data-photo-id', String(item.id || ''));
+
+    const selectWrap = document.createElement('label');
+    selectWrap.className = 'thumb__select';
+    selectWrap.title = 'Select photo';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'thumb__check';
+    cb.setAttribute('data-photo-id', String(item.id || ''));
+    cb.checked = photoSelectedIds.has(String(item.id || ''));
+    if (cb.checked) card.classList.add('thumb--selected');
+    cb.addEventListener('click', (e) => {
+      try { e.stopPropagation(); } catch { /* ignore */ }
+    });
+    cb.addEventListener('change', () => {
+      const id = String(item.id || '');
+      if (!id) return;
+      if (cb.checked) {
+        photoSelectedIds.add(id);
+        card.classList.add('thumb--selected');
+      } else {
+        photoSelectedIds.delete(id);
+        card.classList.remove('thumb--selected');
+      }
+      photoUpdateBulkBar();
+    });
+    selectWrap.appendChild(cb);
+
+    const img = document.createElement('img');
+    img.className = 'thumb__img';
+    img.src = item.thumb || item.file;
+    img.alt = item.label ? `${item.label} photo` : 'Gallery photo';
+    img.loading = 'lazy';
+
+    const meta = document.createElement('div');
+    meta.className = 'thumb__meta';
+
+    const labelRow = document.createElement('div');
+    labelRow.className = 'thumb__labelRow';
+
+    const label = document.createElement('div');
+    label.className = 'thumb__label';
+    label.textContent = item.label || item.album || 'Photo';
+
+    const visibilityToggle = document.createElement('label');
+    visibilityToggle.className = 'thumb__visibilityToggle';
+    const visibilityCheck = document.createElement('input');
+    visibilityCheck.className = 'thumb__visibilityCheck';
+    visibilityCheck.type = 'checkbox';
+    visibilityCheck.checked = item.hideFromPublic === true;
+    visibilityCheck.setAttribute('aria-label', 'Hide From Public Gallery');
+    const visibilityText = document.createElement('span');
+    visibilityText.textContent = 'Hide';
+    visibilityToggle.appendChild(visibilityCheck);
+    visibilityToggle.appendChild(visibilityText);
+
+    visibilityCheck.addEventListener('change', async () => {
+      const nextValue = visibilityCheck.checked;
+      visibilityCheck.disabled = true;
+      try {
+        const result = await api(`/api/gallery/${item.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ hideFromPublic: nextValue })
+        });
+        item.hideFromPublic = result?.item?.hideFromPublic === true ? true : nextValue;
+        showToast(nextValue ? 'Photo hidden from live gallery.' : 'Photo shown on live gallery.', { variant: 'success' });
+      } catch (err) {
+        visibilityCheck.checked = !nextValue;
+        showToast(err instanceof Error ? err.message : 'Unable to update gallery visibility.', { variant: 'danger' });
+      } finally {
+        visibilityCheck.disabled = false;
+      }
+    });
+
+    labelRow.appendChild(label);
+    labelRow.appendChild(visibilityToggle);
+
+    const small = document.createElement('div');
+    small.className = 'thumb__small';
+    small.textContent = `${item.album || 'General'} • ${formatDate(item.createdAt)}`;
+
+    const tags = document.createElement('div');
+    tags.className = 'thumb__small';
+    tags.textContent = (item.tags || []).length ? `Tags: ${(item.tags || []).join(', ')}` : '';
+
+    const actions = document.createElement('div');
+    actions.className = 'row__actions';
+
+    const view = document.createElement('button');
+    view.className = 'btn';
+    view.type = 'button';
+    setActionIconButton(view, 'view', 'View photo');
+    view.addEventListener('click', () => {
+      openPhotoViewDialog(item);
+    });
+    actions.appendChild(view);
+
+    const edit = document.createElement('button');
+    edit.className = 'btn';
+    edit.type = 'button';
+    setActionIconButton(edit, 'edit', 'Edit photo');
+    edit.addEventListener('click', async () => {
+      const nextLabel = prompt('Name/Label', String(item.label || ''));
+      if (nextLabel === null) return;
+      const nextAlbum = prompt('Album', String(item.album || 'General'));
+      if (nextAlbum === null) return;
+      const nextTags = prompt('Tags (comma-separated)', (item.tags || []).join(', '));
+      if (nextTags === null) return;
+      await api(`/api/gallery/${item.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ label: nextLabel, album: String(nextAlbum || '').trim() || 'General', tags: nextTags })
+      });
+      await loadGallery();
+    });
+    actions.appendChild(edit);
+
+    const del = document.createElement('button');
+    del.className = 'btn btn--danger';
+    del.type = 'button';
+    setActionIconButton(del, 'delete', 'Delete photo');
+    del.addEventListener('click', async () => {
+      const labelText = String(item.label || item.originalName || 'this photo');
+      const ok = confirmWrite(
+        `Delete ${labelText}?\n\nThis will remove it from the website gallery after refresh.`
+      );
+      if (!ok) return;
+      await api(`/api/gallery/${item.id}`, { method: 'DELETE' });
+      await loadGallery();
+      announceLive(`Deleted ${labelText}.`);
+    });
+
+    actions.appendChild(del);
+
+    meta.appendChild(labelRow);
+    meta.appendChild(small);
+    meta.appendChild(tags);
+    meta.appendChild(actions);
+
+    card.appendChild(img);
+    card.appendChild(meta);
+    card.appendChild(selectWrap);
+
+    if (photoSelectedIds.has(String(item.id || ''))) card.classList.add('thumb--selected');
+
+    grid.appendChild(card);
+  }
+
+  photoUpdateBulkBar();
+}
+
+async function loadGallery() {
+  const data = await api('/api/gallery', { method: 'GET' });
+  galleryItems = data.items || [];
+  renderArrangeAlbumOptions();
+  applyPhotoFilters();
+  if ($('photoShowImageNames')) {
+    try {
+      await loadPhotoDisplayNameSetting();
+    } catch {
+      renderPhotoDisplayNameToggle();
+    }
+  }
+}
+
+// -------- R2 Bucket Browser (gallery/ only) --------
+let r2Prefix = 'gallery/';
+
+function normalizeR2Prefix(raw) {
+  let p = String(raw || '').trim();
+  p = p.replace(/\\/g, '/');
+  p = p.replace(/^\/+/, '');
+  // Force under gallery/
+  if (!p || !p.startsWith('gallery/')) p = 'gallery/';
+  // Normalize double slashes
+  p = p.replace(/\/{2,}/g, '/');
+  // Basic traversal prevention (server enforces too)
+  if (p.includes('..')) p = 'gallery/';
+  return p;
+}
+
+function parentR2Prefix(prefix) {
+  const p = normalizeR2Prefix(prefix);
+  if (p === 'gallery/') return 'gallery/';
+  const trimmed = p.endsWith('/') ? p.slice(0, -1) : p;
+  const parts = trimmed.split('/');
+  if (parts.length <= 2) return 'gallery/';
+  return `${parts.slice(0, -1).join('/')}/`;
+}
+
+function setR2Status(message) {
+  const el = $('r2Status');
+  if (el) el.textContent = String(message || '');
+}
+
+function setR2UiBusy(busy) {
+  const ids = ['r2RefreshBtn', 'r2GoBtn', 'r2UpBtn', 'r2SyncFolderBtn', 'r2PrefixInput', 'exportBtn'];
+  for (const id of ids) {
+    const el = $(id);
+    if (!el) continue;
+    if (el.tagName === 'INPUT') el.disabled = Boolean(busy);
+    else el.disabled = Boolean(busy);
+  }
+}
+
+function renderR2Breadcrumb(prefix) {
+  const root = $('r2Breadcrumb');
+  if (!root) return;
+  root.innerHTML = '';
+
+  const p = normalizeR2Prefix(prefix);
+  const afterGallery = p.slice('gallery/'.length);
+  const segments = afterGallery.split('/').filter(Boolean);
+
+  const makeCrumb = (label, targetPrefix) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'r2Crumb';
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      loadR2Tree(targetPrefix).catch((e) => setR2Status(e.message));
+    });
+    return btn;
+  };
+
+  root.appendChild(makeCrumb('gallery/', 'gallery/'));
+
+  let running = 'gallery/';
+  for (const s of segments) {
+    running = `${running}${s}/`;
+    const sep = document.createElement('span');
+    sep.className = 'r2CrumbSep';
+    sep.textContent = ' / ';
+    root.appendChild(sep);
+    root.appendChild(makeCrumb(s, running));
+  }
+}
+
+function formatR2ObjectBytes(n) {
+  const num = Number(n);
+  if (!Number.isFinite(num) || num < 0) return '';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let v = num;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i += 1;
+  }
+  const digits = i === 0 ? 0 : (v < 10 ? 2 : 1);
+  return `${v.toFixed(digits)} ${units[i]}`;
+}
+
+function renderR2Tree(prefix, data) {
+  const tree = $('r2Tree');
+  if (!tree) return;
+  tree.innerHTML = '';
+
+  const folders = data?.folders || [];
+  const files = data?.files || [];
+
+  if (!folders.length && !files.length) {
+    tree.innerHTML = '<div class="muted">No objects under this prefix.</div>';
+    return;
+  }
+
+  for (const f of folders) {
+    const row = document.createElement('div');
+    row.className = 'r2Row';
+
+    const main = document.createElement('div');
+    main.className = 'r2Row__main';
+    const title = document.createElement('div');
+    title.className = 'r2Row__title';
+    title.textContent = `${f.name}/`;
+    const meta = document.createElement('div');
+    meta.className = 'r2Row__meta muted';
+    meta.textContent = f.prefix;
+
+    main.appendChild(title);
+    main.appendChild(meta);
+
+    const actions = document.createElement('div');
+    actions.className = 'r2Row__actions';
+    const openBtn = document.createElement('button');
+    openBtn.type = 'button';
+    openBtn.className = 'btn';
+    openBtn.textContent = 'Open';
+    setActionIconButton(openBtn, 'go', 'Open folder');
+    openBtn.addEventListener('click', () => {
+      loadR2Tree(f.prefix).catch((e) => setR2Status(e.message));
+    });
+    actions.appendChild(openBtn);
+
+    row.appendChild(main);
+    row.appendChild(actions);
+    tree.appendChild(row);
+  }
+
+  for (const o of files) {
+    const row = document.createElement('div');
+    row.className = 'r2Row';
+
+    const main = document.createElement('div');
+    main.className = 'r2Row__main';
+    const title = document.createElement('div');
+    title.className = 'r2Row__title';
+    title.textContent = o.name;
+    const meta = document.createElement('div');
+    meta.className = 'r2Row__meta muted';
+    const when = o.uploaded ? ` • ${formatDate(o.uploaded)}` : '';
+    meta.textContent = `${formatR2ObjectBytes(o.size)}${when}`.trim();
+
+    main.appendChild(title);
+    main.appendChild(meta);
+
+    const actions = document.createElement('div');
+    actions.className = 'r2Row__actions';
+
+    const viewBtn = document.createElement('button');
+    viewBtn.type = 'button';
+    viewBtn.className = 'btn';
+    setActionIconButton(viewBtn, 'view', 'View stored file');
+    viewBtn.addEventListener('click', () => {
+      const key = String(o.key || '');
+      if (!key) return;
+      window.open(`/cdn/gallery/${encodeURI(key)}`, '_blank');
+    });
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'btn';
+    setActionIconButton(delBtn, 'delete', 'Delete stored file');
+    delBtn.addEventListener('click', async () => {
+      const key = String(o.key || '');
+      if (!key) return;
+      if (!confirmWrite(`Delete this stored photo file?\n\n${key}`)) return;
+      setR2UiBusy(true);
+      setR2Status('Deleting…');
+      try {
+        await api(`/api/gallery/r2object?key=${encodeURIComponent(key)}`, { method: 'DELETE' });
+        await loadR2Tree(r2Prefix);
+        await loadGallery();
+        setR2Status('Deleted.');
+      } catch (e) {
+        setR2Status(e.message);
+      } finally {
+        setR2UiBusy(false);
+      }
+    });
+
+    actions.appendChild(viewBtn);
+    actions.appendChild(delBtn);
+
+    row.appendChild(main);
+    row.appendChild(actions);
+    tree.appendChild(row);
+  }
+}
+
+async function loadR2Tree(prefix) {
+  if (!$('r2Tree')) return;
+
+  r2Prefix = normalizeR2Prefix(prefix);
+  const prefixInput = $('r2PrefixInput');
+  if (prefixInput) prefixInput.value = r2Prefix;
+
+  setR2Status('Loading…');
+  renderR2Breadcrumb(r2Prefix);
+
+  try {
+    const data = await api(`/api/gallery/r2tree?prefix=${encodeURIComponent(r2Prefix)}&limit=1000`, { method: 'GET' });
+    renderR2Tree(r2Prefix, data);
+    setR2Status(data?.truncated ? 'Showing first page (use a narrower folder for faster browsing).' : '');
+  } catch (e) {
+    const msg = String(e?.message || e || 'Unable to load photo storage listing.');
+    setR2Status(msg);
+    showToast(msg, { variant: 'danger' });
+    throw e;
+  }
+}
+
+async function syncFromR2(prefix, { confirm: shouldConfirm = true } = {}) {
+  const p = normalizeR2Prefix(prefix);
+  if (shouldConfirm) {
+    const ok = confirmWrite(`Refresh website gallery records from photo storage under:\n\n${p}\n\nThis updates what the public Photos page shows.`);
+    if (!ok) {
+      setR2Status('Refresh canceled.');
+      return { ok: false, canceled: true };
+    }
+  }
+
+  setR2UiBusy(true);
+  setR2Status('Refreshing…');
+
+  if (syncProgressHideTimer) {
+    try { window.clearTimeout(syncProgressHideTimer); } catch { /* ignore */ }
+    syncProgressHideTimer = null;
+  }
+
+  setSyncProgress({ visible: true, indeterminate: true, text: 'Starting refresh…' });
+
+  let cursor = null;
+  const seenCursors = new Set();
+  let loops = 0;
+  let totalAdded = 0;
+  let totalExisting = 0;
+  let totalProcessed = 0;
+
+  try {
+    while (true) {
+      loops += 1;
+      if (loops > 500) throw new Error('Refresh stopped: too many pages (possible cursor loop).');
+
+      setSyncProgress({
+        visible: true,
+        indeterminate: false,
+        max: 500,
+        value: loops,
+        text: `Refreshing… page ${loops} • processed ${totalProcessed} (added ${totalAdded}, existing ${totalExisting})`
+      });
+      const qs = new URLSearchParams({ prefix: p, limit: '1000' });
+      if (cursor) qs.set('cursor', cursor);
+      const controller = new AbortController();
+      const t = window.setTimeout(() => controller.abort(), 60_000);
+      let res;
+      try {
+        res = await api(`/api/gallery/sync?${qs.toString()}`, { method: 'POST', body: '{}', signal: controller.signal });
+      } finally {
+        window.clearTimeout(t);
+      }
+      totalAdded += Number(res.added || 0);
+      totalExisting += Number(res.existing || 0);
+      totalProcessed += Number(res.processed || 0);
+      setR2Status(`Refreshing… processed ${totalProcessed} (added ${totalAdded}, existing ${totalExisting})`);
+
+      setSyncProgress({
+        visible: true,
+        indeterminate: false,
+        max: 500,
+        value: loops,
+        text: `Refreshing… page ${loops} • processed ${totalProcessed} (added ${totalAdded}, existing ${totalExisting})`
+      });
+      cursor = res.nextCursor;
+      if (!cursor) break;
+      if (seenCursors.has(String(cursor))) throw new Error('Refresh stopped: pagination cursor repeated (possible server cursor bug).');
+      seenCursors.add(String(cursor));
+    }
+    setR2Status(`Refresh complete. Added ${totalAdded} item(s).`);
+    setSyncProgress({ visible: true, indeterminate: false, max: 500, value: Math.min(500, loops), text: `Refresh complete. Added ${totalAdded} item(s).` });
+    showToast(`Website photos refreshed. Added ${totalAdded} item(s).`, { variant: 'success' });
+    await loadGallery();
+    await loadR2Tree(p);
+    return { ok: true, added: totalAdded, existing: totalExisting, processed: totalProcessed };
+  } catch (e) {
+    setR2Status(e.message);
+    setSyncProgress({ visible: true, indeterminate: false, max: 500, value: Math.min(500, loops || 0), text: `Sync failed: ${String(e?.message || e || 'Unknown error')}` });
+    showToast(`Photo refresh failed: ${String(e?.message || e || 'Unknown error')}`, { variant: 'danger' });
+    return { ok: false, error: String(e?.message || e || 'Unknown error') };
+  } finally {
+    setR2UiBusy(false);
+  }
+}
+
+// -------- Announcements --------
+let announcementPosts = [];
+let editingAnnouncementId = null;
+let announcementPreviewDraft = null;
+let eventPreviewDraft = null;
+let bulletinPreviewDraft = null;
+
+function formatPreviewDateTime(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const t = Date.parse(raw);
+  if (Number.isNaN(t)) return raw;
+  return formatDate(new Date(t).toISOString());
+}
+
+function buildPreviewRow({ title, meta, body } = {}) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  const main = document.createElement('div');
+  main.className = 'row__main';
+
+  const t = document.createElement('div');
+  t.className = 'row__title';
+  t.textContent = String(title || 'Preview item').trim() || 'Preview item';
+  main.appendChild(t);
+
+  if (meta) {
+    const m = document.createElement('div');
+    m.className = 'row__meta';
+    m.textContent = String(meta);
+    main.appendChild(m);
+  }
+  if (body) {
+    const b = document.createElement('div');
+    b.className = 'row__meta';
+    b.textContent = String(body);
+    main.appendChild(b);
+  }
+
+  row.appendChild(main);
+  return row;
+}
+
+function renderPreviewRows(listId, rows, emptyText) {
+  const root = $(listId);
+  if (!root) return;
+  root.innerHTML = '';
+  const safeRows = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  if (!safeRows.length) {
+    const empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.textContent = String(emptyText || 'Nothing to preview yet.');
+    root.appendChild(empty);
+    return;
+  }
+  for (const row of safeRows) root.appendChild(buildPreviewRow(row));
+}
+
+function actionIconSvg(kind) {
+  const type = String(kind || '').trim().toLowerCase();
+  const iconNames = {
+    close: 'close',
+    refresh: 'refresh',
+    sync: 'sync',
+    prev: 'chevron_left',
+    left: 'chevron_left',
+    next: 'chevron_right',
+    right: 'chevron_right',
+    go: 'chevron_right',
+    up: 'arrow_upward',
+    upload: 'upload_file',
+    edit: 'edit',
+    delete: 'delete',
+    print: 'print',
+    view: 'visibility'
+  };
+  const iconName = iconNames[type] || 'visibility';
+  return `<span class="material-icons-round" aria-hidden="true">${iconName}</span>`;
+}
+
+function setActionIconButton(el, kind, label) {
+  if (!(el instanceof HTMLElement)) return;
+  const safeLabel = String(label || kind || 'Action').trim() || 'Action';
+  el.classList.add('actionIconBtn');
+  el.setAttribute('aria-label', safeLabel);
+  el.setAttribute('title', safeLabel);
+  el.innerHTML = `<span class="srOnly">${escapeHtml(safeLabel)}</span>${actionIconSvg(kind)}`;
+}
+
+function initPhotoActionIcons() {
+  const buttonIcons = [
+    ['photoHelpCloseBtn', 'close', 'Close photo upload instructions'],
+    ['photoViewCloseBtn', 'close', 'Close photo preview'],
+    ['photoPrevPageBtn', 'prev', 'Previous photo page'],
+    ['photoNextPageBtn', 'next', 'Next photo page'],
+    ['photoPrevPageBtnBottom', 'prev', 'Previous photo page'],
+    ['photoNextPageBtnBottom', 'next', 'Next photo page'],
+    ['exportBtn', 'refresh', 'Refresh website gallery'],
+    ['r2RefreshBtn', 'refresh', 'Refresh storage view'],
+    ['r2UpBtn', 'up', 'Go up one folder'],
+    ['r2SyncFolderBtn', 'sync', 'Refresh this folder from storage'],
+    ['r2GoBtn', 'go', 'Open folder path']
+  ];
+
+  for (const [id, kind, label] of buttonIcons) {
+    const el = $(id);
+    if (el) setActionIconButton(el, kind, label);
+  }
+
+  const addPhotosBtn = document.querySelector('#tab-photos button[form="photoUploadForm"]');
+  if (addPhotosBtn instanceof HTMLElement) {
+    setActionIconButton(addPhotosBtn, 'upload', 'Add photos');
+  }
+
+  photoUpdateBulkBar();
+}
+
+function getAnnouncementFormDraftPreview() {
+  const form = $('announceForm');
+  if (!(form instanceof HTMLFormElement)) return null;
+  const fd = new FormData(form);
+  const title = String(fd.get('title') || '').trim();
+  const body = String(fd.get('body') || '').trim();
+  const neverExpires = fd.get('neverExpires') === 'on';
+  const days = Number(fd.get('expiresInDays'));
+  if (!title && !body) return null;
+  const expiryText = neverExpires
+    ? 'Expires: Never'
+    : `Expires in ${Number.isFinite(days) && days > 0 ? days : 30} day(s)`;
+  return {
+    title: title || 'Announcement title',
+    meta: `Draft announcement • ${expiryText}`,
+    body: body || 'Message preview'
+  };
+}
+
+function renderAnnouncementsPreview() {
+  const rows = [];
+  const draft = announcementPreviewDraft || getAnnouncementFormDraftPreview();
+  if (draft) rows.push(draft);
+
+  renderPreviewRows('announcePreviewList', rows, 'No announcement preview yet.');
+}
+
+function renderAnnouncements() {
+  const root = $('announceList');
+  root.innerHTML = '';
+  renderAnnouncementsPreview();
+
+  for (const post of announcementPosts) {
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    const main = document.createElement('div');
+    main.className = 'row__main';
+    if (editingAnnouncementId === post.id) {
+      const titleLabel = document.createElement('label');
+      titleLabel.className = 'label';
+      titleLabel.textContent = 'Title';
+      const titleInput = document.createElement('input');
+      titleInput.className = 'input';
+      titleInput.type = 'text';
+      titleInput.maxLength = 120;
+      titleInput.value = String(post.title || '');
+      titleLabel.appendChild(titleInput);
+
+      const bodyLabel = document.createElement('label');
+      bodyLabel.className = 'label';
+      bodyLabel.textContent = 'Message';
+      const bodyInput = document.createElement('textarea');
+      bodyInput.className = 'textarea';
+      bodyInput.rows = 4;
+      bodyInput.maxLength = 5000;
+      bodyInput.value = String(post.body || '');
+      bodyLabel.appendChild(bodyInput);
+
+      const startsLabel = document.createElement('label');
+      startsLabel.className = 'label';
+      startsLabel.textContent = 'Show from (optional)';
+      const startsInput = document.createElement('input');
+      startsInput.className = 'input';
+      startsInput.type = 'datetime-local';
+      startsInput.value = toLocalDateTimeValue(post.startsAt);
+      startsLabel.appendChild(startsInput);
+
+      const endsLabel = document.createElement('label');
+      endsLabel.className = 'label';
+      endsLabel.textContent = 'Show until';
+      const endsInput = document.createElement('input');
+      endsInput.className = 'input';
+      endsInput.type = 'datetime-local';
+      endsInput.value = toLocalDateTimeValue(post.expiresAt);
+      endsLabel.appendChild(endsInput);
+
+      const neverWrap = document.createElement('label');
+      neverWrap.className = 'label label--inline';
+      const neverInput = document.createElement('input');
+      neverInput.className = 'checkbox';
+      neverInput.type = 'checkbox';
+      neverInput.checked = !post.expiresAt;
+      neverInput.addEventListener('change', () => {
+        endsInput.disabled = neverInput.checked;
+        if (neverInput.checked) endsInput.value = '';
+      });
+      endsInput.disabled = neverInput.checked;
+      neverWrap.appendChild(neverInput);
+      neverWrap.appendChild(document.createTextNode('Never expires'));
+
+      const syncAnnouncementDraftPreview = () => {
+        announcementPreviewDraft = {
+          id: post.id,
+          title: String(titleInput.value || '').trim() || 'Announcement title',
+          meta: (() => {
+            const starts = String(startsInput.value || '').trim();
+            const ends = String(endsInput.value || '').trim();
+            const parts = ['Editing announcement'];
+            if (starts) parts.push(`Starts: ${formatPreviewDateTime(starts)}`);
+            parts.push(neverInput.checked ? 'Expires: Never' : `Expires: ${formatPreviewDateTime(ends) || 'Set a date'}`);
+            return parts.join(' • ');
+          })(),
+          body: String(bodyInput.value || '').trim() || 'Message preview'
+        };
+        renderAnnouncementsPreview();
+      };
+      [titleInput, bodyInput, startsInput, endsInput].forEach((el) => {
+        el.addEventListener('input', syncAnnouncementDraftPreview);
+      });
+      neverInput.addEventListener('change', syncAnnouncementDraftPreview);
+      syncAnnouncementDraftPreview();
+
+      main.appendChild(titleLabel);
+      main.appendChild(bodyLabel);
+      main.appendChild(startsLabel);
+      main.appendChild(endsLabel);
+      main.appendChild(neverWrap);
+    } else {
+      const details = document.createElement('details');
+      details.className = 'announceItem';
+
+      const summary = document.createElement('summary');
+      summary.className = 'announceItem__summary';
+      const t = document.createElement('span');
+      t.className = 'row__title';
+      t.textContent = post.title;
+      summary.appendChild(t);
+
+      const content = document.createElement('div');
+      content.className = 'announceItem__content';
+
+      const meta = document.createElement('div');
+      meta.className = 'row__meta';
+      const created = post.createdAt ? `Posted: ${formatDate(post.createdAt)}` : '';
+      const starts = post.startsAt ? ` • Starts: ${formatDate(post.startsAt)}` : '';
+      const expires = post.expiresAt ? ` • Expires: ${formatDate(post.expiresAt)}` : ' • Expires: Never';
+      meta.textContent = `${created}${starts}${expires}`.trim();
+
+      const body = document.createElement('div');
+      body.className = 'row__meta';
+      body.textContent = post.body;
+
+      content.appendChild(meta);
+      content.appendChild(body);
+      details.appendChild(summary);
+      details.appendChild(content);
+      main.appendChild(details);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'row__actions';
+
+    if (editingAnnouncementId === post.id) {
+      const save = document.createElement('button');
+      save.className = 'btn btn--primary';
+      save.type = 'button';
+      save.textContent = 'Save';
+      save.addEventListener('click', async () => {
+        const inputs = main.querySelectorAll('input, textarea');
+        const title = String(inputs[0]?.value || '').trim();
+        const body = String(inputs[1]?.value || '').trim();
+        const startsAt = String(inputs[2]?.value || '').trim();
+        const expiresAt = String(inputs[3]?.value || '').trim();
+        const neverExpires = Boolean(inputs[4]?.checked);
+        if (!title || !body) {
+          showToast('Title and message are required.', { variant: 'danger' });
+          return;
+        }
+        if (!neverExpires && startsAt && expiresAt && Date.parse(expiresAt) <= Date.parse(startsAt)) {
+          showToast('Show until must be after show from.', { variant: 'danger' });
+          return;
+        }
+        if (!confirmWrite('Save changes to this announcement?')) return;
+
+        await api(`/api/announcements/${post.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            title,
+            body,
+            startsAt: startsAt || null,
+            expiresAt: neverExpires ? null : (expiresAt || null),
+            neverExpires
+          })
+        });
+        announcementPreviewDraft = null;
+        editingAnnouncementId = null;
+        await loadAnnouncements();
+      });
+
+      const cancel = document.createElement('button');
+      cancel.className = 'btn';
+      cancel.type = 'button';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', () => {
+        announcementPreviewDraft = null;
+        editingAnnouncementId = null;
+        renderAnnouncements();
+      });
+
+      actions.appendChild(save);
+      actions.appendChild(cancel);
+    } else {
+      const edit = document.createElement('button');
+      edit.className = 'btn';
+      edit.type = 'button';
+      setActionIconButton(edit, 'edit', 'Edit announcement');
+      edit.addEventListener('click', () => {
+        announcementPreviewDraft = null;
+        editingAnnouncementId = post.id;
+        renderAnnouncements();
+      });
+      actions.appendChild(edit);
+    }
+
+    const del = document.createElement('button');
+    del.className = 'btn';
+    del.type = 'button';
+    setActionIconButton(del, 'delete', 'Delete announcement');
+    del.addEventListener('click', async () => {
+      if (!confirmWrite('Delete this announcement?')) return;
+      await api(`/api/announcements/${post.id}`, { method: 'DELETE' });
+      announcementPreviewDraft = null;
+      if (editingAnnouncementId === post.id) editingAnnouncementId = null;
+      await loadAnnouncements();
+    });
+
+    actions.appendChild(del);
+    row.appendChild(main);
+    row.appendChild(actions);
+    root.appendChild(row);
+  }
+
+  if (!announcementPosts.length) root.innerHTML = '<div class="muted">No announcements yet.</div>';
+}
+
+async function loadAnnouncements() {
+  const data = await api('/api/announcements', { method: 'GET' });
+  announcementPosts = data.posts || [];
+  if (editingAnnouncementId && !announcementPosts.some((p) => p.id === editingAnnouncementId)) {
+    editingAnnouncementId = null;
+    announcementPreviewDraft = null;
+  }
+  renderAnnouncements();
+}
+
+// -------- Events --------
+let events = [];
+let editingEventId = null;
+
+function formatLocalTimestamp(d = new Date()) {
+  try {
+    return d.toLocaleString(undefined, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  } catch {
+    return d.toISOString();
+  }
+}
+
+function formatEventTime12h(timeStr) {
+  const t = String(timeStr || '').trim();
+  if (!t) return '';
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(t);
+  if (!m) return t;
+  let hh = Number(m[1]);
+  const mm = m[2];
+  const ap = hh >= 12 ? 'PM' : 'AM';
+  hh = hh % 12;
+  if (hh === 0) hh = 12;
+  return `${hh}:${mm} ${ap}`;
+}
+
+function normalizeTitle(t) {
+  return String(t || '').trim();
+}
+
+function setPrintMode(mode) {
+  document.body.dataset.printMode = String(mode || 'finance');
+  const body = $('adminPrintBody');
+  if (body) body.innerHTML = '';
+}
+
+function closeDetailsMenu(id) {
+  const el = $(id);
+  if (el && el.tagName === 'DETAILS') el.open = false;
+}
+
+function setFinancePrintHeader(reportLabel, extraMetaParts = []) {
+  const title = $('financePrintTitle');
+  if (title) title.textContent = 'Mt. Moriah Missionary Baptist Church — Finance';
+
+  const meta = $('financePrintMeta');
+  if (!meta) return;
+
+  const parts = [`Printed: ${formatLocalTimestamp()}`];
+  if (reportLabel) parts.push(`Report: ${reportLabel}`);
+  for (const p of extraMetaParts) {
+    if (p) parts.push(String(p));
+  }
+  meta.textContent = parts.join(' • ');
+}
+
+function financePartyLabelForEntry(entry) {
+  const kind = financeDetectKindFromEntry(entry);
+  if (kind === 'expense') return 'To';
+  if (kind === 'tithes') return 'Giver';
+  if (kind === 'offerings') return 'Giver';
+  return 'From';
+}
+
+function financeReceiptTitleForEntry(entry) {
+  const date = String(entry?.date || '').trim();
+  const type = financeNormalizeKey(entry?.type);
+  const amount = formatMoneyCents(Number(entry?.amountCents || 0));
+  const cat = String(entry?.category || '').trim();
+  const t = type ? (type[0].toUpperCase() + type.slice(1)) : 'Entry';
+  return `${date}${date ? ' • ' : ''}${t}${cat ? ` • ${cat}` : ''} • ${amount}`;
+}
+
+function financeReceiptHay(entry) {
+  return [
+    entry?.id,
+    entry?.date,
+    entry?.type,
+    entry?.category,
+    entry?.fund,
+    entry?.method,
+    entry?.party,
+    entry?.memo,
+    financeDetectKindFromEntry(entry)
+  ].map((v) => String(v || '').toLowerCase()).join(' ');
+}
+
+function financeGetReceiptsUniverse() {
+  const all = Array.isArray(finances?.entries) ? finances.entries : [];
+  const filters = financeCurrentFilters();
+  return all.filter((e) => financeEntryMatches(e, filters));
+}
+
+function financeRenderReceiptsPicker({ keepSelection = true } = {}) {
+  const list = $('financeReceiptsList');
+  const countEl = $('financeReceiptsCount');
+  const searchEl = $('financeReceiptsSearch');
+  if (!list || !countEl || !(searchEl instanceof HTMLInputElement)) return;
+
+  const universe = financeGetReceiptsUniverse();
+  const q = String(searchEl.value || '').trim().toLowerCase();
+  const filtered = q ? universe.filter((e) => financeReceiptHay(e).includes(q)) : universe;
+
+  if (!window.__financeReceiptSelectedIds || !keepSelection) {
+    window.__financeReceiptSelectedIds = new Set();
+  }
+  const selectedIds = window.__financeReceiptSelectedIds;
+
+  // Prune selections that are no longer in scope.
+  const availableIds = new Set(filtered.map((e) => String(e?.id || '')));
+  for (const id of Array.from(selectedIds)) {
+    if (!availableIds.has(id)) selectedIds.delete(id);
+  }
+
+  list.innerHTML = '';
+  if (!filtered.length) {
+    const empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.textContent = 'No entries match your filters/search.';
+    list.appendChild(empty);
+  } else {
+    for (const e of filtered) {
+      const id = String(e?.id || '');
+      const row = document.createElement('div');
+      row.className = 'row';
+
+      const main = document.createElement('div');
+      main.className = 'row__main';
+
+      const title = document.createElement('div');
+      title.className = 'row__title';
+      title.textContent = financeReceiptTitleForEntry(e);
+
+      const meta = document.createElement('div');
+      meta.className = 'row__meta';
+      const kind = financeDetectKindFromEntry(e);
+      const partyLabel = financePartyLabelForEntry(e);
+      const party = String(e?.party || '').trim();
+      const fund = String(e?.fund || '').trim();
+      const method = String(e?.method || '').trim();
+      meta.textContent = [
+        kind ? `Kind: ${kind}` : '',
+        fund ? `Fund: ${fund}` : '',
+        method ? `Method: ${method}` : '',
+        party ? `${partyLabel}: ${party}` : ''
+      ].filter(Boolean).join(' • ');
+
+      main.appendChild(title);
+      main.appendChild(meta);
+
+      const actions = document.createElement('div');
+      actions.className = 'row__actions';
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'checkbox';
+      cb.checked = selectedIds.has(id);
+      cb.addEventListener('change', () => {
+        if (cb.checked) selectedIds.add(id);
+        else selectedIds.delete(id);
+        financeRenderReceiptsCount({ universe, filtered, selectedIds });
+      });
+
+      actions.appendChild(cb);
+      row.appendChild(main);
+      row.appendChild(actions);
+
+      // Clicking the row toggles the checkbox (except when clicking the checkbox).
+      row.addEventListener('click', (ev) => {
+        if (ev.target === cb) return;
+        cb.checked = !cb.checked;
+        cb.dispatchEvent(new Event('change'));
+      });
+
+      list.appendChild(row);
+    }
+  }
+
+  financeRenderReceiptsCount({ universe, filtered, selectedIds });
+}
+
+function financeRenderReceiptsCount({ universe, filtered, selectedIds }) {
+  const countEl = $('financeReceiptsCount');
+  if (!countEl) return;
+  const sel = selectedIds ? selectedIds.size : 0;
+  countEl.textContent = `${filtered.length} shown • ${universe.length} in current filters • ${sel} selected`;
+}
+
+function financeBuildReceiptBlock(entry, { index, total }) {
+  const id = String(entry?.id || '').trim();
+  const date = String(entry?.date || '').trim();
+  const type = financeNormalizeKey(entry?.type);
+  const category = String(entry?.category || '').trim();
+  const fund = String(entry?.fund || '').trim();
+  const method = String(entry?.method || '').trim();
+  const party = String(entry?.party || '').trim();
+  const memo = String(entry?.memo || '').trim();
+  const cents = Number(entry?.amountCents || 0);
+  const amount = formatMoneyCents(cents);
+  const partyLabel = financePartyLabelForEntry(entry);
+  const kind = financeDetectKindFromEntry(entry);
+
+  const churchName = 'Mt. Moriah Missionary Baptist Church';
+  const digits = String(entry?.id || '').replace(/\D+/g, '');
+  const receiptSuffix = (digits ? digits.slice(-4) : String((Number.isFinite(index) ? index : 0) + 1)).padStart(4, '0');
+  const receiptNo = `MMMBC-${receiptSuffix}`;
+
+  const wrap = document.createElement('section');
+  wrap.className = 'receipt receipt--page';
+
+  const head = document.createElement('div');
+  head.className = 'receipt__head';
+
+  const headLeft = document.createElement('div');
+  headLeft.className = 'receipt__headLeft';
+  const church = document.createElement('div');
+  church.className = 'receipt__church';
+  church.textContent = churchName;
+  const report = document.createElement('div');
+  report.className = 'receipt__report';
+  report.textContent = 'Financial Report';
+  headLeft.appendChild(church);
+  headLeft.appendChild(report);
+
+  const headRight = document.createElement('div');
+  headRight.className = 'receipt__headRight';
+  const receiptNoEl = document.createElement('div');
+  receiptNoEl.className = 'receipt__receiptNo';
+  receiptNoEl.textContent = receiptNo;
+  headRight.appendChild(receiptNoEl);
+
+  head.appendChild(headLeft);
+  head.appendChild(headRight);
+
+  const meta = document.createElement('div');
+  meta.className = 'receipt__meta';
+  const parts = [
+    date ? `Date: ${date}` : '',
+    kind ? `Kind: ${kind}` : '',
+    (Number.isFinite(index) && Number.isFinite(total)) ? `Item: ${index + 1}/${total}` : ''
+  ].filter(Boolean);
+  meta.textContent = parts.join(' • ');
+
+  const table = document.createElement('table');
+  table.className = 'receipt__table';
+
+  const rows = [
+    ['Receipt #', receiptNo],
+    ['Type', type || ''],
+    ['Category', category],
+    ['Fund', fund],
+    ['Method', method],
+    [partyLabel, party],
+    ['Amount', amount],
+    ['Memo', memo]
+  ].filter(([, v]) => String(v || '').trim());
+
+  const tbody = document.createElement('tbody');
+  for (const [k, v] of rows) {
+    const tr = document.createElement('tr');
+    const tdK = document.createElement('td');
+    tdK.className = 'receipt__label';
+    tdK.textContent = k;
+    const tdV = document.createElement('td');
+    tdV.className = 'receipt__value';
+    tdV.textContent = String(v);
+    tr.appendChild(tdK);
+    tr.appendChild(tdV);
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+
+  const sign = document.createElement('div');
+  sign.className = 'receipt__sign';
+  sign.innerHTML = '<div class="receipt__line"><span>Signature</span><span class="receipt__blank"></span></div><div class="receipt__line"><span>Date</span><span class="receipt__blank"></span></div>';
+
+  wrap.appendChild(head);
+  wrap.appendChild(meta);
+  wrap.appendChild(table);
+  wrap.appendChild(sign);
+  return wrap;
+}
+
+function financeReceiptNoForEntry(entry, index) {
+  const digits = String(entry?.id || '').replace(/\D+/g, '');
+  const receiptSuffix = (digits ? digits.slice(-4) : String((Number.isFinite(index) ? index : 0) + 1)).padStart(4, '0');
+  return `MMMBC-${receiptSuffix}`;
+}
+
+function financeCanPrintReceipt(entry) {
+  if (!entry || typeof entry !== 'object') return false;
+  if (!String(entry?.id || '').trim()) return false;
+  if (!String(entry?.date || '').trim()) return false;
+  const type = financeNormalizeKey(entry?.type);
+  if (type !== 'income' && type !== 'expense') return false;
+  return Number.isFinite(Number(entry?.amountCents || 0));
+}
+
+function financeAppendSignatureLines(root) {
+  const sign = document.createElement('div');
+  sign.className = 'receipt__sign';
+  sign.innerHTML = '<div class="receipt__line"><span>Signature</span><span class="receipt__blank"></span></div><div class="receipt__line"><span>Date</span><span class="receipt__blank"></span></div>';
+  root.appendChild(sign);
+}
+
+function financeBuildReceiptsTable(entries) {
+  const safe = Array.isArray(entries) ? entries.filter(Boolean) : [];
+  const table = document.createElement('table');
+  table.className = 'printTable';
+
+  const thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th>Receipt #</th><th>Date</th><th>Kind</th><th>Type</th><th>Category</th><th>Fund</th><th>Method</th><th>Party</th><th>Amount</th><th>Memo</th></tr>';
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  safe.forEach((e, idx) => {
+    const tr = document.createElement('tr');
+
+    const receiptNo = financeReceiptNoForEntry(e, idx);
+    const date = String(e?.date || '').trim();
+    const kind = financeDetectKindFromEntry(e);
+    const type = financeNormalizeKey(e?.type);
+    const category = String(e?.category || '').trim();
+    const fund = String(e?.fund || '').trim();
+    const method = String(e?.method || '').trim();
+    const party = String(e?.party || '').trim();
+    const cents = Number(e?.amountCents || 0);
+    const amount = formatMoneyCents(cents);
+    const memo = String(e?.memo || '').trim();
+
+    const partyLabel = financePartyLabelForEntry(e);
+    const partyCell = partyLabel ? `${partyLabel}: ${party}` : party;
+
+    const cols = [
+      receiptNo,
+      date,
+      kind,
+      type,
+      category,
+      fund,
+      method,
+      partyCell,
+      amount,
+      memo
+    ];
+
+    for (const v of cols) {
+      const td = document.createElement('td');
+      td.textContent = String(v || '');
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  return table;
+}
+
+function financePrintReceipts(entries, { reportLabel } = {}) {
+  const safe = Array.isArray(entries) ? entries.filter((entry) => financeCanPrintReceipt(entry)) : [];
+  if (!safe.length) {
+    alert('No valid transactions are available to print.');
+    return;
+  }
+
+  setPrintMode('receipts');
+  setFinancePrintHeader(safe.length === 1 ? 'Receipt' : (reportLabel || 'Receipts'), [`${safe.length} item(s)`]);
+
+  const root = $('adminPrintBody');
+  if (!root) return;
+  root.innerHTML = '';
+
+  if (safe.length === 1) {
+    const block = financeBuildReceiptBlock(safe[0], { index: 0, total: 1 });
+    block.classList.remove('receipt--page');
+    root.appendChild(block);
+  } else {
+    const h = document.createElement('div');
+    h.className = 'printReportTitle';
+    h.textContent = reportLabel || 'Receipts';
+    root.appendChild(h);
+
+    root.appendChild(financeBuildReceiptsTable(safe));
+    financeAppendSignatureLines(root);
+  }
+
+  window.print();
+}
+
+function refreshEventsPrintOptions() {
+  const groupSel = $('printEventsGroupTitle');
+  const eventSel = $('printEventId');
+  if (!groupSel || !eventSel) return;
+
+  const sorted = [...events].sort((a, b) => {
+    const ad = String(a?.date || '');
+    const bd = String(b?.date || '');
+    if (ad !== bd) return ad.localeCompare(bd);
+    const at = String(a?.time || '');
+    const bt = String(b?.time || '');
+    if (at !== bt) return at.localeCompare(bt);
+    return String(a?.title || '').localeCompare(String(b?.title || ''));
+  });
+
+  const titles = Array.from(new Set(sorted.map((e) => normalizeTitle(e?.title)).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b));
+
+  groupSel.innerHTML = '';
+  const opt0 = document.createElement('option');
+  opt0.value = '';
+  opt0.textContent = 'Choose a title…';
+  groupSel.appendChild(opt0);
+  for (const t of titles) {
+    const o = document.createElement('option');
+    o.value = t;
+    o.textContent = t;
+    groupSel.appendChild(o);
+  }
+
+  eventSel.innerHTML = '';
+  const optE0 = document.createElement('option');
+  optE0.value = '';
+  optE0.textContent = 'Choose an event…';
+  eventSel.appendChild(optE0);
+  for (const ev of sorted) {
+    const o = document.createElement('option');
+    o.value = String(ev?.id || '');
+    const d = String(ev?.date || '').trim();
+    const t = formatEventTime12h(ev?.time);
+    const titleText = normalizeTitle(ev?.title) || 'Event';
+    o.textContent = `${d}${d ? ' • ' : ''}${t}${t ? ' • ' : ''}${titleText}`.trim();
+    eventSel.appendChild(o);
+  }
+}
+
+function financeBuildLedgerPrintReport() {
+  const root = $('adminPrintBody');
+  if (!root) return;
+  root.innerHTML = '';
+
+  const filters = financeCurrentFilters();
+  const all = Array.isArray(finances?.entries) ? finances.entries : [];
+  const rows = [...all.filter((e) => financeEntryMatches(e, filters))]
+    .sort((a, b) => String(b?.date || '').localeCompare(String(a?.date || '')));
+
+  let income = 0;
+  let expense = 0;
+  for (const e of rows) {
+    const cents = Number(e?.amountCents || 0);
+    if (String(e?.type) === 'income') income += cents; else expense += cents;
+  }
+
+  setFinancePrintHeader('Mt. Moriah Missionary Baptist Church', [
+    'Transaction History',
+    financeDateRangeLabel(filters),
+    `${rows.length} entries`,
+    `Money Received ${formatMoneyCents(income)}`,
+    `Money Spent ${formatMoneyCents(expense)}`,
+    `Net Total ${formatMoneyCents(income - expense)}`
+  ]);
+
+  const h = document.createElement('div');
+  h.className = 'printReportTitle';
+  h.textContent = 'Transaction History';
+  root.appendChild(h);
+
+  if (!rows.length) {
+    const empty = document.createElement('div');
+    empty.className = 'printMuted';
+    empty.textContent = 'No transactions match the current filters.';
+    root.appendChild(empty);
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'printTable';
+  const thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th style="width:110px">Date</th><th>Description</th><th style="width:100px">Money In</th><th style="width:100px">Money Out</th></tr>';
+  table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  for (const e of rows) {
+    const isExpense = String(e?.type) === 'expense';
+    const { title, subtitle } = financeBuildDescription(e);
+    const tr = document.createElement('tr');
+    const tdDate = document.createElement('td');
+    tdDate.textContent = financeFormatReviewDate(e?.date);
+    const tdDesc = document.createElement('td');
+    tdDesc.textContent = subtitle ? `${title} — ${subtitle}` : title;
+    const tdIn = document.createElement('td');
+    tdIn.textContent = isExpense ? '' : formatMoneyCents(Number(e?.amountCents || 0));
+    const tdOut = document.createElement('td');
+    tdOut.textContent = isExpense ? formatMoneyCents(Number(e?.amountCents || 0)) : '';
+    tr.appendChild(tdDate);
+    tr.appendChild(tdDesc);
+    tr.appendChild(tdIn);
+    tr.appendChild(tdOut);
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  root.appendChild(table);
+}
+
+function renderEventsPrintReport(rows, reportTitle) {
+  const root = $('adminPrintBody');
+  if (!root) return;
+
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const sorted = [...safeRows].sort((a, b) => {
+    const ad = String(a?.date || '');
+    const bd = String(b?.date || '');
+    if (ad !== bd) return ad.localeCompare(bd);
+    const at = String(a?.time || '');
+    const bt = String(b?.time || '');
+    if (at !== bt) return at.localeCompare(bt);
+    return String(a?.title || '').localeCompare(String(b?.title || ''));
+  });
+
+  const h = document.createElement('div');
+  h.className = 'printReportTitle';
+  h.textContent = reportTitle || 'Events Report';
+  root.appendChild(h);
+
+  if (!sorted.length) {
+    const empty = document.createElement('div');
+    empty.className = 'printMuted';
+    empty.textContent = 'No events match your selection.';
+    root.appendChild(empty);
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'printTable';
+  const thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th style="width:120px">Date</th><th style="width:110px">Time</th><th>Title</th></tr>';
+  table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  for (const ev of sorted) {
+    const tr = document.createElement('tr');
+    const tdDate = document.createElement('td');
+    tdDate.textContent = String(ev?.date || '');
+    const tdTime = document.createElement('td');
+    tdTime.textContent = formatEventTime12h(ev?.time);
+    const tdTitle = document.createElement('td');
+    tdTitle.textContent = normalizeTitle(ev?.title);
+    tr.appendChild(tdDate);
+    tr.appendChild(tdTime);
+    tr.appendChild(tdTitle);
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  root.appendChild(table);
+}
+
+function normalizeTimeValue(value) {
+  const t = String(value || '').trim();
+  if (!t) return '';
+  // Accept HH:MM or HH:MM:SS from some browsers
+  const m = t.match(/^([0-2]\d):([0-5]\d)/);
+  return m ? `${m[1]}:${m[2]}` : '';
+}
+
+function getEventFormDraftPreview() {
+  const form = $('eventForm');
+  if (!(form instanceof HTMLFormElement)) return null;
+  const fd = new FormData(form);
+  const title = String(fd.get('title') || '').trim();
+  const date = String(fd.get('date') || '').trim();
+  const time = normalizeTimeValue(fd.get('time'));
+  if (!title && !date && !time) return null;
+  return {
+    title: title || 'Event title',
+    meta: [date || 'No date', formatEventTime12h(time) || 'No time'].join(' • ')
+  };
+}
+
+function renderEventsPreview() {
+  const rows = [];
+  const draft = eventPreviewDraft || getEventFormDraftPreview();
+  if (draft) rows.push(draft);
+
+  renderPreviewRows('eventPreviewList', rows, 'No event preview yet.');
+}
+
+function renderEvents() {
+  const root = $('eventList');
+  root.innerHTML = '';
+  renderEventsPreview();
+
+  for (const ev of events) {
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    const main = document.createElement('div');
+    main.className = 'row__main';
+    if (editingEventId === ev.id) {
+      const titleLabel = document.createElement('label');
+      titleLabel.className = 'label';
+      titleLabel.textContent = 'Title';
+      const titleInput = document.createElement('input');
+      titleInput.className = 'input';
+      titleInput.type = 'text';
+      titleInput.value = ev.title || '';
+      titleLabel.appendChild(titleInput);
+
+      const dateLabel = document.createElement('label');
+      dateLabel.className = 'label';
+      dateLabel.textContent = 'Date';
+      const dateInput = document.createElement('input');
+      dateInput.className = 'input';
+      dateInput.type = 'date';
+      dateInput.value = ev.date || '';
+      dateLabel.appendChild(dateInput);
+
+      const timeLabel = document.createElement('label');
+      timeLabel.className = 'label';
+      timeLabel.textContent = 'Time';
+      const timeInput = document.createElement('input');
+      timeInput.className = 'input';
+      timeInput.type = 'time';
+      timeInput.value = normalizeTimeValue(ev.time);
+      timeLabel.appendChild(timeInput);
+
+      const syncEventDraftPreview = () => {
+        eventPreviewDraft = {
+          id: ev.id,
+          title: String(titleInput.value || '').trim() || 'Event title',
+          meta: `${String(dateInput.value || '').trim() || 'No date'} • ${formatEventTime12h(normalizeTimeValue(timeInput.value)) || 'No time'}`
+        };
+        renderEventsPreview();
+      };
+      [titleInput, dateInput, timeInput].forEach((el) => el.addEventListener('input', syncEventDraftPreview));
+      syncEventDraftPreview();
+
+      main.appendChild(titleLabel);
+      main.appendChild(dateLabel);
+      main.appendChild(timeLabel);
+    } else {
+      const details = document.createElement('details');
+      details.className = 'announceItem';
+
+      const summary = document.createElement('summary');
+      summary.className = 'announceItem__summary';
+      const t = document.createElement('span');
+      t.className = 'row__title';
+      t.textContent = ev.title;
+      summary.appendChild(t);
+
+      const content = document.createElement('div');
+      content.className = 'announceItem__content';
+      const meta = document.createElement('div');
+      meta.className = 'row__meta';
+      meta.textContent = `${ev.date}${ev.time ? ` • ${ev.time}` : ''}`;
+      content.appendChild(meta);
+
+      details.appendChild(summary);
+      details.appendChild(content);
+      main.appendChild(details);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'row__actions';
+
+    if (editingEventId === ev.id) {
+      const save = document.createElement('button');
+      save.className = 'btn btn--primary';
+      save.type = 'button';
+      save.textContent = 'Save';
+      save.addEventListener('click', async () => {
+        const inputs = main.querySelectorAll('input');
+        const title = inputs[0]?.value || '';
+        const date = inputs[1]?.value || '';
+        const time = inputs[2]?.value || '';
+
+        if (!confirmWrite('Save changes to this event?')) return;
+
+        await api(`/api/events/${ev.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ title, date, time })
+        });
+        eventPreviewDraft = null;
+        editingEventId = null;
+        await loadEvents();
+      });
+
+      const cancel = document.createElement('button');
+      cancel.className = 'btn';
+      cancel.type = 'button';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', () => {
+        eventPreviewDraft = null;
+        editingEventId = null;
+        renderEvents();
+      });
+
+      actions.appendChild(save);
+      actions.appendChild(cancel);
+    } else {
+      const edit = document.createElement('button');
+      edit.className = 'btn';
+      edit.type = 'button';
+      setActionIconButton(edit, 'edit', 'Edit event');
+      edit.addEventListener('click', () => {
+        eventPreviewDraft = null;
+        editingEventId = ev.id;
+        renderEvents();
+      });
+      actions.appendChild(edit);
+    }
+
+    const del = document.createElement('button');
+    del.className = 'btn';
+    del.type = 'button';
+    setActionIconButton(del, 'delete', 'Delete event');
+    del.addEventListener('click', async () => {
+      if (!confirm('Delete this event?')) return;
+      await api(`/api/events/${ev.id}`, { method: 'DELETE' });
+      eventPreviewDraft = null;
+      if (editingEventId === ev.id) editingEventId = null;
+      await loadEvents();
+    });
+
+    actions.appendChild(del);
+    row.appendChild(main);
+    row.appendChild(actions);
+    root.appendChild(row);
+  }
+
+  if (!events.length) root.innerHTML = '<div class="muted">No events yet.</div>';
+}
+
+async function loadEvents() {
+  const data = await api('/api/events', { method: 'GET' });
+  events = data.events || [];
+  if (editingEventId && !events.some((e) => e.id === editingEventId)) {
+    editingEventId = null;
+    eventPreviewDraft = null;
+  }
+  renderEvents();
+  refreshEventsPrintOptions();
+}
+
+// -------- Bulletins --------
+let bulletins = [];
+let editingBulletinId = null;
+
+function toLocalDateTimeValue(iso) {
+  if (!iso) return '';
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return '';
+  const d = new Date(t);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function isActiveBulletin(b) {
+  const start = b?.startsAt ? Date.parse(b.startsAt) : NaN;
+  const end = b?.endsAt ? Date.parse(b.endsAt) : NaN;
+  const now = Date.now();
+  if (!Number.isNaN(start) && now < start) return false;
+  if (!Number.isNaN(end) && now >= end) return false;
+  if (Number.isNaN(start) && Number.isNaN(end)) return false;
+  return true;
+}
+
+function getBulletinFormDraftPreview() {
+  const form = $('bulletinForm');
+  if (!(form instanceof HTMLFormElement)) return null;
+  const fd = new FormData(form);
+  const title = String(fd.get('title') || '').trim();
+  const startsAt = String(fd.get('startsAt') || '').trim();
+  const endsAt = String(fd.get('endsAt') || '').trim();
+  const file = form.querySelector('input[name="file"]')?.files?.[0];
+  if (!title && !startsAt && !endsAt && !file) return null;
+  return {
+    title: title || 'Bulletin title',
+    meta: `${formatPreviewDateTime(startsAt) || 'No start'} → ${formatPreviewDateTime(endsAt) || 'No end'}`,
+    body: file ? `File: ${file.name}` : 'File: not selected'
+  };
+}
+
+function renderBulletinsPreview() {
+  const rows = [];
+  const draft = bulletinPreviewDraft || getBulletinFormDraftPreview();
+  if (draft) rows.push(draft);
+
+  renderPreviewRows('bulletinPreviewList', rows, 'No bulletin preview yet.');
+}
+
+function renderBulletins() {
+  const root = $('bulletinList');
+  root.innerHTML = '';
+  renderBulletinsPreview();
+
+  for (const b of bulletins) {
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    const main = document.createElement('div');
+    main.className = 'row__main';
+    if (editingBulletinId === b.id) {
+      const titleLabel = document.createElement('label');
+      titleLabel.className = 'label';
+      titleLabel.textContent = 'Bulletin title';
+      const titleInput = document.createElement('input');
+      titleInput.className = 'input';
+      titleInput.type = 'text';
+      titleInput.maxLength = 120;
+      titleInput.value = String(b.title || 'Bulletin');
+      titleLabel.appendChild(titleInput);
+
+      const startsLabel = document.createElement('label');
+      startsLabel.className = 'label';
+      startsLabel.textContent = 'Show from';
+      const startsInput = document.createElement('input');
+      startsInput.className = 'input';
+      startsInput.type = 'datetime-local';
+      startsInput.value = toLocalDateTimeValue(b.startsAt);
+      startsLabel.appendChild(startsInput);
+
+      const endsLabel = document.createElement('label');
+      endsLabel.className = 'label';
+      endsLabel.textContent = 'Show until';
+      const endsInput = document.createElement('input');
+      endsInput.className = 'input';
+      endsInput.type = 'datetime-local';
+      endsInput.value = toLocalDateTimeValue(b.endsAt);
+      endsLabel.appendChild(endsInput);
+
+      const syncBulletinDraftPreview = () => {
+        bulletinPreviewDraft = {
+          id: b.id,
+          title: String(titleInput.value || '').trim() || 'Bulletin title',
+          meta: `${formatPreviewDateTime(startsInput.value) || 'No start'} → ${formatPreviewDateTime(endsInput.value) || 'No end'}`,
+          body: `File: ${b.originalName || b.fileName || 'Bulletin file'}`
+        };
+        renderBulletinsPreview();
+      };
+      [titleInput, startsInput, endsInput].forEach((el) => el.addEventListener('input', syncBulletinDraftPreview));
+      syncBulletinDraftPreview();
+
+      const fileMeta = document.createElement('div');
+      fileMeta.className = 'row__meta';
+      fileMeta.textContent = `File: ${b.originalName || b.fileName || 'Bulletin file'}`;
+
+      main.appendChild(titleLabel);
+      main.appendChild(startsLabel);
+      main.appendChild(endsLabel);
+      main.appendChild(fileMeta);
+    } else {
+      const details = document.createElement('details');
+      details.className = 'announceItem';
+
+      const summary = document.createElement('summary');
+      summary.className = 'announceItem__summary';
+      const t = document.createElement('span');
+      t.className = 'row__title';
+      t.textContent = `${b.title || 'Bulletin'} • ${b.originalName || ''}`.trim();
+      summary.appendChild(t);
+
+      const content = document.createElement('div');
+      content.className = 'announceItem__content';
+      const meta = document.createElement('div');
+      meta.className = 'row__meta';
+      const active = isActiveBulletin(b);
+      meta.textContent = `${active ? 'Active now' : ''}${active ? ' • ' : ''}${toLocalDateTimeValue(b.startsAt)} → ${toLocalDateTimeValue(b.endsAt)}`;
+      content.appendChild(meta);
+
+      details.appendChild(summary);
+      details.appendChild(content);
+      main.appendChild(details);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'row__actions';
+
+    const open = document.createElement('a');
+    open.className = 'btn';
+    open.href = b.url;
+    open.target = '_blank';
+    open.rel = 'noopener noreferrer';
+    open.textContent = 'Open';
+    setActionIconButton(open, 'view', 'View bulletin');
+
+    if (editingBulletinId === b.id) {
+      const save = document.createElement('button');
+      save.className = 'btn btn--primary';
+      save.type = 'button';
+      save.textContent = 'Save';
+      save.addEventListener('click', async () => {
+        const inputs = main.querySelectorAll('input');
+        const title = String(inputs[0]?.value || '').trim();
+        const startsAt = String(inputs[1]?.value || '').trim();
+        const endsAt = String(inputs[2]?.value || '').trim();
+        if (!title || !startsAt || !endsAt) {
+          showToast('Title, show from, and show until are required.', { variant: 'danger' });
+          return;
+        }
+        if (Date.parse(endsAt) <= Date.parse(startsAt)) {
+          showToast('Show until must be after show from.', { variant: 'danger' });
+          return;
+        }
+        if (!confirmWrite('Save changes to this bulletin schedule?')) return;
+        await api(`/api/bulletins/${b.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ title, startsAt, endsAt })
+        });
+        bulletinPreviewDraft = null;
+        editingBulletinId = null;
+        await loadBulletins();
+      });
+
+      const cancel = document.createElement('button');
+      cancel.className = 'btn';
+      cancel.type = 'button';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', () => {
+        bulletinPreviewDraft = null;
+        editingBulletinId = null;
+        renderBulletins();
+      });
+
+      actions.appendChild(open);
+      actions.appendChild(save);
+      actions.appendChild(cancel);
+    } else {
+      const edit = document.createElement('button');
+      edit.className = 'btn';
+      edit.type = 'button';
+      setActionIconButton(edit, 'edit', 'Edit bulletin');
+      edit.addEventListener('click', () => {
+        bulletinPreviewDraft = null;
+        editingBulletinId = b.id;
+        renderBulletins();
+      });
+      actions.appendChild(open);
+      actions.appendChild(edit);
+    }
+
+    const del = document.createElement('button');
+    del.className = 'btn';
+    del.type = 'button';
+    setActionIconButton(del, 'delete', 'Delete bulletin');
+    del.addEventListener('click', async () => {
+      if (!confirmWrite('Delete this bulletin?')) return;
+      await api(`/api/bulletins/${b.id}`, { method: 'DELETE' });
+      bulletinPreviewDraft = null;
+      if (editingBulletinId === b.id) editingBulletinId = null;
+      await loadBulletins();
+    });
+    actions.appendChild(del);
+
+    row.appendChild(main);
+    row.appendChild(actions);
+    root.appendChild(row);
+  }
+
+  if (!bulletins.length) root.innerHTML = '<div class="muted">No bulletins scheduled yet.</div>';
+}
+
+async function loadBulletins() {
+  const data = await api('/api/bulletins', { method: 'GET' });
+  bulletins = data.bulletins || [];
+  if (editingBulletinId && !bulletins.some((b) => b.id === editingBulletinId)) {
+    editingBulletinId = null;
+    bulletinPreviewDraft = null;
+  }
+  renderBulletins();
+}
+
+// -------- Users --------
+let users = [];
+
+function renderUsers() {
+  const root = $('userList');
+  root.innerHTML = '';
+
+  for (const u of users) {
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    const main = document.createElement('div');
+    main.className = 'row__main';
+    const t = document.createElement('div');
+    t.className = 'row__title';
+    t.textContent = u.email + (u.isMaster ? ' (master)' : '');
+    const meta = document.createElement('div');
+    meta.className = 'row__meta';
+    meta.textContent = u.createdAt ? formatDate(u.createdAt) : '';
+
+    main.appendChild(t);
+    main.appendChild(meta);
+
+    const actions = document.createElement('div');
+    actions.className = 'row__actions';
+
+    if (!u.isMaster) {
+      const del = document.createElement('button');
+      del.className = 'btn';
+      del.type = 'button';
+      setActionIconButton(del, 'delete', 'Delete admin account');
+      del.addEventListener('click', async () => {
+        if (!confirm('Delete this admin account?')) return;
+        await api(`/api/users/${u.id}`, { method: 'DELETE' });
+        await loadUsers();
+      });
+      actions.appendChild(del);
+    }
+
+    row.appendChild(main);
+    row.appendChild(actions);
+    root.appendChild(row);
+  }
+
+  if (!users.length) root.innerHTML = '<div class="muted">No users.</div>';
+}
+
+async function loadUsers() {
+  const data = await api('/api/users', { method: 'GET' });
+  users = data.users || [];
+  renderUsers();
+}
+
+// -------- Livestream --------
+let livestream = null;
+
+function getSelectedLivePlatforms() {
+  const inputs = Array.from(document.querySelectorAll('input[name="livePlatforms"]'));
+  return uniqStringsLower(inputs.filter((i) => i.checked).map((i) => i.value));
+}
+
+function setSelectedLivePlatforms(platforms) {
+  const set = new Set(uniqStringsLower(platforms));
+  const inputs = Array.from(document.querySelectorAll('input[name="livePlatforms"]'));
+  for (const el of inputs) el.checked = set.has(String(el.value || '').toLowerCase());
+}
+
+function renderLivestream() {
+  $('ytEmbed').value = livestream?.embeds?.youtube || '';
+  $('fbEmbed').value = livestream?.embeds?.facebook || '';
+  $('siteEmbed').value = livestream?.embeds?.website || '';
+  $('activePlatform').value = livestream?.active?.platform || 'website';
+
+  const activePlatforms = (livestream?.active?.platforms && Array.isArray(livestream.active.platforms))
+    ? livestream.active.platforms
+    : [livestream?.active?.platform || 'website'];
+  setSelectedLivePlatforms(activePlatforms);
+
+  const isLive = (livestream?.active?.status || 'offline') === 'live';
+  const chip = $('liveStatus');
+  chip.textContent = isLive ? 'Live' : 'Offline';
+  chip.classList.toggle('statusChip--live', isLive);
+
+  const list = $('recurringList');
+  list.innerHTML = '';
+
+  for (const r of (livestream?.recurring || [])) {
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    const main = document.createElement('div');
+    main.className = 'row__main';
+    const t = document.createElement('div');
+    t.className = 'row__title';
+    t.textContent = `${r.label}`;
+    const meta = document.createElement('div');
+    meta.className = 'row__meta';
+    meta.textContent = `${r.day} • ${r.time}`;
+    main.appendChild(t);
+    main.appendChild(meta);
+
+    const actions = document.createElement('div');
+    actions.className = 'row__actions';
+    const del = document.createElement('button');
+    del.className = 'btn';
+    del.type = 'button';
+    setActionIconButton(del, 'delete', 'Delete recurring stream');
+    del.addEventListener('click', async () => {
+      if (!confirm('Delete this recurring stream?')) return;
+      livestream.recurring = (livestream.recurring || []).filter((x) => x.id !== r.id);
+      await saveLivestream();
+    });
+
+    actions.appendChild(del);
+    row.appendChild(main);
+    row.appendChild(actions);
+    list.appendChild(row);
+  }
+
+  if (!(livestream?.recurring || []).length) {
+    list.innerHTML = '<div class="muted">No recurring streams set.</div>';
+  }
+}
+
+async function loadLivestream() {
+  livestream = await api('/api/livestream', { method: 'GET' });
+  renderLivestream();
+}
+
+async function saveLivestream() {
+  const payload = {
+    active: livestream.active,
+    embeds: {
+      youtube: $('ytEmbed').value.trim(),
+      facebook: $('fbEmbed').value.trim(),
+      website: $('siteEmbed').value.trim()
+    },
+    recurring: livestream.recurring || []
+  };
+  const res = await api('/api/livestream', { method: 'PUT', body: JSON.stringify(payload) });
+  livestream = res.data;
+  renderLivestream();
+}
+
+// -------- Settings --------
+let settings = null;
+
+async function loadSiteSettings() {
+  if (!$('socialForm') || !$('themeForm')) return;
+  settings = await api('/api/settings', { method: 'GET' });
+
+  $('socialForm').facebook.value = settings?.social?.facebook || '';
+  $('socialForm').youtube.value = settings?.social?.youtube || '';
+  $('socialForm').email.value = settings?.social?.email || '';
+  $('socialForm').phone.value = settings?.social?.phone || '';
+  $('socialForm').address.value = settings?.social?.address || '';
+
+  $('themeForm').accent.value = settings?.theme?.accent || '#c46123';
+  $('themeForm').text.value = settings?.theme?.text || '#ffffff';
+  $('themeForm').background.value = settings?.theme?.background || '#000000';
+
+  // Sync hex fields
+  const a = $('themeForm').accent.value;
+  const t = $('themeForm').text.value;
+  const b = $('themeForm').background.value;
+  if ($('themeAccentHex')) $('themeAccentHex').value = a;
+  if ($('themeTextHex')) $('themeTextHex').value = t;
+  if ($('themeBackgroundHex')) $('themeBackgroundHex').value = b;
+
+  applyThemePreviewCard({ accent: a, text: t, background: b });
+}
+
+async function saveSettingsPatch(patch) {
+  const res = await api('/api/settings', { method: 'PUT', body: JSON.stringify(patch) });
+  settings = res.data;
+  await loadSiteSettings();
+}
+
+function normalizeHex(value) {
+  const v = String(value || '').trim();
+  if (!v) return '';
+  const withHash = v.startsWith('#') ? v : `#${v}`;
+  if (/^#[0-9a-fA-F]{6}$/.test(withHash)) return withHash.toLowerCase();
+  return '';
+}
+
+function getThemeFromInputs() {
+  const accent = String($('themeForm').accent.value || '#c46123');
+  const text = String($('themeForm').text.value || '#ffffff');
+  const background = String($('themeForm').background.value || '#000000');
+  return { accent, text, background };
+}
+
+function applyThemePreviewCard(theme) {
+  const card = $('themePreviewCard');
+  if (!card) return;
+  card.style.setProperty('--mmmbc-accent', theme.accent);
+  card.style.setProperty('--mmmbc-text', theme.text);
+  card.style.setProperty('--mmmbc-bg', theme.background);
+}
+
+// -------- Newsletter --------
+let subscribers = [];
+let newsletterRecords = { drafts: [], scheduled: [], history: [] };
+let newsletterRecordsTab = 'drafts';
+let newsletterSelectedRecipients = new Set();
+let newsletterRecipientSelection = '__all__';
+
+const NEWSLETTER_RECORDS_COLLAPSE_KEY = 'mmmbc_admin_newsletter_records_collapsed_v1';
+
+function getStoredBoolean(key, fallback) {
+  try {
+    const v = window.localStorage.getItem(key);
+    if (v === '1') return true;
+    if (v === '0') return false;
+  } catch {
+    // ignore storage errors
+  }
+  return fallback;
+}
+
+function setStoredBoolean(key, value) {
+  try {
+    window.localStorage.setItem(key, value ? '1' : '0');
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function validEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
+
+function setPanelCollapse(buttonId, panelId, collapsed, labels) {
+  const btn = $(buttonId);
+  const panel = $(panelId);
+  if (panel) panel.hidden = collapsed;
+  if (btn) {
+    btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    const show = String(labels?.show || 'Show');
+    const hide = String(labels?.hide || 'Hide');
+    btn.textContent = collapsed ? show : hide;
+  }
+}
+
+function updateNewsletterStepSummaries() {
+  const payload = buildNewsletterPayloadFromForm();
+  const recipients = Array.isArray(payload.emails) ? payload.emails.length : 0;
+  const recipientSummary = $('newsletterRecipientSummary');
+  if (recipientSummary) {
+    recipientSummary.textContent = `This newsletter will be sent to ${recipients} ${recipients === 1 ? 'person' : 'people'}.`;
+  }
+
+  const review = $('newsletterReviewSummary');
+  if (review) {
+    const subject = payload.subject || '(no subject yet)';
+    const schedule = (payload.scheduleDate && payload.scheduleTime)
+      ? `Scheduled for ${payload.scheduleDate} at ${payload.scheduleTime} ${payload.scheduleTimezone || 'America/Chicago'}.`
+      : 'This newsletter will be sent immediately when you choose Send Now.';
+    review.textContent = `${recipients} recipient(s) • Subject: ${subject}. ${schedule}`;
+  }
+}
+
+function recipientListFiltered() {
+  const activeGroup = String($('newsletterGroupSelect')?.value || '').trim();
+  return activeGroup
+    ? subscribers.filter((s) => String(s.group || '').trim() === activeGroup)
+    : subscribers;
+}
+
+function renderSubscribers() {
+  const groupSel = $('newsletterGroupSelect');
+  const recipients = $('newsletterRecipients');
+  if (groupSel) groupSel.innerHTML = '<option value="">All groups</option>';
+  if (recipients) recipients.innerHTML = '';
+
+  const groups = Array.from(new Set(subscribers.map((s) => String(s.group || 'general').trim() || 'general'))).sort((a, b) => a.localeCompare(b));
+
+  if (groupSel) {
+    for (const g of groups) {
+      const opt = document.createElement('option');
+      opt.value = g;
+      opt.textContent = g;
+      groupSel.appendChild(opt);
+    }
+  }
+
+  const allowedEmails = new Set(subscribers.map((s) => String(s.email || '').trim().toLowerCase()));
+  newsletterSelectedRecipients = new Set(Array.from(newsletterSelectedRecipients).filter((email) => allowedEmails.has(email)));
+
+  renderRecipientOptions();
+}
+
+function renderRecipientOptions() {
+  const recipients = $('newsletterRecipients');
+  if (!(recipients instanceof HTMLSelectElement)) return;
+  const previousSelection = String(newsletterRecipientSelection || recipients.value || '__all__').trim() || '__all__';
+
+  recipients.innerHTML = '';
+  const filtered = recipientListFiltered();
+  const filteredEmails = filtered
+    .map((s) => String(s.email || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  const allOpt = document.createElement('option');
+  allOpt.value = '__all__';
+  allOpt.textContent = `All subscribers in selected group (${filteredEmails.length})`;
+  recipients.appendChild(allOpt);
+
+  for (const s of filtered) {
+    const email = String(s.email || '').trim().toLowerCase();
+    if (!email) continue;
+    const opt = document.createElement('option');
+    opt.value = email;
+    const group = String(s.group || 'general').trim() || 'general';
+    opt.textContent = s.name ? `${s.name} - ${email} (${group})` : `${email} (${group})`;
+    recipients.appendChild(opt);
+  }
+
+  newsletterRecipientSelection = previousSelection;
+  if (!Array.from(recipients.options).some((opt) => String(opt.value) === newsletterRecipientSelection)) {
+    newsletterRecipientSelection = '__all__';
+  }
+  recipients.value = newsletterRecipientSelection;
+
+  if (newsletterRecipientSelection === '__all__') {
+    newsletterSelectedRecipients = new Set(filteredEmails);
+  } else {
+    newsletterSelectedRecipients = new Set([newsletterRecipientSelection]);
+  }
+
+  renderNewsletterPreview();
+  updateNewsletterStepSummaries();
+}
+
+function buildNewsletterPayloadFromForm() {
+  return {
+    subject: String($('newsletterSubject')?.value || '').trim(),
+    message: String($('newsletterMessage')?.value || '').trim(),
+    emails: Array.from(newsletterSelectedRecipients),
+    scheduleDate: String($('newsletterScheduleDate')?.value || '').trim(),
+    scheduleTime: String($('newsletterScheduleTime')?.value || '').trim(),
+    scheduleTimezone: String($('newsletterScheduleTimezone')?.value || 'America/Chicago').trim() || 'America/Chicago'
+  };
+}
+
+function applyNewsletterPayloadToForm(record) {
+  const form = $('newsletterForm');
+  withProgrammaticFormUpdate(form, () => {
+    if ($('newsletterSubject')) $('newsletterSubject').value = String(record?.subject || '');
+    if ($('newsletterMessage')) $('newsletterMessage').value = String(record?.message || '');
+    if ($('newsletterScheduleDate')) $('newsletterScheduleDate').value = String(record?.scheduleDate || '');
+    if ($('newsletterScheduleTime')) $('newsletterScheduleTime').value = String(record?.scheduleTime || '');
+    if ($('newsletterScheduleTimezone')) $('newsletterScheduleTimezone').value = String(record?.scheduleTimezone || 'America/Chicago');
+    const emails = Array.isArray(record?.emails) ? record.emails : [];
+    const normalized = emails.map((x) => String(x || '').trim().toLowerCase()).filter(Boolean);
+    newsletterSelectedRecipients = new Set(normalized);
+    newsletterRecipientSelection = normalized.length === 1 ? normalized[0] : '__all__';
+    renderRecipientOptions();
+    renderNewsletterPreview();
+  });
+}
+
+function detectBrowserTimeZone() {
+  try {
+    const tz = String(Intl.DateTimeFormat().resolvedOptions().timeZone || '').trim();
+    return tz;
+  } catch {
+    return '';
+  }
+}
+
+function applyDetectedNewsletterTimezone() {
+  const select = $('newsletterScheduleTimezone');
+  const hint = $('newsletterTimezoneHint');
+  if (!(select instanceof HTMLSelectElement)) return;
+
+  const detected = detectBrowserTimeZone();
+  if (!detected) {
+    if (hint) hint.textContent = 'Could not auto-detect your browser time zone.';
+    return;
+  }
+
+  const current = String(select.value || '').trim();
+  const hasOption = Array.from(select.options).some((o) => String(o.value) === detected);
+  if (!hasOption) {
+    const opt = document.createElement('option');
+    opt.value = detected;
+    opt.textContent = detected;
+    select.appendChild(opt);
+  }
+
+  if (!current || current === 'America/Chicago') {
+    select.value = detected;
+  }
+
+  if (hint) hint.textContent = `Detected time zone: ${detected}`;
+}
+
+function ensureNewsletterBodyTemplate() {
+  const rawField = $('newsletterMessage');
+  if (!(rawField instanceof HTMLTextAreaElement)) return;
+
+  const hasAnySectionText = NEWSLETTER_SECTION_FIELDS
+    .map(({ fieldId }) => $(fieldId))
+    .some((field) => (field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement) && String(field.value || '').trim());
+
+  if (!String(rawField.value || '').trim() && !hasAnySectionText) {
+    rawField.value = NEWSLETTER_BODY_TEMPLATE;
+  }
+
+  if (hasAnySectionText) {
+    syncNewsletterMessageFromSections();
+    return;
+  }
+
+  populateNewsletterSectionsFromMessage(String(rawField.value || ''));
+}
+
+function composeNewsletterMessageFromSections() {
+  return NEWSLETTER_SECTION_FIELDS.map(({ heading, fieldId }) => {
+    const field = $(fieldId);
+    const body = (field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement)
+      ? String(field.value || '').trim()
+      : '';
+    return `${heading}\n\n${body}`;
+  }).join('\n\n');
+}
+
+function syncNewsletterMessageFromSections() {
+  const rawField = $('newsletterMessage');
+  if (!(rawField instanceof HTMLTextAreaElement)) return;
+  rawField.value = composeNewsletterMessageFromSections();
+}
+
+function parseNewsletterTemplateSections(message) {
+  const lines = String(message || '').split(/\r?\n/);
+  const sections = new Map(NEWSLETTER_TEMPLATE_SECTIONS.map((name) => [name, []]));
+  let activeSection = NEWSLETTER_TEMPLATE_SECTIONS[0];
+
+  for (const rawLine of lines) {
+    const line = String(rawLine || '').trim();
+    const normalized = line.toLowerCase();
+    const matchedHeading = NEWSLETTER_TEMPLATE_SECTIONS.find((name) => normalized === name.toLowerCase());
+    const aliasedHeading = NEWSLETTER_SECTION_ALIASES[normalized];
+    const resolvedHeading = matchedHeading || aliasedHeading;
+    if (resolvedHeading) {
+      activeSection = resolvedHeading;
+      continue;
+    }
+    sections.get(activeSection).push(rawLine);
+  }
+
+  const out = {};
+  for (const sectionName of NEWSLETTER_TEMPLATE_SECTIONS) {
+    out[sectionName] = (sections.get(sectionName) || []).join('\n').trim();
+  }
+  return out;
+}
+
+function populateNewsletterSectionsFromMessage(message) {
+  const parsed = parseNewsletterTemplateSections(message);
+  for (const { heading, fieldId } of NEWSLETTER_SECTION_FIELDS) {
+    const field = $(fieldId);
+    if (!(field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement)) continue;
+    field.value = String(parsed[heading] || '').trim();
+  }
+}
+
+function bindNewsletterSectionEditor() {
+  for (const { fieldId } of NEWSLETTER_SECTION_FIELDS) {
+    const field = $(fieldId);
+    if (!(field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement)) continue;
+    field.addEventListener('input', () => {
+      syncNewsletterMessageFromSections();
+      renderNewsletterPreview();
+      updateNewsletterStepSummaries();
+    });
+  }
+
+  const rawField = $('newsletterMessage');
+  if (rawField instanceof HTMLTextAreaElement) {
+    rawField.addEventListener('input', () => {
+      populateNewsletterSectionsFromMessage(String(rawField.value || ''));
+      renderNewsletterPreview();
+      updateNewsletterStepSummaries();
+    });
+  }
+
+  const weekOfField = $('newsletterWeekOfDate');
+  if (weekOfField instanceof HTMLInputElement) {
+    weekOfField.addEventListener('change', () => {
+      syncNewsletterMessageFromSections();
+      renderNewsletterPreview();
+      updateNewsletterStepSummaries();
+    });
+  }
+}
+
+function formatNewsletterWeekOf(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return 'Week of';
+  const date = new Date(`${raw}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return `Week of ${raw}`;
+  return `Week of ${date.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}`;
+}
+
+function setNewsletterRecordsTab(nextTab) {
+  newsletterRecordsTab = ['drafts', 'scheduled', 'history'].includes(nextTab) ? nextTab : 'drafts';
+  const tabs = {
+    drafts: $('newsletterRecordsTabDrafts'),
+    scheduled: $('newsletterRecordsTabScheduled'),
+    history: $('newsletterRecordsTabHistory')
+  };
+  const panels = {
+    drafts: $('newsletterRecordsDrafts'),
+    scheduled: $('newsletterRecordsScheduled'),
+    history: $('newsletterRecordsHistory')
+  };
+  for (const [key, btn] of Object.entries(tabs)) {
+    if (btn) btn.setAttribute('aria-selected', key === newsletterRecordsTab ? 'true' : 'false');
+  }
+  for (const [key, panel] of Object.entries(panels)) {
+    if (panel) panel.hidden = key !== newsletterRecordsTab;
+  }
+}
+
+function renderNewsletterRecordsList(container, records, { emptyLabel, includeStatus } = {}) {
+  if (!container) return;
+  if (!Array.isArray(records) || !records.length) {
+    container.innerHTML = `<div class="muted">${String(emptyLabel || 'No records found.')}</div>`;
+    return;
+  }
+  const rows = records.map((r) => {
+    const id = String(r.id || '');
+    const subject = String(r.subject || '(no subject)');
+    const modifiedAt = String(r.updatedAt || r.createdAt || '').trim();
+    const when = modifiedAt ? new Date(modifiedAt).toLocaleString() : 'Unknown date';
+    const statusText = includeStatus ? `<span class="statusChip">${String(r.status || '').trim() || 'unknown'}</span>` : '';
+    return `
+      <div class="row newsletterRecordRow" data-newsletter-record-id="${id}">
+        <div class="row__main">
+          <strong>${subject}</strong>
+          <div class="row__meta">${when}</div>
+          ${statusText}
+        </div>
+        <div class="toolbar">
+          <button class="btn" type="button" data-action="load" data-newsletter-record-id="${id}">Load</button>
+          <button class="btn actionIconBtn" type="button" data-action="delete" data-newsletter-record-id="${id}" aria-label="Delete newsletter record" title="Delete newsletter record"><span class="srOnly">Delete newsletter record</span>${actionIconSvg('delete')}</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  container.innerHTML = rows;
+}
+
+function renderNewsletterRecords() {
+  renderNewsletterRecordsList($('newsletterRecordsDrafts'), newsletterRecords.drafts, {
+    emptyLabel: 'No drafts saved yet.',
+    includeStatus: false
+  });
+  renderNewsletterRecordsList($('newsletterRecordsScheduled'), newsletterRecords.scheduled, {
+    emptyLabel: 'No scheduled newsletters.',
+    includeStatus: true
+  });
+  renderNewsletterRecordsList($('newsletterRecordsHistory'), newsletterRecords.history, {
+    emptyLabel: 'No send history yet.',
+    includeStatus: true
+  });
+  renderNewsletterPreview();
+}
+
+async function loadNewsletterRecords() {
+  try {
+    const data = await api('/api/newsletter/records', { method: 'GET' });
+    newsletterRecords = {
+      drafts: Array.isArray(data?.drafts) ? data.drafts : [],
+      scheduled: Array.isArray(data?.scheduled) ? data.scheduled : [],
+      history: Array.isArray(data?.history) ? data.history : []
+    };
+  } catch {
+    newsletterRecords = { drafts: [], scheduled: [], history: [] };
+  }
+  renderNewsletterRecords();
+}
+
+async function mutateNewsletterRecord(action, payload) {
+  const data = await api('/api/newsletter/records', {
+    method: 'POST',
+    body: JSON.stringify({ action, ...payload })
+  });
+  newsletterRecords = {
+    drafts: Array.isArray(data?.drafts) ? data.drafts : [],
+    scheduled: Array.isArray(data?.scheduled) ? data.scheduled : [],
+    history: Array.isArray(data?.history) ? data.history : []
+  };
+  renderNewsletterRecords();
+  return data;
+}
+
+async function loadSubscribers() {
+  try {
+    const data = await api('/api/subscribers', { method: 'GET' });
+    subscribers = Array.isArray(data?.subscribers) ? data.subscribers : [];
+  } catch {
+    subscribers = [];
+  }
+  renderSubscribers();
+}
+
+function renderNewsletterPreview() {
+  const preview = $('newsletterLivePreview');
+  if (!preview) return;
+  const payload = buildNewsletterPayloadFromForm();
+  const subject = payload.subject || 'Newsletter subject';
+  const message = payload.message || '';
+  const recipients = Array.isArray(payload.emails) ? payload.emails : [];
+  const parsedSections = parseNewsletterTemplateSections(message);
+  const weekOfDate = String(parsedSections['Week of date'] || '').trim();
+  const bodyHeader = String(parsedSections['Header'] || '').trim() || 'Weekly Newsletter Header';
+  const welcomeBody = String(parsedSections['Welcome'] || '').trim() || 'Add the welcome message for this newsletter issue.';
+  const contactLine = String(parsedSections['Contact line'] || '').trim() || 'www.mmmbc.com';
+  const footerLine = String(parsedSections['Footer line'] || '').trim() || 'Mt. Moriah Newsletter';
+
+  const contentSections = [
+    { heading: 'Announcements', body: String(parsedSections['Announcements'] || '').trim() || 'Add announcements for this week.' },
+    { heading: 'Events', body: String(parsedSections['Events'] || '').trim() || 'Add event details, dates, and times.' },
+    { heading: 'Ministry updates', body: String(parsedSections['Ministry updates'] || '').trim() || 'Add ministry updates and highlights.' },
+    { heading: 'Pastor message', body: String(parsedSections['Pastor message'] || '').trim() || 'Add the pastor message for this issue.' }
+  ];
+
+  const sectionMarkup = contentSections.map(({ heading, body }, index) => {
+    const step = String(index + 1).padStart(2, '0');
+    return `
+      <section class="newsletterTemplate__section">
+        <div class="newsletterTemplate__sectionHeading">
+          <div class="newsletterTemplate__step">${step}</div>
+          <h5 class="newsletterTemplate__sectionTitle">${escapeHtml(heading)}</h5>
+        </div>
+        <p class="newsletterTemplate__sectionBody">${escapeHtml(body).replace(/\n/g, '<br />')}</p>
+      </section>
+    `;
+  }).join('');
+
+  preview.innerHTML = `
+    <article class="newsletterTemplate">
+      <div class="newsletterTemplate__masthead">
+        <div class="newsletterTemplate__headerGrid">
+          <div class="newsletterTemplate__logoWrap">
+            <img class="newsletterTemplate__logo" src="/ConImg/MtMoriahLogo-1.png" alt="Mt. Moriah logo" />
+          </div>
+          <div class="newsletterTemplate__titleWrap">
+            <div class="newsletterTemplate__kicker">Mt. Moriah Missionary Baptist Church</div>
+            <h4 class="newsletterTemplate__title">${escapeHtml(subject)}</h4>
+            <div class="newsletterTemplate__tagline">Building Faith. Strengthening Families. Serving Our Community.</div>
+          </div>
+        </div>
+        <div class="newsletterTemplate__weekOf">${escapeHtml(formatNewsletterWeekOf(weekOfDate))}</div>
+      </div>
+      <div class="newsletterTemplate__body">
+        <section class="newsletterTemplate__intro">
+          <h5 class="newsletterTemplate__bodyHeader">${escapeHtml(bodyHeader)}</h5>
+          <p class="newsletterTemplate__welcomeBody">${escapeHtml(welcomeBody).replace(/\n/g, '<br />')}</p>
+        </section>
+        ${sectionMarkup}
+      </div>
+      <div class="newsletterTemplate__footer">
+        <div class="newsletterTemplate__footerLineWrap"><span>${escapeHtml(contactLine)}</span><span class="newsletterTemplate__footerSep">|</span><span>${escapeHtml(footerLine)}</span></div>
+        <div class="newsletterTemplate__footerPills">${recipients.length ? recipients.map((email) => `<span class="previewPill">${escapeHtml(email)}</span>`).join('') : '<span class="previewPill previewPill--muted">Recipient list will appear here</span>'}</div>
+      </div>
+    </article>
+  `;
+  updateNewsletterStepSummaries();
+}
+
+// -------- Users & Roles Settings --------
+const settingsState = {
+  roles: [],
+  page: 1,
+  pageSize: 25,
+  totalPages: 1,
+  pendingConfirm: null
+};
+
+const SETTINGS_PERMISSION_ROWS = [
+  { label: 'Announcements', view: 'announcements.view', manage: ['announcements.manage'] },
+  { label: 'Events', view: 'events.view', manage: ['events.manage'] },
+  { label: 'Photos', view: 'photos.view', manage: ['photos.manage'] },
+  { label: 'Newsletter', view: 'newsletter.view', manage: ['newsletter.manage'] },
+  { label: 'Finance', view: 'finance.view', manage: ['finance.record', 'finance.edit_void', 'finance.funds_categories', 'finance.export', 'finance.statements_controls'] },
+  { label: 'Directory', view: 'directory.view', manage: ['directory.manage'] },
+  { label: 'Help & Support', view: 'support.send', manage: ['support.send'] },
+  { label: 'Users & Roles', view: 'users.manage', manage: ['users.manage'] }
+];
+
+function settingsCell(text, tagName = 'td') {
+  const cell = document.createElement(tagName);
+  cell.textContent = String(text ?? '');
+  return cell;
+}
+
+function settingsDate(value, fallback = 'Never') {
+  const raw = String(value || '').trim();
+  if (!raw) return fallback;
+  const timestamp = Date.parse(raw);
+  if (!Number.isFinite(timestamp)) return raw;
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(timestamp));
+}
+
+function settingsShortDate(value, fallback = 'Never') {
+  const raw = String(value || '').trim();
+  if (!raw) return fallback;
+  const timestamp = Date.parse(raw);
+  if (!Number.isFinite(timestamp)) return raw;
+  const date = new Date(timestamp);
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const yy = String(date.getFullYear()).slice(-2);
+  return `${mm}/${dd}/${yy}`;
+}
+
+function settingsRoleByKey(key) {
+  return settingsState.roles.find((role) => String(role.key) === String(key));
+}
+
+function settingsRoleAccess(role, row) {
+  const permissions = new Set(Array.isArray(role?.permissions) ? role.permissions.map(String) : []);
+  if (row.manage.some((permission) => permissions.has(permission))) return 'Manage';
+  if (permissions.has(row.view)) return 'View';
+  return 'No access';
+}
+
+function settingsRoleSelect(selectedKey, ariaLabel) {
+  const select = document.createElement('select');
+  select.className = 'select settingsRoleSelect';
+  select.setAttribute('aria-label', ariaLabel);
+  for (const role of settingsState.roles) {
+    const option = document.createElement('option');
+    option.value = String(role.key || '');
+    option.textContent = String(role.label || role.key || 'Role');
+    option.selected = option.value === String(selectedKey || '');
+    select.appendChild(option);
+  }
+  return select;
+}
+
+function renderSettingsRoleSummary() {
+  const root = $('settingsSelectedRoleSummary');
+  const select = $('settingsAddRole');
+  if (!root || !select) return;
+  const role = settingsRoleByKey(select.value);
+  root.replaceChildren();
+  if (!role) return;
+  const title = document.createElement('strong');
+  title.textContent = String(role.label || role.key || 'Selected role');
+  const description = document.createElement('p');
+  description.textContent = String(role.description || '');
+  const access = document.createElement('p');
+  access.className = 'muted';
+  access.textContent = `Access: ${SETTINGS_PERMISSION_ROWS.map((row) => `${row.label}: ${settingsRoleAccess(role, row)}`).join('; ')}`;
+  root.append(title, description, access);
+}
+
+function renderSettingsRoles() {
+  const head = $('settingsRolesHead');
+  const body = $('settingsRolesBody');
+  const addRole = $('settingsAddRole');
+  const roleFilter = $('settingsRoleFilter');
+  if (!head || !body || !addRole || !roleFilter) return;
+
+  const headRow = document.createElement('tr');
+  headRow.appendChild(settingsCell('Area', 'th'));
+  for (const role of settingsState.roles) headRow.appendChild(settingsCell(role.label || role.key, 'th'));
+  head.replaceChildren(headRow);
+
+  const rows = SETTINGS_PERMISSION_ROWS.map((permissionRow) => {
+    const row = document.createElement('tr');
+    row.appendChild(settingsCell(permissionRow.label, 'th'));
+    for (const role of settingsState.roles) {
+      const level = settingsRoleAccess(role, permissionRow);
+      const cell = settingsCell(level);
+      cell.dataset.access = level.toLowerCase().replace(/\s+/g, '-');
+      row.appendChild(cell);
+    }
+    return row;
+  });
+  body.replaceChildren(...rows);
+
+  const priorAddRole = addRole.value || 'website_editor';
+  const priorFilter = roleFilter.value;
+  addRole.replaceChildren();
+  roleFilter.replaceChildren(new Option('All roles', ''));
+  for (const role of settingsState.roles) {
+    const addOption = new Option(String(role.label || role.key), String(role.key || ''));
+    addOption.selected = addOption.value === priorAddRole;
+    addRole.appendChild(addOption);
+    roleFilter.appendChild(new Option(String(role.label || role.key), String(role.key || '')));
+  }
+  if (Array.from(roleFilter.options).some((option) => option.value === priorFilter)) roleFilter.value = priorFilter;
+  renderSettingsRoleSummary();
+}
+
+function settingsActionLabel(action) {
+  return {
+    'user.created': 'Added administrator',
+    'user.updated': 'Changed administrator role or name',
+    'user.activated': 'Activated administrator',
+    'user.suspended': 'Suspended administrator',
+    'user.reactivated': 'Reactivated administrator',
+    'user.revoked': 'Revoked administrator access'
+  }[String(action || '')] || String(action || '').replace(/[._]/g, ' ');
+}
+
+function openSettingsConfirmation(message, onConfirm, onCancel = null) {
+  const dialog = $('settingsConfirmDialog');
+  const messageNode = $('settingsConfirmMessage');
+  if (!(dialog instanceof HTMLDialogElement) || !messageNode) return;
+  settingsState.pendingConfirm = { onConfirm, onCancel };
+  messageNode.textContent = String(message || 'Confirm this administrator change.');
   openManagedDialog(dialog, { initialFocusId: 'settingsConfirmCancelBtn' });
 }
 

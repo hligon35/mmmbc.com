@@ -1285,7 +1285,4781 @@ app.use((req, res, next) => {
   // Support emailer automation: allow server-to-server calls with a shared secret
   // without requiring browser CSRF cookies.
   if (p === '/api/support/message' && hasValidSupportApiToken(req)) return next();
-  return csrfProtection(req, rëmýÞÚ$z{-®éÜj× recordType: 'housing_annual_record',
+  return csrfProtection(req, res, next);
+});
+
+app.get('/api/csrf', requireAuth, csrfProtection, (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ csrfToken: req.csrfToken() });
+});
+
+// Audit trail for non-GET admin API calls (avoid logging secrets)
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    if (!req.path.startsWith('/api/')) return;
+    if (req.method === 'GET' || req.method === 'HEAD') return;
+    const user = req.session?.user;
+    if (!user?.id) return;
+
+    const redact = new Set(['password', 'newPassword', 'currentPassword', 'twoFactorCode', 'recoveryCode']);
+    const bodyKeys = (req.body && typeof req.body === 'object')
+      ? Object.keys(req.body).filter((k) => !redact.has(k))
+      : [];
+
+    audit('admin_action', {
+      at: new Date().toISOString(),
+      userId: user.id,
+      userEmail: user.email,
+      method: req.method,
+      path: req.originalUrl,
+      status: res.statusCode,
+      ms: Date.now() - start,
+      bodyKeys
+    });
+  });
+  next();
+});
+
+// Serve theme.css dynamically so an authenticated admin can preview theme changes
+// without writing the real theme.css file.
+// NOTE: This MUST be registered before the root static middleware.
+app.get('/theme.css', (req, res) => {
+  const preview = req.session?.themePreview;
+  if (preview) {
+    res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(buildThemeCss(preview));
+  }
+
+  // If an exported theme.css exists, serve it. Otherwise, build from saved settings.
+  const themePath = path.join(ROOT_DIR, 'theme.css');
+  res.setHeader('Content-Type', 'text/css; charset=utf-8');
+  if (fs.existsSync(themePath)) {
+    res.setHeader('Cache-Control', 'no-cache');
+    return res.send(fs.readFileSync(themePath, 'utf8'));
+  }
+
+  const settings = loadSettings();
+  res.setHeader('Cache-Control', 'no-cache');
+  return res.send(buildThemeCss(settings.theme));
+});
+
+// Serve the existing site (repo root)
+app.use('/', express.static(ROOT_DIR, { extensions: ['html'] }));
+// Serve admin UI under /admin/
+app.get('/admin', (req, res, next) => {
+  // Express routing matches both "/admin" and "/admin/" unless strict routing is enabled.
+  // Only redirect when the request is truly missing the trailing slash.
+  if (req.originalUrl === '/admin') return res.redirect(302, '/admin/');
+  return next();
+});
+
+// Serve the main admin dashboard through the same HTML transform the production
+// Worker applies, so local dev visually matches production (see
+// transformAdminHtmlForDev above).
+app.get(['/admin/', '/admin/index.html'], (req, res) => {
+  return sendTransformedAdminHtml(res, path.join(ADMIN_DIR, 'public', 'index.html'));
+});
+
+// Cloudflare Access is expected to gate /admin/* in deployments that use it.
+// Keep legacy login URLs working by redirecting users to the current admin entry point.
+app.get(['/admin/login', '/admin/login.html', '/admin/login.js', '/admin/login_legacy.html'], (req, res) => {
+  return res.redirect(302, '/admin/');
+});
+
+function sendAdminFinancePage(res, fileName) {
+  return sendTransformedAdminHtml(res, path.join(ADMIN_DIR, 'public', fileName));
+}
+
+app.get('/admin/finances/funds', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  return sendAdminFinancePage(res, 'finances_funds.html');
+});
+app.get('/admin/finances/dashboard', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  return sendAdminFinancePage(res, 'finances_dashboard.html');
+});
+
+app.get('/admin/finances/donors', requirePermission(PERMISSIONS.DONOR_READ), (req, res) => {
+  return sendAdminFinancePage(res, 'finances_donors.html');
+});
+
+app.get('/admin/finances/reports/board', requirePermission(PERMISSIONS.REPORTS_READ), (req, res) => {
+  return sendAdminFinancePage(res, 'finances_reports_board.html');
+});
+
+app.get('/admin/finances/controls', requirePermission(PERMISSIONS.CONTROLS_VERIFY), (req, res) => {
+  return sendAdminFinancePage(res, 'finances_controls.html');
+});
+
+app.get('/admin/finances/clergy-housing', requirePermission(PERMISSIONS.HOUSING_MANAGE), (req, res) => {
+  return sendAdminFinancePage(res, 'finances_clergy_housing.html');
+});
+
+app.get('/admin/finances/envelopes', requirePermission(PERMISSIONS.DONOR_READ), (req, res) => {
+  return sendAdminFinancePage(res, 'finance_envelope_designer.html');
+});
+
+app.get('/scan', (req, res) => {
+  return res.sendFile(path.join(ROOT_DIR, 'scan.html'));
+});
+
+app.use('/admin', express.static(path.join(ADMIN_DIR, 'public'), {
+  extensions: ['html'],
+  setHeaders: (res) => {
+    // During admin work we frequently tweak CSS/JS; prevent stale assets.
+    res.setHeader('Cache-Control', 'no-store');
+  }
+}));
+
+// Expose gallery images and uploaded docs
+// Standard gallery path (compatible with existing gallery.json)
+app.use('/ConImg/gallery', express.static(GALLERY_DIR));
+
+// CDN-style path with aggressive caching (optional; set GALLERY_URL_PREFIX="/cdn" to emit these URLs)
+app.use('/cdn/ConImg/gallery', express.static(GALLERY_DIR, {
+  immutable: true,
+  maxAge: '365d',
+  setHeaders: (res) => {
+    // Allow embedding across origins if later fronted by a CDN domain.
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  }
+}));
+app.use('/admin-uploads/docs', express.static(DOCS_UPLOADS_DIR));
+app.use('/admin-uploads/bulletins', express.static(BULLETINS_UPLOADS_DIR));
+
+const USERS_PATH = path.join(DATA_DIR, 'users.json');
+const GALLERY_DATA_PATH = path.join(DATA_DIR, 'gallery.json');
+const EVENTS_DATA_PATH = path.join(DATA_DIR, 'events.json');
+const ANNOUNCEMENTS_DATA_PATH = path.join(DATA_DIR, 'announcements.json');
+const DOCUMENTS_DATA_PATH = path.join(DATA_DIR, 'documents.json');
+const BULLETINS_DATA_PATH = path.join(DATA_DIR, 'bulletins.json');
+const LIVESTREAM_DATA_PATH = path.join(DATA_DIR, 'livestream.json');
+const SETTINGS_DATA_PATH = path.join(DATA_DIR, 'settings.json');
+const FINANCES_DATA_PATH = path.join(DATA_DIR, 'finances.json');
+const ADMIN_SETTINGS_AUDIT_PATH = path.join(DATA_DIR, 'admin_settings_audit.json');
+const PROFILES_DATA_PATH = path.join(DATA_DIR, 'profiles.json');
+const NEWSLETTER_RECORDS_DATA_PATH = path.join(DATA_DIR, 'newsletter_records.json');
+const FUNDS_DATA_PATH = path.join(DATA_DIR, 'funds.json');
+const DONORS_DATA_PATH = path.join(DATA_DIR, 'donors.json');
+const STATEMENTS_DATA_PATH = path.join(DATA_DIR, 'contribution_statements.json');
+const CONTROLS_DATA_PATH = path.join(DATA_DIR, 'internal_controls.json');
+const HOUSING_DATA_PATH = path.join(DATA_DIR, 'housing_allowance.json');
+const FINANCE_ACCOUNTS_DATA_PATH = path.join(DATA_DIR, 'finance_accounts.json');
+const FINANCE_AUDIT_DATA_PATH = path.join(DATA_DIR, 'finance_audit.json');
+const FINANCE_MIGRATION_REPORT_PATH = path.join(DATA_DIR, 'finance_migration_report.json');
+const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+
+const FINANCE_SOURCE_MAP = Object.freeze({
+  manual: 'Manual',
+  cash: 'Cash',
+  check: 'Check',
+  stripe: 'Stripe',
+  bank_import: 'Bank Import',
+  adjustment: 'Adjustment',
+  transfer: 'Transfer',
+  deposit: 'Deposit',
+  refund: 'Refund',
+  dispute: 'Dispute'
+});
+
+const FINANCE_STATUS_SET = new Set([
+  'draft',
+  'submitted',
+  'approved',
+  'rejected',
+  'paid',
+  'deposited',
+  'pending_deposit',
+  'reconciled',
+  'unreconciled',
+  'needs_review',
+  'posted',
+  'pending',
+  'voided',
+  'reversed',
+  'closed_period',
+  'stripe_pending',
+  'stripe_available',
+  'payout_matched',
+  'exception'
+]);
+
+const FINANCE_ACCOUNT_TYPES = Object.freeze([
+  'checking',
+  'savings',
+  'cash_on_hand',
+  'undeposited_funds',
+  'stripe_clearing',
+  'credit_card',
+  'other_asset',
+  'other_liability'
+]);
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
+
+function normalizeDateOnly(value) {
+  const v = String(value || '').trim();
+  if (!v) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const t = Date.parse(v);
+  if (Number.isNaN(t)) return '';
+  return new Date(t).toISOString().slice(0, 10);
+}
+
+function normalizeMoneyToCents(value) {
+  const raw = String(value ?? '').trim().replace(/[$,\s]/g, '');
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return NaN;
+  return Math.round(n * 100);
+}
+
+function normalizeFinanceText(value, maxLen) {
+  return String(value || '').trim().slice(0, maxLen);
+}
+
+function uniqNonEmptyStrings(list) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of (list || [])) {
+    const v = String(raw || '').trim();
+    if (!v) continue;
+    const key = v.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(v);
+  }
+  return out;
+}
+
+function normalizeFinanceSource(value) {
+  const key = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (FINANCE_SOURCE_MAP[key]) return key;
+  if (!key) return 'manual';
+  return 'manual';
+}
+
+function normalizeFinanceStatus(value, fallback = 'posted') {
+  const key = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (FINANCE_STATUS_SET.has(key)) return key;
+  return fallback;
+}
+
+function normalizeIsoTimestamp(value, fallbackIso) {
+  const raw = String(value || '').trim();
+  if (!raw) return fallbackIso;
+  const t = Date.parse(raw);
+  if (Number.isNaN(t)) return fallbackIso;
+  return new Date(t).toISOString();
+}
+
+function defaultFinanceAccounts() {
+  const now = new Date().toISOString();
+  return [
+    {
+      id: 'acct_checking_main',
+      name: 'Main Checking',
+      accountType: 'checking',
+      last4: '',
+      openingBalanceCents: 0,
+      active: true,
+      reconciliationEnabled: true,
+      currentSystemBalanceCents: 0,
+      lastReconciledDate: '',
+      lastReconciledBalanceCents: 0,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: 'acct_undeposited_funds',
+      name: 'Undeposited Funds',
+      accountType: 'undeposited_funds',
+      last4: '',
+      openingBalanceCents: 0,
+      active: true,
+      reconciliationEnabled: false,
+      currentSystemBalanceCents: 0,
+      lastReconciledDate: '',
+      lastReconciledBalanceCents: 0,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: 'acct_stripe_clearing',
+      name: 'Stripe Clearing',
+      accountType: 'stripe_clearing',
+      last4: '',
+      openingBalanceCents: 0,
+      active: true,
+      reconciliationEnabled: true,
+      currentSystemBalanceCents: 0,
+      lastReconciledDate: '',
+      lastReconciledBalanceCents: 0,
+      createdAt: now,
+      updatedAt: now
+    }
+  ];
+}
+
+function normalizeFinanceAccountRecord(raw) {
+  const now = new Date().toISOString();
+  const id = String(raw?.id || newId()).trim() || newId();
+  const accountTypeRaw = String(raw?.accountType || '').trim().toLowerCase();
+  const accountType = FINANCE_ACCOUNT_TYPES.includes(accountTypeRaw) ? accountTypeRaw : 'other_asset';
+  const openingBalanceCents = parseMoneyCents(raw?.openingBalanceCents ?? raw?.openingBalance ?? 0);
+  const currentSystemBalanceCents = parseMoneyCents(raw?.currentSystemBalanceCents ?? raw?.currentSystemBalance ?? openingBalanceCents);
+  const lastReconciledBalanceCents = parseMoneyCents(raw?.lastReconciledBalanceCents ?? raw?.lastReconciledBalance ?? 0);
+  return {
+    id,
+    name: String(raw?.name || '').trim().slice(0, 120),
+    accountType,
+    last4: String(raw?.last4 || '').replace(/[^0-9]/g, '').slice(-4),
+    openingBalanceCents: Number.isFinite(openingBalanceCents) ? openingBalanceCents : 0,
+    active: raw?.active !== false,
+    reconciliationEnabled: raw?.reconciliationEnabled !== false,
+    currentSystemBalanceCents: Number.isFinite(currentSystemBalanceCents) ? currentSystemBalanceCents : 0,
+    lastReconciledDate: normalizeDateOnly(raw?.lastReconciledDate),
+    lastReconciledBalanceCents: Number.isFinite(lastReconciledBalanceCents) ? lastReconciledBalanceCents : 0,
+    createdAt: normalizeIsoTimestamp(raw?.createdAt, now),
+    updatedAt: now
+  };
+}
+
+function loadFinanceAccountsData() {
+  const data = readJson(FINANCE_ACCOUNTS_DATA_PATH, { accounts: defaultFinanceAccounts() });
+  const accounts = Array.isArray(data?.accounts) ? data.accounts.map((a) => normalizeFinanceAccountRecord(a)).filter((a) => a.name) : [];
+  if (!accounts.length) return { accounts: defaultFinanceAccounts() };
+  return { accounts };
+}
+
+function saveFinanceAccountsData(data) {
+  const accounts = Array.isArray(data?.accounts) ? data.accounts.map((a) => normalizeFinanceAccountRecord(a)).filter((a) => a.name) : [];
+  writeJsonAtomic(FINANCE_ACCOUNTS_DATA_PATH, { accounts: accounts.length ? accounts : defaultFinanceAccounts() });
+}
+
+function normalizeFinanceEntryRecord(raw, { nowIso = new Date().toISOString() } = {}) {
+  const date = normalizeDateOnly(raw?.date || raw?.entryDate || raw?.entry_date);
+  const typeRaw = String(raw?.type || '').trim().toLowerCase();
+  const type = typeRaw === 'expense' ? 'expense' : 'income';
+  const amountCentsParsed = parseMoneyCents(raw?.amountCents ?? raw?.amount_cents ?? raw?.amount);
+  const amountCents = Number.isFinite(amountCentsParsed) ? Math.abs(amountCentsParsed) : 0;
+  const createdAt = normalizeIsoTimestamp(raw?.createdAt || raw?.created_at, nowIso);
+  const updatedAt = normalizeIsoTimestamp(raw?.updatedAt || raw?.updated_at, createdAt);
+  const source = normalizeFinanceSource(raw?.source);
+  const sourceLabel = FINANCE_SOURCE_MAP[source] || 'Manual';
+  const baseStatus = type === 'income' ? 'posted' : 'paid';
+  return {
+    id: String(raw?.id || newId()).trim() || newId(),
+    date,
+    type,
+    source,
+    sourceLabel,
+    amountCents,
+    category: normalizeFinanceText(raw?.category, 80),
+    fund: normalizeFinanceText(raw?.fund, 80),
+    fundId: String(raw?.fundId || '').trim(),
+    accountId: String(raw?.accountId || '').trim(),
+    accountName: normalizeFinanceText(raw?.accountName, 120),
+    donorId: String(raw?.donorId || '').trim(),
+    donorName: normalizeFinanceText(raw?.donorName, 140),
+    vendorId: String(raw?.vendorId || '').trim(),
+    vendorName: normalizeFinanceText(raw?.vendorName, 140),
+    party: normalizeFinanceText(raw?.party, 120),
+    method: normalizeFinanceText(raw?.method, 24).toLowerCase(),
+    checkNumber: normalizeFinanceText(raw?.checkNumber, 40),
+    depositBatchId: String(raw?.depositBatchId || '').trim(),
+    stripeSourceId: String(raw?.stripeSourceId || '').trim(),
+    description: normalizeFinanceText(raw?.description, 180),
+    memo: normalizeFinanceText(raw?.memo, 200),
+    note: normalizeFinanceText(raw?.note, 1000),
+    attachmentCount: Math.max(0, Number(raw?.attachmentCount || 0) || 0),
+    status: normalizeFinanceStatus(raw?.status, baseStatus),
+    reconciliationStatus: normalizeFinanceStatus(raw?.reconciliationStatus, 'unreconciled'),
+    statementReviewStatus: String(raw?.statementReviewStatus || 'needs_review').trim().toLowerCase(),
+    goodsServicesValueCents: Math.max(0, parseMoneyCents(raw?.goodsServicesValueCents ?? raw?.goodsServicesValue ?? 0) || 0),
+    createdBy: String(raw?.createdBy || raw?.created_by || '').trim().slice(0, 120),
+    createdAt,
+    lastEditedBy: String(raw?.lastEditedBy || raw?.updatedBy || raw?.updated_by || '').trim().slice(0, 120),
+    updatedAt,
+    voidedBy: String(raw?.voidedBy || '').trim().slice(0, 120),
+    voidedAt: normalizeIsoTimestamp(raw?.voidedAt, ''),
+    voidReason: normalizeFinanceText(raw?.voidReason, 500),
+    reversalTransactionId: String(raw?.reversalTransactionId || '').trim(),
+    auditVersion: Math.max(1, Number(raw?.auditVersion || 1) || 1)
+  };
+}
+
+function loadFinanceAuditLog() {
+  const data = readJson(FINANCE_AUDIT_DATA_PATH, { events: [] });
+  return Array.isArray(data?.events) ? data.events : [];
+}
+
+function saveFinanceAuditLog(events) {
+  writeJsonAtomic(FINANCE_AUDIT_DATA_PATH, { events: Array.isArray(events) ? events : [] });
+}
+
+function appendFinanceAuditEvent(event) {
+  const events = loadFinanceAuditLog();
+  const payload = {
+    eventId: String(event?.eventId || newId()),
+    entityType: String(event?.entityType || '').trim() || 'finance_entry',
+    entityId: String(event?.entityId || '').trim(),
+    userId: String(event?.userId || '').trim(),
+    userEmail: String(event?.userEmail || '').trim(),
+    occurredAt: normalizeIsoTimestamp(event?.occurredAt, new Date().toISOString()),
+    action: String(event?.action || '').trim() || 'updated',
+    previousValues: event?.previousValues && typeof event.previousValues === 'object' ? event.previousValues : {},
+    newValues: event?.newValues && typeof event.newValues === 'object' ? event.newValues : {},
+    reason: normalizeFinanceText(event?.reason, 500),
+    source: String(event?.source || 'manual').trim().toLowerCase(),
+    requestId: String(event?.requestId || '').trim(),
+    ip: String(event?.ip || '').trim()
+  };
+  events.push(payload);
+  // Keep the most recent events while remaining append-only in behavior.
+  const capped = events.length > 20000 ? events.slice(events.length - 20000) : events;
+  saveFinanceAuditLog(capped);
+}
+
+function ensureFinanceIntegrityStorage() {
+  if (!fs.existsSync(FINANCE_ACCOUNTS_DATA_PATH)) {
+    saveFinanceAccountsData({ accounts: defaultFinanceAccounts() });
+  }
+  if (!fs.existsSync(FINANCE_AUDIT_DATA_PATH)) {
+    saveFinanceAuditLog([]);
+  }
+}
+
+function migrateLegacyFinanceEntries() {
+  const data = readJson(FINANCES_DATA_PATH, { entries: [], meta: { categories: [], funds: [] } });
+  const rawEntries = Array.isArray(data?.entries) ? data.entries : [];
+  if (!rawEntries.length) return { changed: false, normalized: 0 };
+
+  let changed = false;
+  const nowIso = new Date().toISOString();
+  const normalized = rawEntries
+    .map((entry) => {
+      const before = JSON.stringify(entry || {});
+      const next = normalizeFinanceEntryRecord(entry, { nowIso });
+      if (next.reconciliationStatus === 'posted' || next.reconciliationStatus === 'paid') {
+        next.reconciliationStatus = 'unreconciled';
+      }
+      if (!next.source) next.source = 'manual';
+      if (!next.sourceLabel) next.sourceLabel = FINANCE_SOURCE_MAP[next.source] || 'Manual';
+      if (JSON.stringify(next) !== before) changed = true;
+      return next;
+    })
+    .filter((entry) => entry.date && Number.isFinite(entry.amountCents) && entry.amountCents > 0);
+
+  if (!changed) return { changed: false, normalized: normalized.length };
+  saveFinances({ entries: normalized, meta: data?.meta || { categories: [], funds: [] } });
+  return { changed: true, normalized: normalized.length };
+}
+
+function loadFinances() {
+  const stored = readJson(FINANCES_DATA_PATH, { entries: [], meta: { categories: [], funds: [] } });
+  const nowIso = new Date().toISOString();
+  const entries = Array.isArray(stored.entries)
+    ? stored.entries.map((entry) => normalizeFinanceEntryRecord(entry, { nowIso })).filter((entry) => entry.date && Number.isFinite(entry.amountCents) && entry.amountCents > 0)
+    : [];
+  const metaRaw = stored.meta && typeof stored.meta === 'object' ? stored.meta : {};
+  const meta = {
+    categories: uniqNonEmptyStrings(metaRaw.categories || []),
+    funds: uniqNonEmptyStrings(metaRaw.funds || [])
+  };
+  return { entries, meta };
+}
+
+function saveFinances(data) {
+  const nowIso = new Date().toISOString();
+  const entries = Array.isArray(data?.entries)
+    ? data.entries.map((entry) => normalizeFinanceEntryRecord(entry, { nowIso })).filter((entry) => entry.date && Number.isFinite(entry.amountCents) && entry.amountCents > 0)
+    : [];
+  const metaRaw = data?.meta && typeof data.meta === 'object' ? data.meta : {};
+  const meta = {
+    categories: uniqNonEmptyStrings(metaRaw.categories || []),
+    funds: uniqNonEmptyStrings(metaRaw.funds || [])
+  };
+  writeJsonAtomic(FINANCES_DATA_PATH, { entries, meta });
+}
+
+function sortFinanceEntries(entries) {
+  (entries || []).sort((a, b) => {
+    const ad = String(a?.date || '');
+    const bd = String(b?.date || '');
+    if (bd !== ad) return bd.localeCompare(ad);
+    const at = String(a?.createdAt || '');
+    const bt = String(b?.createdAt || '');
+    return bt.localeCompare(at);
+  });
+}
+
+const DEFAULT_FUND_TYPES = Object.freeze([
+  'General Operating',
+  'Savings',
+  'Emergency Reserve',
+  'Building',
+  'Missions',
+  'Benevolence',
+  'Youth Ministry',
+  'Scholarship',
+  'Memorial',
+  'Capital Project',
+  'Board Designated',
+  'Donor Restricted',
+  'Other'
+]);
+
+function ensureBackupsDir() {
+  ensureDir(BACKUP_DIR);
+}
+
+function writeBackupFile(baseName, payload) {
+  ensureBackupsDir();
+  const safeName = sanitizeSegment(baseName).replace(/[^a-z0-9_-]/gi, '_') || 'backup';
+  const stamp = new Date().toISOString().replace(/[.:]/g, '-');
+  const fileName = `${safeName}_${stamp}.json`;
+  const abs = path.join(BACKUP_DIR, fileName);
+  writeJsonAtomic(abs, payload);
+  return abs;
+}
+
+function parseMoneyCents(value) {
+  if (Number.isFinite(value)) return Math.round(Number(value));
+  return normalizeMoneyToCents(value);
+}
+
+function normalizeFundType(value) {
+  const v = String(value || '').trim();
+  if (!v) return 'Other';
+  const match = DEFAULT_FUND_TYPES.find((t) => t.toLowerCase() === v.toLowerCase());
+  return match || v.slice(0, 80);
+}
+
+function normalizeRestrictionStatus(value) {
+  const v = String(value || '').trim().toLowerCase();
+  if (v === 'unrestricted') return 'unrestricted';
+  if (v === 'board_designated') return 'board_designated';
+  if (v === 'temporarily_restricted') return 'temporarily_restricted';
+  if (v === 'permanently_restricted') return 'permanently_restricted';
+  if (v === 'needs_treasurer_review') return 'needs_treasurer_review';
+  return 'needs_treasurer_review';
+}
+
+function normalizeFundRecord(raw, actor) {
+  const now = new Date().toISOString();
+  const openingBalanceCents = parseMoneyCents(raw?.openingBalanceCents ?? raw?.openingBalance);
+  const minimumBalanceWarningCents = parseMoneyCents(raw?.minimumBalanceWarningCents ?? raw?.minimumBalanceWarning);
+  const budgetAmountCents = parseMoneyCents(raw?.budgetAmountCents ?? raw?.budgetAmount);
+  const active = raw?.active !== false;
+
+  return {
+    id: String(raw?.id || newId()).trim() || newId(),
+    fundName: String(raw?.fundName || raw?.name || '').trim().slice(0, 120),
+    fundCode: String(raw?.fundCode || '').trim().slice(0, 30),
+    description: String(raw?.description || '').trim().slice(0, 500),
+    fundType: normalizeFundType(raw?.fundType),
+    restrictionStatus: normalizeRestrictionStatus(raw?.restrictionStatus),
+    restrictionType: String(raw?.restrictionType || 'none').trim().toLowerCase().slice(0, 60),
+    restrictionPurpose: String(raw?.restrictionPurpose || '').trim().slice(0, 300),
+    restrictionSource: String(raw?.restrictionSource || '').trim().slice(0, 160),
+    effectiveDate: normalizeDateOnly(raw?.effectiveDate),
+    endDate: normalizeDateOnly(raw?.endDate),
+    openingBalanceCents: Number.isFinite(openingBalanceCents) ? openingBalanceCents : 0,
+    minimumBalanceWarningCents: Number.isFinite(minimumBalanceWarningCents) ? Math.max(0, minimumBalanceWarningCents) : 0,
+    budgetAmountCents: Number.isFinite(budgetAmountCents) ? Math.max(0, budgetAmountCents) : 0,
+    associatedBudget: String(raw?.associatedBudget || '').trim().slice(0, 120),
+    responsibleMinistry: String(raw?.responsibleMinistry || '').trim().slice(0, 120),
+    responsibleAdministrator: String(raw?.responsibleAdministrator || '').trim().slice(0, 120),
+    defaultIncomeCategory: String(raw?.defaultIncomeCategory || '').trim().slice(0, 80),
+    defaultExpenseCategory: String(raw?.defaultExpenseCategory || '').trim().slice(0, 80),
+    publicGivingAvailable: raw?.publicGivingAvailable === true,
+    displayOrder: Number.isFinite(Number(raw?.displayOrder)) ? Number(raw.displayOrder) : 999,
+    active,
+    archivedAt: active ? '' : String(raw?.archivedAt || now),
+    notes: String(raw?.notes || '').trim().slice(0, 3000),
+    attachments: Array.isArray(raw?.attachments) ? raw.attachments.slice(0, 50) : [],
+    bankAccounts: Array.isArray(raw?.bankAccounts) ? uniqNonEmptyStrings(raw.bankAccounts).slice(0, 20) : [],
+    createdAt: String(raw?.createdAt || now),
+    createdBy: String(raw?.createdBy || actor?.id || '').slice(0, 120),
+    updatedAt: now,
+    updatedBy: String(actor?.id || raw?.updatedBy || '').slice(0, 120)
+  };
+}
+
+function loadFundsData() {
+  const data = readJson(FUNDS_DATA_PATH, {
+    funds: [],
+    customFundTypes: [],
+    transfers: [],
+    releases: [],
+    audit: []
+  });
+  return {
+    funds: Array.isArray(data?.funds) ? data.funds : [],
+    customFundTypes: uniqNonEmptyStrings(data?.customFundTypes || []),
+    transfers: Array.isArray(data?.transfers) ? data.transfers : [],
+    releases: Array.isArray(data?.releases) ? data.releases : [],
+    audit: Array.isArray(data?.audit) ? data.audit : []
+  };
+}
+
+function saveFundsData(data) {
+  writeJsonAtomic(FUNDS_DATA_PATH, {
+    funds: Array.isArray(data?.funds) ? data.funds : [],
+    customFundTypes: uniqNonEmptyStrings(data?.customFundTypes || []),
+    transfers: Array.isArray(data?.transfers) ? data.transfers : [],
+    releases: Array.isArray(data?.releases) ? data.releases : [],
+    audit: Array.isArray(data?.audit) ? data.audit : []
+  });
+}
+
+function findFundByAnyKey(funds, key) {
+  const k = String(key || '').trim().toLowerCase();
+  if (!k) return null;
+  return (funds || []).find((f) => {
+    const id = String(f?.id || '').toLowerCase();
+    const name = String(f?.fundName || '').toLowerCase();
+    const code = String(f?.fundCode || '').toLowerCase();
+    return k === id || k === name || k === code;
+  }) || null;
+}
+
+function getApprovedTransfers(transfers) {
+  return (transfers || []).filter((t) => String(t?.status || '') === 'approved');
+}
+
+function getFundBalances() {
+  const finance = loadFinances();
+  const fundsData = loadFundsData();
+  const funds = fundsData.funds || [];
+
+  const byFund = new Map();
+  for (const f of funds) {
+    byFund.set(String(f.id), {
+      fundId: String(f.id),
+      currentBalanceCents: Number(f.openingBalanceCents || 0),
+      availableBalanceCents: Number(f.openingBalanceCents || 0),
+      pendingDepositsCents: 0,
+      pendingExpensesCents: 0,
+      ytdIncomeCents: 0,
+      ytdExpenseCents: 0,
+      lastActivityDate: '',
+      assignedCount: 0
+    });
+  }
+
+  const thisYear = new Date().getUTCFullYear();
+  const entries = Array.isArray(finance.entries) ? finance.entries : [];
+  for (const e of entries) {
+    const fund = findFundByAnyKey(funds, e.fundId || e.fund);
+    if (!fund) continue;
+    const id = String(fund.id);
+    const row = byFund.get(id);
+    if (!row) continue;
+
+    const amount = Math.abs(Number(e.amountCents || 0));
+    if (!amount) continue;
+    const type = String(e.type || '').toLowerCase();
+    const status = String(e.status || 'posted').toLowerCase();
+    if (status === 'voided' || status === 'reversed') continue;
+    const entryDate = normalizeDateOnly(e.date);
+
+    row.assignedCount += 1;
+    if (!row.lastActivityDate || entryDate > row.lastActivityDate) row.lastActivityDate = entryDate;
+
+    if (type === 'income') {
+      if (status === 'pending') row.pendingDepositsCents += amount;
+      else row.currentBalanceCents += amount;
+      if (entryDate.startsWith(`${thisYear}-`)) row.ytdIncomeCents += amount;
+    } else if (type === 'expense') {
+      if (status === 'pending') row.pendingExpensesCents += amount;
+      else row.currentBalanceCents -= amount;
+      if (entryDate.startsWith(`${thisYear}-`)) row.ytdExpenseCents += amount;
+    }
+  }
+
+  for (const t of getApprovedTransfers(fundsData.transfers)) {
+    const amount = Math.abs(Number(t?.amountCents || 0));
+    if (!amount) continue;
+    const from = byFund.get(String(t?.fromFundId || ''));
+    const to = byFund.get(String(t?.toFundId || ''));
+    if (from) {
+      from.currentBalanceCents -= amount;
+      if (!from.lastActivityDate || String(t.approvedAt || '') > from.lastActivityDate) {
+        from.lastActivityDate = normalizeDateOnly(t.approvedAt);
+      }
+    }
+    if (to) {
+      to.currentBalanceCents += amount;
+      if (!to.lastActivityDate || String(t.approvedAt || '') > to.lastActivityDate) {
+        to.lastActivityDate = normalizeDateOnly(t.approvedAt);
+      }
+    }
+  }
+
+  for (const f of funds) {
+    const row = byFund.get(String(f.id));
+    if (!row) continue;
+    row.availableBalanceCents = row.currentBalanceCents - row.pendingExpensesCents;
+    if (['temporarily_restricted', 'permanently_restricted'].includes(String(f.restrictionStatus))) {
+      row.availableBalanceCents = Math.max(0, row.availableBalanceCents);
+    }
+  }
+
+  return { fundsData, balances: byFund };
+}
+
+function normalizeDonor(raw, actor) {
+  const now = new Date().toISOString();
+  return {
+    id: String(raw?.id || newId()).trim() || newId(),
+    firstName: String(raw?.firstName || '').trim().slice(0, 80),
+    middleName: String(raw?.middleName || '').trim().slice(0, 80),
+    lastName: String(raw?.lastName || '').trim().slice(0, 80),
+    preferredName: String(raw?.preferredName || '').trim().slice(0, 80),
+    householdId: String(raw?.householdId || '').trim().slice(0, 80),
+    spouseDonorId: String(raw?.spouseDonorId || '').trim().slice(0, 80),
+    mailingAddress: String(raw?.mailingAddress || '').trim().slice(0, 300),
+    email: String(raw?.email || '').trim().toLowerCase().slice(0, 254),
+    phone: String(raw?.phone || '').trim().slice(0, 30),
+    envelopeNumber: String(raw?.envelopeNumber || '').trim().slice(0, 30),
+    preferredStatementDelivery: String(raw?.preferredStatementDelivery || 'mail').trim().toLowerCase().slice(0, 30),
+    active: raw?.active !== false,
+    anonymousGiving: raw?.anonymousGiving === true,
+    statementEligible: raw?.statementEligible !== false,
+    taxReviewStatus: String(raw?.taxReviewStatus || 'needs_review').trim().toLowerCase().slice(0, 40),
+    restrictedNotes: String(raw?.restrictedNotes || '').trim().slice(0, 4000),
+    documents: Array.isArray(raw?.documents) ? raw.documents.slice(0, 50) : [],
+    createdAt: String(raw?.createdAt || now),
+    updatedAt: now,
+    createdBy: String(raw?.createdBy || actor?.id || '').slice(0, 120),
+    updatedBy: String(actor?.id || raw?.updatedBy || '').slice(0, 120)
+  };
+}
+
+function loadDonorsData() {
+  const data = readJson(DONORS_DATA_PATH, { donors: [], households: [], merges: [] });
+  return {
+    donors: Array.isArray(data?.donors) ? data.donors : [],
+    households: Array.isArray(data?.households) ? data.households : [],
+    merges: Array.isArray(data?.merges) ? data.merges : []
+  };
+}
+
+function saveDonorsData(data) {
+  writeJsonAtomic(DONORS_DATA_PATH, {
+    donors: Array.isArray(data?.donors) ? data.donors : [],
+    households: Array.isArray(data?.households) ? data.households : [],
+    merges: Array.isArray(data?.merges) ? data.merges : []
+  });
+}
+
+function donorDisplayName(d) {
+  const first = String(d?.preferredName || d?.firstName || '').trim();
+  const last = String(d?.lastName || '').trim();
+  return `${first} ${last}`.trim();
+}
+
+function findDonorByAnyKey(donors, donorRef) {
+  const key = String(donorRef || '').trim();
+  if (!key) return null;
+  const down = key.toLowerCase();
+  return (donors || []).find((d) => {
+    const id = String(d?.id || '').trim();
+    const envelope = String(d?.envelopeNumber || '').trim();
+    const name = donorDisplayName(d).toLowerCase();
+    return id === key
+      || (envelope && envelope.toLowerCase() === down)
+      || (name && name === down);
+  }) || null;
+}
+
+function resolveEntryDonor(donors, donorRef, type, strict = false) {
+  const donor = findDonorByAnyKey(donors, donorRef);
+  if (!donorRef) return { donorId: '', donorName: '' };
+  if (!donor) {
+    if (strict || String(type || '').toLowerCase() === 'income') {
+      return { error: 'The selected donor could not be found. Choose a valid donor profile.' };
+    }
+    return { donorId: String(donorRef).trim(), donorName: '' };
+  }
+  return {
+    donorId: String(donor.id),
+    donorName: donorDisplayName(donor)
+  };
+}
+
+function syncEntryDonorSnapshots(entries, donors) {
+  let changed = false;
+  for (const entry of (entries || [])) {
+    const donorId = String(entry?.donorId || '').trim();
+    if (!donorId) {
+      if (entry?.donorName) {
+        entry.donorName = '';
+        changed = true;
+      }
+      continue;
+    }
+    const donor = findDonorByAnyKey(donors, donorId);
+    if (!donor) continue;
+    const nextName = donorDisplayName(donor);
+    if (String(entry?.donorId || '') !== String(donor.id)) {
+      entry.donorId = String(donor.id);
+      changed = true;
+    }
+    if (String(entry?.donorName || '') !== nextName) {
+      entry.donorName = nextName;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function syncStatementDonorSnapshots(statements, donors) {
+  let changed = false;
+  for (const stmt of (statements || [])) {
+    const donor = findDonorByAnyKey(donors, stmt?.donorId || '');
+    if (!donor) continue;
+    const nextName = donorDisplayName(donor);
+    const nextAddress = String(donor?.mailingAddress || '');
+    if (String(stmt?.donorId || '') !== String(donor.id)) {
+      stmt.donorId = String(donor.id);
+      changed = true;
+    }
+    if (String(stmt?.donorName || '') !== nextName) {
+      stmt.donorName = nextName;
+      changed = true;
+    }
+    if (String(stmt?.donorMailingAddress || '') !== nextAddress) {
+      stmt.donorMailingAddress = nextAddress;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function findPossibleDonorDuplicates(donors, candidate) {
+  const nameKey = donorDisplayName(candidate).toLowerCase();
+  const email = String(candidate?.email || '').toLowerCase();
+  const phone = String(candidate?.phone || '').replace(/\D/g, '');
+  const envelope = String(candidate?.envelopeNumber || '').toLowerCase();
+  const address = String(candidate?.mailingAddress || '').toLowerCase();
+  const householdId = String(candidate?.householdId || '').toLowerCase();
+
+  return (donors || []).filter((d) => {
+    if (candidate?.id && String(d.id) === String(candidate.id)) return false;
+    const dName = donorDisplayName(d).toLowerCase();
+    const dEmail = String(d?.email || '').toLowerCase();
+    const dPhone = String(d?.phone || '').replace(/\D/g, '');
+    const dEnvelope = String(d?.envelopeNumber || '').toLowerCase();
+    const dAddress = String(d?.mailingAddress || '').toLowerCase();
+    const dHousehold = String(d?.householdId || '').toLowerCase();
+    return (
+      (nameKey && dName && dName === nameKey)
+      || (email && dEmail && dEmail === email)
+      || (phone && dPhone && dPhone === phone)
+      || (envelope && dEnvelope && dEnvelope === envelope)
+      || (address && dAddress && dAddress === address)
+      || (householdId && dHousehold && dHousehold === householdId)
+    );
+  }).slice(0, 20);
+}
+
+function loadStatementsData() {
+  const data = readJson(STATEMENTS_DATA_PATH, {
+    templates: {
+      acknowledgmentLanguage: 'Thank you for your faithful giving and support.',
+      intangibleReligiousBenefitLanguage: 'No goods or services were provided in exchange for these contributions other than intangible religious benefits.'
+    },
+    statements: [],
+    deliveries: []
+  });
+  return {
+    templates: data?.templates && typeof data.templates === 'object' ? data.templates : {},
+    statements: Array.isArray(data?.statements) ? data.statements : [],
+    deliveries: Array.isArray(data?.deliveries) ? data.deliveries : []
+  };
+}
+
+function saveStatementsData(data) {
+  writeJsonAtomic(STATEMENTS_DATA_PATH, {
+    templates: data?.templates && typeof data.templates === 'object' ? data.templates : {},
+    statements: Array.isArray(data?.statements) ? data.statements : [],
+    deliveries: Array.isArray(data?.deliveries) ? data.deliveries : []
+  });
+}
+
+function loadControlsData() {
+  const data = readJson(CONTROLS_DATA_PATH, {
+    twoPersonVerificationEnabled: true,
+    collections: [],
+    exceptions: []
+  });
+  return {
+    twoPersonVerificationEnabled: data?.twoPersonVerificationEnabled !== false,
+    collections: Array.isArray(data?.collections) ? data.collections : [],
+    exceptions: Array.isArray(data?.exceptions) ? data.exceptions : []
+  };
+}
+
+function saveControlsData(data) {
+  writeJsonAtomic(CONTROLS_DATA_PATH, {
+    twoPersonVerificationEnabled: data?.twoPersonVerificationEnabled !== false,
+    collections: Array.isArray(data?.collections) ? data.collections : [],
+    exceptions: Array.isArray(data?.exceptions) ? data.exceptions : []
+  });
+}
+
+function loadHousingData() {
+  const data = readJson(HOUSING_DATA_PATH, { profiles: [], annualRecords: [] });
+  return {
+    profiles: Array.isArray(data?.profiles) ? data.profiles : [],
+    annualRecords: Array.isArray(data?.annualRecords) ? data.annualRecords : []
+  };
+}
+
+function saveHousingData(data) {
+  writeJsonAtomic(HOUSING_DATA_PATH, {
+    profiles: Array.isArray(data?.profiles) ? data.profiles : [],
+    annualRecords: Array.isArray(data?.annualRecords) ? data.annualRecords : []
+  });
+}
+
+function normalizeFinanceStatementPeriod(rawFrom, rawTo) {
+  const from = normalizeDateOnly(rawFrom);
+  const to = normalizeDateOnly(rawTo);
+  if (!from || !to || from > to) return null;
+  return { from, to };
+}
+
+function migrateLegacyFundsAndAssignments() {
+  const finance = loadFinances();
+  const fundsData = loadFundsData();
+  const entries = Array.isArray(finance.entries) ? finance.entries : [];
+  let changed = false;
+
+  if (!fundsData.funds.length) {
+    const names = uniqNonEmptyStrings([
+      ...(finance.meta?.funds || []),
+      ...entries.map((e) => String(e?.fund || '').trim())
+    ]);
+    const now = new Date().toISOString();
+    for (const name of names) {
+      fundsData.funds.push(normalizeFundRecord({
+        id: newId(),
+        fundName: name,
+        fundCode: name.replace(/\s+/g, '_').toUpperCase().slice(0, 20),
+        description: 'Migrated from existing finance records. Needs Treasurer Review.',
+        fundType: 'Other',
+        restrictionStatus: 'needs_treasurer_review',
+        restrictionType: 'none',
+        openingBalanceCents: 0,
+        active: true,
+        createdAt: now,
+        updatedAt: now
+      }, { id: 'migration' }));
+    }
+    changed = names.length > 0;
+  }
+
+  for (const entry of entries) {
+    if (entry.fundId) continue;
+    const found = findFundByAnyKey(fundsData.funds, entry.fund);
+    if (!found) continue;
+    entry.fundId = String(found.id);
+    changed = true;
+  }
+
+  if (!changed) return { changed: false, report: null };
+
+  const beforeBackup = writeBackupFile('finances_before_fund_migration', finance);
+  saveFinances(finance);
+  saveFundsData(fundsData);
+
+  const report = {
+    migratedAt: new Date().toISOString(),
+    beforeBackup,
+    fundsCreated: fundsData.funds.length,
+    entriesUpdated: entries.filter((e) => !!e.fundId).length,
+    notes: [
+      'Restriction classifications with unclear legacy values were marked as Needs Treasurer Review.',
+      'Original fund names were preserved while adding stable fund IDs.'
+    ]
+  };
+  writeJsonAtomic(FINANCE_MIGRATION_REPORT_PATH, report);
+  return { changed: true, report };
+}
+
+function loadUsers() {
+  const data = readJson(USERS_PATH, { users: [] });
+  const users = Array.isArray(data.users) ? data.users : [];
+  // Decrypt at rest (optional) for sensitive secrets.
+  for (const u of users) {
+    if (!u || typeof u !== 'object') continue;
+    u.role = normalizeRole(u.role);
+    if (u.twoFactorSecret) u.twoFactorSecret = maybeDecrypt(u.twoFactorSecret);
+    if (u.twoFactorPendingSecret) u.twoFactorPendingSecret = maybeDecrypt(u.twoFactorPendingSecret);
+  }
+  return { users };
+}
+function saveUsers(data) {
+  const users = Array.isArray(data?.users) ? data.users : [];
+  const out = users.map((u) => {
+    if (!u || typeof u !== 'object') return u;
+    const copy = { ...u };
+    if (copy.twoFactorSecret) copy.twoFactorSecret = maybeEncrypt(copy.twoFactorSecret);
+    if (copy.twoFactorPendingSecret) copy.twoFactorPendingSecret = maybeEncrypt(copy.twoFactorPendingSecret);
+    return copy;
+  });
+  writeJsonAtomic(USERS_PATH, { users: out });
+}
+
+function passwordPolicyError(password) {
+  const p = String(password || '');
+  if (p.length < 8) return 'Password must be at least 8 characters.';
+  if (!/[A-Z]/.test(p)) return 'Password must include at least 1 capital letter.';
+  if (!/[^A-Za-z0-9]/.test(p)) return 'Password must include at least 1 special character.';
+  return '';
+}
+
+function requireStrongPassword(password) {
+  const err = passwordPolicyError(password);
+  if (err) {
+    const e = new Error(err);
+    e.statusCode = 400;
+    throw e;
+  }
+}
+
+async function ensureMasterAdmin() {
+  const email = mustGetEnv('ADMIN_EMAIL').toLowerCase();
+  const password = mustGetEnv('ADMIN_PASSWORD');
+
+  const policyErr = passwordPolicyError(password);
+  if (policyErr) {
+    console.warn(`[MMMBC Admin] WARNING: ADMIN_PASSWORD does not meet policy: ${policyErr}`);
+  }
+
+  const usersData = loadUsers();
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+
+  let user = users.find((u) => String(u.email).toLowerCase() === email);
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  if (!user) {
+    user = {
+      id: newId(),
+      email,
+      passwordHash,
+      role: ROLE.ADMINISTRATOR,
+      createdAt: new Date().toISOString(),
+      isMaster: true,
+      name: 'Master Admin',
+      mustOnboard: false,
+      onboardedAt: new Date().toISOString(),
+      twoFactorEnabled: false,
+      twoFactorSecret: ''
+    };
+    users.push(user);
+  } else {
+    // Keep env vars as source of truth for master password.
+    user.passwordHash = passwordHash;
+    user.role = ROLE.ADMINISTRATOR;
+    user.isMaster = true;
+    if (!user.name) user.name = 'Master Admin';
+    if (typeof user.mustOnboard !== 'boolean') user.mustOnboard = false;
+    if (typeof user.twoFactorEnabled !== 'boolean') user.twoFactorEnabled = false;
+    if (!user.twoFactorSecret) user.twoFactorSecret = '';
+  }
+
+  saveUsers({ users });
+}
+
+// ----------------- AUTH -----------------
+app.get('/api/me', (req, res) => {
+  const sessionUser = req.session?.user;
+  if (!sessionUser?.id) return res.json({ user: null });
+
+  const usersData = loadUsers();
+  const user = (usersData.users || []).find((u) => u.id === sessionUser.id);
+  if (!user) return res.json({ user: null });
+
+  // Keep session in sync with stored user.
+  req.session.user = {
+    id: user.id,
+    email: user.email,
+      role: normalizeRole(user.role),
+    name: user.name || '',
+    isMaster: !!user.isMaster,
+    mustOnboard: !!user.mustOnboard,
+    twoFactorEnabled: !!user.twoFactorEnabled
+  };
+  const developer = userHasDeveloperCapability(req.session.user);
+  res.json({
+    user: {
+      ...req.session.user,
+      developer
+    },
+    permissions: permissionsForRole(req.session.user.role),
+    capabilities: {
+      developer,
+      diagnostics: {
+        view: developer
+      }
+    }
+  });
+});
+
+function dashboardEventTimeMs(eventItem) {
+  const date = String(eventItem?.date || '').trim();
+  const time = String(eventItem?.time || '').trim() || '00:00';
+  const ms = Date.parse(`${date}T${time}`);
+  return Number.isFinite(ms) ? ms : Number.NaN;
+}
+
+function dashboardAnnouncementIsActiveNow(post, nowMs) {
+  const startsMs = post?.startsAt ? Date.parse(post.startsAt) : Number.NaN;
+  const expiresMs = post?.expiresAt ? Date.parse(post.expiresAt) : Number.NaN;
+  if (Number.isFinite(startsMs) && startsMs > nowMs) return false;
+  if (Number.isFinite(expiresMs) && expiresMs <= nowMs) return false;
+  return true;
+}
+
+function dashboardRecentActivity(limit = 10) {
+  const safeLimit = Number.isFinite(Number(limit)) ? Math.max(1, Math.min(25, Number(limit))) : 10;
+  try {
+    const files = fs.readdirSync(LOG_DIR)
+      .filter((name) => /^app-\d{4}-\d{2}-\d{2}\.log$/i.test(String(name || '')))
+      .map((name) => ({
+        name,
+        path: path.join(LOG_DIR, name),
+        mtimeMs: fs.statSync(path.join(LOG_DIR, name)).mtimeMs
+      }))
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+    if (!files.length) return [];
+
+    const recentLines = tailFile(files[0].path, 500)
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .slice(-300)
+      .reverse();
+
+    const out = [];
+    for (const line of recentLines) {
+      if (out.length >= safeLimit) break;
+      let row;
+      try {
+        row = JSON.parse(line);
+      } catch {
+        continue;
+      }
+
+      const at = String(row?.timestamp || row?.at || '').trim();
+      const pathValue = String(row?.path || row?.message || '').trim();
+      if (!at && !pathValue) continue;
+
+      if (String(row?.message || '') === 'request') {
+        out.push({
+          title: `${String(row?.method || 'GET')} ${pathValue}`,
+          detail: `${String(row?.status || '')} â€¢ ${at || 'Unknown time'}`
+        });
+        continue;
+      }
+
+      out.push({
+        title: String(row?.message || 'System event'),
+        detail: at || 'Unknown time'
+      });
+    }
+
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+app.get('/api/dashboard/overview', requireAuth, async (req, res) => {
+  const user = sessionUser(req);
+  if (!user) {
+    return sendApiError(res, 401, 'Session expired. Sign in again.', {
+      code: 'SESSION_EXPIRED',
+      requestId: req.requestId
+    });
+  }
+
+  const role = normalizeRole(user.role);
+  const permissions = permissionsForRole(role);
+  const canManageComms = hasPermission(role, PERMISSIONS.COMMUNICATIONS_MANAGE);
+  const canViewWebsite = hasPermission(role, PERMISSIONS.WEBSITE_WRITE);
+  const canViewFinance = hasPermission(role, PERMISSIONS.FINANCE_READ);
+
+  const status = {
+    announcements: { ok: false },
+    events: { ok: false },
+    newsletter: { ok: false },
+    subscribers: { ok: false },
+    gallery: { ok: false },
+    finances: { ok: false }
+  };
+
+  const nowMs = Date.now();
+  let events = [];
+  let announcements = [];
+  let newsletter = { drafts: [], scheduled: [], history: [] };
+  let subscribers = [];
+  let galleryItems = [];
+  let financesData = { entries: [] };
+
+  if (canManageComms) {
+    try {
+      const data = loadEvents();
+      events = Array.isArray(data?.events) ? data.events : [];
+      status.events = { ok: true };
+    } catch (err) {
+      status.events = { ok: false, error: String(err?.message || 'Unable to load events.') };
+    }
+
+    try {
+      const data = await loadAnnouncementsUnified();
+      announcements = Array.isArray(data?.posts) ? data.posts : [];
+      status.announcements = { ok: true };
+    } catch (err) {
+      status.announcements = { ok: false, error: String(err?.message || 'Unable to load announcements.') };
+    }
+
+    try {
+      newsletter = loadNewsletterRecords();
+      status.newsletter = { ok: true };
+    } catch (err) {
+      status.newsletter = { ok: false, error: String(err?.message || 'Unable to load newsletter records.') };
+    }
+
+    try {
+      subscribers = loadSubscribers();
+      status.subscribers = { ok: true };
+    } catch (err) {
+      status.subscribers = { ok: false, error: String(err?.message || 'Unable to load subscribers.') };
+    }
+  }
+
+  if (canViewWebsite) {
+    try {
+      const gallery = loadGallery();
+      galleryItems = Array.isArray(gallery?.items) ? gallery.items : [];
+      status.gallery = { ok: true };
+    } catch (err) {
+      status.gallery = { ok: false, error: String(err?.message || 'Unable to load gallery data.') };
+    }
+  }
+
+  if (canViewFinance) {
+    try {
+      financesData = loadFinances();
+      status.finances = { ok: true };
+    } catch (err) {
+      status.finances = { ok: false, error: String(err?.message || 'Unable to load finances.') };
+    }
+  }
+
+  const upcomingEvents = events
+    .map((ev) => ({
+      id: String(ev?.id || ''),
+      title: String(ev?.title || '').trim() || 'Event',
+      date: String(ev?.date || '').trim(),
+      time: String(ev?.time || '').trim(),
+      ms: dashboardEventTimeMs(ev)
+    }))
+    .filter((ev) => Number.isFinite(ev.ms) && ev.ms >= nowMs)
+    .sort((a, b) => a.ms - b.ms);
+
+  const upcoming14d = upcomingEvents.filter((ev) => ev.ms <= nowMs + (14 * 24 * 60 * 60 * 1000));
+  const todayIso = new Date(nowMs).toISOString().slice(0, 10);
+  const todayEvents = upcomingEvents.filter((ev) => String(ev.date).slice(0, 10) === todayIso).length;
+
+  const activeAnnouncements = announcements.filter((post) => dashboardAnnouncementIsActiveNow(post, nowMs));
+
+  const scheduledNewsletters = Array.isArray(newsletter?.scheduled) ? newsletter.scheduled : [];
+  const nextScheduledAt = scheduledNewsletters
+    .map((rec) => String(rec?.scheduleAt || '').trim())
+    .filter(Boolean)
+    .sort((a, b) => Date.parse(a) - Date.parse(b))[0] || '';
+
+  const albums = new Set(
+    galleryItems
+      .map((item) => String(item?.album || '').trim())
+      .filter(Boolean)
+  );
+
+  const summary = {
+    upcomingEvents14d: canManageComms ? upcoming14d.length : 0,
+    todayEvents: canManageComms ? todayEvents : 0,
+    activeAnnouncements: canManageComms ? activeAnnouncements.length : 0,
+    totalAnnouncements: canManageComms ? announcements.length : 0,
+    subscribers: canManageComms ? (Array.isArray(subscribers) ? subscribers.length : 0) : 0,
+    scheduledNewsletters: canManageComms ? scheduledNewsletters.length : 0,
+    galleryItems: canViewWebsite ? galleryItems.length : 0,
+    galleryAlbums: canViewWebsite ? albums.size : 0
+  };
+
+  const needsAttention = [];
+  if (canManageComms && summary.activeAnnouncements === 0) {
+    needsAttention.push({
+      title: 'No active announcements',
+      detail: 'Post an announcement so homepage updates stay current.',
+      action: { label: 'Open Announcements', sectionTarget: 'tab-content', subTabTarget: 'panel-content-announcements' }
+    });
+  }
+  if (canManageComms && summary.upcomingEvents14d === 0) {
+    needsAttention.push({
+      title: 'No upcoming events in next 14 days',
+      detail: 'Add events so members can see the latest schedule.',
+      action: { label: 'Open Events', sectionTarget: 'tab-events' }
+    });
+  }
+  if (canManageComms && scheduledNewsletters.some((rec) => Date.parse(String(rec?.scheduleAt || '')) <= nowMs)) {
+    needsAttention.push({
+      title: 'Scheduled newsletter may be overdue',
+      detail: 'Review scheduled newsletters and retry failed sends.',
+      action: { label: 'Open Newsletter', sectionTarget: 'tab-newsletter' }
+    });
+  }
+
+  let giving = null;
+  if (canViewFinance) {
+    const entries = Array.isArray(financesData?.entries) ? financesData.entries : [];
+    const start30dMs = nowMs - (30 * 24 * 60 * 60 * 1000);
+    const currentMonth = new Date(nowMs).toISOString().slice(0, 7);
+
+    let last30dIncomeCents = 0;
+    let last30dExpenseCents = 0;
+    let pendingReviewCount = 0;
+    let currentMonthEntries = 0;
+
+    for (const entry of entries) {
+      const entryDateMs = Date.parse(`${String(entry?.date || '').trim()}T00:00:00`);
+      const amount = Number(entry?.amountCents || 0);
+      const type = String(entry?.type || '').trim().toLowerCase();
+      const reviewStatus = String(entry?.statementReviewStatus || '').trim().toLowerCase();
+      const statusText = String(entry?.status || '').trim().toLowerCase();
+
+      if (String(entry?.date || '').slice(0, 7) === currentMonth) currentMonthEntries += 1;
+      if (reviewStatus === 'needs_review' || statusText === 'pending') pendingReviewCount += 1;
+
+      if (Number.isFinite(entryDateMs) && entryDateMs >= start30dMs) {
+        if (type === 'expense') last30dExpenseCents += amount;
+        else last30dIncomeCents += amount;
+      }
+    }
+
+    giving = {
+      last30dIncomeCents,
+      last30dExpenseCents,
+      pendingReviewCount,
+      currentMonthEntries
+    };
+  }
+
+  const newsletterSummary = canManageComms ? {
+    drafts: Array.isArray(newsletter?.drafts) ? newsletter.drafts.length : 0,
+    scheduled: scheduledNewsletters.length,
+    history: Array.isArray(newsletter?.history) ? newsletter.history.length : 0,
+    nextScheduledAt: nextScheduledAt || ''
+  } : null;
+
+  const websiteStatus = {
+    degraded: Object.values(status).some((s) => !s.ok),
+    storageMode: storageModeInfo().mode,
+    announcementsStorage: storageModeInfo().announcementsStorage,
+    schedulerRunning: true,
+    generatedBy: 'admin-server'
+  };
+
+  return res.json({
+    ok: true,
+    generatedAt: new Date().toISOString(),
+    user: {
+      id: user.id,
+      role
+    },
+    permissions: {
+      canManageComms,
+      canViewWebsite,
+      canViewFinance,
+      all: permissions
+    },
+    summary,
+    needsAttention,
+    upcomingEvents: canManageComms ? upcomingEvents.slice(0, 8).map((ev) => ({
+      id: ev.id,
+      title: ev.title,
+      date: ev.date,
+      time: ev.time
+    })) : [],
+    giving,
+    newsletter: newsletterSummary,
+    websiteStatus,
+    recentActivity: dashboardRecentActivity(10),
+    status
+  });
+});
+
+// ----------------- ADMIN DEBUG (secured) -----------------
+app.get('/api/admin/health', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
+  res.json({
+    ok: true,
+    time: new Date().toISOString(),
+    uptimeSec: Math.round(process.uptime()),
+    node: process.version,
+    pid: process.pid,
+    env: process.env.NODE_ENV || 'development',
+    enforceHttps: ENFORCE_HTTPS,
+    trustProxy: TRUST_PROXY,
+    memory: process.memoryUsage(),
+    loadavg: os.loadavg(),
+    dataDir: DATA_DIR,
+    sessionsDir: SESSIONS_DIR,
+    storage: storageModeInfo(),
+    sessionStore: sessionStoreModeInfo()
+  });
+});
+
+app.get('/api/admin/storage-health', requireDeveloperDiagnostics, async (req, res) => {
+  const storage = storageModeInfo();
+  let postgresCheck = { ok: null, latencyMs: null, error: '' };
+
+  if (storage.postgresConnected) {
+    const started = Date.now();
+    try {
+      await pgQuery('SELECT 1 AS ok');
+      postgresCheck = { ok: true, latencyMs: Date.now() - started, error: '' };
+    } catch (err) {
+      postgresCheck = { ok: false, latencyMs: Date.now() - started, error: sanitizeClientErrorMessage(err?.message || 'Postgres check failed.', 503) };
+    }
+  }
+
+  const production = process.env.NODE_ENV === 'production';
+  const degraded = Boolean(
+    (production && REQUIRE_POSTGRES_IN_PROD && !storage.postgresConnected)
+    || (storage.postgresConnected && postgresCheck.ok === false)
+  );
+
+  return res.json({
+    ok: !degraded,
+    degraded,
+    production,
+    checkedAt: new Date().toISOString(),
+    actor: normalizeEmailAddress(sessionUser(req)?.email),
+    storage,
+    sessionStore: sessionStoreModeInfo(),
+    postgresCheck
+  });
+});
+
+app.get('/api/admin/integration-health', requireDeveloperDiagnostics, async (req, res) => {
+  const actor = normalizeEmailAddress(sessionUser(req)?.email);
+  const storage = storageModeInfo();
+  let rootIndexExists = false;
+  let adminIndexExists = false;
+  let galleryDirExists = false;
+
+  try { rootIndexExists = fs.existsSync(path.join(ROOT_DIR, 'index.html')); } catch {}
+  try { adminIndexExists = fs.existsSync(path.join(ADMIN_DIR, 'public', 'index.html')); } catch {}
+  try { galleryDirExists = fs.existsSync(GALLERY_DIR); } catch {}
+
+  let postgresCheck = { ok: null, latencyMs: null, error: '' };
+  if (storage.postgresConnected) {
+    const started = Date.now();
+    try {
+      await pgQuery('SELECT 1 AS ok');
+      postgresCheck = { ok: true, latencyMs: Date.now() - started, error: '' };
+    } catch (err) {
+      postgresCheck = { ok: false, latencyMs: Date.now() - started, error: sanitizeClientErrorMessage(err?.message || 'Postgres check failed.', 503) };
+    }
+  }
+
+  return res.json({
+    ok: true,
+    checkedAt: new Date().toISOString(),
+    actor,
+    checks: {
+      rootIndexExists,
+      adminIndexExists,
+      galleryDirExists,
+      postgresConfigured: Boolean(POSTGRES_URL),
+      postgresConnected: storage.postgresConnected,
+      exportsEnabled: ENABLE_EXPORTS
+    },
+    storage,
+    sessionStore: sessionStoreModeInfo(),
+    postgresCheck,
+    routeCoverage: {
+      publicFeeds: [
+        '/api/public/announcements',
+        '/api/public/events',
+        '/api/public/bulletins',
+        '/api/public/gallery',
+        '/api/public/youtube',
+        '/api/public/site-settings',
+        '/api/public/livestream'
+      ],
+      publicSubmissions: [
+        '/api/public/newsletter/subscribe',
+        '/api/public/contact-message',
+        '/api/public/facility-rental-request'
+      ],
+      adminHealth: '/api/admin/integration-health'
+    }
+  });
+});
+
+app.get('/api/admin/logs', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
+  const type = String(req.query.type || 'app');
+  const maxLines = Math.min(1000, Math.max(50, Number(req.query.lines || 300)));
+  const prefix = type === 'audit' ? 'audit' : 'app';
+
+  try {
+    const files = fs.readdirSync(LOG_DIR)
+      .filter((f) => f.startsWith(`${prefix}-`) && f.endsWith('.log'))
+      .map((f) => ({
+        name: f,
+        path: path.join(LOG_DIR, f),
+        mtimeMs: fs.statSync(path.join(LOG_DIR, f)).mtimeMs
+      }))
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+    if (!files.length) return res.json({ ok: true, type: prefix, file: null, lines: '' });
+    const latest = files[0];
+    const lines = tailFile(latest.path, maxLines);
+    res.json({ ok: true, type: prefix, file: latest.name, lines });
+  } catch (e) {
+    logger.error('log_tail_failed', { err: e });
+    res.status(500).json({ error: 'Unable to read logs.' });
+  }
+});
+
+app.post('/api/auth/login', loginLimiter, async (req, res) => {
+  const email = String(req.body.email || '').toLowerCase().trim();
+  const password = String(req.body.password || '');
+  const usersData = loadUsers();
+  const user = (usersData.users || []).find((u) => String(u.email).toLowerCase() === email);
+  if (!user) {
+    audit('auth_login_failed', { at: new Date().toISOString(), email, ip: req.ip, reason: 'no_user' });
+    return res.status(401).json({ error: 'Invalid email or password' });
+  }
+
+  if (user.mustOnboard) {
+    audit('auth_login_failed', { at: new Date().toISOString(), email, ip: req.ip, reason: 'must_onboard' });
+    return res.status(403).json({ error: 'Account setup required. Use your invite link to finish setup.' });
+  }
+
+  const accountStatus = deriveUserStatus(user);
+  if (!user.isMaster && (accountStatus === 'suspended' || accountStatus === 'revoked')) {
+    audit('auth_login_failed', { at: new Date().toISOString(), email, ip: req.ip, reason: `account_${accountStatus}` });
+    return res.status(403).json({ error: 'This administrator account is not active. Contact another administrator.' });
+  }
+
+  const ok = await bcrypt.compare(password, user.passwordHash);
+  if (!ok) {
+    audit('auth_login_failed', { at: new Date().toISOString(), email, ip: req.ip, reason: 'bad_password' });
+    return res.status(401).json({ error: 'Invalid email or password' });
+  }
+
+  // 2FA is disabled in this admin build (UI removed).
+
+  // Prevent session fixation by regenerating the session on login.
+  req.session.regenerate((err) => {
+    if (err) {
+      logger.error('session_regenerate_failed', { err, email, ip: req.ip });
+      return res.status(500).json({ error: 'Login failed. Try again.' });
+    }
+
+    req.session.user = {
+      id: user.id,
+      email: user.email,
+      role: normalizeRole(user.role),
+      name: user.name || '',
+      isMaster: !!user.isMaster,
+      mustOnboard: !!user.mustOnboard,
+      twoFactorEnabled: false
+    };
+    const usersAfterLogin = loadUsers();
+    const storedUser = (usersAfterLogin.users || []).find((u) => u.id === user.id);
+    if (storedUser) {
+      storedUser.lastLoginAt = new Date().toISOString();
+      if (!ADMIN_ACCOUNT_STATUSES.has(storedUser.status)) storedUser.status = 'active';
+      saveUsers(usersAfterLogin);
+    }
+    audit('auth_login_success', { at: new Date().toISOString(), email, ip: req.ip, userId: user.id });
+    res.json({ ok: true });
+  });
+});
+
+app.get('/api/auth/providers', (req, res) => {
+  const cid = googleClientId();
+  res.json({
+    google: {
+      enabled: Boolean(cid),
+      clientId: cid || ''
+    }
+  });
+});
+
+app.post('/api/auth/google', loginLimiter, async (req, res) => {
+  if (!isGoogleAuthEnabled()) {
+    return res.status(503).json({ error: 'Google sign-in is not configured on this server.' });
+  }
+
+  const idToken = String(req.body?.idToken || '').trim();
+  if (!idToken) return res.status(400).json({ error: 'Missing Google ID token.' });
+
+  const oauthClient = getGoogleOauthClient();
+  if (!oauthClient) {
+    return res.status(503).json({ error: 'Google sign-in client is unavailable.' });
+  }
+
+  let payload = null;
+  try {
+    const ticket = await oauthClient.verifyIdToken({
+      idToken,
+      audience: googleClientId()
+    });
+    payload = ticket.getPayload() || null;
+  } catch (err) {
+    audit('auth_login_failed', {
+      at: new Date().toISOString(),
+      ip: req.ip,
+      reason: 'google_token_invalid',
+      error: String(err?.message || err || '').slice(0, 200)
+    });
+    return res.status(401).json({ error: 'Invalid Google sign-in token.' });
+  }
+
+  const email = String(payload?.email || '').trim().toLowerCase();
+  const emailVerified = Boolean(payload?.email_verified);
+  if (!email || !emailVerified) {
+    audit('auth_login_failed', {
+      at: new Date().toISOString(),
+      ip: req.ip,
+      reason: 'google_unverified_email',
+      email
+    });
+    return res.status(403).json({ error: 'Google account email is not verified.' });
+  }
+
+  const usersData = loadUsers();
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  let user = users.find((u) => String(u.email).toLowerCase() === email);
+
+  if (!user) {
+    const approvedEmails = googleApprovedEmailsFromEnv();
+    if (!approvedEmails.has(email)) {
+      audit('auth_login_failed', {
+        at: new Date().toISOString(),
+        ip: req.ip,
+        email,
+        reason: 'google_not_approved'
+      });
+      return res.status(403).json({ error: 'This Google account is not approved for admin access.' });
+    }
+
+    user = {
+      id: newId(),
+      email,
+      passwordHash: await bcrypt.hash(randomToken(), 12),
+      role: ROLE.WEBSITE_EDITOR,
+      createdAt: new Date().toISOString(),
+      isMaster: false,
+      name: String(payload?.name || '').trim().slice(0, 120),
+      mustOnboard: false,
+      onboardedAt: new Date().toISOString(),
+      twoFactorEnabled: false,
+      twoFactorSecret: ''
+    };
+    users.push(user);
+    saveUsers({ users });
+    audit('auth_user_created_google', {
+      at: new Date().toISOString(),
+      email,
+      userId: user.id,
+      role: user.role,
+      ip: req.ip
+    });
+  }
+
+  if (user.mustOnboard) {
+    audit('auth_login_failed', { at: new Date().toISOString(), email, ip: req.ip, reason: 'must_onboard' });
+    return res.status(403).json({ error: 'Account setup required. Use your invite link to finish setup.' });
+  }
+
+  const googleAccountStatus = deriveUserStatus(user);
+  if (!user.isMaster && (googleAccountStatus === 'suspended' || googleAccountStatus === 'revoked')) {
+    audit('auth_login_failed', { at: new Date().toISOString(), email, ip: req.ip, reason: `account_${googleAccountStatus}` });
+    return res.status(403).json({ error: 'This administrator account is not active. Contact another administrator.' });
+  }
+
+  req.session.regenerate((err) => {
+    if (err) {
+      logger.error('session_regenerate_failed', { err, email, ip: req.ip });
+      return res.status(500).json({ error: 'Login failed. Try again.' });
+    }
+
+    req.session.user = {
+      id: user.id,
+      email: user.email,
+      role: normalizeRole(user.role),
+      name: user.name || String(payload?.name || '').trim().slice(0, 120),
+      isMaster: !!user.isMaster,
+      mustOnboard: !!user.mustOnboard,
+      twoFactorEnabled: false
+    };
+    const usersAfterGoogleLogin = loadUsers();
+    const storedGoogleUser = (usersAfterGoogleLogin.users || []).find((u) => u.id === user.id);
+    if (storedGoogleUser) {
+      storedGoogleUser.lastLoginAt = new Date().toISOString();
+      if (!ADMIN_ACCOUNT_STATUSES.has(storedGoogleUser.status)) storedGoogleUser.status = 'active';
+      saveUsers(usersAfterGoogleLogin);
+    }
+    audit('auth_login_success', {
+      at: new Date().toISOString(),
+      email,
+      ip: req.ip,
+      userId: user.id,
+      method: 'google'
+    });
+    return res.json({ ok: true });
+  });
+});
+
+// Recovery-code based reset (no email sending required)
+app.post('/api/auth/recover', async (req, res) => {
+  const email = String(req.body.email || '').toLowerCase().trim();
+  const recoveryCode = String(req.body.recoveryCode || '').trim();
+  const newPassword = String(req.body.newPassword || '');
+
+  const expected = process.env.ADMIN_RECOVERY_CODE;
+  if (!expected) return res.status(503).json({ error: 'Recovery is not enabled on this server.' });
+  if (!email || !recoveryCode || !newPassword) return res.status(400).json({ error: 'Missing fields.' });
+  if (recoveryCode !== String(expected)) return res.status(401).json({ error: 'Invalid recovery code.' });
+
+  try {
+    requireStrongPassword(newPassword);
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: e.message || 'Invalid password.' });
+  }
+
+  const usersData = loadUsers();
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  const user = users.find((u) => String(u.email).toLowerCase() === email);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+  if (user.isMaster) return res.status(400).json({ error: 'Master admin password is controlled by environment variables.' });
+
+  user.passwordHash = await bcrypt.hash(newPassword, 12);
+  saveUsers({ users });
+  res.json({ ok: true });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const user = sessionUser(req);
+  if (user) {
+    audit('auth_logout', {
+      at: new Date().toISOString(),
+      userId: user.id,
+      userEmail: user.email,
+      ip: req.ip
+    });
+  }
+  req.session.destroy(() => res.json({ ok: true }));
+});
+
+// ----------------- SUPPORT -----------------
+app.post('/api/support/message', (req, res, next) => {
+  // Allow either an authenticated admin session OR a support API token.
+  const user = sessionUser(req);
+  if (user && hasPermission(user.role, PERMISSIONS.SUPPORT_SEND)) return next();
+  if (hasValidSupportApiToken(req)) return next();
+  return res.status(401).json({ error: 'Unauthorized' });
+}, async (req, res) => {
+  if (envBool('SUPPORT_DISABLE_SEND', false) || process.env.NODE_ENV === 'test') {
+    const subjectRaw = String(req.body?.subject || '').trim();
+    const messageRaw = String(req.body?.message || '').trim();
+    if (!subjectRaw || !messageRaw) return res.status(400).json({ error: 'Subject and message are required.' });
+    logger.info('support_email_disabled', { subject: subjectRaw.slice(0, 140), actor: getSupportActor(req) });
+    return res.json({ ok: true, disabled: true });
+  }
+
+  const subjectRaw = String(req.body?.subject || '').trim();
+  const messageRaw = String(req.body?.message || '').trim();
+  const replyToRaw = String(req.body?.replyTo || '').trim();
+  if (!subjectRaw || !messageRaw) return res.status(400).json({ error: 'Subject and message are required.' });
+
+  const subject = subjectRaw.slice(0, 140);
+  const message = messageRaw.slice(0, 5000);
+  const replyTo = replyToRaw && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyToRaw) ? replyToRaw : '';
+
+  const toEmail = String(process.env.SUPPORT_TO_EMAIL || 'support@alphazonelabs.com').trim();
+  const fromEmail = String(process.env.RESEND_FROM_EMAIL || process.env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
+  const fromName = String(process.env.SUPPORT_FROM_NAME || 'MMMBC Admin Support').trim() || 'MMMBC Admin Support';
+
+  const composedSubject = `[MMMBC Support] ${subject}`;
+  const supportTemplate = buildSupportEmailTemplate({
+    subject: composedSubject,
+    message,
+    actor: getSupportActor(req),
+    replyTo
+  });
+
+  try {
+    const payload = {
+      personalizations: [{ to: [{ email: toEmail }], subject: composedSubject }],
+      from: { email: fromEmail, name: fromName },
+      ...(replyTo ? { reply_to: { email: replyTo } } : {}),
+      content: [
+        { type: 'text/plain', value: supportTemplate.text },
+        { type: 'text/html', value: supportTemplate.html }
+      ]
+    };
+    const out = await resendSend(payload);
+    if (out.status < 200 || out.status >= 300) {
+      logger.error('support_email_failed', { status: out.status, body: String(out.body || '').slice(0, 2000) });
+      return res.status(502).json({ error: `Email send failed (${out.status}).` });
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    logger.error('support_email_error', { err: e });
+    res.status(502).json({ error: 'Email send failed.' });
+  }
+});
+
+// ----------------- USERS (admin) -----------------
+app.get('/api/users', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
+  const usersData = loadUsers();
+  const safe = (usersData.users || []).map((u) => ({
+    id: u.id,
+    email: u.email,
+    name: u.name || '',
+    role: u.role,
+    createdAt: u.createdAt,
+    isMaster: !!u.isMaster
+  }));
+  res.json({ users: safe });
+});
+
+app.post('/api/users', requirePermission(PERMISSIONS.USERS_MANAGE), async (req, res) => {
+  const email = String(req.body.email || '').toLowerCase().trim();
+  const password = String(req.body.password || '');
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+
+  try {
+    requireStrongPassword(password);
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: e.message || 'Invalid password.' });
+  }
+
+  const usersData = loadUsers();
+  const users = usersData.users || [];
+  if (users.some((u) => String(u.email).toLowerCase() === email)) {
+    return res.status(409).json({ error: 'User already exists' });
+  }
+
+  users.push({
+    id: newId(),
+    email,
+    passwordHash: await bcrypt.hash(password, 12),
+    role: ROLE.WEBSITE_EDITOR,
+    createdAt: new Date().toISOString(),
+    isMaster: false,
+    name: ''
+  });
+
+  saveUsers({ users });
+  res.json({ ok: true });
+});
+
+// Create an invite link for a new admin (recommended flow)
+app.post('/api/users/invite', requirePermission(PERMISSIONS.USERS_MANAGE), async (req, res) => {
+  const email = String(req.body.email || '').toLowerCase().trim();
+  const role = normalizeRole(req.body.role || ROLE.WEBSITE_EDITOR);
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  const usersData = loadUsers();
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  if (users.some((u) => String(u.email).toLowerCase() === email)) {
+    return res.status(409).json({ error: 'User already exists' });
+  }
+
+  const token = randomToken();
+  const tokenHash = sha256Hex(token);
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const placeholderPassword = randomToken();
+
+  users.push({
+    id: newId(),
+    email,
+    passwordHash: await bcrypt.hash(placeholderPassword, 12),
+    role,
+    createdAt: new Date().toISOString(),
+    isMaster: false,
+    name: '',
+    mustOnboard: true,
+    onboardedAt: '',
+    inviteTokenHash: tokenHash,
+    inviteExpiresAt: expiresAt,
+    twoFactorEnabled: false,
+    twoFactorSecret: '',
+    twoFactorPendingSecret: ''
+  });
+
+  saveUsers({ users });
+
+  const base = getBaseUrl(req);
+  const inviteLink = `${base}/admin/#invite=${token}`;
+
+  if (envBool('SUPPORT_DISABLE_SEND', false) || process.env.NODE_ENV === 'test') {
+    return res.json({ ok: true, inviteLink, expiresAt, emailSent: false, disabled: true });
+  }
+
+  const fromEmail = String(process.env.SUPPORT_FROM_EMAIL || 'mmmbc@alphazonelabs.com').trim();
+  const fromName = String(process.env.SUPPORT_FROM_NAME || 'MMMBC Admin').trim() || 'MMMBC Admin';
+  const subject = `MMMBC Admin Invite (${roleDisplayName(role)})`;
+  const template = buildAdminInviteEmailTemplate({ inviteLink, expiresAt, role });
+
+  try {
+    const payload = {
+      personalizations: [{ to: [{ email }], subject }],
+      from: { email: fromEmail, name: fromName },
+      content: [
+        { type: 'text/plain', value: template.text },
+        { type: 'text/html', value: template.html }
+      ]
+    };
+
+    const out = await resendSend(payload);
+    if (out.status < 200 || out.status >= 300) {
+      logger.error('admin_invite_email_failed', { status: out.status, body: String(out.body || '').slice(0, 2000), email, role });
+      return res.json({ ok: true, inviteLink, expiresAt, emailSent: false });
+    }
+
+    return res.json({ ok: true, inviteLink, expiresAt, emailSent: true });
+  } catch (e) {
+    logger.error('admin_invite_email_error', { err: e, email, role });
+    return res.json({ ok: true, inviteLink, expiresAt, emailSent: false });
+  }
+});
+
+// Invite details
+app.get('/api/invites/:token', async (req, res) => {
+  const token = String(req.params.token || '').trim();
+  if (!token) return res.status(400).json({ error: 'Missing token' });
+
+  const usersData = loadUsers();
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  const user = findUserByInviteToken(users, token);
+  if (!user || !isInviteValid(user)) return res.status(404).json({ error: 'Invite link is invalid or expired.' });
+
+  res.json({
+    email: user.email,
+    expiresAt: user.inviteExpiresAt
+  });
+});
+
+// Complete onboarding (name + password)
+app.post('/api/invites/:token/complete', async (req, res) => {
+  const token = String(req.params.token || '').trim();
+  const name = String(req.body?.name || '').trim();
+  const newPassword = String(req.body?.newPassword || '');
+  if (!token) return res.status(400).json({ error: 'Missing token' });
+
+  const usersData = loadUsers();
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  const user = findUserByInviteToken(users, token);
+  if (!user || !isInviteValid(user)) return res.status(404).json({ error: 'Invite link is invalid or expired.' });
+
+  try {
+    requireStrongPassword(newPassword);
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: e.message || 'Invalid password.' });
+  }
+
+  user.name = name;
+  user.passwordHash = await bcrypt.hash(newPassword, 12);
+  user.mustOnboard = false;
+  user.onboardedAt = new Date().toISOString();
+  user.twoFactorEnabled = false;
+  user.twoFactorSecret = '';
+  user.twoFactorPendingSecret = '';
+  user.inviteTokenHash = '';
+  user.inviteExpiresAt = '';
+
+  saveUsers({ users });
+
+  // Log them in immediately after successful onboarding
+  req.session.user = {
+    id: user.id,
+    email: user.email,
+    role: normalizeRole(user.role),
+    name: user.name || '',
+    isMaster: !!user.isMaster,
+    mustOnboard: !!user.mustOnboard,
+    twoFactorEnabled: false
+  };
+
+  res.json({ ok: true });
+});
+
+// ----------------- ACCOUNT (self service) -----------------
+app.put('/api/account', requireAuth, (req, res) => {
+  const userId = req.session.user.id;
+  const nextName = String(req.body?.name || '').trim();
+  const nextEmail = String(req.body?.email || '').toLowerCase().trim();
+  if (!nextEmail) return res.status(400).json({ error: 'Email is required.' });
+
+  const usersData = loadUsers();
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  const user = users.find((u) => u.id === userId);
+  if (!user) return res.status(404).json({ error: 'Not found' });
+
+  if (user.isMaster) {
+    return res.status(400).json({ error: 'Master admin email is controlled by environment variables.' });
+  }
+
+  if (users.some((u) => u.id !== user.id && String(u.email).toLowerCase() === nextEmail)) {
+    return res.status(409).json({ error: 'Email is already in use.' });
+  }
+
+  user.name = nextName;
+  user.email = nextEmail;
+  saveUsers({ users });
+  req.session.user = {
+    id: user.id,
+    email: user.email,
+    role: normalizeRole(user.role),
+    name: user.name || '',
+    isMaster: !!user.isMaster
+  };
+  res.json({ ok: true });
+});
+
+app.put('/api/account/password', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const currentPassword = String(req.body?.currentPassword || '');
+  const newPassword = String(req.body?.newPassword || '');
+  if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Missing fields.' });
+
+  try {
+    requireStrongPassword(newPassword);
+  } catch (e) {
+    return res.status(e.statusCode || 400).json({ error: e.message || 'Invalid password.' });
+  }
+
+  const usersData = loadUsers();
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  const user = users.find((u) => u.id === userId);
+  if (!user) return res.status(404).json({ error: 'Not found' });
+  if (user.isMaster) return res.status(400).json({ error: 'Master admin password is controlled by environment variables.' });
+
+  const ok = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!ok) return res.status(401).json({ error: 'Current password is incorrect.' });
+
+  user.passwordHash = await bcrypt.hash(newPassword, 12);
+  saveUsers({ users });
+  res.json({ ok: true });
+});
+
+app.delete('/api/users/:id', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
+  const usersData = loadUsers();
+  const users = usersData.users || [];
+  const id = String(req.params.id);
+  const user = users.find((u) => u.id === id);
+  if (!user) return res.status(404).json({ error: 'Not found' });
+  if (user.isMaster) return res.status(400).json({ error: 'Cannot delete master admin' });
+
+  const next = users.filter((u) => u.id !== id);
+  saveUsers({ users: next });
+  res.json({ ok: true });
+});
+
+// ----------------- ADMIN SETTINGS (Users & Roles panel) -----------------
+app.get('/api/admin/settings/roles', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
+  res.json({ roles: SETTINGS_ROLE_DEFINITIONS });
+});
+
+app.get('/api/admin/settings/users', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
+  const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
+  const pageSize = Math.min(100, Math.max(1, Number.parseInt(String(req.query.pageSize || '25'), 10) || 25));
+  const roleFilter = req.query.role ? normalizeRole(String(req.query.role)) : '';
+  const statusFilter = String(req.query.status || '').trim().toLowerCase();
+  const query = String(req.query.q || '').trim().toLowerCase();
+  if (statusFilter && !ADMIN_ACCOUNT_STATUSES.has(statusFilter)) {
+    return res.status(400).json({ error: 'Status is invalid.' });
+  }
+
+  const usersData = loadUsers();
+  let users = (usersData.users || []).map(serializeSettingsUser);
+  if (roleFilter) users = users.filter((u) => u.role === roleFilter);
+  if (statusFilter) users = users.filter((u) => u.status === statusFilter);
+  if (query) {
+    users = users.filter((u) => u.email.toLowerCase().includes(query) || u.fullName.toLowerCase().includes(query));
+  }
+  const statusOrder = { active: 0, pending: 1, suspended: 2, revoked: 3 };
+  users.sort((a, b) => (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4) || a.email.localeCompare(b.email));
+
+  const total = users.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pageUsers = users.slice((page - 1) * pageSize, page * pageSize);
+  res.json({ users: pageUsers, pagination: { page, pageSize, total, totalPages } });
+});
+
+app.get('/api/admin/settings/users/audit', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
+  const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
+  const pageSize = Math.min(100, Math.max(1, Number.parseInt(String(req.query.pageSize || '25'), 10) || 25));
+  const entries = loadAdminSettingsAudit();
+  const total = entries.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pageEntries = entries.slice((page - 1) * pageSize, page * pageSize);
+  res.json({ audit: pageEntries, entries: pageEntries, pagination: { page, pageSize, total, totalPages } });
+});
+
+app.post('/api/admin/settings/users', requirePermission(PERMISSIONS.USERS_MANAGE), async (req, res) => {
+  const email = String(req.body?.email || '').toLowerCase().trim();
+  const role = normalizeRole(req.body?.role || ROLE.WEBSITE_EDITOR);
+  const fullName = String(req.body?.fullName ?? req.body?.name ?? '').trim().slice(0, 120);
+  const status = String(req.body?.status || 'pending').trim().toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'A valid email is required.' });
+  if (!ADMIN_ACCOUNT_STATUSES.has(status) || status === 'revoked') {
+    return res.status(400).json({ error: 'New administrators may be pending, active, or suspended.' });
+  }
+
+  const usersData = loadUsers();
+  const users = usersData.users || [];
+  if (users.some((u) => String(u.email).toLowerCase() === email)) {
+    return res.status(409).json({ error: 'A user with this email already exists.' });
+  }
+
+  const token = randomToken();
+  const newUser = {
+    id: newId(),
+    email,
+    passwordHash: await bcrypt.hash(randomToken(), 12),
+    role,
+    createdAt: new Date().toISOString(),
+    isMaster: false,
+    name: fullName,
+    mustOnboard: status !== 'active',
+    onboardedAt: status === 'active' ? new Date().toISOString() : '',
+    status,
+    lastLoginAt: '',
+    inviteTokenHash: sha256Hex(token),
+    inviteExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  };
+  users.push(newUser);
+  saveUsers({ users });
+
+  const actor = sessionUser(req);
+  appendAdminSettingsAudit(actor, 'user.created', newUser);
+  audit('admin_settings_user_created', { at: new Date().toISOString(), actorEmail: actor?.email, email, role, status, ip: req.ip });
+
+  res.status(201).json({
+    ok: true,
+    user: serializeSettingsUser(newUser),
+    inviteLink: `${getBaseUrl(req)}/admin/#invite=${token}`,
+    emailSent: false
+  });
+});
+
+app.patch('/api/admin/settings/users/:id', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
+  const usersData = loadUsers();
+  const users = usersData.users || [];
+  const target = users.find((u) => u.id === String(req.params.id));
+  if (!target) return res.status(404).json({ error: 'Administrator user was not found.' });
+
+  const actor = sessionUser(req);
+  const hasRole = Object.hasOwn(req.body || {}, 'role');
+  const hasName = Object.hasOwn(req.body || {}, 'fullName') || Object.hasOwn(req.body || {}, 'name');
+  if (!hasRole && !hasName) return res.status(400).json({ error: 'Provide a role or full name to update.' });
+
+  const nextRole = hasRole ? normalizeRole(req.body.role) : normalizeRole(target.role);
+  if (actor?.id === target.id && nextRole !== normalizeRole(target.role)) {
+    return res.status(409).json({ error: 'You cannot change your own role or account status.' });
+  }
+  if (target.isMaster && hasRole && nextRole !== ROLE.ADMINISTRATOR) {
+    return res.status(400).json({ error: 'Master admin role cannot be changed.' });
+  }
+
+  target.role = nextRole;
+  if (hasName) target.name = String(req.body.fullName ?? req.body.name ?? '').trim().slice(0, 120);
+  saveUsers({ users });
+
+  appendAdminSettingsAudit(actor, 'user.updated', target);
+  res.json({ ok: true, user: serializeSettingsUser(target) });
+});
+
+app.post('/api/admin/settings/users/:id/:action(activate|suspend|reactivate|revoke)', requirePermission(PERMISSIONS.USERS_MANAGE), (req, res) => {
+  const usersData = loadUsers();
+  const users = usersData.users || [];
+  const target = users.find((u) => u.id === String(req.params.id));
+  if (!target) return res.status(404).json({ error: 'Administrator user was not found.' });
+
+  const actor = sessionUser(req);
+  const action = req.params.action;
+  const currentStatus = deriveUserStatus(target);
+  const transitions = {
+    activate: new Set(['pending', 'suspended']),
+    reactivate: new Set(['suspended', 'revoked']),
+    suspend: new Set(['active']),
+    revoke: new Set(['pending', 'active', 'suspended'])
+  };
+  if (!transitions[action]?.has(currentStatus)) {
+    return res.status(409).json({ error: `A ${currentStatus} user cannot be ${action}d.` });
+  }
+  if (target.isMaster && (action === 'suspend' || action === 'revoke')) {
+    return res.status(400).json({ error: 'Master admin access cannot be suspended or revoked.' });
+  }
+  if (actor?.id === target.id) {
+    return res.status(409).json({ error: 'You cannot change your own account status.' });
+  }
+
+  const nextStatus = action === 'activate' || action === 'reactivate' ? 'active' : action === 'suspend' ? 'suspended' : 'revoked';
+  const activeAdminCount = users.filter((u) => normalizeRole(u.role) === ROLE.ADMINISTRATOR && deriveUserStatus(u) === 'active').length;
+  if (normalizeRole(target.role) === ROLE.ADMINISTRATOR && currentStatus === 'active' && nextStatus !== 'active' && activeAdminCount <= 1) {
+    return res.status(409).json({ error: 'At least one active administrator must remain.' });
+  }
+
+  target.status = nextStatus;
+  if (nextStatus === 'active') {
+    target.mustOnboard = false;
+    if (!target.onboardedAt) target.onboardedAt = new Date().toISOString();
+  }
+  saveUsers({ users });
+
+  const auditAction = { activate: 'activated', suspend: 'suspended', reactivate: 'reactivated', revoke: 'revoked' }[action];
+  appendAdminSettingsAudit(actor, `user.${auditAction}`, target);
+  res.json({ ok: true, user: serializeSettingsUser(target) });
+});
+
+// ----------------- GALLERY -----------------
+function loadGallery() {
+  const data = readJson(GALLERY_DATA_PATH, { items: [] });
+  if (!data || typeof data !== 'object') return { items: [] };
+  if (!Array.isArray(data.items)) data.items = [];
+  return data;
+}
+function saveGallery(data) {
+  writeJsonAtomic(GALLERY_DATA_PATH, data);
+}
+
+function galleryUrlPrefix() {
+  const raw = String(process.env.GALLERY_URL_PREFIX || '').trim();
+  if (!raw) return '';
+  // Allow absolute URLs (e.g. https://cdn.example.com) or path prefixes (/cdn)
+  return raw.replace(/\/$/, '');
+}
+
+function withPrefix(prefix, pathWithLeadingSlash) {
+  const p = String(pathWithLeadingSlash || '');
+  if (!prefix) return p;
+  if (/^https?:\/\//i.test(prefix)) return `${prefix}${p}`;
+  // Treat as path prefix
+  return `${prefix}${p}`;
+}
+
+function resolveWorkerOrigin() {
+  const explicit = String(process.env.WORKER_ORIGIN || '').trim();
+  if (explicit) return explicit.replace(/\/$/, '');
+
+  const publicSiteUrl = String(process.env.PUBLIC_SITE_URL || '').trim();
+  if (publicSiteUrl) return publicSiteUrl.replace(/\/$/, '');
+
+  const canonicalHost = String(process.env.CANONICAL_HOST || '').trim();
+  if (canonicalHost) return `https://${canonicalHost}`.replace(/\/$/, '');
+
+  return '';
+}
+
+const galleryUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024, files: 20 }
+});
+
+function proxyToWorker(req, res) {
+  const base = resolveWorkerOrigin();
+  if (!base) {
+    return res.status(501).json({
+      error: 'This endpoint is provided by the Cloudflare Worker. Set WORKER_ORIGIN (or PUBLIC_SITE_URL / CANONICAL_HOST) to your Worker URL and optionally CF_ACCESS_CLIENT_ID/CF_ACCESS_CLIENT_SECRET for Access-protected Workers.'
+    });
+  }
+
+  // IMPORTANT: req.originalUrl is absolute-path (starts with "/").
+  // Using new URL(req.originalUrl, base) would drop any path prefix on base.
+  // Concatenation preserves base path prefixes like "https://example.com/admin".
+  const target = new URL(`${base}${req.originalUrl}`);
+  const method = String(req.method || 'GET').toUpperCase();
+
+  const headers = {
+    accept: 'application/json'
+  };
+
+  const id = String(process.env.CF_ACCESS_CLIENT_ID || '').trim();
+  const secret = String(process.env.CF_ACCESS_CLIENT_SECRET || '').trim();
+  if (id && secret) {
+    headers['CF-Access-Client-Id'] = id;
+    headers['CF-Access-Client-Secret'] = secret;
+  }
+
+  let body = null;
+  if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
+    headers['content-type'] = 'application/json';
+    body = JSON.stringify(req.body ?? {});
+    headers['content-length'] = Buffer.byteLength(body);
+  }
+
+  const client = target.protocol === 'http:' ? http : https;
+  const proxyReq = client.request(
+    {
+      method,
+      hostname: target.hostname,
+      port: target.port || (target.protocol === 'http:' ? 80 : 443),
+      path: `${target.pathname}${target.search}`,
+      headers
+    },
+    (proxyRes) => {
+      res.status(proxyRes.statusCode || 502);
+      const ct = proxyRes.headers['content-type'];
+      if (ct) res.setHeader('content-type', ct);
+      proxyRes.pipe(res);
+    }
+  );
+  proxyReq.on('error', (e) => {
+    logger.error('worker_proxy_failed', { err: e, url: target.toString() });
+    res.status(502).json({ error: 'Proxy to Worker failed.' });
+  });
+  if (body) proxyReq.write(body);
+  proxyReq.end();
+}
+
+function proxyToWorkerStream(req, res, { forceAccept } = {}) {
+  const base = resolveWorkerOrigin();
+  if (!base) {
+    res.status(501);
+    res.setHeader('content-type', 'text/plain; charset=utf-8');
+    res.end('This endpoint is provided by the Cloudflare Worker. Set WORKER_ORIGIN (or PUBLIC_SITE_URL / CANONICAL_HOST) to your Worker URL.');
+    return;
+  }
+
+  const target = new URL(`${base}${req.originalUrl}`);
+  const method = String(req.method || 'GET').toUpperCase();
+
+  const headers = {};
+  const accept = String(forceAccept || req.headers.accept || '').trim();
+  if (accept) headers.accept = accept;
+
+  const passReqHeaders = ['content-type', 'content-length', 'range', 'if-none-match', 'if-modified-since'];
+  for (const h of passReqHeaders) {
+    const v = req.headers[h];
+    if (v) headers[h] = v;
+  }
+
+  const id = String(process.env.CF_ACCESS_CLIENT_ID || '').trim();
+  const secret = String(process.env.CF_ACCESS_CLIENT_SECRET || '').trim();
+  if (id && secret) {
+    headers['CF-Access-Client-Id'] = id;
+    headers['CF-Access-Client-Secret'] = secret;
+  }
+
+  const client = target.protocol === 'http:' ? http : https;
+  const proxyReq = client.request(
+    {
+      method,
+      hostname: target.hostname,
+      port: target.port || (target.protocol === 'http:' ? 80 : 443),
+      path: `${target.pathname}${target.search}`,
+      headers
+    },
+    (proxyRes) => {
+      res.status(proxyRes.statusCode || 502);
+
+      const passResHeaders = [
+        'content-type',
+        'content-length',
+        'cache-control',
+        'etag',
+        'last-modified',
+        'accept-ranges',
+        'content-range',
+        'content-disposition',
+        'cross-origin-resource-policy',
+        'access-control-allow-origin'
+      ];
+      for (const h of passResHeaders) {
+        const v = proxyRes.headers[h];
+        if (v) res.setHeader(h, v);
+      }
+
+      proxyRes.pipe(res);
+    }
+  );
+
+  proxyReq.on('error', (e) => {
+    logger.error('worker_proxy_failed', { err: e, url: target.toString() });
+    res.status(502);
+    res.setHeader('content-type', 'text/plain; charset=utf-8');
+    res.end('Proxy to Worker failed.');
+  });
+
+  if (method === 'GET' || method === 'HEAD') {
+    proxyReq.end();
+    return;
+  }
+
+  req.pipe(proxyReq);
+}
+
+// Worker-backed R2 gallery APIs (for bucket browsing/sync)
+app.get('/api/gallery/r2tree', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => proxyToWorker(req, res));
+app.delete('/api/gallery/r2object', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => proxyToWorker(req, res));
+app.post('/api/gallery/sync', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => proxyToWorker(req, res));
+
+// Worker-backed directory APIs. The local admin shell uses these endpoints
+// for contacts, subscribers, groups, and overview metrics.
+app.use('/api/directory', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), (req, res) => proxyToWorker(req, res));
+
+// Worker-backed CDN gallery objects (for previewing /cdn/gallery/* when running locally)
+app.use('/cdn/gallery', (req, res) => proxyToWorkerStream(req, res));
+
+app.get('/api/gallery', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
+  if (String(process.env.WORKER_ORIGIN || '').trim()) return proxyToWorker(req, res);
+  return res.json(loadGallery());
+});
+
+app.post(
+  '/api/gallery/upload',
+  requirePermission(PERMISSIONS.WEBSITE_WRITE),
+  (req, res, next) => {
+    if (String(process.env.WORKER_ORIGIN || '').trim()) return proxyToWorkerStream(req, res, { forceAccept: 'application/json' });
+    return next();
+  },
+  galleryUpload.array('images', 20),
+  async (req, res) => {
+  const album = sanitizeSegment(req.body.album || 'General') || 'General';
+  const label = sanitizeSegment(req.body.label || '') || '';
+  const tagsRaw = String(req.body.tags || '');
+  const tags = tagsRaw
+    .split(',')
+    .map((t) => sanitizeSegment(t).toLowerCase())
+    .filter(Boolean)
+    .slice(0, 25);
+
+  ensureDir(path.join(GALLERY_DIR, album));
+  ensureDir(path.join(GALLERY_DIR, album, '_thumbs'));
+
+  const gallery = loadGallery();
+  const items = Array.isArray(gallery.items) ? gallery.items : [];
+
+  const files = req.files || [];
+  const added = [];
+
+  for (const file of files) {
+    const mimeType = file.mimetype;
+    if (!isAllowedImage(mimeType)) continue;
+
+    const ext = mime.extension(mimeType) || 'jpg';
+    const id = newId();
+    const safeBase = sanitizeSegment(path.parse(file.originalname).name).replace(/\s+/g, '-') || 'image';
+    const fileName = `${new Date().toISOString().slice(0, 10)}_${safeBase}_${id}.${ext}`;
+    const relPath = path.posix.join('ConImg', 'gallery', album, fileName);
+    const absPath = path.join(GALLERY_DIR, album, fileName);
+
+    fs.writeFileSync(absPath, file.buffer);
+
+    // Thumbnail
+    const thumbName = fileName.replace(/\.[^.]+$/, '.jpg');
+    const relThumb = path.posix.join('ConImg', 'gallery', album, '_thumbs', thumbName);
+    const absThumb = path.join(GALLERY_DIR, album, '_thumbs', thumbName);
+
+    try {
+      await sharp(file.buffer)
+        .rotate()
+        .resize(420, 420, { fit: 'cover' })
+        .jpeg({ quality: 80 })
+        .toFile(absThumb);
+    } catch {
+      // If sharp fails, skip thumbnail.
+    }
+
+    const createdAt = new Date().toISOString();
+
+    const prefix = galleryUrlPrefix();
+
+    const item = {
+      id,
+      album,
+      label,
+      tags,
+      file: withPrefix(prefix, `/${relPath.replace(/\\/g, '/')}`),
+      thumb: fs.existsSync(absThumb)
+        ? withPrefix(prefix, `/${relThumb.replace(/\\/g, '/')}`)
+        : withPrefix(prefix, `/${relPath.replace(/\\/g, '/')}`),
+      originalName: file.originalname,
+      createdAt,
+      position: null
+    };
+
+    items.unshift(item);
+    added.push(item);
+  }
+
+  const nextGallery = { ...gallery, items };
+  saveGallery(nextGallery);
+
+  if (ENABLE_EXPORTS) {
+    writeJsonAtomic(path.join(ROOT_DIR, 'gallery.json'), nextGallery);
+  }
+
+  res.json({ ok: true, added });
+  }
+);
+
+app.put('/api/gallery/order', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
+  if (String(process.env.WORKER_ORIGIN || '').trim()) return proxyToWorker(req, res);
+  const album = sanitizeSegment(req.body?.album || '');
+  const orderedIds = Array.isArray(req.body?.orderedIds) ? req.body.orderedIds.map((x) => String(x)) : [];
+  if (!album) return res.status(400).json({ error: 'Album is required.' });
+  if (!orderedIds.length) return res.status(400).json({ error: 'orderedIds is required.' });
+
+  const gallery = loadGallery();
+  const items = Array.isArray(gallery.items) ? gallery.items : [];
+  const byId = new Map(items.map((it) => [String(it.id), it]));
+
+  // Validate: all ids exist and belong to album
+  for (const id of orderedIds) {
+    const it = byId.get(id);
+    if (!it) return res.status(400).json({ error: 'One or more ids do not exist.' });
+    if (String(it.album) !== album) return res.status(400).json({ error: 'All ids must belong to the selected album.' });
+  }
+
+  // Apply positions in the provided order.
+  orderedIds.forEach((id, idx) => {
+    const it = byId.get(id);
+    if (it) it.position = idx;
+  });
+
+  // Any remaining items in the album not included get appended (stable-ish by createdAt desc).
+  const remaining = items
+    .filter((it) => String(it.album) === album && !orderedIds.includes(String(it.id)))
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+
+  let nextPos = orderedIds.length;
+  for (const it of remaining) {
+    it.position = nextPos;
+    nextPos += 1;
+  }
+
+  saveGallery({ ...gallery, items });
+  if (ENABLE_EXPORTS) writeJsonAtomic(path.join(ROOT_DIR, 'gallery.json'), { ...gallery, items });
+  res.json({ ok: true });
+});
+
+app.put('/api/gallery/:id', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
+  if (String(process.env.WORKER_ORIGIN || '').trim()) return proxyToWorker(req, res);
+  const id = String(req.params.id);
+  const gallery = loadGallery();
+  const items = Array.isArray(gallery.items) ? gallery.items : [];
+  const item = items.find((x) => x.id === id);
+  if (!item) return res.status(404).json({ error: 'Not found' });
+
+  if (req.body.album) item.album = sanitizeSegment(req.body.album) || item.album;
+  if (typeof req.body.label === 'string') item.label = sanitizeSegment(req.body.label);
+  if (typeof req.body.tags === 'string') {
+    item.tags = String(req.body.tags)
+      .split(',')
+      .map((t) => sanitizeSegment(t).toLowerCase())
+      .filter(Boolean)
+      .slice(0, 25);
+  }
+
+  const nextGallery = { ...gallery, items };
+  saveGallery(nextGallery);
+  if (ENABLE_EXPORTS) writeJsonAtomic(path.join(ROOT_DIR, 'gallery.json'), nextGallery);
+
+  res.json({ ok: true, item });
+});
+
+app.delete('/api/gallery/:id', requirePermission(PERMISSIONS.WEBSITE_WRITE), (req, res) => {
+  if (String(process.env.WORKER_ORIGIN || '').trim()) return proxyToWorker(req, res);
+  const id = String(req.params.id);
+  const gallery = loadGallery();
+  const items = Array.isArray(gallery.items) ? gallery.items : [];
+  const idx = items.findIndex((x) => x.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+
+  const [removed] = items.splice(idx, 1);
+
+  // Best-effort delete image + thumbnail
+  try {
+    if (removed?.file) {
+      const abs = path.join(ROOT_DIR, removed.file.replace(/^\//, ''));
+      if (fs.existsSync(abs)) fs.unlinkSync(abs);
+    }
+    if (removed?.thumb && removed.thumb.includes('/_thumbs/')) {
+      const absT = path.join(ROOT_DIR, removed.thumb.replace(/^\//, ''));
+      if (fs.existsSync(absT)) fs.unlinkSync(absT);
+    }
+  } catch {
+    // ignore
+  }
+
+  const nextGallery = { ...gallery, items };
+  saveGallery(nextGallery);
+  if (ENABLE_EXPORTS) writeJsonAtomic(path.join(ROOT_DIR, 'gallery.json'), nextGallery);
+
+  res.json({ ok: true });
+});
+
+// ----------------- ANNOUNCEMENTS -----------------
+function loadAnnouncementsFile() {
+  const data = readJson(ANNOUNCEMENTS_DATA_PATH, { posts: [] });
+  return pruneAndPersistAnnouncements(data);
+}
+function saveAnnouncementsFile(data) {
+  writeJsonAtomic(ANNOUNCEMENTS_DATA_PATH, data);
+}
+
+function parseExpiresAtFromBody(body) {
+  const now = Date.now();
+
+  // Explicit never-expire
+  if (body?.expiresInDays === null) return null;
+
+  // Explicit ISO timestamp wins
+  if (typeof body?.expiresAt === 'string' && body.expiresAt.trim()) {
+    const t = Date.parse(body.expiresAt);
+    if (!Number.isNaN(t)) return new Date(t).toISOString();
+  }
+
+  // Days-based lifecycle
+  if (body?.expiresInDays !== undefined && body?.expiresInDays !== null && String(body.expiresInDays).trim() !== '') {
+    const n = Number(body.expiresInDays);
+    if (Number.isFinite(n) && n > 0) return new Date(now + n * 24 * 60 * 60 * 1000).toISOString();
+    return null; // 0/invalid => never
+  }
+
+  // Default lifecycle to reduce clutter
+  return new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function isAnnouncementExpired(post) {
+  if (!post?.expiresAt) return false;
+  const t = Date.parse(post.expiresAt);
+  if (Number.isNaN(t)) return false;
+  return t <= Date.now();
+}
+
+function pruneAndPersistAnnouncements(data) {
+  const posts = Array.isArray(data?.posts) ? data.posts : [];
+  const next = posts.filter((p) => p && (p.title || p.body) && !isAnnouncementExpired(p));
+  if (next.length !== posts.length) {
+    const cleaned = { posts: next };
+    saveAnnouncementsFile(cleaned);
+    if (ENABLE_EXPORTS) writeJsonAtomic(path.join(ROOT_DIR, 'announcements.json'), cleaned);
+    return cleaned;
+  }
+  return { posts };
+}
+
+async function pruneExpiredAnnouncementsPg() {
+  if (!hasPostgres()) return;
+  await pgQuery('DELETE FROM announcements WHERE expires_at IS NOT NULL AND expires_at <= NOW()');
+}
+
+function mapAnnouncementRow(row) {
+  return {
+    id: String(row.id),
+    title: String(row.title || ''),
+    body: String(row.body || ''),
+    createdAt: toIsoOrEmpty(row.created_at) || new Date().toISOString(),
+    startsAt: toIsoOrEmpty(row.starts_at) || undefined,
+    expiresAt: toIsoOrEmpty(row.expires_at) || undefined,
+    source: row.source ? String(row.source) : undefined
+  };
+}
+
+async function loadAnnouncementsPg() {
+  await pruneExpiredAnnouncementsPg();
+  const r = await pgQuery(
+    'SELECT id, title, body, created_at, starts_at, expires_at, source FROM announcements ORDER BY created_at DESC'
+  );
+  const posts = (r.rows || []).map(mapAnnouncementRow);
+  return { posts };
+}
+
+async function loadAnnouncementsUnified() {
+  if (hasPostgres()) return loadAnnouncementsPg();
+  return loadAnnouncementsFile();
+}
+
+async function createAnnouncementUnified({ title, body, startsAt, expiresAt, source } = {}) {
+  const post = {
+    id: newId(),
+    title,
+    body,
+    createdAt: new Date().toISOString(),
+    startsAt: startsAt || undefined,
+    expiresAt: expiresAt || undefined,
+    source: source || undefined
+  };
+
+  if (hasPostgres()) {
+    await pgQuery(
+      'INSERT INTO announcements (id, title, body, created_at, starts_at, expires_at, source) VALUES ($1,$2,$3,NOW(),$4,$5,$6)',
+      [
+        post.id,
+        post.title,
+        post.body,
+        post.startsAt || null,
+        post.expiresAt || null,
+        post.source || null
+      ]
+    );
+    return post;
+  }
+
+  const data = loadAnnouncementsFile();
+  const posts = Array.isArray(data.posts) ? data.posts : [];
+  posts.unshift(post);
+  pruneAndPersistAnnouncements({ posts });
+  return post;
+}
+
+async function getAnnouncementByIdUnified(id) {
+  const key = String(id);
+  if (hasPostgres()) {
+    const r = await pgQuery(
+      'SELECT id, title, body, created_at, starts_at, expires_at, source FROM announcements WHERE id = $1',
+      [key]
+    );
+    const row = r.rows?.[0];
+    return row ? mapAnnouncementRow(row) : null;
+  }
+
+  const data = loadAnnouncementsFile();
+  const posts = Array.isArray(data.posts) ? data.posts : [];
+  return posts.find((p) => String(p.id) === key) || null;
+}
+
+async function updateAnnouncementUnified(id, { title, body, startsAt, expiresAt } = {}) {
+  const key = String(id);
+  if (hasPostgres()) {
+    const r = await pgQuery(
+      `UPDATE announcements
+          SET title = $2,
+              body = $3,
+              starts_at = $4,
+              expires_at = $5
+        WHERE id = $1
+      RETURNING id, title, body, created_at, starts_at, expires_at, source`,
+      [
+        key,
+        String(title || '').trim(),
+        String(body || '').trim(),
+        startsAt || null,
+        expiresAt || null
+      ]
+    );
+    const row = r.rows?.[0];
+    return row ? mapAnnouncementRow(row) : null;
+  }
+
+  const data = loadAnnouncementsFile();
+  const posts = Array.isArray(data.posts) ? data.posts : [];
+  const idx = posts.findIndex((p) => String(p.id) === key);
+  if (idx < 0) return null;
+
+  const prev = posts[idx] || {};
+  const next = {
+    ...prev,
+    id: prev.id,
+    title: String(title || '').trim(),
+    body: String(body || '').trim(),
+    startsAt: startsAt || undefined,
+    expiresAt: expiresAt || undefined
+  };
+  posts[idx] = next;
+  saveAnnouncementsFile({ posts });
+  return next;
+}
+
+async function deleteAnnouncementUnified(id) {
+  if (hasPostgres()) {
+    await pgQuery('DELETE FROM announcements WHERE id = $1', [String(id)]);
+    return;
+  }
+  const data = loadAnnouncementsFile();
+  const posts = Array.isArray(data.posts) ? data.posts : [];
+  const next = posts.filter((p) => p.id !== String(id));
+  saveAnnouncementsFile({ posts: next });
+}
+
+async function exportAnnouncementsUnifiedToRoot() {
+  if (!ENABLE_EXPORTS) return;
+  const data = await loadAnnouncementsUnified();
+  writeJsonAtomic(path.join(ROOT_DIR, 'announcements.json'), data);
+}
+
+app.get('/api/announcements', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
+  try {
+    res.json(await loadAnnouncementsUnified());
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to load announcements' });
+  }
+});
+
+app.post('/api/announcements', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
+  try {
+    const title = String(req.body.title || '').trim().slice(0, 120);
+    const body = String(req.body.body || '').trim().slice(0, 5000);
+    if (!title || !body) return res.status(400).json({ error: 'Title and body required' });
+
+    const startsAt = typeof req.body.startsAt === 'string' ? parseIsoMaybe(req.body.startsAt) : '';
+    const expiresAt = parseExpiresAtFromBody(req.body);
+
+    const post = await createAnnouncementUnified({
+      title,
+      body,
+      startsAt: startsAt || undefined,
+      expiresAt: expiresAt || undefined,
+      source: 'admin'
+    });
+
+    await exportAnnouncementsUnifiedToRoot();
+    res.json({ ok: true, post });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to create announcement' });
+  }
+});
+
+app.put('/api/announcements/:id', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const title = String(req.body.title || '').trim().slice(0, 120);
+    const body = String(req.body.body || '').trim().slice(0, 5000);
+    if (!title || !body) return res.status(400).json({ error: 'Title and body required' });
+
+    const startsAtRaw = req.body?.startsAt;
+    const startsAt = startsAtRaw ? parseIsoMaybe(startsAtRaw) : '';
+    if (startsAtRaw && !startsAt) return res.status(400).json({ error: 'Show from is invalid' });
+
+    const neverExpires = req.body?.neverExpires === true || String(req.body?.neverExpires || '').toLowerCase() === 'true';
+    const expiresAtRaw = req.body?.expiresAt;
+    const expiresAt = neverExpires ? '' : (expiresAtRaw ? parseIsoMaybe(expiresAtRaw) : '');
+    if (!neverExpires && expiresAtRaw && !expiresAt) return res.status(400).json({ error: 'Expires at is invalid' });
+    if (!neverExpires && startsAt && expiresAt && Date.parse(expiresAt) <= Date.parse(startsAt)) {
+      return res.status(400).json({ error: 'Expires at must be after show from' });
+    }
+
+    const updated = await updateAnnouncementUnified(id, {
+      title,
+      body,
+      startsAt: startsAt || undefined,
+      expiresAt: neverExpires ? undefined : (expiresAt || undefined)
+    });
+    if (!updated) return res.status(404).json({ error: 'Not found' });
+
+    await exportAnnouncementsUnifiedToRoot();
+    res.json({ ok: true, post: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to update announcement' });
+  }
+});
+
+app.delete('/api/announcements/:id', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    await deleteAnnouncementUnified(id);
+    await exportAnnouncementsUnifiedToRoot();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to delete announcement' });
+  }
+});
+
+// ----------------- EVENTS (exports to schedule.json) -----------------
+function stableEventId(title, date, time) {
+  const key = `${String(title || '').trim().toLowerCase()}|${String(date || '').trim()}|${String(time || '').trim()}`;
+  return crypto.createHash('sha1').update(key).digest('hex').slice(0, 16);
+}
+
+function normalizeTimeValue(value) {
+  const t = String(value || '').trim();
+  if (!t) return '';
+  const m = t.match(/^([0-2]\d):([0-5]\d)/);
+  return m ? `${m[1]}:${m[2]}` : '';
+}
+
+function normalizeAndSortScheduleLike(events) {
+  return (events || [])
+    .filter((ev) => ev && ev.title && ev.date)
+    .map((ev) => ({
+      title: String(ev.title).trim().slice(0, 120),
+      date: String(ev.date).trim(),
+      time: normalizeTimeValue(ev.time)
+    }))
+    .sort((a, b) => new Date(`${a.date}T${a.time || '00:00'}`) - new Date(`${b.date}T${b.time || '00:00'}`));
+}
+
+function isPastEvent(ev, now) {
+  const date = String(ev?.date || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+
+  // If time is blank, keep the event visible until the end of that day.
+  const time = normalizeTimeValue(ev?.time) || '23:59';
+  const t = Date.parse(`${date}T${time}:00`);
+  if (Number.isNaN(t)) return false;
+  return t < now.getTime();
+}
+
+function prunePastEvents(events) {
+  const now = new Date();
+  const kept = [];
+  let removed = 0;
+  for (const ev of (events || [])) {
+    if (isPastEvent(ev, now)) {
+      removed += 1;
+      continue;
+    }
+    kept.push(ev);
+  }
+  return { kept, removed };
+}
+
+function loadEvents() {
+  const stored = readJson(EVENTS_DATA_PATH, { events: [] });
+  const storedEvents = Array.isArray(stored.events) ? stored.events : [];
+
+  // If schedule.json exists, treat it as the source of truth for what the website scheduler shows.
+  const schedulePath = path.join(ROOT_DIR, 'schedule.json');
+  if (!ENABLE_EXPORTS || !fs.existsSync(schedulePath)) {
+    return { events: storedEvents };
+  }
+
+  const scheduleArray = readJson(schedulePath, null);
+  if (!Array.isArray(scheduleArray)) {
+    return { events: storedEvents };
+  }
+
+  const normalized = normalizeAndSortScheduleLike(scheduleArray);
+  const keyOf = (e) => `${String(e.title || '').trim().toLowerCase()}|${String(e.date || '').trim()}|${String(e.time || '').trim()}`;
+  const existingByKey = new Map(storedEvents.map((e) => [keyOf(e), e]));
+
+  const merged = normalized.map((ev) => {
+    const existing = existingByKey.get(keyOf(ev));
+    const id = existing?.id || stableEventId(ev.title, ev.date, ev.time);
+    return {
+      id,
+      title: ev.title,
+      date: ev.date,
+      time: ev.time,
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      updatedAt: existing?.updatedAt
+    };
+  });
+
+  const storedComparable = JSON.stringify(storedEvents.map((e) => ({ id: e.id, title: e.title, date: e.date, time: e.time })));
+  const mergedComparable = JSON.stringify(merged.map((e) => ({ id: e.id, title: e.title, date: e.date, time: e.time })));
+
+  if (storedComparable !== mergedComparable) {
+    saveEvents({ events: merged });
+  }
+
+  const { kept, removed } = prunePastEvents(merged);
+  if (removed) {
+    saveEvents({ events: kept });
+    // Keep the public scheduler in sync when it exists (or when exports are enabled).
+    if (ENABLE_EXPORTS || fs.existsSync(schedulePath)) exportScheduleJson(kept);
+    return { events: kept };
+  }
+
+  return { events: merged };
+}
+function saveEvents(data) {
+  writeJsonAtomic(EVENTS_DATA_PATH, data);
+}
+
+function exportScheduleJson(events) {
+  // Existing site expects: [{title,date,time}]
+  const schedule = (events || []).map((e) => ({
+    title: e.title,
+    date: e.date,
+    time: e.time || ''
+  }));
+  const schedulePath = path.join(ROOT_DIR, 'schedule.json');
+  const backupPath = path.join(ROOT_DIR, 'schedule.json.bak');
+  try {
+    if (fs.existsSync(schedulePath) && !fs.existsSync(backupPath)) {
+      fs.copyFileSync(schedulePath, backupPath);
+    }
+  } catch {
+    // ignore backup failures
+  }
+  writeJsonAtomic(schedulePath, schedule);
+}
+
+app.get('/api/events', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), (req, res) => {
+  res.json(loadEvents());
+});
+
+app.post('/api/events', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), (req, res) => {
+  const title = String(req.body.title || '').trim().slice(0, 120);
+  const date = String(req.body.date || '').trim();
+  const time = normalizeTimeValue(req.body.time);
+  if (!title || !date) return res.status(400).json({ error: 'Title and date required' });
+
+  const data = loadEvents();
+  const events = Array.isArray(data.events) ? data.events : [];
+  const ev = { id: newId(), title, date, time, createdAt: new Date().toISOString() };
+  events.push(ev);
+  events.sort((a, b) => new Date(`${a.date}T${a.time || '00:00'}`) - new Date(`${b.date}T${b.time || '00:00'}`));
+
+  const pruned = prunePastEvents(events);
+  saveEvents({ events: pruned.kept });
+  if (ENABLE_EXPORTS) exportScheduleJson(pruned.kept);
+
+  res.json({ ok: true, event: ev, events: pruned.kept });
+});
+
+app.put('/api/events/:id', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), (req, res) => {
+  const id = String(req.params.id);
+  const title = String(req.body.title || '').trim().slice(0, 120);
+  const date = String(req.body.date || '').trim();
+  const time = normalizeTimeValue(req.body.time);
+  if (!title || !date) return res.status(400).json({ error: 'Title and date required' });
+
+  const data = loadEvents();
+  const events = Array.isArray(data.events) ? data.events : [];
+  const ev = events.find((e) => e.id === id);
+  if (!ev) return res.status(404).json({ error: 'Not found' });
+
+  ev.title = title;
+  ev.date = date;
+  ev.time = time;
+  ev.updatedAt = new Date().toISOString();
+
+  events.sort((a, b) => new Date(`${a.date}T${a.time || '00:00'}`) - new Date(`${b.date}T${b.time || '00:00'}`));
+
+  const pruned = prunePastEvents(events);
+  saveEvents({ events: pruned.kept });
+  if (ENABLE_EXPORTS) exportScheduleJson(pruned.kept);
+
+  res.json({ ok: true, event: ev, events: pruned.kept });
+});
+
+app.delete('/api/events/:id', requirePermission(PERMISSIONS.COMMUNICATIONS_MANAGE), (req, res) => {
+  const id = String(req.params.id);
+  const data = loadEvents();
+  const events = Array.isArray(data.events) ? data.events : [];
+  const next = events.filter((e) => e.id !== id);
+  const pruned = prunePastEvents(next);
+  saveEvents({ events: pruned.kept });
+  if (ENABLE_EXPORTS) exportScheduleJson(pruned.kept);
+  res.json({ ok: true });
+});
+
+// ----------------- FINANCES (internal only) -----------------
+app.get('/api/finances', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  const data = loadFinances();
+  const accounts = loadFinanceAccountsData();
+  res.json({ ...data, accounts: accounts.accounts || [] });
+});
+
+app.get('/api/finances/accounts', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  const accounts = loadFinanceAccountsData();
+  res.json({ accounts: accounts.accounts || [] });
+});
+
+app.post('/api/finances/accounts', requirePermission(PERMISSIONS.FINANCE_META), (req, res) => {
+  const existing = loadFinanceAccountsData();
+  const normalized = normalizeFinanceAccountRecord(req.body || {});
+  if (!normalized.name) return res.status(400).json({ error: 'Account name is required.' });
+  if (existing.accounts.some((a) => String(a.name || '').toLowerCase() === normalized.name.toLowerCase())) {
+    return res.status(409).json({ error: 'An account with that name already exists.' });
+  }
+  existing.accounts.push(normalized);
+  saveFinanceAccountsData(existing);
+  appendFinanceAuditEvent({
+    entityType: 'finance_account',
+    entityId: normalized.id,
+    userId: req.session?.user?.id || '',
+    userEmail: req.session?.user?.email || '',
+    action: 'created',
+    newValues: normalized,
+    source: 'manual',
+    requestId: req.requestId,
+    ip: req.ip
+  });
+  res.json({ ok: true, account: normalized, accounts: existing.accounts });
+});
+
+app.put('/api/finances/accounts/:id', requirePermission(PERMISSIONS.FINANCE_META), (req, res) => {
+  const id = String(req.params.id || '').trim();
+  const existing = loadFinanceAccountsData();
+  const idx = existing.accounts.findIndex((a) => String(a.id) === id);
+  if (idx < 0) return res.status(404).json({ error: 'Account not found.' });
+  const previous = existing.accounts[idx];
+  const next = normalizeFinanceAccountRecord({ ...previous, ...(req.body || {}), id: previous.id, createdAt: previous.createdAt });
+  if (!next.name) return res.status(400).json({ error: 'Account name is required.' });
+  if (existing.accounts.some((a, i) => i !== idx && String(a.name || '').toLowerCase() === next.name.toLowerCase())) {
+    return res.status(409).json({ error: 'An account with that name already exists.' });
+  }
+  existing.accounts[idx] = next;
+  saveFinanceAccountsData(existing);
+  appendFinanceAuditEvent({
+    entityType: 'finance_account',
+    entityId: next.id,
+    userId: req.session?.user?.id || '',
+    userEmail: req.session?.user?.email || '',
+    action: 'updated',
+    previousValues: previous,
+    newValues: next,
+    reason: String(req.body?.reason || '').trim(),
+    source: 'manual',
+    requestId: req.requestId,
+    ip: req.ip
+  });
+  res.json({ ok: true, account: next, accounts: existing.accounts });
+});
+
+app.put('/api/finances/meta', requirePermission(PERMISSIONS.FINANCE_META), (req, res) => {
+  const categories = uniqNonEmptyStrings(req.body?.categories || []);
+  const funds = uniqNonEmptyStrings(req.body?.funds || []);
+  const data = loadFinances();
+  const next = {
+    entries: Array.isArray(data.entries) ? data.entries : [],
+    meta: { categories, funds }
+  };
+  saveFinances(next);
+  res.json({ ok: true, data: next });
+});
+
+app.post('/api/finances/entries', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
+  const actor = sessionUser(req);
+  const date = normalizeDateOnly(req.body?.date);
+  const type = String(req.body?.type || '').trim().toLowerCase();
+  const category = normalizeFinanceText(req.body?.category, 80);
+  const fund = normalizeFinanceText(req.body?.fund, 80);
+  const fundIdInput = String(req.body?.fundId || '').trim();
+  const method = normalizeFinanceText(req.body?.method, 24).toLowerCase();
+  const party = normalizeFinanceText(req.body?.party, 120);
+  const memo = normalizeFinanceText(req.body?.memo, 200);
+  const amountCents = normalizeMoneyToCents(req.body?.amount);
+  const donorId = String(req.body?.donorId || '').trim();
+  const statementReviewStatus = String(req.body?.statementReviewStatus || 'needs_review').trim().toLowerCase();
+  const goodsServicesValueCents = parseMoneyCents(req.body?.goodsServicesValueCents ?? req.body?.goodsServicesValue);
+  const source = normalizeFinanceSource(req.body?.source);
+  const statusInput = normalizeFinanceStatus(req.body?.status, type === 'expense' ? 'paid' : 'posted');
+  const accountId = String(req.body?.accountId || '').trim();
+  const accountName = normalizeFinanceText(req.body?.accountName, 120);
+  const checkNumber = normalizeFinanceText(req.body?.checkNumber, 40);
+  const depositBatchId = String(req.body?.depositBatchId || '').trim();
+  const stripeSourceId = String(req.body?.stripeSourceId || '').trim();
+  const description = normalizeFinanceText(req.body?.description, 180);
+  const note = normalizeFinanceText(req.body?.note, 1000);
+  const vendorId = String(req.body?.vendorId || '').trim();
+  const vendorName = normalizeFinanceText(req.body?.vendorName, 140);
+  const reconciliationStatus = normalizeFinanceStatus(req.body?.reconciliationStatus, 'unreconciled');
+
+  if (!date) return res.status(400).json({ error: 'Valid date required.' });
+  if (type !== 'income' && type !== 'expense') return res.status(400).json({ error: 'Type must be income or expense.' });
+  if (!category) return res.status(400).json({ error: 'Category required.' });
+  if (!Number.isFinite(amountCents) || amountCents <= 0) return res.status(400).json({ error: 'Amount must be greater than 0.' });
+  if (type === 'expense' && !party) return res.status(400).json({ error: 'Enter who was paid.' });
+  if (!fund && !fundIdInput) return res.status(400).json({ error: 'Please select a fund before saving this transaction.' });
+
+  const { fundsData, balances } = getFundBalances();
+  const donorsData = loadDonorsData();
+  const accountsData = loadFinanceAccountsData();
+  const selectedFund = findFundByAnyKey(fundsData.funds, fundIdInput || fund);
+  if (!selectedFund) return res.status(400).json({ error: 'The selected fund could not be found. Choose a valid fund.' });
+  if (selectedFund.active === false) return res.status(400).json({ error: 'This fund is archived. Reactivate it before posting transactions.' });
+
+  const donorResolution = resolveEntryDonor(donorsData.donors, donorId, type, true);
+  if (donorResolution.error) return res.status(400).json({ error: donorResolution.error });
+
+  let selectedAccount = null;
+  if (accountId || accountName) {
+    selectedAccount = (accountsData.accounts || []).find((a) => String(a.id) === accountId)
+      || (accountsData.accounts || []).find((a) => String(a.name || '').toLowerCase() === String(accountName || '').toLowerCase());
+    if (!selectedAccount) return res.status(400).json({ error: 'The selected financial account could not be found.' });
+    if (selectedAccount.active === false) return res.status(400).json({ error: 'The selected financial account is inactive.' });
+  }
+
+  const fundBalance = balances.get(String(selectedFund.id));
+  const available = Number(fundBalance?.availableBalanceCents || 0);
+  const isRestricted = ['temporarily_restricted', 'permanently_restricted'].includes(String(selectedFund.restrictionStatus));
+  if (type === 'expense' && amountCents > available) {
+    const base = 'The selected fund does not have enough available money.';
+    if (isRestricted) return res.status(400).json({ error: `${base} This expense would use money from a restricted fund.` });
+    return res.status(400).json({ error: base });
+  }
+
+  const data = loadFinances();
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+  const meta = data.meta && typeof data.meta === 'object' ? data.meta : { categories: [], funds: [] };
+
+  const entry = {
+    id: newId(),
+    date,
+    type,
+    source,
+    sourceLabel: FINANCE_SOURCE_MAP[source],
+    category,
+    fund: selectedFund.fundName,
+    fundId: selectedFund.id,
+    accountId: selectedAccount ? selectedAccount.id : accountId,
+    accountName: selectedAccount ? selectedAccount.name : accountName,
+    method,
+    checkNumber,
+    depositBatchId,
+    stripeSourceId,
+    description,
+    party,
+    memo,
+    note,
+    vendorId,
+    vendorName,
+    donorId: donorResolution.donorId,
+    donorName: donorResolution.donorName,
+    statementReviewStatus,
+    goodsServicesValueCents: Number.isFinite(goodsServicesValueCents) ? Math.max(0, goodsServicesValueCents) : 0,
+    status: statusInput,
+    reconciliationStatus,
+    amountCents,
+    createdBy: actor?.id || '',
+    createdAt: new Date().toISOString(),
+    lastEditedBy: '',
+    updatedAt: '',
+    auditVersion: 1,
+    voidedBy: '',
+    voidedAt: '',
+    voidReason: '',
+    reversalTransactionId: ''
+  };
+
+  entries.push(entry);
+  sortFinanceEntries(entries);
+
+  const nextMeta = {
+    categories: uniqNonEmptyStrings([...(meta.categories || []), category]),
+    funds: uniqNonEmptyStrings([...(meta.funds || []), selectedFund.fundName])
+  };
+  const next = { entries, meta: nextMeta };
+  saveFinances(next);
+  audit('finance_entry_created', {
+    ...auditMetaFromRequest(req),
+    recordType: 'finance_entry',
+    recordId: entry.id,
+    newValues: {
+      date: entry.date,
+      type: entry.type,
+      fundId: entry.fundId,
+      amountCents: entry.amountCents
+    }
+  });
+  appendFinanceAuditEvent({
+    entityType: 'finance_entry',
+    entityId: entry.id,
+    userId: actor?.id || '',
+    userEmail: actor?.email || '',
+    action: 'created',
+    newValues: entry,
+    source,
+    requestId: req.requestId,
+    ip: req.ip
+  });
+  res.json({ ok: true, entry, data: next });
+});
+
+app.put('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
+  const actor = sessionUser(req);
+  const id = String(req.params.id);
+  const date = normalizeDateOnly(req.body?.date);
+  const type = String(req.body?.type || '').trim().toLowerCase();
+  const category = normalizeFinanceText(req.body?.category, 80);
+  const fund = normalizeFinanceText(req.body?.fund, 80);
+  const fundIdInput = String(req.body?.fundId || '').trim();
+  const method = normalizeFinanceText(req.body?.method, 24).toLowerCase();
+  const party = normalizeFinanceText(req.body?.party, 120);
+  const memo = normalizeFinanceText(req.body?.memo, 200);
+  const amountCents = normalizeMoneyToCents(req.body?.amount);
+  const donorId = String(req.body?.donorId || '').trim();
+  const statementReviewStatus = String(req.body?.statementReviewStatus || 'needs_review').trim().toLowerCase();
+  const goodsServicesValueCents = parseMoneyCents(req.body?.goodsServicesValueCents ?? req.body?.goodsServicesValue);
+  const source = normalizeFinanceSource(req.body?.source);
+  const statusInput = normalizeFinanceStatus(req.body?.status, type === 'expense' ? 'paid' : 'posted');
+  const accountId = String(req.body?.accountId || '').trim();
+  const accountName = normalizeFinanceText(req.body?.accountName, 120);
+  const checkNumber = normalizeFinanceText(req.body?.checkNumber, 40);
+  const depositBatchId = String(req.body?.depositBatchId || '').trim();
+  const stripeSourceId = String(req.body?.stripeSourceId || '').trim();
+  const description = normalizeFinanceText(req.body?.description, 180);
+  const note = normalizeFinanceText(req.body?.note, 1000);
+  const vendorId = String(req.body?.vendorId || '').trim();
+  const vendorName = normalizeFinanceText(req.body?.vendorName, 140);
+  const reconciliationStatus = normalizeFinanceStatus(req.body?.reconciliationStatus, 'unreconciled');
+
+  if (!date) return res.status(400).json({ error: 'Valid date required.' });
+  if (type !== 'income' && type !== 'expense') return res.status(400).json({ error: 'Type must be income or expense.' });
+  if (!category) return res.status(400).json({ error: 'Category required.' });
+  if (!Number.isFinite(amountCents) || amountCents <= 0) return res.status(400).json({ error: 'Amount must be greater than 0.' });
+  if (type === 'expense' && !party) return res.status(400).json({ error: 'Enter who was paid.' });
+  if (!fund && !fundIdInput) return res.status(400).json({ error: 'Please select a fund before saving this transaction.' });
+
+  const { fundsData, balances } = getFundBalances();
+  const donorsData = loadDonorsData();
+  const accountsData = loadFinanceAccountsData();
+  const selectedFund = findFundByAnyKey(fundsData.funds, fundIdInput || fund);
+  if (!selectedFund) return res.status(400).json({ error: 'The selected fund could not be found. Choose a valid fund.' });
+  if (selectedFund.active === false) return res.status(400).json({ error: 'This fund is archived. Reactivate it before posting transactions.' });
+
+  const donorResolution = resolveEntryDonor(donorsData.donors, donorId, type, true);
+  if (donorResolution.error) return res.status(400).json({ error: donorResolution.error });
+
+  let selectedAccount = null;
+  if (accountId || accountName) {
+    selectedAccount = (accountsData.accounts || []).find((a) => String(a.id) === accountId)
+      || (accountsData.accounts || []).find((a) => String(a.name || '').toLowerCase() === String(accountName || '').toLowerCase());
+    if (!selectedAccount) return res.status(400).json({ error: 'The selected financial account could not be found.' });
+    if (selectedAccount.active === false) return res.status(400).json({ error: 'The selected financial account is inactive.' });
+  }
+
+  const fundBalance = balances.get(String(selectedFund.id));
+  const available = Number(fundBalance?.availableBalanceCents || 0);
+  const isRestricted = ['temporarily_restricted', 'permanently_restricted'].includes(String(selectedFund.restrictionStatus));
+  if (type === 'expense' && amountCents > available) {
+    const base = 'The selected fund does not have enough available money.';
+    if (isRestricted) return res.status(400).json({ error: `${base} This expense would use money from a restricted fund.` });
+    return res.status(400).json({ error: base });
+  }
+
+  const data = loadFinances();
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+  const entry = entries.find((e) => e.id === id);
+  if (!entry) return res.status(404).json({ error: 'Not found' });
+  if (entry.status === 'voided' || entry.status === 'reversed') {
+    return res.status(400).json({ error: 'This transaction is closed. Create a reversal instead of editing it.' });
+  }
+
+  const prev = { ...entry };
+
+  entry.date = date;
+  entry.type = type;
+  entry.source = source;
+  entry.sourceLabel = FINANCE_SOURCE_MAP[source];
+  entry.category = category;
+  entry.fund = selectedFund.fundName;
+  entry.fundId = selectedFund.id;
+  entry.accountId = selectedAccount ? selectedAccount.id : accountId;
+  entry.accountName = selectedAccount ? selectedAccount.name : accountName;
+  entry.method = method;
+  entry.checkNumber = checkNumber;
+  entry.depositBatchId = depositBatchId;
+  entry.stripeSourceId = stripeSourceId;
+  entry.description = description;
+  entry.party = party;
+  entry.memo = memo;
+  entry.note = note;
+  entry.vendorId = vendorId;
+  entry.vendorName = vendorName;
+  entry.donorId = donorResolution.donorId;
+  entry.donorName = donorResolution.donorName;
+  entry.statementReviewStatus = statementReviewStatus;
+  entry.goodsServicesValueCents = Number.isFinite(goodsServicesValueCents) ? Math.max(0, goodsServicesValueCents) : 0;
+  if (entry.status !== 'voided' && entry.status !== 'reversed') {
+    entry.status = statusInput;
+  }
+  entry.reconciliationStatus = reconciliationStatus;
+  entry.amountCents = amountCents;
+  entry.lastEditedBy = actor?.id || '';
+  entry.updatedAt = new Date().toISOString();
+  entry.auditVersion = Math.max(1, Number(entry.auditVersion || 1) + 1);
+
+  sortFinanceEntries(entries);
+  const meta = data.meta && typeof data.meta === 'object' ? data.meta : { categories: [], funds: [] };
+  const nextMeta = {
+    categories: uniqNonEmptyStrings([...(meta.categories || []), category]),
+    funds: uniqNonEmptyStrings([...(meta.funds || []), selectedFund.fundName])
+  };
+  const next = { entries, meta: nextMeta };
+  saveFinances(next);
+  audit('finance_entry_edited', {
+    ...auditMetaFromRequest(req),
+    recordType: 'finance_entry',
+    recordId: entry.id,
+    previousValues: prev,
+    newValues: {
+      date: entry.date,
+      type: entry.type,
+      category: entry.category,
+      fundId: entry.fundId,
+      amountCents: entry.amountCents
+    }
+  });
+  appendFinanceAuditEvent({
+    entityType: 'finance_entry',
+    entityId: entry.id,
+    userId: actor?.id || '',
+    userEmail: actor?.email || '',
+    action: 'updated',
+    previousValues: prev,
+    newValues: entry,
+    source,
+    requestId: req.requestId,
+    ip: req.ip
+  });
+  res.json({ ok: true, entry, data: next });
+});
+
+app.delete('/api/finances/entries/:id', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
+  const actor = sessionUser(req);
+  if (!hasRole(actor, [ROLE.ADMINISTRATOR, ROLE.TREASURER])) {
+    return res.status(403).json({ error: 'Permanent deletion is restricted. Use Void Transaction instead.' });
+  }
+  const id = String(req.params.id);
+  const data = loadFinances();
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+  const target = entries.find((e) => e.id === id);
+  if (!target) return res.status(404).json({ error: 'Not found' });
+  const nextEntries = entries.filter((e) => e.id !== id);
+  const next = { entries: nextEntries, meta: data.meta || { categories: [], funds: [] } };
+  saveFinances(next);
+  audit('finance_entry_deleted', {
+    ...auditMetaFromRequest(req),
+    recordType: 'finance_entry',
+    recordId: id
+  });
+  appendFinanceAuditEvent({
+    entityType: 'finance_entry',
+    entityId: id,
+    userId: actor?.id || '',
+    userEmail: actor?.email || '',
+    action: 'hard_deleted_compat',
+    previousValues: target,
+    reason: String(req.body?.reason || 'Legacy compatibility delete').trim(),
+    source: 'manual',
+    requestId: req.requestId,
+    ip: req.ip
+  });
+  res.json({ ok: true, data: next });
+});
+
+app.post('/api/finances/entries/:id/void', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
+  const actor = sessionUser(req);
+  const id = String(req.params.id || '').trim();
+  const reason = normalizeFinanceText(req.body?.reason, 500);
+  if (!reason) return res.status(400).json({ error: 'Void reason is required.' });
+
+  const data = loadFinances();
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+  const entry = entries.find((e) => String(e.id) === id);
+  if (!entry) return res.status(404).json({ error: 'Not found' });
+  if (entry.status === 'voided') return res.json({ ok: true, entry, data });
+  if (entry.status === 'reversed') return res.status(400).json({ error: 'This transaction is already reversed.' });
+
+  const prev = { ...entry };
+  entry.status = 'voided';
+  entry.voidedBy = actor?.id || '';
+  entry.voidedAt = new Date().toISOString();
+  entry.voidReason = reason;
+  entry.lastEditedBy = actor?.id || '';
+  entry.updatedAt = new Date().toISOString();
+  entry.auditVersion = Math.max(1, Number(entry.auditVersion || 1) + 1);
+
+  sortFinanceEntries(entries);
+  const next = { entries, meta: data.meta || { categories: [], funds: [] } };
+  saveFinances(next);
+  audit('finance_entry_voided', {
+    ...auditMetaFromRequest(req),
+    recordType: 'finance_entry',
+    recordId: entry.id,
+    previousValues: prev,
+    newValues: { status: entry.status, voidedBy: entry.voidedBy, voidedAt: entry.voidedAt, voidReason: entry.voidReason }
+  });
+  appendFinanceAuditEvent({
+    entityType: 'finance_entry',
+    entityId: entry.id,
+    userId: actor?.id || '',
+    userEmail: actor?.email || '',
+    action: 'voided',
+    previousValues: prev,
+    newValues: entry,
+    reason,
+    source: String(entry.source || 'manual'),
+    requestId: req.requestId,
+    ip: req.ip
+  });
+  res.json({ ok: true, entry, data: next });
+});
+
+app.post('/api/finances/entries/:id/reverse', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
+  const actor = sessionUser(req);
+  const id = String(req.params.id || '').trim();
+  const reason = normalizeFinanceText(req.body?.reason, 500);
+  const reverseDate = normalizeDateOnly(req.body?.date) || new Date().toISOString().slice(0, 10);
+  if (!reason) return res.status(400).json({ error: 'Reversal reason is required.' });
+
+  const data = loadFinances();
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+  const entry = entries.find((e) => String(e.id) === id);
+  if (!entry) return res.status(404).json({ error: 'Not found' });
+  if (entry.reversalTransactionId) {
+    return res.status(400).json({ error: 'This transaction already has a reversal.' });
+  }
+  if (entry.status === 'voided' || entry.status === 'reversed') {
+    return res.status(400).json({ error: 'This transaction cannot be reversed in its current state.' });
+  }
+
+  const reversalType = entry.type === 'income' ? 'expense' : 'income';
+  const source = normalizeFinanceSource(entry.source || 'adjustment');
+  const nowIso = new Date().toISOString();
+  const reversal = normalizeFinanceEntryRecord({
+    id: newId(),
+    date: reverseDate,
+    type: reversalType,
+    source,
+    amountCents: Math.abs(Number(entry.amountCents || 0)),
+    category: entry.category,
+    fund: entry.fund,
+    fundId: entry.fundId,
+    accountId: entry.accountId,
+    accountName: entry.accountName,
+    donorId: entry.donorId,
+    donorName: entry.donorName,
+    vendorId: entry.vendorId,
+    vendorName: entry.vendorName,
+    method: entry.method,
+    checkNumber: entry.checkNumber,
+    depositBatchId: '',
+    stripeSourceId: entry.stripeSourceId,
+    description: `Reversal: ${entry.description || entry.category || 'Transaction'}`,
+    memo: entry.memo,
+    note: `Reversal of ${entry.id}. ${reason}`,
+    status: 'reversed',
+    reconciliationStatus: 'unreconciled',
+    party: entry.party,
+    statementReviewStatus: 'needs_review',
+    goodsServicesValueCents: 0,
+    createdBy: actor?.id || '',
+    createdAt: nowIso,
+    lastEditedBy: '',
+    updatedAt: '',
+    voidedBy: '',
+    voidedAt: '',
+    voidReason: '',
+    reversalTransactionId: entry.id,
+    auditVersion: 1
+  }, { nowIso });
+
+  const prev = { ...entry };
+  entry.status = 'reversed';
+  entry.reversalTransactionId = reversal.id;
+  entry.lastEditedBy = actor?.id || '';
+  entry.updatedAt = new Date().toISOString();
+  entry.auditVersion = Math.max(1, Number(entry.auditVersion || 1) + 1);
+
+  entries.push(reversal);
+  sortFinanceEntries(entries);
+  const next = { entries, meta: data.meta || { categories: [], funds: [] } };
+  saveFinances(next);
+
+  audit('finance_entry_reversed', {
+    ...auditMetaFromRequest(req),
+    recordType: 'finance_entry',
+    recordId: entry.id,
+    previousValues: prev,
+    newValues: { status: entry.status, reversalTransactionId: entry.reversalTransactionId }
+  });
+  appendFinanceAuditEvent({
+    entityType: 'finance_entry',
+    entityId: entry.id,
+    userId: actor?.id || '',
+    userEmail: actor?.email || '',
+    action: 'reversed',
+    previousValues: prev,
+    newValues: entry,
+    reason,
+    source: String(entry.source || 'manual'),
+    requestId: req.requestId,
+    ip: req.ip
+  });
+  appendFinanceAuditEvent({
+    entityType: 'finance_entry',
+    entityId: reversal.id,
+    userId: actor?.id || '',
+    userEmail: actor?.email || '',
+    action: 'created_reversal',
+    newValues: reversal,
+    reason,
+    source: String(reversal.source || 'manual'),
+    requestId: req.requestId,
+    ip: req.ip
+  });
+
+  res.json({ ok: true, reversed: entry, reversal, data: next });
+});
+
+app.get('/api/finances/audit', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  const id = String(req.query?.entryId || '').trim();
+  const events = loadFinanceAuditLog();
+  if (!id) return res.json({ events });
+  res.json({ events: events.filter((ev) => String(ev?.entityId || '') === id) });
+});
+
+app.get('/api/finances/migration-report', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  res.json(readJson(FINANCE_MIGRATION_REPORT_PATH, { migratedAt: '', notes: [] }));
+});
+
+app.get('/api/finances/funds/types', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  const data = loadFundsData();
+  res.json({
+    defaultFundTypes: DEFAULT_FUND_TYPES,
+    customFundTypes: data.customFundTypes || []
+  });
+});
+
+app.post('/api/finances/funds/types', requirePermission(PERMISSIONS.FINANCE_FUNDS_MANAGE), (req, res) => {
+  const user = sessionUser(req);
+  if (!hasRole(user, [ROLE.ADMINISTRATOR, ROLE.TREASURER])) {
+    return res.status(403).json({ error: 'Only an Administrator or Treasurer can add custom fund types.' });
+  }
+
+  const type = String(req.body?.type || '').trim().slice(0, 80);
+  if (!type) return res.status(400).json({ error: 'Fund type name is required.' });
+  const data = loadFundsData();
+  data.customFundTypes = uniqNonEmptyStrings([...(data.customFundTypes || []), type]);
+  saveFundsData(data);
+  audit('fund_type_added', {
+    ...auditMetaFromRequest(req),
+    action: 'fund_type_added',
+    newValues: { type }
+  });
+  res.json({ ok: true, customFundTypes: data.customFundTypes });
+});
+
+app.get('/api/finances/funds', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  const data = loadFundsData();
+  const { balances } = getFundBalances();
+  const funds = data.funds.map((f) => {
+    const b = balances.get(String(f.id)) || {
+      currentBalanceCents: Number(f.openingBalanceCents || 0),
+      availableBalanceCents: Number(f.openingBalanceCents || 0),
+      pendingDepositsCents: 0,
+      pendingExpensesCents: 0,
+      ytdIncomeCents: 0,
+      ytdExpenseCents: 0,
+      lastActivityDate: ''
+    };
+    return { ...f, ...b, remainingBudgetCents: Number(f.budgetAmountCents || 0) - Number(b.ytdExpenseCents || 0) };
+  });
+  res.json({
+    funds: funds.sort((a, b) => Number(a.displayOrder || 999) - Number(b.displayOrder || 999) || String(a.fundName).localeCompare(String(b.fundName))),
+    customFundTypes: data.customFundTypes || []
+  });
+});
+
+app.get('/api/finances/funds/dashboard', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  const finance = loadFinances();
+  const { fundsData, balances } = getFundBalances();
+  const funds = fundsData.funds || [];
+  const summary = {
+    totalUnrestrictedFundsCents: 0,
+    totalRestrictedFundsCents: 0,
+    generalOperatingBalanceCents: 0,
+    savingsAndReservesCents: 0,
+    undepositedRestrictedContributionsCents: 0,
+    lowBalanceFundIds: [],
+    overspendingFundIds: [],
+    transactionsRequiringFundAssignment: 0
+  };
+
+  const rows = funds.map((f) => {
+    const b = balances.get(String(f.id)) || {
+      currentBalanceCents: Number(f.openingBalanceCents || 0),
+      availableBalanceCents: Number(f.openingBalanceCents || 0),
+      pendingDepositsCents: 0,
+      pendingExpensesCents: 0,
+      ytdIncomeCents: 0,
+      ytdExpenseCents: 0,
+      lastActivityDate: ''
+    };
+
+    const isRestricted = ['temporarily_restricted', 'permanently_restricted'].includes(String(f.restrictionStatus));
+    const isUnrestricted = ['unrestricted', 'board_designated', 'needs_treasurer_review'].includes(String(f.restrictionStatus));
+    if (isRestricted) summary.totalRestrictedFundsCents += Number(b.currentBalanceCents || 0);
+    if (isUnrestricted) summary.totalUnrestrictedFundsCents += Number(b.currentBalanceCents || 0);
+    if (String(f.fundType).toLowerCase() === 'general operating') summary.generalOperatingBalanceCents += Number(b.currentBalanceCents || 0);
+    if (['savings', 'emergency reserve'].includes(String(f.fundType).toLowerCase())) {
+      summary.savingsAndReservesCents += Number(b.currentBalanceCents || 0);
+    }
+    if (isRestricted) summary.undepositedRestrictedContributionsCents += Number(b.pendingDepositsCents || 0);
+    if (Number(f.minimumBalanceWarningCents || 0) > 0 && Number(b.availableBalanceCents || 0) <= Number(f.minimumBalanceWarningCents || 0)) {
+      summary.lowBalanceFundIds.push(String(f.id));
+    }
+    if (Number(f.budgetAmountCents || 0) > 0 && Number(b.ytdExpenseCents || 0) > Number(f.budgetAmountCents || 0)) {
+      summary.overspendingFundIds.push(String(f.id));
+    }
+
+    return {
+      ...f,
+      ...b,
+      remainingBudgetCents: Number(f.budgetAmountCents || 0) - Number(b.ytdExpenseCents || 0)
+    };
+  });
+
+  summary.transactionsRequiringFundAssignment = (Array.isArray(finance.entries) ? finance.entries : [])
+    .filter((e) => !String(e?.fundId || '').trim() && !String(e?.fund || '').trim()).length;
+
+  const warnings = [
+    'This expense would use money from a restricted fund.',
+    'The selected fund does not have enough available money.',
+    'This contribution is restricted to the Building Fund.',
+    'General operating money cannot be substituted without authorization.'
+  ];
+
+  res.json({ summary, funds: rows, warnings });
+});
+
+app.post('/api/finances/funds', requirePermission(PERMISSIONS.FINANCE_FUNDS_MANAGE), (req, res) => {
+  const user = sessionUser(req);
+  const data = loadFundsData();
+  const fund = normalizeFundRecord(req.body || {}, user);
+  if (!fund.fundName) return res.status(400).json({ error: 'Fund name is required.' });
+  if (data.funds.some((f) => String(f.fundName).toLowerCase() === fund.fundName.toLowerCase())) {
+    return res.status(409).json({ error: 'A fund with that name already exists.' });
+  }
+  if (fund.fundCode && data.funds.some((f) => String(f.fundCode || '').toLowerCase() === fund.fundCode.toLowerCase())) {
+    return res.status(409).json({ error: 'A fund with that code already exists.' });
+  }
+  data.funds.push(fund);
+  saveFundsData(data);
+  audit('fund_created', {
+    ...auditMetaFromRequest(req),
+    recordType: 'fund',
+    recordId: fund.id,
+    newValues: fund
+  });
+  res.json({ ok: true, fund });
+});
+
+app.put('/api/finances/funds/:id', requirePermission(PERMISSIONS.FINANCE_FUNDS_MANAGE), (req, res) => {
+  const user = sessionUser(req);
+  const id = String(req.params.id);
+  const data = loadFundsData();
+  const idx = data.funds.findIndex((f) => String(f.id) === id);
+  if (idx < 0) return res.status(404).json({ error: 'Fund not found.' });
+
+  const prev = data.funds[idx];
+  const next = normalizeFundRecord({ ...prev, ...(req.body || {}), id: prev.id, createdAt: prev.createdAt, createdBy: prev.createdBy }, user);
+  data.funds[idx] = next;
+  saveFundsData(data);
+  audit('fund_edited', {
+    ...auditMetaFromRequest(req),
+    recordType: 'fund',
+    recordId: next.id,
+    previousValues: prev,
+    newValues: next,
+    reason: String(req.body?.reason || '').trim().slice(0, 400)
+  });
+  res.json({ ok: true, fund: next });
+});
+
+app.post('/api/finances/funds/:id/archive', requirePermission(PERMISSIONS.FINANCE_FUNDS_MANAGE), (req, res) => {
+  const id = String(req.params.id);
+  const data = loadFundsData();
+  const fund = data.funds.find((f) => String(f.id) === id);
+  if (!fund) return res.status(404).json({ error: 'Fund not found.' });
+
+  const finance = loadFinances();
+  const entries = Array.isArray(finance.entries) ? finance.entries : [];
+  const pendingDeposits = entries.some((e) => String(e?.fundId || '') === id && String(e?.type || '') === 'income' && String(e?.status || 'posted') === 'pending');
+  const pendingExpenses = entries.some((e) => String(e?.fundId || '') === id && String(e?.type || '') === 'expense' && String(e?.status || 'posted') === 'pending');
+  const hasRecurring = entries.some((e) => String(e?.fundId || '') === id && e?.isRecurring === true);
+  const hasGivingLink = fund.publicGivingAvailable === true;
+  const { balances } = getFundBalances();
+  const bal = balances.get(id);
+  const nonZero = Math.abs(Number(bal?.currentBalanceCents || 0)) > 0;
+  if (nonZero || pendingDeposits || pendingExpenses || hasRecurring || hasGivingLink) {
+    return res.status(400).json({
+      error: 'This fund cannot be archived yet.',
+      resolution: {
+        nonZeroBalance: nonZero,
+        pendingDeposits,
+        pendingExpenses,
+        recurringTransactions: hasRecurring,
+        activeGivingLinks: hasGivingLink,
+        message: 'Resolve nonzero balances, pending items, recurring entries, and active giving links before archiving.'
+      }
+    });
+  }
+
+  const prev = { ...fund };
+  fund.active = false;
+  fund.archivedAt = new Date().toISOString();
+  fund.updatedAt = new Date().toISOString();
+  fund.updatedBy = sessionUser(req)?.id || '';
+  saveFundsData(data);
+  audit('fund_archived', {
+    ...auditMetaFromRequest(req),
+    recordType: 'fund',
+    recordId: fund.id,
+    previousValues: prev,
+    newValues: fund
+  });
+  res.json({ ok: true, fund });
+});
+
+app.post('/api/finances/funds/:id/reactivate', requirePermission(PERMISSIONS.FINANCE_FUNDS_MANAGE), (req, res) => {
+  const id = String(req.params.id);
+  const data = loadFundsData();
+  const fund = data.funds.find((f) => String(f.id) === id);
+  if (!fund) return res.status(404).json({ error: 'Fund not found.' });
+  const prev = { ...fund };
+  fund.active = true;
+  fund.archivedAt = '';
+  fund.updatedAt = new Date().toISOString();
+  fund.updatedBy = sessionUser(req)?.id || '';
+  saveFundsData(data);
+  audit('fund_reactivated', {
+    ...auditMetaFromRequest(req),
+    recordType: 'fund',
+    recordId: fund.id,
+    previousValues: prev,
+    newValues: fund
+  });
+  res.json({ ok: true, fund });
+});
+
+app.get('/api/finances/funds/:id/activity', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  const id = String(req.params.id);
+  const finance = loadFinances();
+  const fundData = loadFundsData();
+  const entries = (finance.entries || []).filter((e) => String(e?.fundId || '') === id);
+  const transfers = (fundData.transfers || []).filter((t) => String(t?.fromFundId || '') === id || String(t?.toFundId || '') === id);
+  const releases = (fundData.releases || []).filter((r) => String(r?.fundId || '') === id);
+  res.json({ entries, transfers, releases });
+});
+
+app.post('/api/finances/funds/transfers', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
+  const user = sessionUser(req);
+  const fromFundId = String(req.body?.fromFundId || '').trim();
+  const toFundId = String(req.body?.toFundId || '').trim();
+  const amountCents = parseMoneyCents(req.body?.amountCents ?? req.body?.amount);
+  const reason = String(req.body?.reason || '').trim().slice(0, 400);
+  if (!fromFundId || !toFundId || fromFundId === toFundId) return res.status(400).json({ error: 'Choose two different funds for this transfer.' });
+  if (!Number.isFinite(amountCents) || amountCents <= 0) return res.status(400).json({ error: 'Enter a transfer amount greater than 0.' });
+
+  const data = loadFundsData();
+  const fromFund = findFundByAnyKey(data.funds, fromFundId);
+  const toFund = findFundByAnyKey(data.funds, toFundId);
+  if (!fromFund || !toFund) return res.status(400).json({ error: 'One or both selected funds were not found.' });
+
+  const { balances } = getFundBalances();
+  const fromBalance = balances.get(String(fromFund.id));
+  if (Number(fromBalance?.availableBalanceCents || 0) < amountCents) {
+    return res.status(400).json({ error: 'The selected fund does not have enough available money.' });
+  }
+
+  const touchesRestricted = ['temporarily_restricted', 'permanently_restricted'].includes(String(fromFund.restrictionStatus))
+    || ['temporarily_restricted', 'permanently_restricted'].includes(String(toFund.restrictionStatus));
+
+  const transfer = {
+    id: newId(),
+    fromFundId: String(fromFund.id),
+    toFundId: String(toFund.id),
+    amountCents,
+    reason,
+    requestedBy: user?.id || '',
+    requestedAt: new Date().toISOString(),
+    status: touchesRestricted ? 'pending_approval' : 'approved',
+    approvedBy: '',
+    approvedAt: ''
+  };
+
+  if (touchesRestricted && !hasRole(user, [ROLE.ADMINISTRATOR, ROLE.TREASURER])) {
+    transfer.status = 'pending_approval';
+  }
+  if (!touchesRestricted && hasRole(user, [ROLE.ADMINISTRATOR, ROLE.TREASURER])) {
+    transfer.approvedBy = user.id;
+    transfer.approvedAt = new Date().toISOString();
+  }
+
+  data.transfers.unshift(transfer);
+  saveFundsData(data);
+  audit('fund_transfer_created', {
+    ...auditMetaFromRequest(req),
+    recordType: 'fund_transfer',
+    recordId: transfer.id,
+    newValues: transfer
+  });
+
+  if (touchesRestricted) {
+    return res.json({
+      ok: true,
+      transfer,
+      warning: 'General operating money cannot be substituted without authorization.'
+    });
+  }
+  return res.json({ ok: true, transfer });
+});
+
+app.post('/api/finances/funds/transfers/:id/approve', requirePermission(PERMISSIONS.FINANCE_FUNDS_MANAGE), (req, res) => {
+  const user = sessionUser(req);
+  if (!hasRole(user, [ROLE.ADMINISTRATOR, ROLE.TREASURER])) {
+    return res.status(403).json({ error: 'Only an Administrator or Treasurer can approve this transfer.' });
+  }
+  const id = String(req.params.id);
+  const data = loadFundsData();
+  const t = data.transfers.find((x) => String(x.id) === id);
+  if (!t) return res.status(404).json({ error: 'Transfer not found.' });
+  if (String(t.requestedBy || '') === String(user?.id || '')) {
+    return res.status(400).json({ error: 'A user cannot approve their own transfer override.' });
+  }
+  if (String(t.status) === 'approved') return res.json({ ok: true, transfer: t });
+  t.status = 'approved';
+  t.approvedBy = user?.id || '';
+  t.approvedAt = new Date().toISOString();
+  saveFundsData(data);
+  audit('fund_transfer_approved', {
+    ...auditMetaFromRequest(req),
+    recordType: 'fund_transfer',
+    recordId: t.id,
+    newValues: { status: t.status, approvedBy: t.approvedBy, approvedAt: t.approvedAt }
+  });
+  res.json({ ok: true, transfer: t });
+});
+
+app.post('/api/finances/funds/releases', requirePermission(PERMISSIONS.FINANCE_FUNDS_MANAGE), (req, res) => {
+  const fundId = String(req.body?.fundId || '').trim();
+  const amountCents = parseMoneyCents(req.body?.amountCents ?? req.body?.amount);
+  const reason = String(req.body?.reason || '').trim().slice(0, 400);
+  if (!fundId) return res.status(400).json({ error: 'Fund is required for release from restriction.' });
+  if (!Number.isFinite(amountCents) || amountCents <= 0) return res.status(400).json({ error: 'Release amount must be greater than 0.' });
+
+  const data = loadFundsData();
+  const fund = findFundByAnyKey(data.funds, fundId);
+  if (!fund) return res.status(404).json({ error: 'Fund not found.' });
+  if (!['temporarily_restricted', 'permanently_restricted'].includes(String(fund.restrictionStatus))) {
+    return res.status(400).json({ error: 'Only restricted funds can be released from restriction.' });
+  }
+
+  const release = {
+    id: newId(),
+    fundId: String(fund.id),
+    amountCents,
+    reason,
+    requestedBy: sessionUser(req)?.id || '',
+    requestedAt: new Date().toISOString(),
+    status: 'pending_approval',
+    approvedBy: '',
+    approvedAt: ''
+  };
+  data.releases.unshift(release);
+  saveFundsData(data);
+  audit('fund_release_requested', {
+    ...auditMetaFromRequest(req),
+    recordType: 'fund_release',
+    recordId: release.id,
+    newValues: release
+  });
+  res.json({ ok: true, release });
+});
+
+app.post('/api/finances/funds/releases/:id/approve', requirePermission(PERMISSIONS.FINANCE_FUNDS_MANAGE), (req, res) => {
+  const user = sessionUser(req);
+  if (!hasRole(user, [ROLE.ADMINISTRATOR, ROLE.TREASURER])) {
+    return res.status(403).json({ error: 'Only an Administrator or Treasurer can approve releases from restriction.' });
+  }
+  const id = String(req.params.id);
+  const data = loadFundsData();
+  const rel = data.releases.find((r) => String(r.id) === id);
+  if (!rel) return res.status(404).json({ error: 'Release request not found.' });
+  if (String(rel.requestedBy || '') === String(user?.id || '')) {
+    return res.status(400).json({ error: 'A user cannot approve their own release request.' });
+  }
+  rel.status = 'approved';
+  rel.approvedBy = user?.id || '';
+  rel.approvedAt = new Date().toISOString();
+  saveFundsData(data);
+  audit('fund_release_approved', {
+    ...auditMetaFromRequest(req),
+    recordType: 'fund_release',
+    recordId: rel.id,
+    newValues: { status: rel.status, approvedBy: rel.approvedBy, approvedAt: rel.approvedAt }
+  });
+  res.json({ ok: true, release: rel });
+});
+
+app.get('/api/finances/donors', requirePermission(PERMISSIONS.DONOR_READ), (req, res) => {
+  const data = loadDonorsData();
+  const q = String(req.query.q || '').trim().toLowerCase();
+  const household = String(req.query.household || '').trim().toLowerCase();
+  const envelope = String(req.query.envelope || '').trim().toLowerCase();
+  const active = String(req.query.active || '').trim().toLowerCase();
+  const statement = String(req.query.statementDelivery || '').trim().toLowerCase();
+
+  let donors = data.donors || [];
+  if (q) {
+    donors = donors.filter((d) => {
+      const hay = [
+        donorDisplayName(d),
+        d.email,
+        d.phone,
+        d.mailingAddress,
+        d.envelopeNumber
+      ].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }
+  if (household) donors = donors.filter((d) => String(d.householdId || '').toLowerCase().includes(household));
+  if (envelope) donors = donors.filter((d) => String(d.envelopeNumber || '').toLowerCase().includes(envelope));
+  if (active === 'active') donors = donors.filter((d) => d.active !== false);
+  if (active === 'inactive') donors = donors.filter((d) => d.active === false);
+  if (statement) donors = donors.filter((d) => String(d.preferredStatementDelivery || '').toLowerCase() === statement);
+
+  const possibleDuplicates = donors
+    .flatMap((d) => findPossibleDonorDuplicates(data.donors, d).map((x) => ({ donorId: d.id, duplicateId: x.id })))
+    .slice(0, 40);
+
+  const missingAddressCount = donors.filter((d) => !String(d.mailingAddress || '').trim()).length;
+  res.json({
+    donors,
+    totalDonors: donors.length,
+    missingAddressCount,
+    possibleDuplicates
+  });
+});
+
+app.post('/api/finances/donors', requirePermission(PERMISSIONS.DONOR_WRITE), (req, res) => {
+  const data = loadDonorsData();
+  const user = sessionUser(req);
+  const donor = normalizeDonor(req.body || {}, user);
+  if (!donor.firstName || !donor.lastName) return res.status(400).json({ error: 'First and last name are required.' });
+  const duplicates = findPossibleDonorDuplicates(data.donors, donor);
+  if (duplicates.length && req.body?.forceCreate !== true) {
+    return res.status(409).json({
+      error: 'Possible duplicate donor found. Review before creating a new profile.',
+      duplicates: duplicates.map((d) => ({ id: d.id, name: donorDisplayName(d), email: d.email, phone: d.phone }))
+    });
+  }
+  data.donors.push(donor);
+  saveDonorsData(data);
+  audit('donor_created', {
+    ...auditMetaFromRequest(req),
+    recordType: 'donor',
+    recordId: donor.id,
+    newValues: donor
+  });
+  res.json({ ok: true, donor });
+});
+
+app.put('/api/finances/donors/:id', requirePermission(PERMISSIONS.DONOR_WRITE), (req, res) => {
+  const id = String(req.params.id);
+  const data = loadDonorsData();
+  const idx = data.donors.findIndex((d) => String(d.id) === id);
+  if (idx < 0) return res.status(404).json({ error: 'Donor not found.' });
+  const user = sessionUser(req);
+  const prev = data.donors[idx];
+
+  // Finance entry can update basic contact details but not sensitive statement controls.
+  const safePatch = { ...(req.body || {}) };
+  if (hasRole(user, ROLE.FINANCE_ENTRY)) {
+    delete safePatch.statementEligible;
+    delete safePatch.taxReviewStatus;
+    delete safePatch.restrictedNotes;
+  }
+
+  const next = normalizeDonor({ ...prev, ...safePatch, id: prev.id, createdAt: prev.createdAt, createdBy: prev.createdBy }, user);
+  const duplicates = findPossibleDonorDuplicates(data.donors, next);
+  if (duplicates.length && req.body?.forceSave !== true) {
+    return res.status(409).json({
+      error: 'Possible duplicate donor found. Review before saving.',
+      duplicates: duplicates.map((d) => ({ id: d.id, name: donorDisplayName(d), email: d.email, phone: d.phone }))
+    });
+  }
+
+  data.donors[idx] = next;
+  saveDonorsData(data);
+
+  const finance = loadFinances();
+  if (syncEntryDonorSnapshots(finance.entries, data.donors)) {
+    saveFinances(finance);
+  }
+
+  const statements = loadStatementsData();
+  if (syncStatementDonorSnapshots(statements.statements, data.donors)) {
+    saveStatementsData(statements);
+  }
+
+  audit('donor_edited', {
+    ...auditMetaFromRequest(req),
+    recordType: 'donor',
+    recordId: next.id,
+    previousValues: prev,
+    newValues: next
+  });
+  res.json({ ok: true, donor: next });
+});
+
+app.post('/api/finances/donors/:id/deactivate', requirePermission(PERMISSIONS.DONOR_WRITE), (req, res) => {
+  const id = String(req.params.id);
+  const data = loadDonorsData();
+  const donor = data.donors.find((d) => String(d.id) === id);
+  if (!donor) return res.status(404).json({ error: 'Donor not found.' });
+  donor.active = false;
+  donor.updatedAt = new Date().toISOString();
+  donor.updatedBy = sessionUser(req)?.id || '';
+  saveDonorsData(data);
+  audit('donor_deactivated', {
+    ...auditMetaFromRequest(req),
+    recordType: 'donor',
+    recordId: donor.id
+  });
+  res.json({ ok: true, donor });
+});
+
+app.post('/api/finances/donors/:id/reactivate', requirePermission(PERMISSIONS.DONOR_WRITE), (req, res) => {
+  const id = String(req.params.id);
+  const data = loadDonorsData();
+  const donor = data.donors.find((d) => String(d.id) === id);
+  if (!donor) return res.status(404).json({ error: 'Donor not found.' });
+  donor.active = true;
+  donor.updatedAt = new Date().toISOString();
+  donor.updatedBy = sessionUser(req)?.id || '';
+  saveDonorsData(data);
+  audit('donor_reactivated', {
+    ...auditMetaFromRequest(req),
+    recordType: 'donor',
+    recordId: donor.id
+  });
+  res.json({ ok: true, donor });
+});
+
+app.post('/api/finances/donors/merge', requirePermission(PERMISSIONS.DONOR_MERGE), (req, res) => {
+  const user = sessionUser(req);
+  if (!hasRole(user, [ROLE.ADMINISTRATOR, ROLE.TREASURER])) {
+    return res.status(403).json({ error: 'Only an Administrator or Treasurer can merge donors.' });
+  }
+
+  const primaryId = String(req.body?.primaryId || '').trim();
+  const duplicateId = String(req.body?.duplicateId || '').trim();
+  const reason = String(req.body?.reason || '').trim().slice(0, 400);
+  if (!primaryId || !duplicateId || primaryId === duplicateId) return res.status(400).json({ error: 'Select a valid primary and duplicate donor.' });
+
+  const donorsData = loadDonorsData();
+  const donors = donorsData.donors || [];
+  const primary = donors.find((d) => String(d.id) === primaryId);
+  const duplicate = donors.find((d) => String(d.id) === duplicateId);
+  if (!primary || !duplicate) return res.status(404).json({ error: 'One or both donor profiles were not found.' });
+
+  const finance = loadFinances();
+  for (const e of (finance.entries || [])) {
+    if (String(e?.donorId || '') === duplicateId) {
+      e.donorId = primaryId;
+      e.donorName = donorDisplayName(primary);
+      e.updatedAt = new Date().toISOString();
+    }
+  }
+  syncEntryDonorSnapshots(finance.entries, donors);
+  saveFinances(finance);
+
+  const statementsData = loadStatementsData();
+  for (const stmt of (statementsData.statements || [])) {
+    if (String(stmt?.donorId || '') === duplicateId) {
+      stmt.donorId = primaryId;
+      stmt.donorName = donorDisplayName(primary);
+      stmt.donorMailingAddress = String(primary?.mailingAddress || '');
+    }
+  }
+  syncStatementDonorSnapshots(statementsData.statements, donors);
+  saveStatementsData(statementsData);
+
+  const mergeEvent = {
+    id: newId(),
+    at: new Date().toISOString(),
+    primaryId,
+    duplicateId,
+    reason,
+    by: user?.id || ''
+  };
+  donorsData.merges.unshift(mergeEvent);
+  donorsData.donors = donors.filter((d) => String(d.id) !== duplicateId);
+  saveDonorsData(donorsData);
+  audit('donor_merged', {
+    ...auditMetaFromRequest(req),
+    recordType: 'donor_merge',
+    recordId: mergeEvent.id,
+    previousValues: { primary, duplicate },
+    newValues: { primaryId, duplicateArchived: true },
+    reason
+  });
+
+  res.json({ ok: true, mergeEvent });
+});
+
+app.get('/api/finances/donors/:id/history', requirePermission(PERMISSIONS.DONOR_READ), (req, res) => {
+  const id = String(req.params.id);
+  const year = String(req.query.year || '').trim();
+  const from = normalizeDateOnly(req.query.from);
+  const to = normalizeDateOnly(req.query.to);
+  const donorsData = loadDonorsData();
+  const donor = donorsData.donors.find((d) => String(d.id) === id);
+  if (!donor) return res.status(404).json({ error: 'Donor not found.' });
+
+  const entries = (loadFinances().entries || []).filter((e) => String(e?.donorId || '') === id && String(e?.type || '') === 'income');
+  const filtered = entries.filter((e) => {
+    const d = normalizeDateOnly(e.date);
+    if (year && !d.startsWith(`${year}-`)) return false;
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
+  });
+
+  const totals = {
+    selectedPeriodCents: 0,
+    deductibleCents: 0,
+    nondeductibleCents: 0,
+    pendingReviewCount: 0,
+    byFund: {}
+  };
+  for (const e of filtered) {
+    const amount = Math.abs(Number(e.amountCents || 0));
+    totals.selectedPeriodCents += amount;
+    const status = String(e.statementReviewStatus || 'needs_review');
+    if (status === 'nondeductible') totals.nondeductibleCents += amount;
+    else if (status === 'needs_review') totals.pendingReviewCount += 1;
+    else totals.deductibleCents += amount;
+    const fund = String(e.fund || 'Unassigned');
+    totals.byFund[fund] = Number(totals.byFund[fund] || 0) + amount;
+  }
+  res.json({ donor: { id: donor.id, name: donorDisplayName(donor) }, entries: filtered, totals });
+});
+
+app.get('/api/finances/statements', requirePermission(PERMISSIONS.DONOR_READ), (req, res) => {
+  res.json(loadStatementsData());
+});
+
+app.put('/api/finances/statements/templates', requirePermission(PERMISSIONS.STATEMENTS_MANAGE), (req, res) => {
+  const data = loadStatementsData();
+  data.templates = {
+    ...data.templates,
+    ...(req.body?.templates || {})
+  };
+  saveStatementsData(data);
+  audit('statement_templates_updated', {
+    ...auditMetaFromRequest(req),
+    recordType: 'statement_template',
+    recordId: 'default',
+    newValues: data.templates
+  });
+  res.json({ ok: true, templates: data.templates });
+});
+
+app.post('/api/finances/statements/generate', requirePermission(PERMISSIONS.STATEMENTS_MANAGE), (req, res) => {
+  const donorsData = loadDonorsData();
+  const statementsData = loadStatementsData();
+  syncStatementDonorSnapshots(statementsData.statements, donorsData.donors);
+  const period = normalizeFinanceStatementPeriod(req.body?.from, req.body?.to);
+  if (!period) return res.status(400).json({ error: 'Select a valid statement period.' });
+
+  const donorIds = Array.isArray(req.body?.donorIds)
+    ? req.body.donorIds.map((id) => {
+      const donor = findDonorByAnyKey(donorsData.donors, id);
+      return donor ? String(donor.id) : '';
+    }).filter(Boolean)
+    : donorsData.donors.map((d) => String(d.id));
+  const entries = loadFinances().entries || [];
+  const created = [];
+
+  for (const donorId of donorIds) {
+    const donor = donorsData.donors.find((d) => String(d.id) === donorId);
+    if (!donor || donor.statementEligible === false) continue;
+    const lines = entries.filter((e) => {
+      if (String(e?.type || '') !== 'income') return false;
+      if (String(e?.donorId || '') !== donorId) return false;
+      const d = normalizeDateOnly(e.date);
+      return d >= period.from && d <= period.to;
+    });
+    if (!lines.length) continue;
+
+    let deductibleTotalCents = 0;
+    let nondeductibleTotalCents = 0;
+    for (const line of lines) {
+      const amount = Math.abs(Number(line.amountCents || 0));
+      if (String(line.statementReviewStatus || 'needs_review') === 'nondeductible') nondeductibleTotalCents += amount;
+      else deductibleTotalCents += amount;
+    }
+
+    const statement = {
+      id: newId(),
+      statementIdentifier: `STM-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+      donorId,
+      donorName: donorDisplayName(donor),
+      donorMailingAddress: donor.mailingAddress,
+      period,
+      lines,
+      deductibleTotalCents,
+      nondeductibleTotalCents,
+      status: 'generated',
+      issuedAt: '',
+      generatedAt: new Date().toISOString(),
+      generatedBy: sessionUser(req)?.id || '',
+      correctionStatus: 'original'
+    };
+    created.push(statement);
+    statementsData.statements.unshift(statement);
+  }
+
+  saveStatementsData(statementsData);
+  audit('statement_generated', {
+    ...auditMetaFromRequest(req),
+    recordType: 'statement_batch',
+    recordId: newId(),
+    newValues: {
+      generatedCount: created.length,
+      from: period.from,
+      to: period.to
+    }
+  });
+  res.json({ ok: true, generated: created.length, statements: created });
+});
+
+app.post('/api/finances/statements/:id/approve', requirePermission(PERMISSIONS.STATEMENTS_APPROVE), (req, res) => {
+  const id = String(req.params.id);
+  const data = loadStatementsData();
+  const stmt = data.statements.find((s) => String(s.id) === id);
+  if (!stmt) return res.status(404).json({ error: 'Statement not found.' });
+  stmt.status = 'approved';
+  stmt.issuedAt = new Date().toISOString();
+  stmt.approvedBy = sessionUser(req)?.id || '';
+  saveStatementsData(data);
+  audit('statement_approved', {
+    ...auditMetaFromRequest(req),
+    recordType: 'statement',
+    recordId: stmt.id,
+    newValues: { status: stmt.status, issuedAt: stmt.issuedAt }
+  });
+  res.json({ ok: true, statement: stmt });
+});
+
+app.post('/api/finances/statements/:id/deliver', requirePermission(PERMISSIONS.STATEMENTS_MANAGE), (req, res) => {
+  const id = String(req.params.id);
+  const method = String(req.body?.method || '').trim().toLowerCase();
+  if (!['mail', 'email', 'pickup', 'other'].includes(method)) {
+    return res.status(400).json({ error: 'Delivery method must be mail, email, pickup, or other.' });
+  }
+  const data = loadStatementsData();
+  const stmt = data.statements.find((s) => String(s.id) === id);
+  if (!stmt) return res.status(404).json({ error: 'Statement not found.' });
+  const delivery = {
+    id: newId(),
+    statementId: stmt.id,
+    method,
+    deliveredAt: new Date().toISOString(),
+    deliveredBy: sessionUser(req)?.id || ''
+  };
+  data.deliveries.unshift(delivery);
+  stmt.status = 'delivered';
+  saveStatementsData(data);
+  audit('statement_delivered', {
+    ...auditMetaFromRequest(req),
+    recordType: 'statement_delivery',
+    recordId: delivery.id,
+    newValues: delivery
+  });
+  res.json({ ok: true, delivery, statement: stmt });
+});
+
+app.post('/api/finances/reports/board/generate', requirePermission(PERMISSIONS.BOARD_REPORTS_MANAGE), (req, res) => {
+  const reportDate = normalizeDateOnly(req.body?.reportDate) || normalizeDateOnly(new Date().toISOString());
+  const priorDate = normalizeDateOnly(req.body?.priorDate);
+  const liabilitiesCents = parseMoneyCents(req.body?.liabilitiesCents ?? 0);
+
+  const { fundsData, balances } = getFundBalances();
+  const rows = (fundsData.funds || []).map((f) => {
+    const b = balances.get(String(f.id));
+    return {
+      fundId: f.id,
+      fundName: f.fundName,
+      restrictionStatus: f.restrictionStatus,
+      currentBalanceCents: Number(b?.currentBalanceCents || 0)
+    };
+  });
+
+  const assetsCents = rows.reduce((sum, r) => sum + Number(r.currentBalanceCents || 0), 0);
+  const netWithoutRestrictionCents = rows
+    .filter((r) => ['unrestricted', 'board_designated', 'needs_treasurer_review'].includes(String(r.restrictionStatus)))
+    .reduce((sum, r) => sum + Number(r.currentBalanceCents || 0), 0);
+  const netWithRestrictionCents = rows
+    .filter((r) => ['temporarily_restricted', 'permanently_restricted'].includes(String(r.restrictionStatus)))
+    .reduce((sum, r) => sum + Number(r.currentBalanceCents || 0), 0);
+
+  const netAssetsCents = netWithoutRestrictionCents + netWithRestrictionCents;
+  const balanceCheck = assetsCents === (Number.isFinite(liabilitiesCents) ? liabilitiesCents : 0) + netAssetsCents;
+  if (!balanceCheck) {
+    return res.status(400).json({
+      error: 'Cannot publish this report because the accounting equation is out of balance. Assets must equal Liabilities plus Net Assets.'
+    });
+  }
+
+  const financeEntries = loadFinances().entries || [];
+  const monthKey = reportDate.slice(0, 7);
+  const thisYear = reportDate.slice(0, 4);
+
+  const activities = {
+    currentMonthRevenueCents: 0,
+    currentMonthExpenseCents: 0,
+    ytdRevenueCents: 0,
+    ytdExpenseCents: 0
+  };
+  for (const e of financeEntries) {
+    const d = normalizeDateOnly(e.date);
+    const amount = Math.abs(Number(e.amountCents || 0));
+    if (!amount) continue;
+    const type = String(e.type || '').toLowerCase();
+    if (d.startsWith(monthKey)) {
+      if (type === 'income') activities.currentMonthRevenueCents += amount;
+      if (type === 'expense') activities.currentMonthExpenseCents += amount;
+    }
+    if (d.startsWith(`${thisYear}-`)) {
+      if (type === 'income') activities.ytdRevenueCents += amount;
+      if (type === 'expense') activities.ytdExpenseCents += amount;
+    }
+  }
+
+  const packageRecord = {
+    id: newId(),
+    generatedAt: new Date().toISOString(),
+    generatedBy: sessionUser(req)?.id || '',
+    reportDate,
+    priorDate,
+    statementOfFinancialPosition: {
+      assetsCents,
+      liabilitiesCents: Number.isFinite(liabilitiesCents) ? liabilitiesCents : 0,
+      netWithoutRestrictionCents,
+      netWithRestrictionCents,
+      netAssetsCents,
+      funds: rows
+    },
+    statementOfActivities: {
+      ...activities,
+      totalChangeInNetAssetsCents: activities.ytdRevenueCents - activities.ytdExpenseCents
+    },
+    boardNotes: String(req.body?.boardNotes || '').trim().slice(0, 5000)
+  };
+  const file = path.join(DATA_DIR, 'board_report_packages.json');
+  const existing = readJson(file, { packages: [] });
+  const packages = Array.isArray(existing?.packages) ? existing.packages : [];
+  packages.unshift(packageRecord);
+  writeJsonAtomic(file, { packages });
+  audit('board_report_generated', {
+    ...auditMetaFromRequest(req),
+    recordType: 'board_report_package',
+    recordId: packageRecord.id,
+    newValues: {
+      reportDate,
+      priorDate,
+      packageId: packageRecord.id
+    }
+  });
+  res.json({ ok: true, package: packageRecord });
+});
+
+app.get('/api/finances/controls/dashboard', requirePermission(PERMISSIONS.CONTROLS_VERIFY), (req, res) => {
+  const data = loadControlsData();
+  const collections = data.collections || [];
+  const dashboard = {
+    awaitingSecondVerification: collections.filter((c) => c.verificationStatus === 'awaiting_second_counter').length,
+    enteredByOnlyCounter: collections.filter((c) => c.enteredBy && c.counters?.length === 1 && String(c.counters[0]) === String(c.enteredBy)).length,
+    modifiedAfterVerification: collections.filter((c) => c.modifiedAfterVerification === true).length,
+    undepositedCollections: collections.filter((c) => c.depositedAt ? false : true).length,
+    depositsAwaitingVerification: collections.filter((c) => c.depositedAt && c.depositVerifiedAt ? false : true).length,
+    overridesAndExceptions: (data.exceptions || []).length,
+    recentVoidsAndReversals: collections.filter((c) => c.status === 'voided' || c.status === 'reversed').slice(0, 20)
+  };
+  res.json({ dashboard, collections, exceptions: data.exceptions || [] });
+});
+
+app.post('/api/finances/controls/collections', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
+  const user = sessionUser(req);
+  const data = loadControlsData();
+  const amountCents = parseMoneyCents(req.body?.amountCents ?? req.body?.amount);
+  if (!Number.isFinite(amountCents) || amountCents <= 0) return res.status(400).json({ error: 'Collection amount must be greater than 0.' });
+
+  const counters = Array.isArray(req.body?.counters) ? req.body.counters.map((x) => String(x || '').trim()).filter(Boolean) : [];
+  if (data.twoPersonVerificationEnabled && counters.length < 2) {
+    return res.status(400).json({ error: 'A second counter must verify this collection.' });
+  }
+  if (!counters.length) return res.status(400).json({ error: 'At least one counter is required.' });
+  if (counters.length === 1 && String(counters[0]) === String(user?.id || '')) {
+    return res.status(400).json({ error: 'The person entering this collection cannot be its only verifier.' });
+  }
+
+  const collection = {
+    id: newId(),
+    serviceDate: normalizeDateOnly(req.body?.serviceDate) || normalizeDateOnly(new Date().toISOString()),
+    amountCents,
+    counters,
+    enteredBy: user?.id || '',
+    enteredAt: new Date().toISOString(),
+    verificationStatus: data.twoPersonVerificationEnabled ? 'awaiting_second_counter' : 'verified',
+    verificationHistory: [],
+    depositId: String(req.body?.depositId || '').trim(),
+    depositedAt: '',
+    depositVerifiedAt: '',
+    modifiedAfterVerification: false,
+    status: 'draft',
+    attachment: String(req.body?.attachment || '').trim().slice(0, 400)
+  };
+  data.collections.unshift(collection);
+  saveControlsData(data);
+  audit('collection_created', {
+    ...auditMetaFromRequest(req),
+    recordType: 'collection',
+    recordId: collection.id,
+    newValues: collection
+  });
+  res.json({ ok: true, collection });
+});
+
+app.post('/api/finances/controls/collections/:id/verify', requirePermission(PERMISSIONS.CONTROLS_VERIFY), (req, res) => {
+  const user = sessionUser(req);
+  const id = String(req.params.id);
+  const data = loadControlsData();
+  const collection = data.collections.find((c) => String(c.id) === id);
+  if (!collection) return res.status(404).json({ error: 'Collection not found.' });
+  if (String(collection.enteredBy || '') === String(user?.id || '') && (collection.counters || []).length <= 1) {
+    return res.status(400).json({ error: 'The person entering this collection cannot be its only verifier.' });
+  }
+  const verifier = String(req.body?.verifierId || user?.id || '').trim();
+  if (!verifier) return res.status(400).json({ error: 'Verifier is required.' });
+
+  collection.verificationHistory = Array.isArray(collection.verificationHistory) ? collection.verificationHistory : [];
+  collection.verificationHistory.push({ verifier, at: new Date().toISOString(), amountCents: collection.amountCents });
+  const uniqueVerifiers = Array.from(new Set(collection.verificationHistory.map((v) => String(v.verifier || ''))));
+
+  if (data.twoPersonVerificationEnabled && uniqueVerifiers.length < 2) {
+    collection.verificationStatus = 'awaiting_second_counter';
+    saveControlsData(data);
+    return res.json({ ok: true, collection, warning: 'A second counter must verify this collection.' });
+  }
+
+  collection.verificationStatus = 'verified';
+  collection.verifiedAt = new Date().toISOString();
+  saveControlsData(data);
+  audit('collection_verified', {
+    ...auditMetaFromRequest(req),
+    recordType: 'collection',
+    recordId: collection.id,
+    newValues: {
+      verificationStatus: collection.verificationStatus,
+      verificationCount: uniqueVerifiers.length
+    }
+  });
+  res.json({ ok: true, collection });
+});
+
+app.post('/api/finances/controls/collections/:id/post', requirePermission(PERMISSIONS.FINANCE_WRITE), (req, res) => {
+  const id = String(req.params.id);
+  const data = loadControlsData();
+  const collection = data.collections.find((c) => String(c.id) === id);
+  if (!collection) return res.status(404).json({ error: 'Collection not found.' });
+  if (String(collection.verificationStatus) !== 'verified') {
+    return res.status(400).json({ error: 'Final posting is blocked until required verification is complete.' });
+  }
+  collection.status = 'posted';
+  collection.postedAt = new Date().toISOString();
+  saveControlsData(data);
+  audit('collection_posted', {
+    ...auditMetaFromRequest(req),
+    recordType: 'collection',
+    recordId: collection.id,
+    newValues: { status: 'posted' }
+  });
+  res.json({ ok: true, collection });
+});
+
+app.post('/api/finances/controls/exceptions', requirePermission(PERMISSIONS.CONTROLS_APPROVE_EXCEPTION), (req, res) => {
+  const user = sessionUser(req);
+  const requestorId = String(req.body?.requestorId || '').trim();
+  const approverId = String(req.body?.approverId || user?.id || '').trim();
+  if (!requestorId) return res.status(400).json({ error: 'Exception requestor is required.' });
+  if (!approverId) return res.status(400).json({ error: 'Authorized approver is required.' });
+  if (requestorId === approverId) return res.status(400).json({ error: 'The same user cannot request and approve an exception.' });
+
+  const reason = String(req.body?.reason || '').trim().slice(0, 500);
+  if (!reason) return res.status(400).json({ error: 'Exception reason is required.' });
+  const note = String(req.body?.note || '').trim().slice(0, 3000);
+
+  const data = loadControlsData();
+  const ex = {
+    id: newId(),
+    requestorId,
+    approverId,
+    reason,
+    note,
+    createdAt: new Date().toISOString()
+  };
+  data.exceptions.unshift(ex);
+  saveControlsData(data);
+  audit('internal_control_exception_recorded', {
+    ...auditMetaFromRequest(req),
+    recordType: 'internal_control_exception',
+    recordId: ex.id,
+    newValues: ex
+  });
+  res.json({ ok: true, exception: ex });
+});
+
+app.get('/api/finances/clergy-housing', requirePermission(PERMISSIONS.HOUSING_MANAGE), (req, res) => {
+  res.json(loadHousingData());
+});
+
+app.post('/api/finances/clergy-housing/profiles', requirePermission(PERMISSIONS.HOUSING_MANAGE), (req, res) => {
+  const data = loadHousingData();
+  const user = sessionUser(req);
+  const now = new Date().toISOString();
+  const p = {
+    id: newId(),
+    ministerName: String(req.body?.ministerName || '').trim().slice(0, 120),
+    positionTitle: String(req.body?.positionTitle || '').trim().slice(0, 120),
+    ordinationStatus: String(req.body?.ordinationStatus || '').trim().slice(0, 40),
+    employmentStartDate: normalizeDateOnly(req.body?.employmentStartDate),
+    employmentEndDate: normalizeDateOnly(req.body?.employmentEndDate),
+    compensationYear: String(req.body?.compensationYear || '').trim().slice(0, 4),
+    totalCompensationCents: parseMoneyCents(req.body?.totalCompensationCents ?? req.body?.totalCompensation),
+    salaryAmountCents: parseMoneyCents(req.body?.salaryAmountCents ?? req.body?.salaryAmount),
+    housingAllowanceDesignatedCents: parseMoneyCents(req.body?.housingAllowanceDesignatedCents ?? req.body?.housingAllowanceDesignatedAmount),
+    designationEffectiveDate: normalizeDateOnly(req.body?.designationEffectiveDate),
+    dateApproved: normalizeDateOnly(req.body?.dateApproved),
+    approvingBody: String(req.body?.approvingBody || '').trim().slice(0, 160),
+    resolutionReference: String(req.body?.resolutionReference || '').trim().slice(0, 160),
+    resolutionAttachment: String(req.body?.resolutionAttachment || '').trim().slice(0, 400),
+    paymentFrequency: String(req.body?.paymentFrequency || '').trim().slice(0, 60),
+    parsonageProvided: req.body?.parsonageProvided === true,
+    utilitiesAllowanceCents: parseMoneyCents(req.body?.utilitiesAllowanceCents ?? req.body?.utilitiesAllowance),
+    notes: String(req.body?.notes || '').trim().slice(0, 3000),
+    status: String(req.body?.status || 'active').trim().toLowerCase().slice(0, 40),
+    createdBy: user?.id || '',
+    lastUpdatedBy: user?.id || '',
+    createdAt: now,
+    updatedAt: now
+  };
+  if (!p.ministerName) return res.status(400).json({ error: 'Minister name is required.' });
+
+  const warnings = [];
+  if (!p.resolutionAttachment) warnings.push('No resolution is attached.');
+  if (p.dateApproved && p.designationEffectiveDate && p.dateApproved > p.designationEffectiveDate) {
+    warnings.push('Approval date is after the effective payment date.');
+  }
+  if (Number.isFinite(p.totalCompensationCents) && Number.isFinite(p.housingAllowanceDesignatedCents)
+    && p.housingAllowanceDesignatedCents > p.totalCompensationCents) {
+    warnings.push('The allowance exceeds configured compensation.');
+  }
+
+  data.profiles.unshift(p);
+  saveHousingData(data);
+  audit('housing_allowance_created', {
+    ...auditMetaFromRequest(req),
+    recordType: 'housing_profile',
+    recordId: p.id,
+    newValues: p
+  });
+  res.json({ ok: true, profile: p, warnings });
+});
+
+app.put('/api/finances/clergy-housing/profiles/:id', requirePermission(PERMISSIONS.HOUSING_MANAGE), (req, res) => {
+  const data = loadHousingData();
+  const user = sessionUser(req);
+  const id = String(req.params.id);
+  const profile = data.profiles.find((x) => String(x.id) === id);
+  if (!profile) return res.status(404).json({ error: 'Housing profile not found.' });
+  const prev = { ...profile };
+
+  const incomingEffectiveDate = normalizeDateOnly(req.body?.designationEffectiveDate || profile.designationEffectiveDate);
+  const incomingApprovedDate = normalizeDateOnly(req.body?.dateApproved || profile.dateApproved);
+  const backdated = req.body?.designationEffectiveDate && incomingEffectiveDate < normalizeDateOnly(new Date().toISOString());
+  if (backdated && !String(req.body?.backdatedReason || '').trim()) {
+    return res.status(400).json({ error: 'Backdated changes require a reason.' });
+  }
+
+  Object.assign(profile, {
+    ministerName: String(req.body?.ministerName ?? profile.ministerName).trim().slice(0, 120),
+    positionTitle: String(req.body?.positionTitle ?? profile.positionTitle).trim().slice(0, 120),
+    ordinationStatus: String(req.body?.ordinationStatus ?? profile.ordinationStatus).trim().slice(0, 40),
+    employmentStartDate: normalizeDateOnly(req.body?.employmentStartDate ?? profile.employmentStartDate),
+    employmentEndDate: normalizeDateOnly(req.body?.employmentEndDate ?? profile.employmentEndDate),
+    compensationYear: String(req.body?.compensationYear ?? profile.compensationYear).trim().slice(0, 4),
+    totalCompensationCents: parseMoneyCents(req.body?.totalCompensationCents ?? req.body?.totalCompensation ?? profile.totalCompensationCents),
+    salaryAmountCents: parseMoneyCents(req.body?.salaryAmountCents ?? req.body?.salaryAmount ?? profile.salaryAmountCents),
+    housingAllowanceDesignatedCents: parseMoneyCents(req.body?.housingAllowanceDesignatedCents ?? req.body?.housingAllowanceDesignatedAmount ?? profile.housingAllowanceDesignatedCents),
+    designationEffectiveDate: incomingEffectiveDate,
+    dateApproved: incomingApprovedDate,
+    approvingBody: String(req.body?.approvingBody ?? profile.approvingBody).trim().slice(0, 160),
+    resolutionReference: String(req.body?.resolutionReference ?? profile.resolutionReference).trim().slice(0, 160),
+    resolutionAttachment: String(req.body?.resolutionAttachment ?? profile.resolutionAttachment).trim().slice(0, 400),
+    paymentFrequency: String(req.body?.paymentFrequency ?? profile.paymentFrequency).trim().slice(0, 60),
+    parsonageProvided: req.body?.parsonageProvided === undefined ? profile.parsonageProvided : req.body.parsonageProvided === true,
+    utilitiesAllowanceCents: parseMoneyCents(req.body?.utilitiesAllowanceCents ?? req.body?.utilitiesAllowance ?? profile.utilitiesAllowanceCents),
+    notes: String(req.body?.notes ?? profile.notes).trim().slice(0, 3000),
+    status: String(req.body?.status ?? profile.status).trim().toLowerCase().slice(0, 40),
+    lastUpdatedBy: user?.id || '',
+    updatedAt: new Date().toISOString()
+  });
+  saveHousingData(data);
+  audit('housing_allowance_edited', {
+    ...auditMetaFromRequest(req),
+    recordType: 'housing_profile',
+    recordId: profile.id,
+    previousValues: prev,
+    newValues: profile,
+    reason: String(req.body?.backdatedReason || req.body?.reason || '').trim().slice(0, 400)
+  });
+  res.json({ ok: true, profile });
+});
+
+app.post('/api/finances/clergy-housing/annual-records', requirePermission(PERMISSIONS.HOUSING_MANAGE), (req, res) => {
+  const data = loadHousingData();
+  const profileId = String(req.body?.profileId || '').trim();
+  if (!profileId) return res.status(400).json({ error: 'Housing profile is required.' });
+  const profile = data.profiles.find((p) => String(p.id) === profileId);
+  if (!profile) return res.status(404).json({ error: 'Housing profile not found.' });
+
+  const record = {
+    id: newId(),
+    profileId,
+    compensationYear: String(req.body?.compensationYear || profile.compensationYear || '').trim().slice(0, 4),
+    designatedAmountCents: parseMoneyCents(req.body?.designatedAmountCents ?? req.body?.designatedAmount),
+    amountPaidCents: parseMoneyCents(req.body?.amountPaidCents ?? req.body?.amountPaid),
+    actualHousingExpensesCents: parseMoneyCents(req.body?.actualHousingExpensesCents ?? req.body?.actualHousingExpenses),
+    fairRentalValueCents: parseMoneyCents(req.body?.fairRentalValueCents ?? req.body?.fairRentalValue),
+    utilitiesCents: parseMoneyCents(req.body?.utilitiesCents ?? req.body?.utilities),
+    parsonageValueCents: parseMoneyCents(req.body?.parsonageValueCents ?? req.body?.parsonageValue),
+    accountantReviewStatus: String(req.body?.accountantReviewStatus || 'needs_review').trim().toLowerCase().slice(0, 60),
+    supportingDocuments: Array.isArray(req.body?.supportingDocuments) ? req.body.supportingDocuments.slice(0, 50) : [],
+    notes: String(req.body?.notes || '').trim().slice(0, 3000),
+    createdAt: new Date().toISOString(),
+    createdBy: sessionUser(req)?.id || ''
+  };
+  const comparisonBase = [record.designatedAmountCents, record.actualHousingExpensesCents, record.fairRentalValueCents + record.utilitiesCents]
+    .filter((v) => Number.isFinite(v) && v >= 0);
+  record.recordkeepingComparisonCents = comparisonBase.length ? Math.min(...comparisonBase) : 0;
+  record.recordkeepingNotice = 'Recordkeeping comparison â€” final tax treatment must be reviewed by the minister and a qualified tax professional.';
+
+  data.annualRecords.unshift(record);
+  saveHousingData(data);
+  audit('housing_allowance_annual_record_created', {
+    ...auditMetaFromRequest(req),
+    recordType: 'housing_annual_record',
     recordId: record.id,
     newValues: record
   });
