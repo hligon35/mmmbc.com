@@ -1801,6 +1801,19 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
   display:none;
 }
 
+.eventsPrintMenu--inline > summary.actionIconBtn{
+  background:var(--accent);
+  border-color:rgba(26,26,26,.25);
+  color:#fff;
+}
+
+.eventsPrintMenu--inline > summary.actionIconBtn:hover,
+.eventsPrintMenu--inline > summary.actionIconBtn:focus-visible{
+  background:#fff;
+  border-color:var(--accent);
+  color:var(--accent);
+}
+
 .announceItem{
   width:100%;
 }
@@ -5577,7 +5590,7 @@ body[data-page] .stackListRow{display:grid;grid-template-columns:minmax(0,1fr) m
 }
 
 .ministryPageForm__fields{
-  grid-template-columns:minmax(220px,.75fr) minmax(320px,1.25fr);
+  grid-template-columns:minmax(220px,.75fr) minmax(320px,1.25fr) auto;
   align-items:start;
 }
 
@@ -5587,8 +5600,15 @@ body[data-page] .stackListRow{display:grid;grid-template-columns:minmax(0,1fr) m
 
 .ministryPageForm__actions{
   justify-content:flex-end;
-  border-top:1px solid var(--border);
-  padding-top:14px;
+  align-self:end;
+  align-items:flex-end;
+  flex-wrap:wrap;
+  gap:8px;
+  padding:0;
+}
+
+.ministryPageForm__actions .btn{
+  white-space:nowrap;
 }
 
 .ministryProfilePageChips{
@@ -5757,6 +5777,12 @@ body[data-page] .stackListRow{display:grid;grid-template-columns:minmax(0,1fr) m
   .ministryPageForm__fields,
   .ministryProfileImageEditor{
     grid-template-columns:1fr;
+  }
+
+  .ministryPageForm__actions{
+    grid-column:1 / -1;
+    justify-content:flex-start;
+    align-items:stretch;
   }
 
   .ministryPageForm__top{
