@@ -140,7 +140,7 @@
 
     if (helpButton) {
       helpButton.classList.add('photoHelpIconBtn');
-      helpButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"></circle><path d="M9.7 9a2.5 2.5 0 0 1 4.85.85c0 1.85-2.55 2.05-2.55 3.65"></path><path d="M12 17h.01"></path></svg>';
+      helpButton.innerHTML = '<span class="material-icons-round" aria-hidden="true">help_outline</span>';
       contextActions.appendChild(helpButton);
     }
     if (refreshButton) contextActions.appendChild(refreshButton);
