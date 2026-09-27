@@ -25,6 +25,8 @@ function expect(actual) {
   };
 }
 
+const staticCss = fs.readFileSync(path.join(__dirname, '..', 'static-style.css'), 'utf8');
+
 describe('Admin accessibility redesign guards', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const cloudflareIndexHtml = fs.readFileSync(path.join(__dirname, '..', 'cf_site', 'admin', 'index.html'), 'utf8');
@@ -443,6 +445,17 @@ describe('Church Finances wizard redesign', () => {
     const eventsSectionMatch = indexHtml.match(/<section class="tabPanel"[^>]*id="tab-events"[\s\S]*?<\/section>/);
     expect(eventsSectionMatch).not.toBeNull();
     expect(eventsSectionMatch[0]).toContain('printEventsAllBtn');
+  });
+
+  test('Responsive layout guards cover tablet and phone overflow points', () => {
+    expect(staticCss).toContain('Final responsive layout pass');
+    expect(staticCss).toContain('body:not(.admin-page) .nav-links a {');
+    expect(staticCss).toContain('width: min(360px, calc(100vw - 24px));');
+    expect(staticCss).toContain('white-space: normal;');
+    expect(adminCss).toContain('Final responsive layout pass');
+    expect(adminCss).toContain('@media (min-width: 901px) and (max-width: 1100px)');
+    expect(adminCss).toContain('#tab-photos .iconGroup__row {');
+    expect(adminCss).toContain('overflow-x: auto;');
   });
 });
 

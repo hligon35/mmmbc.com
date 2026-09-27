@@ -5801,3 +5801,392 @@ body[data-page] .stackListRow{display:grid;grid-template-columns:minmax(0,1fr) m
     flex:1 1 160px;
   }
 }
+
+/* =====================================================================
+   Final responsive layout pass
+   Tablet and phone overrides are kept at the end of the stylesheet so
+   page-specific admin components cannot reintroduce viewport overflow.
+   ===================================================================== */
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+#app.app,
+#app.app .card,
+#app.app .adminMain,
+#app.app .tabPanel,
+#app.app .subTabPanel,
+#app.app .pageContext {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#app.app img,
+#app.app svg,
+#app.app video,
+#app.app canvas,
+#app.app iframe {
+  max-width: 100%;
+}
+
+#app.app .sectionHeader,
+#app.app .toolbar,
+#app.app .formRow,
+#app.app .form,
+#app.app .inlineRow,
+#app.app .row,
+#app.app .settingsAddForm,
+#app.app .directoryToolbar,
+#app.app .financeSummary,
+#app.app .financeContextActions {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#app.app .tableWrap,
+#app.app .financeReviewTableWrap,
+#app.app .directoryTableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#app.app .btn,
+#app.app .tab,
+#app.app .input,
+#app.app .textarea,
+#app.app .select,
+#app.app .iconBtn,
+#app.app .actionIconBtn,
+#app.app .inputIconBtn {
+  max-width: 100%;
+}
+
+#tab-photos .iconGroup,
+#tab-photos .iconGroup__row,
+#tab-photos .syncProgress,
+.financeReceiptsSearchGroup {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#tab-photos .iconGroup__row {
+  transform: none;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 901px) and (max-width: 1100px) {
+  :root {
+    --admin-window-gutter: clamp(12px, 2vw, 20px);
+  }
+
+  #adminHeader.header {
+    position: sticky !important;
+    top: 0 !important;
+    display: grid !important;
+    grid-template-columns: minmax(150px, 190px) minmax(0, 1fr) !important;
+    grid-template-rows: auto auto auto !important;
+    grid-template-areas:
+      "logo top"
+      "breadcrumbs breadcrumbs"
+      "tabs tabs" !important;
+    gap: 6px 12px !important;
+    padding: 8px var(--admin-window-gutter) 0 !important;
+    overflow: visible !important;
+  }
+
+  #adminHeader .adminHeader__logo {
+    grid-area: logo !important;
+    align-self: start !important;
+    padding: 0 !important;
+  }
+
+  #adminHeader .header__logo {
+    width: min(170px, 28vw) !important;
+    max-height: 74px !important;
+  }
+
+  #adminHeader .adminHeader__top {
+    grid-area: top !important;
+    min-width: 0 !important;
+    min-height: 74px !important;
+  }
+
+  #adminHeader .adminHeader__breadcrumbs {
+    grid-area: breadcrumbs !important;
+    font-size: .82rem !important;
+  }
+
+  #adminHeader .adminHeader__tabs {
+    grid-area: tabs !important;
+    min-width: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav {
+    position: static !important;
+    display: flex !important;
+    width: 100% !important;
+    max-height: none !important;
+    padding: 6px 0 8px !important;
+    gap: 8px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    transform: none !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  #adminHeader .adminDrawer .tab--nav {
+    flex: 0 0 auto !important;
+    min-width: 128px !important;
+  }
+
+  #adminHeader .sideNav__groupLabel {
+    display: none !important;
+  }
+
+  #app.app {
+    padding-top: 16px !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  #app.app .dashboardColumns,
+  #app.app .directoryGroupsGrid,
+  #app.app .newsletterBuilder,
+  #tab-finances .financeReportsLayout,
+  #tab-finances .financeCharts {
+    grid-template-columns: 1fr;
+  }
+
+  #app.app .settingsFilters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #app.app .ministryProfileAdminGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #app.app .ministryPageForm__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #app.app .ministryPageForm__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  #eventForm {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #eventForm > .label:first-child,
+  #eventForm > .btn {
+    grid-column: 1 / -1;
+  }
+
+  #eventForm > .btn {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 900px) {
+  :root {
+    --admin-window-gutter: 12px;
+  }
+
+  #adminHeader.header {
+    position: sticky !important;
+    top: 0 !important;
+    padding-inline: 12px !important;
+  }
+
+  #adminHeader .adminHeader__tabs #adminSideNav.adminDrawer.sideNav {
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100dvh - var(--admin-header-height) - 12px) !important;
+    overflow-y: auto !important;
+  }
+
+  #app.app {
+    width: 100%;
+    padding: 12px var(--admin-window-gutter) 24px !important;
+  }
+
+  #app.app .card {
+    border-radius: 16px;
+    padding: clamp(14px, 3vw, 20px);
+  }
+
+  #app.app .sectionHeader,
+  #app.app .toolbar,
+  #app.app .inlineRow {
+    align-items: stretch;
+  }
+
+  #app.app .toolbar:not(.toolbar--nowrap) > .btn,
+  #app.app .sectionHeader .settingsHeaderActions > .btn {
+    flex: 1 1 180px;
+  }
+
+  #tab-finances .financeContextActions,
+  #tab-finances .financeFilterPresetGrid,
+  #tab-finances .financeFilterDateGrid,
+  #tab-finances .financeFilterDetailGrid,
+  #tab-finances .formRow--wizard,
+  #tab-newsletter .newsletterComposeGrid--lead,
+  #tab-newsletter .newsletterComposeGrid--schedule,
+  #announceForm .announceForm__actionsRow {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-finances .financeHeaderSearch,
+  #tab-finances .financeHeaderRight,
+  #tab-finances .financeQuickTabs {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  #tab-photos .photoHeaderUploadRow,
+  #tab-photos .iconGroup__row {
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  #tab-photos .photoHeaderUploadRow > *,
+  #tab-photos .iconGroup__row > .btn,
+  #tab-photos .iconGroup__row > .iconBtn {
+    flex: 1 1 180px;
+  }
+
+  #app.app .directoryToolbar,
+  #app.app .settingsAddForm {
+    align-items: stretch;
+  }
+
+  #app.app .settingsAddForm .settingsAddForm__submit {
+    width: 100%;
+  }
+}
+
+@media (max-width: 700px) {
+  #app.app .settingsFilters,
+  #app.app .ministryPageForm__fields,
+  #app.app .ministryProfileAdminGrid,
+  #eventForm {
+    grid-template-columns: 1fr;
+  }
+
+  #app.app .ministryPageForm__actions,
+  #eventForm > .label:first-child,
+  #eventForm > .btn {
+    grid-column: 1;
+  }
+
+  #app.app .ministryPageForm__actions .btn,
+  #eventForm > .btn,
+  #app.app .settingsFilters > .btn {
+    width: 100%;
+  }
+
+  #app.app .sectionHeader,
+  #app.app .dashboardHome__top,
+  #app.app .settingsHeaderActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #app.app .sectionHeader__left,
+  #app.app .sectionHeader__left > *,
+  #app.app .settingsHeaderActions,
+  #app.app .settingsHeaderActions > .btn {
+    width: 100%;
+  }
+
+  #app.app .subTabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+
+  #app.app .subTabs .tab--sub {
+    flex: 0 0 auto;
+    min-width: 150px;
+  }
+
+  #app.app .inlineRow .label--inline,
+  #app.app .inlineRow .input,
+  #app.app .inlineRow .select,
+  #app.app .inlineRow > * {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  #app.app .row__actions,
+  #app.app .directoryActionGroup,
+  #app.app .financeRowActions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  #app.app .directoryActionGroup .btn,
+  #app.app .financeRowActions .btn {
+    flex: 1 1 130px;
+  }
+}
+
+@media (max-width: 480px) {
+  #app.app {
+    padding-inline: 10px !important;
+  }
+
+  #adminHeader .header__logo {
+    width: min(132px, 34vw);
+  }
+
+  #adminHeader .adminHeader__account {
+    column-gap: 4px;
+  }
+
+  #adminHeader #authStatus {
+    max-width: 15ch;
+    font-size: .7rem;
+  }
+
+  #adminHeader .headerThemeToggle__btn {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    min-height: 30px;
+  }
+
+  #app.app .card {
+    padding: 13px;
+  }
+
+  #app.app .btn,
+  #app.app .tab,
+  #app.app .input,
+  #app.app .textarea,
+  #app.app .select {
+    font-size: .98rem;
+  }
+
+  #app.app .actionIconBtn {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    min-height: 40px;
+  }
+}

@@ -3739,3 +3739,330 @@ body.givingPage {
   .givingDetailsGrid { grid-template-columns: 1fr; }
   .givingField--full { grid-column: auto; }
 }
+
+/* =====================================================================
+   Final responsive layout pass
+   Keeps the shared public site usable on phones and tablets after all
+   page-specific styles have loaded.
+   ===================================================================== */
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body:not(.admin-page) main {
+  width: min(1350px, calc(100% - 32px));
+  max-width: 100%;
+}
+
+body:not(.admin-page) .content-section {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  padding: clamp(16px, 2.5vw, 32px);
+}
+
+body:not(.admin-page) h1,
+body:not(.admin-page) h2,
+body:not(.admin-page) h3,
+body:not(.admin-page) p,
+body:not(.admin-page) li {
+  overflow-wrap: anywhere;
+}
+
+body:not(.admin-page) .hero-content h1,
+body:not(.admin-page) .hero-content .hero-line {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+body:not(.admin-page) .content-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: center;
+  gap: 8px;
+}
+
+body:not(.admin-page) .content-subnav a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+body:not(.admin-page) img,
+body:not(.admin-page) video,
+body:not(.admin-page) iframe,
+body:not(.admin-page) svg {
+  max-width: 100%;
+}
+
+@media (min-width: 769px) and (max-width: 1399px) {
+  body:not(.admin-page) {
+    padding-top: 76px;
+    background-attachment: scroll;
+  }
+
+  body:not(.admin-page) .top-nav {
+    height: 76px;
+    padding-inline: 16px;
+  }
+
+  body:not(.admin-page) .nav-logo {
+    height: 72px;
+    max-width: calc(100vw - 120px);
+  }
+
+  body:not(.admin-page) .menu-button {
+    width: 44px;
+    height: 44px;
+    padding: 8px;
+    border-width: 2px;
+  }
+
+  body:not(.admin-page) .nav-links {
+    top: 76px;
+    right: 12px;
+    width: min(380px, calc(100vw - 24px));
+    max-height: calc(100dvh - 88px);
+    border-radius: 12px;
+    padding: 6px;
+  }
+
+  body:not(.admin-page) .nav-links a {
+    min-height: 48px;
+    padding: 10px 14px;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  body:not(.admin-page) .hero-content h1 {
+    font-size: clamp(2.2rem, 6vw, 4rem);
+    line-height: 1.05;
+  }
+
+  body:not(.admin-page) .content-section--wide .leadership-profile {
+    gap: clamp(18px, 3vw, 30px);
+  }
+
+  body:not(.admin-page) .content-section--wide .profile-image {
+    width: clamp(180px, 25vw, 260px);
+    height: clamp(180px, 25vw, 260px);
+    flex: 0 0 auto;
+  }
+
+  body:not(.admin-page) .footer-bottom-row {
+    flex-wrap: wrap;
+  }
+
+  body:not(.admin-page) .footer-links-section {
+    flex: 1 1 300px;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  body:not(.admin-page) {
+    padding-top: 64px;
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center top;
+    background-attachment: scroll;
+  }
+
+  body:not(.admin-page) .top-nav {
+    height: 64px;
+    padding-inline: 12px;
+  }
+
+  body:not(.admin-page) .nav-left {
+    gap: 6px;
+  }
+
+  body:not(.admin-page) .nav-logo {
+    height: 58px;
+    max-width: calc(100vw - 122px);
+  }
+
+  body:not(.admin-page) .devicon-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  body:not(.admin-page) .menu-button {
+    width: 44px;
+    height: 44px;
+    padding: 8px;
+    border-width: 2px;
+  }
+
+  body:not(.admin-page) .nav-links {
+    top: 64px;
+    right: 12px;
+    width: min(360px, calc(100vw - 24px));
+    max-height: calc(100dvh - 76px);
+    padding: 6px;
+    border-radius: 12px;
+  }
+
+  body:not(.admin-page) .nav-links a {
+    min-height: 48px;
+    padding: 10px 14px;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  body:not(.admin-page) main {
+    width: min(100%, calc(100vw - 24px));
+    padding-top: 20px;
+  }
+
+  body:not(.admin-page) section {
+    padding: 16px;
+    margin-bottom: 24px;
+  }
+
+  body:not(.admin-page) section h2 {
+    font-size: clamp(1.55rem, 8vw, 2.2rem);
+    line-height: 1.12;
+  }
+
+  body:not(.admin-page) .hero-section {
+    min-height: calc(100svh - 64px);
+    padding: 32px 12px;
+  }
+
+  body:not(.admin-page) .hero-content h1 {
+    font-size: clamp(2rem, 8.5vw, 3rem);
+    line-height: 1.05;
+  }
+
+  body:not(.admin-page) .hero-content h1 .hero-line {
+    margin-bottom: .25em;
+  }
+
+  body:not(.admin-page) .hero-content h1 .hero-line:last-child {
+    margin-bottom: 28px;
+  }
+
+  body:not(.admin-page) .announcement-ticker {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 14px;
+  }
+
+  body:not(.admin-page) .announcement-ticker__label,
+  body:not(.admin-page) .announcement-ticker__viewport {
+    flex: 1 1 100%;
+  }
+
+  body:not(.admin-page) .announcement-ticker__line {
+    white-space: normal;
+  }
+
+  body:not(.admin-page) .content-subnav a {
+    flex: 1 1 190px;
+    padding: 10px 12px;
+  }
+
+  body:not(.admin-page) .content-image-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body:not(.admin-page) .rental-gallery__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body:not(.admin-page) .youtube-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body:not(.admin-page) .contact-form {
+    padding: 16px;
+  }
+
+  body:not(.admin-page) .form-checklist {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  body:not(.admin-page) .form-actions {
+    align-items: stretch;
+  }
+
+  body:not(.admin-page) .form-actions .submit-btn,
+  body:not(.admin-page) .contact-form button.submit-btn {
+    width: 100%;
+  }
+
+  body:not(.admin-page) .content-section--wide .leadership-profile {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    padding: 16px;
+    text-align: left;
+  }
+
+  body:not(.admin-page) .content-section--wide .leadership-profile .profile-image {
+    width: min(220px, 72vw) !important;
+    height: min(220px, 72vw) !important;
+    margin: 0 auto 4px !important;
+  }
+
+  body:not(.admin-page) .content-section--wide .profile-details {
+    text-align: left;
+  }
+
+  body:not(.admin-page) .footer-top-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  body:not(.admin-page) .footer-text-content {
+    align-items: center;
+    text-align: center;
+  }
+
+  body:not(.admin-page) .footer-bottom-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  body:not(.admin-page) .footer-links-section {
+    width: 100%;
+  }
+
+  body:not(.admin-page) .footer-copyright-row {
+    display: grid;
+    gap: 6px;
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  body:not(.admin-page) main {
+    width: min(100%, calc(100vw - 20px));
+  }
+
+  body:not(.admin-page) .nav-logo {
+    height: 52px;
+    max-width: calc(100vw - 116px);
+  }
+
+  body:not(.admin-page) .content-subnav a,
+  body:not(.admin-page) .rental-gallery__grid {
+    flex-basis: 100%;
+  }
+
+  body:not(.admin-page) .rental-gallery__grid {
+    grid-template-columns: 1fr;
+  }
+
+  body:not(.admin-page) .content-section {
+    padding: 12px;
+  }
+}
