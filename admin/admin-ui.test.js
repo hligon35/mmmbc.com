@@ -493,4 +493,12 @@ describe('Profile page editor', () => {
     expect(directoryJs).toContain("title=\"${safeLabel}\"");
     expect(adminJs).toContain("iconNames = { edit: 'edit', up: 'arrow_upward', down: 'arrow_downward', delete: 'delete' }");
   });
+
+  test('ministry publishing actions align with the label editor and print action has a visible background', () => {
+    assert.ok(indexHtml.indexOf('id="ministriesPageTitle"') < indexHtml.indexOf('id="ministriesSaveDraftBtn"'));
+    expect(indexHtml).toContain('aria-label="Ministry profile publishing actions"');
+    expect(adminCss).toContain('.ministryPageForm__fields{\n  grid-template-columns:minmax(220px,.75fr) minmax(320px,1.25fr) auto;');
+    expect(adminCss).toContain('.eventsPrintMenu--inline > summary.actionIconBtn{');
+    expect(adminCss).toContain('background:var(--accent);');
+  });
 });

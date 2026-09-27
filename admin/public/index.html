@@ -1320,11 +1320,11 @@
           <div class="formRow ministryPageForm__fields">
             <label class="label">Page heading<input class="input" id="ministriesPageTitle" name="pageTitle" type="text" maxlength="100" required /></label>
             <label class="label ministryPageForm__intro">Intro text<textarea class="textarea" id="ministriesPageIntro" name="pageIntro" rows="3" maxlength="2000"></textarea></label>
-          </div>
-          <div class="toolbar ministryPageForm__actions">
-            <button class="btn btn--primary" id="ministriesSaveDraftBtn" type="button">Save Draft</button>
-            <button class="btn" id="ministriesPublishBtn" type="button">Publish to Website</button>
-            <button class="btn btn--danger" id="ministriesRestoreBtn" type="button">Restore Previous Publish</button>
+            <div class="toolbar ministryPageForm__actions" aria-label="Ministry profile publishing actions">
+              <button class="btn btn--primary" id="ministriesSaveDraftBtn" type="button">Save Draft</button>
+              <button class="btn" id="ministriesPublishBtn" type="button">Publish to Website</button>
+              <button class="btn btn--danger" id="ministriesRestoreBtn" type="button">Restore Previous Publish</button>
+            </div>
           </div>
           <div class="hint" id="ministriesEditorStatus" role="status" aria-live="polite">Loading ministry profiles…</div>
           <div class="error" id="ministriesEditorError" role="alert" hidden></div>
