@@ -13,6 +13,7 @@
     "migrate:local:admin": "wrangler d1 migrations apply admin --local",
     "migrate:local:site": "wrangler d1 migrations apply site --local",
     "maintenance": "node ./scripts/monthly-maintenance.mjs",
+    "seed:demo": "node ./scripts/seed_demo_data.mjs",
     "import:admins": "node ./scripts/import_admin_roster.mjs",
     "verify:integrations": "node ./scripts/verify_local_integrations.mjs",
     "verify:integrations:target": "node ./scripts/verify_integrations.mjs",

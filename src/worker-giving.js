@@ -183,8 +183,8 @@ async function createCheckoutSession(request, env) {
   const applicationFeeCents = Math.round(amountCents * PLATFORM_FEE_RATE);
   const params = new URLSearchParams();
   params.set('mode', frequency === 'monthly' ? 'subscription' : 'payment');
-  params.set('success_url', `${baseUrl}/Pages/giving-success.html?session_id={CHECKOUT_SESSION_ID}`);
-  params.set('cancel_url', `${baseUrl}/Pages/giving.html?canceled=1`);
+  params.set('success_url', `${baseUrl}/give`);
+  params.set('cancel_url', `${baseUrl}/give`);
   params.set('customer_email', donorEmail);
   params.set('billing_address_collection', 'auto');
   params.set('line_items[0][quantity]', '1');

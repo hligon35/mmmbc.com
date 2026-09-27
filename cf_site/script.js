@@ -162,26 +162,6 @@ document.addEventListener('DOMContentLoaded', () => {
         list.style.paddingLeft = '0';
         list.querySelectorAll('li').forEach((item) => { item.style.listStyle = 'none'; });
     });
-    document.querySelectorAll('.givingTrustCard').forEach((aside) => aside.remove());
-    const givingLayout = document.querySelector('.givingLayout');
-    if (givingLayout) {
-        givingLayout.style.display = 'block';
-        givingLayout.style.maxWidth = '860px';
-        givingLayout.style.margin = '0 auto';
-    }
-    const givingSubmit = document.getElementById('givingSubmit');
-    if (givingSubmit && !document.querySelector('.givingStripeNote')) {
-        const stripeNote = document.createElement('p');
-        stripeNote.className = 'givingStripeNote';
-        stripeNote.textContent = 'Powered by Stripe';
-        stripeNote.style.margin = '12px 0 0';
-        stripeNote.style.textAlign = 'center';
-        stripeNote.style.fontSize = '0.9rem';
-        stripeNote.style.fontWeight = '700';
-        stripeNote.style.opacity = '0.72';
-        givingSubmit.insertAdjacentElement('afterend', stripeNote);
-    }
-
     const footer = document.querySelector('footer');
     if (footer) {
         const currentYear = new Date().getFullYear();
@@ -203,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <li><a href="${page('ministries.html')}"><img src="${root}Icons/ministries.png" alt="Ministries icon" class="link-icon"><span class="link-text">Ministries</span></a></li>
                         <li><a href="${page('leadership.html')}"><img src="${root}Icons/leadership.png" alt="Leadership icon" class="link-icon"><span class="link-text">Leadership</span></a></li>
                         <li><a href="${page('church_history.html')}"><img src="${root}Icons/churchhistory.png" alt="Church History icon" class="link-icon"><span class="link-text">Church History</span></a></li>
-                        <li><a href="${page('giving.html')}"><img src="${root}Icons/give.png" alt="Give icon" class="link-icon"><span class="link-text">Give</span></a></li>
+                        <li><a href="/give"><img src="${root}Icons/give.png" alt="Give icon" class="link-icon"><span class="link-text">Give</span></a></li>
                         <li><a href="${page('facility_rental.html')}"><img src="${root}Icons/facilityrental.png" alt="Facility Rental icon" class="link-icon"><span class="link-text">Facility Rental</span></a></li>
                         <li><a href="${page('contact.html')}"><img src="${root}Icons/contactus.png" alt="Contact Us icon" class="link-icon"><span class="link-text">Contact Us</span></a></li>
                     </ul>

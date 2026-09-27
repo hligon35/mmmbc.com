@@ -277,7 +277,7 @@ export const INITIAL_PUBLISHED_CONTENT = {
     'page.title': 'Live Praise',
     'page.description': '<p>When our services are being broadcast LIVE, the current service will be shown at the top of the page.</p><p>Otherwise, the most recent service will appear at the top.</p><p>Other past services are shown below the first image in chronological order.</p>',
     currently_live: false,
-    'stream.url': 'https://www.youtube.com/embed/live_stream?channel=UCkAaHiYmUKIdKePifg1D2pg&rel=0'
+    'stream.url': 'https://www.youtube.com/embed/QQXSV759Zys?rel=0'
   },
   contact: {
     'page.title': 'Contact Us',

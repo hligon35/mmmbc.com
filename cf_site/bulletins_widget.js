@@ -126,7 +126,7 @@
       });
     });
 
-    const giveLink = document.querySelector('.footer-links-section a[href$="giving.html"]');
+    const giveLink = document.querySelector('.footer-links-section a[href="/give"]');
     const giveIcon = giveLink?.querySelector('img.link-icon');
     if (giveIcon) {
       giveIcon.src = 'Icons/give.png';

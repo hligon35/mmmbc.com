@@ -1,81 +1,38 @@
-function rewriteGivingHtml(html, success = false) {
-  let output = String(html || '');
+const ZEFFY_DONATION_URL = 'https://www.zeffy.com/en-US/donation-form/tithes-and-offering-59';
 
-  output = output
-    .replaceAll('href="../Icons/', 'href="/Icons/')
-    .replaceAll('href="../style.css"', 'href="/style.css"')
-    .replaceAll('href="../static-style.css"', 'href="/static-style.css"')
-    .replaceAll('src="../ConImg/', 'src="/ConImg/')
-    .replaceAll('src="../script.js"', 'src="/script.js"')
-    .replaceAll('src="giving.js', 'src="/Pages/giving.js')
-    .replaceAll('href="../index.html"', 'href="/index.html"')
-    .replaceAll('href="ministries.html"', 'href="/Pages/ministries.html"')
-    .replaceAll('href="associate_ministers.html"', 'href="/Pages/associate_ministers.html"')
-    .replaceAll('href="church_history.html"', 'href="/Pages/church_history.html"')
-    .replaceAll('href="facility_rental.html"', 'href="/Pages/facility_rental.html"')
-    .replaceAll('href="photo_gallery.html"', 'href="/Pages/photo_gallery.html"')
-    .replaceAll('href="live_praise.html"', 'href="/Pages/live_praise.html"')
-    .replaceAll('href="contact.html"', 'href="/Pages/contact.html"')
-    .replaceAll('href="giving.html"', 'href="/giving.html"');
-
-  if (success) {
-    output = output.replaceAll('href="../index.html"', 'href="/index.html"');
-  }
-
-  return output;
-}
-
-async function serveAssetAsRootPage(request, env, assetPath, success = false) {
-  if (!env.ASSETS || typeof env.ASSETS.fetch !== 'function') {
-    return new Response('Giving page is unavailable.', { status: 503 });
-  }
-
-  const assetUrl = new URL(request.url);
-  assetUrl.pathname = assetPath;
-  assetUrl.search = '';
-
-  const assetResponse = await env.ASSETS.fetch(new Request(assetUrl.toString(), {
-    method: 'GET',
-    headers: request.headers
-  }));
-
-  if (!assetResponse.ok) return assetResponse;
-
-  const html = rewriteGivingHtml(await assetResponse.text(), success);
-  const headers = new Headers(assetResponse.headers);
-  headers.delete('Content-Length');
-  headers.set('Content-Type', 'text/html; charset=utf-8');
-  headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
-  headers.set('Pragma', 'no-cache');
-  headers.set('X-MM-MBC-Giving-Route', 'root-v1');
-
-  return new Response(html, {
-    status: assetResponse.status,
-    headers
+function redirectResponse(request, location, status = 302) {
+  const target = new URL(location, request.url);
+  return new Response(null, {
+    status,
+    headers: {
+      Location: target.toString(),
+      'Cache-Control': 'no-store'
+    }
   });
 }
 
 export async function handleGivingPageRequest(request, env) {
-  if (request.method !== 'GET') return null;
+  if (request.method !== 'GET' && request.method !== 'HEAD') return null;
 
   const url = new URL(request.url);
+
+  // The branded giving form has been detached. Keep the canonical short route
+  // as a stable redirect to Zeffy and move legacy custom-page URLs to /give.
+  if (url.pathname === '/give') return redirectResponse(request, ZEFFY_DONATION_URL);
+  if (url.pathname === '/giving' || url.pathname === '/giving.html' || url.pathname === '/giving-success.html') {
+    return redirectResponse(request, '/give', 301);
+  }
+
   if (url.pathname === '/scan') {
-    if (!env.ASSETS || typeof env.ASSETS.fetch !== 'function') {
+    if (!env?.ASSETS || typeof env.ASSETS.fetch !== 'function') {
       return new Response('Scan page is unavailable.', { status: 503 });
     }
     const assetUrl = new URL(request.url);
     assetUrl.pathname = '/scan.html';
     assetUrl.search = '';
-    return env.ASSETS.fetch(new Request(assetUrl.toString(), { method: 'GET', headers: request.headers }));
+    return env.ASSETS.fetch(new Request(assetUrl.toString(), { method: request.method, headers: request.headers }));
   }
-
-  if (url.pathname === '/giving.html' || url.pathname === '/giving') {
-    return serveAssetAsRootPage(request, env, '/Pages/giving.html', false);
-  }
-
-  if (url.pathname === '/giving-success.html') {
-    return serveAssetAsRootPage(request, env, '/Pages/giving-success.html', true);
-  }
-
   return null;
 }
+
+export { ZEFFY_DONATION_URL };

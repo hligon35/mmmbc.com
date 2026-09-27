@@ -9,6 +9,16 @@ import { sendResendEmail } from './email-resend.js';
 
 const authStateCache = new WeakMap();
 
+// The demo seeder submits through the same public endpoints that the browser
+// uses. Preview is deliberately the only environment where those synthetic
+// requests may skip anti-abuse checks and outbound email delivery. Keeping the
+// environment check here prevents a demo flag from ever changing production
+// behavior by accident.
+function previewDemoModeEnabled(env) {
+  return String(env?.ENVIRONMENT || '').trim().toLowerCase() === 'preview'
+    && String(env?.DEMO_MODE || '').trim().toLowerCase() === 'true';
+}
+
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -821,7 +831,7 @@ async function transformPublicHtml(response, pathname) {
   if (!type.includes('text/html')) return response;
 
   let html = await response.text();
-  const pageHref = '/giving.html';
+  const pageHref = '/give';
 
   if (!html.includes('data-mmmbc-give-link')) {
     const giveLink = `<a href="${pageHref}" class="nav-give-link" data-mmmbc-give-link>Give</a>`;
@@ -843,7 +853,7 @@ async function transformPublicHtml(response, pathname) {
   if ((pathname === '/' || pathname === '/index.html') && !html.includes('data-mmmbc-hero-give')) {
     html = html.replace(
       /(<a\s+href=["']Pages\/contact\.html#contact-form-section["'][^>]*class=["']btn-contact["'][^>]*>Contact Us<\/a>)/i,
-      `<div class="hero-giving-actions" data-mmmbc-hero-give>$1<a href="/giving.html" class="btn-give">Give Online</a></div>`
+      `<div class="hero-giving-actions" data-mmmbc-hero-give>$1<a href="/give" class="btn-give">Give Online</a></div>`
     );
   }
 
@@ -972,15 +982,18 @@ export default {
     if (url.pathname === '/api/public/newsletter/subscribe' && request.method === 'POST') {
       const body = await request.json().catch(() => ({}));
       if (honeypotTripped(body)) return json({ ok: true, email: '' });
+      const demoMode = previewDemoModeEnabled(env);
       const email = String(body?.email || '').trim().toLowerCase();
       const name = String(body?.name || '').trim().slice(0, 120);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return json({ error: 'A valid email is required.' }, 400);
       }
-      const rate = await checkRateLimit(env, request, 'newsletter_subscribe', { max: 5, windowSeconds: 600 });
-      if (!rate.ok) return json({ error: rate.error }, 429);
-      const turnstile = await verifyTurnstile(env, body?.turnstileToken, clientIp(request));
-      if (!turnstile.ok) return json({ error: turnstile.error }, 403);
+      if (!demoMode) {
+        const rate = await checkRateLimit(env, request, 'newsletter_subscribe', { max: 5, windowSeconds: 600 });
+        if (!rate.ok) return json({ error: rate.error }, 429);
+        const turnstile = await verifyTurnstile(env, body?.turnstileToken, clientIp(request));
+        if (!turnstile.ok) return json({ error: turnstile.error }, 403);
+      }
       if (!env.SITE_DB) return json({ ok: true, email, warning: 'DB unavailable; accepted without persistence.' });
       const now = new Date().toISOString();
       await env.SITE_DB.prepare(
@@ -996,6 +1009,7 @@ export default {
     if (url.pathname === '/api/public/contact-message' && request.method === 'POST') {
       const body = await request.json().catch(() => ({}));
       if (honeypotTripped(body)) return json({ ok: true });
+      const demoMode = previewDemoModeEnabled(env);
       const name = String(body?.name || '').trim().slice(0, 120);
       const email = String(body?.email || '').trim().toLowerCase();
       const phone = String(body?.phone || '').trim().slice(0, 80);
@@ -1004,10 +1018,12 @@ export default {
       if (!name || !message) return json({ error: 'Name and message are required.' }, 400);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: 'A valid email is required.' }, 400);
 
-      const rate = await checkRateLimit(env, request, 'contact_message', { max: 5, windowSeconds: 600 });
-      if (!rate.ok) return json({ error: rate.error }, 429);
-      const turnstile = await verifyTurnstile(env, body?.turnstileToken, clientIp(request));
-      if (!turnstile.ok) return json({ error: turnstile.error }, 403);
+      if (!demoMode) {
+        const rate = await checkRateLimit(env, request, 'contact_message', { max: 5, windowSeconds: 600 });
+        if (!rate.ok) return json({ error: rate.error }, 429);
+        const turnstile = await verifyTurnstile(env, body?.turnstileToken, clientIp(request));
+        if (!turnstile.ok) return json({ error: turnstile.error }, 403);
+      }
 
       const id = crypto.randomUUID();
       const createdAt = new Date().toISOString();
@@ -1017,6 +1033,18 @@ export default {
           `INSERT INTO contact_messages (id, name, email, phone, address, message, status, created_at)
            VALUES (?, ?, ?, ?, ?, ?, 'received', ?)`
         ).bind(id, name, email, phone, address, message, createdAt).run();
+      }
+
+      if (demoMode) {
+        if (env.SITE_DB) {
+          await env.SITE_DB.prepare(
+            `UPDATE contact_messages
+                SET status = 'received', auto_reply_status = 'skipped_demo',
+                    auto_reply_at = ?, auto_reply_error = ''
+              WHERE id = ?`
+          ).bind(createdAt, id).run();
+        }
+        return json({ ok: true, demo: true });
       }
 
       const textBody = [
@@ -1060,6 +1088,7 @@ export default {
     if (url.pathname === '/api/public/facility-rental-request' && request.method === 'POST') {
       const body = await request.json().catch(() => ({}));
       if (honeypotTripped(body)) return json({ ok: true });
+      const demoMode = previewDemoModeEnabled(env);
       const audience = String(body?.audience || '').trim().toLowerCase() === 'non_member' ? 'non_member' : 'member';
       const form = (body?.form && typeof body.form === 'object') ? body.form : {};
       const personResponsible = String(form.personResponsible || '').trim().slice(0, 140);
@@ -1073,10 +1102,12 @@ export default {
         return json({ error: 'Please complete all required rental fields.' }, 400);
       }
 
-      const rate = await checkRateLimit(env, request, 'facility_rental_request', { max: 5, windowSeconds: 600 });
-      if (!rate.ok) return json({ error: rate.error }, 429);
-      const turnstile = await verifyTurnstile(env, body?.turnstileToken, clientIp(request));
-      if (!turnstile.ok) return json({ error: turnstile.error }, 403);
+      if (!demoMode) {
+        const rate = await checkRateLimit(env, request, 'facility_rental_request', { max: 5, windowSeconds: 600 });
+        if (!rate.ok) return json({ error: rate.error }, 429);
+        const turnstile = await verifyTurnstile(env, body?.turnstileToken, clientIp(request));
+        if (!turnstile.ok) return json({ error: turnstile.error }, 403);
+      }
 
       const formLines = [];
       for (const [key, value] of Object.entries(form)) {
@@ -1100,6 +1131,18 @@ export default {
           id, audience, personResponsible, phone, purpose, dateOfUse, timeFrom, timeTo,
           contactEmail, JSON.stringify(form), createdAt
         ).run();
+      }
+
+      if (demoMode) {
+        if (env.SITE_DB) {
+          await env.SITE_DB.prepare(
+            `UPDATE facility_rental_requests
+                SET status = 'received', auto_reply_status = 'skipped_demo',
+                    auto_reply_at = ?, auto_reply_error = ''
+              WHERE id = ?`
+          ).bind(createdAt, id).run();
+        }
+        return json({ ok: true, demo: true });
       }
 
       const textBody = [
