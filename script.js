@@ -309,6 +309,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const applySiteSettings = (settings) => {
         if (!settings || typeof settings !== 'object') return;
         const forms = window.MMmbcForms || {};
+        if (settings.formVerificationUnavailable) {
+            document.querySelectorAll('form[data-cloudflare-form]').forEach((form) => {
+                const status = form.querySelector('.form-status');
+                if (status) {
+                    status.textContent = 'This form is temporarily unavailable. Please email us at ';
+                    const email = String(settings.email || 'mtmoriahmbc1201@gmail.com').trim();
+                    const link = document.createElement('a');
+                    link.href = `mailto:${email}`;
+                    link.textContent = email;
+                    status.append(link, '.');
+                }
+                const submit = form.querySelector('button[type="submit"]');
+                if (submit) submit.disabled = true;
+            });
+        }
         if (settings.turnstileSiteKey && typeof forms.loadTurnstile === 'function') {
             document.querySelectorAll('form[data-cloudflare-form]').forEach((form) => {
                 forms.loadTurnstile(form, settings.turnstileSiteKey).catch(() => {});
@@ -378,6 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const forms = window.MMmbcForms || {};
         const submitBtn = contactForm.querySelector('button[type="submit"]');
         const status = contactForm.querySelector('#contactFormStatus');
+        if (settings.formVerificationUnavailable) return;
         if (typeof forms.wireFormatting === 'function') forms.wireFormatting(contactForm);
         contactForm.addEventListener('submit', async (event) => {
             event.preventDefault();

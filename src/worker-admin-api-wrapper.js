@@ -1066,7 +1066,12 @@ export default {
       const out = (raw && typeof raw === 'object') ? raw : {};
       if (!out.email) out.email = String(env.SUPPORT_TO_EMAIL || 'mtmoriahmbc1201@gmail.com');
       if (!Array.isArray(out.subscribers)) out.subscribers = [];
-      if (env.TURNSTILE_SITE_KEY) out.turnstileSiteKey = String(env.TURNSTILE_SITE_KEY).trim();
+      const siteKey = String(env.TURNSTILE_SITE_KEY || '').trim();
+      const secretPresent = Boolean(String(env.TURNSTILE_SECRET_KEY || '').trim());
+      out.formVerificationUnavailable = String(env.ENVIRONMENT || '').toLowerCase() === 'production'
+        && (!siteKey || !secretPresent);
+      if (siteKey && !out.formVerificationUnavailable) out.turnstileSiteKey = siteKey;
+      else delete out.turnstileSiteKey;
       return json(out);
     }
 
@@ -1096,7 +1101,7 @@ export default {
         const rate = await checkRateLimit(env, request, 'newsletter_subscribe', { max: 5, windowSeconds: 600 });
         if (!rate.ok) return json({ error: rate.error }, 429);
         const turnstile = await verifyTurnstile(env, body?.turnstileToken, clientIp(request));
-        if (!turnstile.ok) return json({ error: turnstile.error }, 403);
+        if (!turnstile.ok) return json({ error: turnstile.error }, turnstile.status || 403);
       }
       if (!env.SITE_DB) return json({ ok: true, email, warning: 'DB unavailable; accepted without persistence.' });
       const now = new Date().toISOString();
@@ -1134,7 +1139,7 @@ export default {
         const rate = await checkRateLimit(env, request, 'contact_message', { max: 5, windowSeconds: 600 });
         if (!rate.ok) return json({ error: rate.error }, 429);
         const turnstile = await verifyTurnstile(env, body?.turnstileToken, clientIp(request));
-        if (!turnstile.ok) return json({ error: turnstile.error }, 403);
+        if (!turnstile.ok) return json({ error: turnstile.error }, turnstile.status || 403);
       }
 
       const id = crypto.randomUUID();
@@ -1261,7 +1266,7 @@ export default {
         const rate = await checkRateLimit(env, request, 'facility_rental_request', { max: 5, windowSeconds: 600 });
         if (!rate.ok) return json({ error: rate.error }, 429);
         const turnstile = await verifyTurnstile(env, body?.turnstileToken, clientIp(request));
-        if (!turnstile.ok) return json({ error: turnstile.error }, 403);
+        if (!turnstile.ok) return json({ error: turnstile.error }, turnstile.status || 403);
       }
 
       const formLines = [];

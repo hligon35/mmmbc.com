@@ -18,10 +18,11 @@ export function honeypotTripped(body, fieldName = 'website') {
 
 export async function verifyTurnstile(env, token, remoteIp) {
   const secret = String(env.TURNSTILE_SECRET_KEY || '').trim();
+  const production = String(env.ENVIRONMENT || '').toLowerCase() === 'production';
+  if (production && (!secret || !String(env.TURNSTILE_SITE_KEY || '').trim())) {
+    return { ok: false, error: 'Form verification is temporarily unavailable.', status: 503 };
+  }
   if (!secret) {
-    if (String(env.ENVIRONMENT || '').toLowerCase() === 'production') {
-      return { ok: false, error: 'Form verification is temporarily unavailable.' };
-    }
     return { ok: true, skipped: true };
   }
   if (!token) return { ok: false, error: 'Please complete the verification challenge.' };

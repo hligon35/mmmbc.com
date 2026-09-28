@@ -6,7 +6,10 @@ import worker from './worker-admin-api-wrapper.js';
 test('production forms fail closed when Turnstile is not configured', async () => {
   const result = await verifyTurnstile({ ENVIRONMENT: 'production' }, '', '127.0.0.1');
   assert.equal(result.ok, false);
+  assert.equal(result.status, 503);
   assert.match(result.error, /temporarily unavailable/i);
+  const incomplete = await verifyTurnstile({ ENVIRONMENT: 'production', TURNSTILE_SECRET_KEY: 'configured' }, '', '127.0.0.1');
+  assert.equal(incomplete.status, 503);
 });
 
 test('local forms may run without Turnstile configuration', async () => {
@@ -87,5 +90,28 @@ test('the demo flag cannot disable production form verification', async () => {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name: 'Demo Contact', email: 'demo-contact@example.com', message: 'Synthetic message.' })
   }), { ENVIRONMENT: 'production', DEMO_MODE: 'true', SITE_DB: mockSiteDb() }, {});
-  assert.equal(response.status, 403);
+  assert.equal(response.status, 503);
+  assert.match((await response.json()).error, /temporarily unavailable/i);
+});
+
+test('public settings disclose unavailable verification without exposing its secret', async () => {
+  const response = await worker.fetch(new Request('https://production.example/api/public/site-settings'), {
+    ENVIRONMENT: 'production',
+    TURNSTILE_SITE_KEY: 'public-widget-key',
+    SUPPORT_TO_EMAIL: 'church@example.com'
+  }, {});
+  assert.equal(response.status, 200);
+  const settings = await response.json();
+  assert.equal(settings.formVerificationUnavailable, true);
+  assert.equal(settings.turnstileSiteKey, undefined);
+
+  const configured = await worker.fetch(new Request('https://production.example/api/public/site-settings'), {
+    ENVIRONMENT: 'production',
+    TURNSTILE_SITE_KEY: 'public-widget-key',
+    TURNSTILE_SECRET_KEY: 'private-widget-secret'
+  }, {});
+  const readySettings = await configured.json();
+  assert.equal(readySettings.formVerificationUnavailable, false);
+  assert.equal(readySettings.turnstileSiteKey, 'public-widget-key');
+  assert.equal(JSON.stringify(readySettings).includes('private-widget-secret'), false);
 });
