@@ -1754,16 +1754,27 @@ export default {
       if (!canViewDeveloperDiagnostics(sessionState)) {
         return authFailure(403, 'DEVELOPER_DIAGNOSTICS_REQUIRED', 'Developer diagnostics access is required for this action.');
       }
-      return json({
-        ok: true,
-        checkedAt: new Date().toISOString(),
-        checks: {
-          dbBinding: Boolean(env.DB),
-          assetsBinding: Boolean(env.ASSETS && typeof env.ASSETS.fetch === 'function'),
-          galleryBucketBinding: Boolean(env.GALLERY_BUCKET),
-          resendConfigured: Boolean(env.RESEND_API_KEY && env.RESEND_FROM_EMAIL)
+      const checkDatabase = async (db) => {
+        if (!db || typeof db.prepare !== 'function') return 'missing';
+        try {
+          await db.prepare('SELECT 1 AS ok').first();
+          return 'healthy';
+        } catch (error) {
+          console.error('Diagnostics database check failed', error);
+          return 'unavailable';
         }
-      });
+      };
+      const [adminDatabase, siteDatabase] = await Promise.all([
+        checkDatabase(env.DB), checkDatabase(env.SITE_DB)
+      ]);
+      const checks = {
+        adminDatabase,
+        siteDatabase,
+        galleryBucket: env.GALLERY_BUCKET ? 'configured' : 'missing',
+        staticAssets: env.ASSETS && typeof env.ASSETS.fetch === 'function' ? 'configured' : 'missing'
+      };
+      const degraded = Object.values(checks).some((status) => status === 'missing' || status === 'unavailable');
+      return json({ ok: !degraded, degraded, checkedAt: new Date().toISOString(), storage: { mode: 'Cloudflare D1 + R2' }, checks });
     }
 
     if (url.pathname === '/api/admin/integration-health' && request.method === 'GET') {

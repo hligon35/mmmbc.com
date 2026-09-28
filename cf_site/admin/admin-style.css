@@ -4300,6 +4300,14 @@ body.navDrawerCollapsed .sideNav{display:flex;}
   max-width: 380px;
 }
 
+#adminStorageHealthCard .diagnosticStatus{font-weight:800;}
+#adminStorageHealthCard .diagnosticStatus--ok{color:#126b35;}
+#adminStorageHealthCard .diagnosticStatus--error{color:#ad2920;}
+body.theme-dark #adminStorageHealthCard .diagnosticStatus--ok,
+body.theme-system.theme-effective-dark #adminStorageHealthCard .diagnosticStatus--ok{color:#7cffb2;}
+body.theme-dark #adminStorageHealthCard .diagnosticStatus--error,
+body.theme-system.theme-effective-dark #adminStorageHealthCard .diagnosticStatus--error{color:#ffb0b0;}
+
 #tab-support .supportTopRow .supportFormShell {
   grid-column: 2;
   grid-row: 1;

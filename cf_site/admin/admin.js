@@ -6245,17 +6245,35 @@ function renderStorageHealthStatus(data) {
 
   if (!data || typeof data !== 'object') {
     summary.textContent = 'Diagnostics unavailable.';
+    summary.className = 'hint diagnosticStatus diagnosticStatus--error';
     details.textContent = '';
     return;
   }
 
-  const degraded = !!data.degraded;
-  const storageMode = String(data?.storage?.mode || 'unknown').replace(/_/g, ' ');
-  const pgStatus = data?.storage?.postgresConnected ? 'connected' : 'not connected';
-  summary.textContent = degraded
-    ? `Storage health degraded. Active mode: ${storageMode}.`
-    : `Storage health OK. Active mode: ${storageMode}.`;
-  details.textContent = `Postgres: ${pgStatus}. Finance storage: ${String(data?.storage?.financeStorage || 'unknown')}. Gallery storage: ${String(data?.storage?.galleryStorage || 'unknown')}.`;
+  const checks = data.checks || {};
+  const statuses = [
+    ['Admin database (D1)', checks.adminDatabase],
+    ['Site database (D1)', checks.siteDatabase],
+    ['Gallery bucket (R2)', checks.galleryBucket],
+    ['Static assets', checks.staticAssets]
+  ];
+  const degraded = data.degraded === true || statuses.some(([, status]) => !['healthy', 'configured'].includes(status));
+  summary.textContent = degraded ? 'Storage health degraded.' : 'Storage health OK.';
+  summary.className = `hint diagnosticStatus diagnosticStatus--${degraded ? 'error' : 'ok'}`;
+  details.replaceChildren();
+  const mode = document.createElement('div');
+  mode.textContent = `Active mode: ${String(data?.storage?.mode || 'Cloudflare D1 + R2')}.`;
+  details.append(mode);
+  for (const [label, rawStatus] of statuses) {
+    const status = String(rawStatus || 'unknown');
+    const row = document.createElement('div');
+    row.textContent = `${label}: `;
+    const value = document.createElement('span');
+    value.className = `diagnosticStatus diagnosticStatus--${['healthy', 'configured'].includes(status) ? 'ok' : 'error'}`;
+    value.textContent = status;
+    row.append(value);
+    details.append(row);
+  }
 }
 
 async function loadAdminStorageHealth() {
@@ -6265,6 +6283,7 @@ async function loadAdminStorageHealth() {
   if (!card || !summary || !details) return;
 
   summary.textContent = 'Checking storage health…';
+  summary.className = 'hint diagnosticStatus';
   details.textContent = '';
 
   try {
@@ -6272,6 +6291,7 @@ async function loadAdminStorageHealth() {
     renderStorageHealthStatus(data);
   } catch (err) {
     summary.textContent = err instanceof Error ? err.message : 'Storage diagnostics failed.';
+    summary.className = 'hint diagnosticStatus diagnosticStatus--error';
     details.textContent = '';
   }
 }
