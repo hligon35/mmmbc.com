@@ -29,6 +29,18 @@ function json(body, status = 200) {
   });
 }
 
+function isMissingSiteColumn(error) {
+  return /no such column|has no column named/i.test(String(error?.message || error));
+}
+
+async function updateSubmissionIfSupported(db, sql, values) {
+  try {
+    await db.prepare(sql).bind(...values).run();
+  } catch (error) {
+    if (!isMissingSiteColumn(error)) console.error('Website submission status update failed', error);
+  }
+}
+
 async function requireSession(request, env, ctx) {
   if (authStateCache.has(request)) return authStateCache.get(request);
   const url = new URL(request.url);
@@ -1110,13 +1122,18 @@ export default {
       }
       if (!env.SITE_DB) return json({ ok: true, email, warning: 'DB unavailable; accepted without persistence.' });
       const now = new Date().toISOString();
-      await env.SITE_DB.prepare(
+      try {
+        await env.SITE_DB.prepare(
         `INSERT INTO subscribers (id, email, name, status, created_at)
          VALUES (?, ?, ?, 'active', ?)
          ON CONFLICT(email) DO UPDATE SET
            name = CASE WHEN excluded.name <> '' THEN excluded.name ELSE subscribers.name END,
            status = 'active'`
-      ).bind(crypto.randomUUID(), email, name, now).run();
+        ).bind(crypto.randomUUID(), email, name, now).run();
+      } catch (error) {
+        console.error('Newsletter subscriber could not be saved', error);
+        return json({ error: 'The newsletter list is temporarily unavailable. Please try again later.' }, 503);
+      }
       return json({ ok: true, email });
     }
 
@@ -1150,25 +1167,41 @@ export default {
       const id = crypto.randomUUID();
       const createdAt = new Date().toISOString();
       // Persist before attempting email so the submission is never lost if Resend/email fails.
-      await env.SITE_DB.prepare(
-        `INSERT INTO contact_messages
+      try {
+        await env.SITE_DB.prepare(
+          `INSERT INTO contact_messages
            (id, name, first_name, last_name, email, phone, address, address_line1, address_line2,
             city, state, postal_code, message, status, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?)`
-      ).bind(
-        id, name, person.firstName, person.lastName, email, phone, address,
-        addressResult.addressLine1, addressResult.addressLine2, addressResult.city,
-        addressResult.state, addressResult.postalCode, message, createdAt
-      ).run();
+        ).bind(
+          id, name, person.firstName, person.lastName, email, phone, address,
+          addressResult.addressLine1, addressResult.addressLine2, addressResult.city,
+          addressResult.state, addressResult.postalCode, message, createdAt
+        ).run();
+      } catch (error) {
+        if (!isMissingSiteColumn(error)) {
+          console.error('Website contact message could not be saved', error);
+          return json({ error: 'The website inbox could not save your message. Please try again later.' }, 503);
+        }
+        try {
+          // 0001 already has these fields. Preserve the full name and address until 0003 is applied.
+          await env.SITE_DB.prepare(
+            `INSERT INTO contact_messages (id, name, email, phone, address, message, status, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, 'received', ?)`
+          ).bind(id, name, email, phone, address, message, createdAt).run();
+        } catch (fallbackError) {
+          console.error('Website contact message could not be saved to site database', fallbackError);
+          return json({ error: 'The website inbox could not save your message. Please try again later.' }, 503);
+        }
+      }
 
       if (demoMode) {
         if (env.SITE_DB) {
-          await env.SITE_DB.prepare(
+          await updateSubmissionIfSupported(env.SITE_DB,
             `UPDATE contact_messages
                 SET status = 'received', auto_reply_status = 'skipped_demo',
                     auto_reply_at = ?, auto_reply_error = ''
-              WHERE id = ?`
-          ).bind(createdAt, id).run();
+              WHERE id = ?`, [createdAt, id]);
         }
         return json({ ok: true, demo: true });
       }
@@ -1186,7 +1219,7 @@ export default {
 
       try {
         const autoReply = await sendWebsiteAutoReply(env, { to: email, kind: 'contact' });
-        if (env.SITE_DB) await env.SITE_DB.prepare(`UPDATE contact_messages SET auto_reply_status = ?, auto_reply_at = ?, auto_reply_error = ? WHERE id = ?`).bind(autoReply.ok ? 'sent' : 'failed', autoReply.ok ? new Date().toISOString() : null, autoReply.error || '', id).run();
+        if (env.SITE_DB) await updateSubmissionIfSupported(env.SITE_DB, `UPDATE contact_messages SET auto_reply_status = ?, auto_reply_at = ?, auto_reply_error = ? WHERE id = ?`, [autoReply.ok ? 'sent' : 'failed', autoReply.ok ? new Date().toISOString() : null, autoReply.error || '', id]);
         await sendSupportEmailMessage(env, {
           subject: '[MMMBC Contact] New Website Message',
           textBody,
@@ -1194,15 +1227,14 @@ export default {
           fromNameOverride: 'MMMBC Public Contact'
         });
         if (env.SITE_DB) {
-          await env.SITE_DB.prepare(`UPDATE contact_messages SET status = 'emailed' WHERE id = ?`).bind(id).run();
+          await updateSubmissionIfSupported(env.SITE_DB, `UPDATE contact_messages SET status = 'emailed' WHERE id = ?`, [id]);
         }
         return json({ ok: true });
       } catch (e) {
         const errMsg = String(e?.message || e).slice(0, 500);
         if (env.SITE_DB) {
-          await env.SITE_DB.prepare(
-            `UPDATE contact_messages SET status = 'email_failed', email_error = ? WHERE id = ?`
-          ).bind(errMsg, id).run();
+          await updateSubmissionIfSupported(env.SITE_DB,
+            `UPDATE contact_messages SET status = 'email_failed', email_error = ? WHERE id = ?`, [errMsg, id]);
         }
         // The message was still saved (if SITE_DB is configured); tell the visitor it was received.
         return json(env.SITE_DB
@@ -1286,7 +1318,8 @@ export default {
 
       const id = crypto.randomUUID();
       const createdAt = new Date().toISOString();
-      await env.SITE_DB.prepare(
+      try {
+        await env.SITE_DB.prepare(
           `INSERT INTO facility_rental_requests
              (id, audience, person_responsible, first_name, last_name, phone, purpose, date_of_use,
               time_from, time_to, contact_email, address, address_line1, address_line2, city, state,
@@ -1298,15 +1331,33 @@ export default {
           addressResult.addressLine1, addressResult.addressLine2, addressResult.city, addressResult.state,
           addressResult.postalCode, JSON.stringify(normalizedForm).slice(0, 20000), createdAt
         ).run();
+      } catch (error) {
+        if (!isMissingSiteColumn(error)) {
+          console.error('Facility rental request could not be saved', error);
+          return json({ error: 'The website inbox could not save your request. Please try again later.' }, 503);
+        }
+        try {
+          await env.SITE_DB.prepare(
+            `INSERT INTO facility_rental_requests
+               (id, audience, person_responsible, phone, purpose, date_of_use,
+                time_from, time_to, contact_email, form_json, status, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?)`
+          ).bind(id, audience, person.name, phoneResult.value, purpose, dateResult.value,
+            timeFromResult.value, timeToResult.value, contactEmail,
+            JSON.stringify(normalizedForm).slice(0, 20000), createdAt).run();
+        } catch (fallbackError) {
+          console.error('Facility rental request could not be saved to site database', fallbackError);
+          return json({ error: 'The website inbox could not save your request. Please try again later.' }, 503);
+        }
+      }
 
       if (demoMode) {
         if (env.SITE_DB) {
-          await env.SITE_DB.prepare(
+          await updateSubmissionIfSupported(env.SITE_DB,
             `UPDATE facility_rental_requests
                 SET status = 'received', auto_reply_status = 'skipped_demo',
                     auto_reply_at = ?, auto_reply_error = ''
-              WHERE id = ?`
-          ).bind(createdAt, id).run();
+              WHERE id = ?`, [createdAt, id]);
         }
         return json({ ok: true, demo: true });
       }
@@ -1320,7 +1371,7 @@ export default {
 
       try {
         const autoReply = await sendWebsiteAutoReply(env, { to: contactEmail, kind: 'facility_rental' });
-        await env.SITE_DB.prepare(`UPDATE facility_rental_requests SET auto_reply_status = ?, auto_reply_at = ?, auto_reply_error = ? WHERE id = ?`).bind(autoReply.ok ? 'sent' : 'failed', autoReply.ok ? new Date().toISOString() : null, autoReply.error || '', id).run();
+        await updateSubmissionIfSupported(env.SITE_DB, `UPDATE facility_rental_requests SET auto_reply_status = ?, auto_reply_at = ?, auto_reply_error = ? WHERE id = ?`, [autoReply.ok ? 'sent' : 'failed', autoReply.ok ? new Date().toISOString() : null, autoReply.error || '', id]);
         await sendSupportEmailMessage(env, {
           subject: `[MMMBC Facility Rental] ${audience === 'non_member' ? 'Non-member' : 'Member'} Request`,
           textBody,
@@ -1328,15 +1379,14 @@ export default {
           fromNameOverride: 'MMMBC Public Facility Rental'
         });
         if (env.SITE_DB) {
-          await env.SITE_DB.prepare(`UPDATE facility_rental_requests SET status = 'emailed' WHERE id = ?`).bind(id).run();
+          await updateSubmissionIfSupported(env.SITE_DB, `UPDATE facility_rental_requests SET status = 'emailed' WHERE id = ?`, [id]);
         }
         return json({ ok: true });
       } catch (e) {
         const errMsg = String(e?.message || e).slice(0, 500);
         if (env.SITE_DB) {
-          await env.SITE_DB.prepare(
-            `UPDATE facility_rental_requests SET status = 'email_failed', email_error = ? WHERE id = ?`
-          ).bind(errMsg, id).run();
+          await updateSubmissionIfSupported(env.SITE_DB,
+            `UPDATE facility_rental_requests SET status = 'email_failed', email_error = ? WHERE id = ?`, [errMsg, id]);
         }
         return json(env.SITE_DB
           ? { ok: true, warning: 'Request received; email notification is delayed.' }

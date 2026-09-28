@@ -59,7 +59,7 @@ test('honeypot rejects filled bot fields', () => {
   assert.equal(honeypotTripped({ website: '' }), false);
 });
 
-function mockSiteDb() {
+function mockSiteDb({ oldSchema = false } = {}) {
   const calls = [];
   const binds = [];
   return {
@@ -72,13 +72,82 @@ function mockSiteDb() {
           binds.push({ sql, args });
           return {
             all: async () => ({ results: [] }),
-            run: async () => ({ success: true })
+            run: async () => {
+              if (oldSchema && /INSERT INTO (contact_messages|facility_rental_requests)/.test(sql) && /first_name/.test(sql)) {
+                throw new Error('table has no column named first_name: SQLITE_ERROR');
+              }
+              if (oldSchema && /UPDATE (contact_messages|facility_rental_requests)/.test(sql) && /auto_reply_status/.test(sql)) {
+                throw new Error('no such column: auto_reply_status');
+              }
+              return { success: true };
+            }
           };
         }
       };
     }
   };
 }
+
+test('contact and rental forms save on the original site schema', async () => {
+  const db = mockSiteDb({ oldSchema: true });
+  const env = { ENVIRONMENT: 'preview', DEMO_MODE: 'true', SITE_DB: db };
+  const contact = await worker.fetch(new Request('https://preview.example/api/public/contact-message', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ firstName: 'Ada', lastName: 'Church', email: 'ada@example.com', message: 'Please call me.' })
+  }), env, {});
+  const rental = await worker.fetch(new Request('https://preview.example/api/public/facility-rental-request', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ audience: 'member', form: {
+      eventGroup: 'Choir', firstName: 'Ada', lastName: 'Church', phone: '(270) 555-0100', purpose: 'Meeting', contactEmail: 'ada@example.com',
+      dateOfUse: '2026-10-10', timeFrom: '10:00', timeTo: '12:00', facilities: ['Hall'],
+      responsibleSignature: 'Ada Church', responsibleSignatureDate: '2026-09-27'
+    } })
+  }), env, {});
+  assert.equal(contact.status, 200);
+  assert.equal(rental.status, 200);
+  assert.ok(db.calls.some((sql) => /INSERT INTO contact_messages \(id, name, email/.test(sql)));
+  assert.ok(db.calls.some((sql) => /INSERT INTO facility_rental_requests\s+\(id, audience, person_responsible, phone/.test(sql)));
+});
+
+test('production contact submission completes after Turnstile on an older site database', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/siteverify')) return Response.json({ success: true, hostname: 'mmmbc.alphazonelabs.com' });
+    throw new Error('Unexpected external request');
+  };
+  try {
+    const db = mockSiteDb({ oldSchema: true });
+    const response = await worker.fetch(new Request('https://mmmbc.alphazonelabs.com/api/public/contact-message', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ firstName: 'Ada', lastName: 'Church', email: 'ada@example.com', message: 'Please call me.', turnstileToken: 'sample-token' })
+    }), {
+      ENVIRONMENT: 'production', SITE_DB: db, PUBLIC_SITE_URL: 'https://mmmbc.alphazonelabs.com',
+      TURNSTILE_SITE_KEY: 'public-key', TURNSTILE_SECRET_KEY: 'private-key'
+    }, {});
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).ok, true);
+    assert.ok(db.calls.some((sql) => /INSERT INTO contact_messages \(id, name, email/.test(sql)));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('contact save failures return JSON rather than a Worker exception', async () => {
+  const db = mockSiteDb();
+  db.prepare = () => { throw new Error('D1 temporarily unavailable'); };
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    const response = await worker.fetch(new Request('https://preview.example/api/public/contact-message', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Ada Church', email: 'ada@example.com', message: 'Please call me.' })
+    }), { ENVIRONMENT: 'preview', DEMO_MODE: 'true', SITE_DB: db }, {});
+    assert.equal(response.status, 503);
+    assert.match(response.headers.get('content-type'), /application\/json/);
+  } finally {
+    console.error = originalError;
+  }
+});
 
 test('preview demo mode stores public submissions without invoking email or anti-abuse checks', async () => {
   const db = mockSiteDb();
