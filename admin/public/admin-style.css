@@ -1789,8 +1789,12 @@ input[type="time"].input::-webkit-calendar-picker-indicator{filter:invert(1);opa
   margin-bottom:8px;
 }
 
-.eventsPrintMenu--inline{
+.menu.eventsPrintMenu--inline{
   margin-left:50px;
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  padding:0;
 }
 
 .eventsPrintMenu--inline > summary{

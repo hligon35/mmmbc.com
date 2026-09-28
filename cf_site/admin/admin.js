@@ -66,7 +66,7 @@ async function parseApiErrorResponse(res) {
 
   const detail = jsonPayload && typeof jsonPayload === 'object'
     ? String(jsonPayload.error || jsonPayload.message || '')
-    : trimmed;
+    : /<\s*(?:!doctype|html|head|body|title)\b/i.test(trimmed) ? '' : trimmed.slice(0, 500);
   const effectiveRequestId = requestId || String(jsonPayload?.requestId || '').trim();
   const message = buildApiErrorMessage(
     res.status,

@@ -56,7 +56,8 @@ async function handleWebsiteSubmissions(request, env, ctx) {
     const archived = url.searchParams.get('archived') === 'true' ? 1 : 0;
     const q = String(url.searchParams.get('q') || '').trim().slice(0, 120);
     const like = `%${q}%`;
-    const result = await env.SITE_DB.prepare(`
+    try {
+      const result = await env.SITE_DB.prepare(`
       SELECT id, 'contact' AS type, name AS sender_name, email AS sender_email, subject,
         phone AS sender_phone, address AS sender_address, message AS body, created_at, status,
         read_at, archived_at, auto_reply_status, auto_reply_at
@@ -65,17 +66,20 @@ async function handleWebsiteSubmissions(request, env, ctx) {
       UNION ALL
       SELECT id, 'facility_rental' AS type, person_responsible AS sender_name,
         contact_email AS sender_email, 'Facility Rental Request' AS subject, phone AS sender_phone,
-        address AS sender_address, form_json AS body, created_at, status, read_at, archived_at,
+        '' AS sender_address, form_json AS body, created_at, status, read_at, archived_at,
         auto_reply_status, auto_reply_at
         FROM facility_rental_requests WHERE (? = 1 OR archived_at IS NULL)
-          AND (? = '' OR person_responsible LIKE ? OR first_name LIKE ? OR last_name LIKE ?
-            OR contact_email LIKE ? OR form_json LIKE ? OR phone LIKE ? OR address LIKE ?)
+          AND (? = '' OR person_responsible LIKE ? OR contact_email LIKE ? OR form_json LIKE ? OR phone LIKE ?)
       ORDER BY created_at DESC LIMIT 300`)
-      .bind(
-        archived, q, like, like, like, like, like, like,
-        archived, q, like, like, like, like, like, like, like
-      ).all();
-    return json({ submissions: result.results || [] });
+        .bind(
+          archived, q, like, like, like, like, like, like,
+          archived, q, like, like, like, like
+        ).all();
+      return json({ submissions: result.results || [] });
+    } catch (error) {
+      console.error('Website submissions query failed', error);
+      return json({ error: 'Unable to load website messages. Check the site database migrations and try again.' }, 503);
+    }
   }
   if (!session.permissions?.includes(PERMISSIONS.SUBMISSIONS_MANAGE)) return json({ error: 'Permission denied.' }, 403);
   if (!id) return json({ error: 'Submission id is required.' }, 400);
