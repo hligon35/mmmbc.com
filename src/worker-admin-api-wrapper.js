@@ -1110,10 +1110,14 @@ export default {
       if (honeypotTripped(body)) return json({ ok: true, email: '' });
       const demoMode = previewDemoModeEnabled(env);
       const email = String(body?.email || '').trim().toLowerCase();
-      const name = String(body?.name || '').trim().slice(0, 120);
+      const firstName = formText(body?.firstName, 60);
+      const lastName = formText(body?.lastName, 80);
+      if (Boolean(firstName) !== Boolean(lastName)) return json({ error: 'First and last name are required.' }, 400);
+      const name = (firstName ? `${firstName} ${lastName}` : formText(body?.name, 140)).slice(0, 140);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return json({ error: 'A valid email is required.' }, 400);
       }
+      if (!name) return json({ error: 'First and last name are required.' }, 400);
       if (!demoMode) {
         const rate = await checkRateLimit(env, request, 'newsletter_subscribe', { max: 5, windowSeconds: 600 });
         if (!rate.ok) return json({ error: rate.error }, 429);

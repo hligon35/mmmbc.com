@@ -342,10 +342,14 @@ async function handlePublicNewsletterSubscribe(request, env) {
 
   const body = await request.json().catch(() => ({}));
   const email = String(body?.email || '').trim().toLowerCase();
-  const name = String(body?.name || '').trim().slice(0, 120);
+  const firstName = String(body?.firstName || '').trim().slice(0, 60);
+  const lastName = String(body?.lastName || '').trim().slice(0, 80);
+  if (Boolean(firstName) !== Boolean(lastName)) return json({ error: 'First and last name are required.' }, { status: 400 });
+  const name = (firstName ? `${firstName} ${lastName}` : String(body?.name || '').trim()).slice(0, 140);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return json({ error: 'A valid email is required.' }, { status: 400 });
   }
+  if (!name) return json({ error: 'First and last name are required.' }, { status: 400 });
 
   const now = new Date().toISOString();
   await env.SITE_DB.prepare(

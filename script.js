@@ -201,8 +201,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="footer-links-section" id="newsletter-signup">
                     <h4>Newsletter</h4>
                     <form class="footer-subscribe-form" data-subscriber-form data-cloudflare-form>
-                        <label for="footerSubscriberEmail">Subscriber email</label>
-                        <input class="input" id="footerSubscriberEmail" type="email" list="siteSubscriberOptions" placeholder="you@example.com" required>
+                        <div class="subscriber-name-fields">
+                            <label>First name<input type="text" name="firstName" autocomplete="given-name" maxlength="60" required></label>
+                            <label>Last name<input type="text" name="lastName" autocomplete="family-name" maxlength="80" required></label>
+                        </div>
+                        <label class="subscriber-email-field">Email address<input type="email" name="email" autocomplete="email" placeholder="you@example.com" maxlength="254" required></label>
                         <div class="form-turnstile" data-turnstile-container hidden></div>
                         <button class="btn-contact btn-contact--spaced" type="submit">Join List</button>
                         <p class="muted" data-subscriber-help role="status" aria-live="polite"></p>
@@ -360,24 +363,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (submit) submit.disabled = false;
             });
         }
-        const subscribers = Array.isArray(settings.subscribers)
-            ? settings.subscribers.map((s) => typeof s === 'string' ? { email: s.trim(), name: '', group: 'general' } : {
-                email: String(s?.email || '').trim(), name: String(s?.name || '').trim(), group: String(s?.group || 'general').trim() || 'general'
-            }).filter((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.email))
-            : [];
-        let list = document.getElementById('siteSubscriberOptions');
-        if (!list) {
-            list = document.createElement('datalist');
-            list.id = 'siteSubscriberOptions';
-            document.body.appendChild(list);
-        }
-        list.innerHTML = '';
-        subscribers.forEach((sub) => {
-            const option = document.createElement('option');
-            option.value = sub.email;
-            option.label = sub.name ? `${sub.name} (${sub.group})` : sub.group;
-            list.appendChild(option);
-        });
         document.querySelectorAll('[data-subscriber-form]').forEach((form) => {
             if (!widgetReady) return;
             form.addEventListener('submit', async (e) => {
@@ -385,6 +370,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const emailInput = form.querySelector('input[type="email"]');
                 const help = form.querySelector('[data-subscriber-help]');
                 const email = String(emailInput?.value || '').trim();
+                const firstName = String(form.querySelector('[name="firstName"]')?.value || '').trim();
+                const lastName = String(form.querySelector('[name="lastName"]')?.value || '').trim();
+                if (!firstName || !lastName) {
+                    if (help) help.textContent = 'Please enter your first and last name.';
+                    return;
+                }
                 if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
                     if (help) help.textContent = 'Please enter a valid email address.';
                     return;
@@ -398,7 +389,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (submit) submit.disabled = true;
                 if (help) help.textContent = `Adding ${email} to the newsletter list...`;
                 try {
-                    await postJson('/api/public/newsletter/subscribe', { email, turnstileToken });
+                    await postJson('/api/public/newsletter/subscribe', { firstName, lastName, email, turnstileToken });
                     if (help) help.textContent = `${email} has been added to the newsletter list.`;
                     form.reset();
                 } catch (error) {

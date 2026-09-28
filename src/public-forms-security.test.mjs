@@ -132,6 +132,22 @@ test('production contact submission completes after Turnstile on an older site d
   }
 });
 
+test('newsletter signup stores first and last name with its email', async () => {
+  const db = mockSiteDb();
+  const env = { ENVIRONMENT: 'preview', DEMO_MODE: 'true', SITE_DB: db };
+  const response = await worker.fetch(new Request('https://preview.example/api/public/newsletter/subscribe', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ firstName: 'Ada', lastName: 'Church', email: 'ada@example.com' })
+  }), env, {});
+  assert.equal(response.status, 200);
+  assert.equal(db.binds.find(({ sql }) => /INSERT INTO subscribers/.test(sql)).args[2], 'Ada Church');
+  const missingName = await worker.fetch(new Request('https://preview.example/api/public/newsletter/subscribe', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ firstName: 'Ada', email: 'ada@example.com' })
+  }), env, {});
+  assert.equal(missingName.status, 400);
+});
+
 test('contact save failures return JSON rather than a Worker exception', async () => {
   const db = mockSiteDb();
   db.prepare = () => { throw new Error('D1 temporarily unavailable'); };

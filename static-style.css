@@ -1457,53 +1457,70 @@ footer {
 }
 
 .facility-heading-row {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    column-gap: 12px;
+    text-align: center;
     margin-bottom: 12px;
 }
 
 .facility-heading-row h1 {
-    grid-column: 2;
-    justify-self: center;
     margin-bottom: 0;
 }
 
-.facility-booking-picker {
-    grid-column: 3;
-    justify-self: end;
-    display: inline-flex;
-    align-items: center;
+.rental-form-choices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    width: min(100%, 760px);
+    margin: 22px auto;
+    align-items: start;
 }
 
-.facility-booking-picker select {
-    min-height: 40px;
-    padding: 8px 12px;
-    border-radius: 999px;
+.rental-form-menu {
+    min-width: 0;
+}
+
+.rental-form-menu > summary {
+    min-height: 48px;
+    padding: 11px 16px;
     border: 1px solid #c46123;
-    background-color: rgba(196, 97, 35, 0.2);
-    color: #ffffff;
+    border-radius: 14px;
+    background: #36180d;
+    color: #fff;
     font-weight: 700;
     cursor: pointer;
 }
 
-.facility-booking-picker select:focus-visible {
-    outline: 2px solid rgba(196, 97, 35, 0.9);
+.rental-form-menu > summary:hover,
+.rental-form-menu > summary:focus-visible {
+    background: #813918;
+    outline: 2px solid #c46123;
     outline-offset: 2px;
 }
 
-@media (max-width: 760px) {
-    .facility-heading-row {
-        grid-template-columns: 1fr;
-        row-gap: 10px;
-    }
+.rental-form-menu__links {
+    display: grid;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid #c46123;
+    border-radius: 12px;
+    background: #21120e;
+}
 
-    .facility-heading-row h1,
-    .facility-booking-picker {
-        grid-column: 1;
-        justify-self: center;
-    }
+.rental-form-menu__links a {
+    display: block;
+    padding: 12px;
+    border-radius: 8px;
+    color: #fff;
+    text-decoration: none;
+}
+
+.rental-form-menu__links a:hover,
+.rental-form-menu__links a:focus-visible {
+    background: #813918;
+    text-decoration: underline;
+}
+
+@media (max-width: 520px) {
+    .rental-form-choices { grid-template-columns: 1fr; }
 }
 
 
@@ -4070,4 +4087,39 @@ body:not(.admin-page) svg {
   body:not(.admin-page) .content-section {
     padding: 12px;
   }
+}
+
+/* Shared newsletter signup on the contact page and in the footer. */
+[data-subscriber-form] .subscriber-name-fields{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+}
+[data-subscriber-form] .subscriber-name-fields label,
+[data-subscriber-form] .subscriber-email-field{
+    display:grid;
+    gap:6px;
+    min-width:0;
+    font-weight:700;
+}
+[data-subscriber-form] .subscriber-name-fields input,
+[data-subscriber-form] .subscriber-email-field input{
+    box-sizing:border-box;
+    width:100%;
+    min-height:44px;
+    padding:10px 13px;
+    border:2px solid #aa5b2c;
+    border-radius:10px;
+    background:#fff;
+    color:#21150f;
+    font:inherit;
+}
+[data-subscriber-form] input::placeholder{color:#6c615b;opacity:1;}
+[data-subscriber-form] input:focus-visible{
+    outline:3px solid #e9aa63;
+    outline-offset:2px;
+    border-color:#813918;
+}
+@media (max-width:520px){
+    [data-subscriber-form] .subscriber-name-fields{grid-template-columns:1fr;}
 }

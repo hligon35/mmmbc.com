@@ -316,6 +316,29 @@ body{
   margin-top:2px;
 }
 
+#tab-submissions .submissionsTableWrap{width:100%;}
+#tab-submissions .submissionsTable{
+  width:100%;
+  min-width:900px;
+  table-layout:fixed;
+  border-collapse:collapse;
+}
+#tab-submissions .submissionsTable th,
+#tab-submissions .submissionsTable td{
+  padding:12px 14px;
+  text-align:left;
+  vertical-align:middle;
+  overflow-wrap:anywhere;
+}
+#tab-submissions .submissionsTable th:nth-child(1){width:10%;}
+#tab-submissions .submissionsTable th:nth-child(2){width:12%;}
+#tab-submissions .submissionsTable th:nth-child(3){width:23%;}
+#tab-submissions .submissionsTable th:nth-child(4){width:20%;}
+#tab-submissions .submissionsTable th:nth-child(5){width:18%;}
+#tab-submissions .submissionsTable th:nth-child(6){width:17%;}
+#tab-submissions .submissionsTable td:last-child{white-space:nowrap;}
+#tab-submissions .submissionsTable td:last-child .btn{margin:2px;}
+
 .label{display:grid;gap:6px;font-weight:700;}
 .label--inline{display:flex;align-items:center;gap:10px;font-weight:700;}
 
