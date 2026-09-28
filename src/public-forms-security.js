@@ -38,7 +38,20 @@ export async function verifyTurnstile(env, token, remoteIp) {
       body: form
     });
     const data = await res.json().catch(() => ({}));
-    if (!data?.success) return { ok: false, error: 'Verification failed. Please try again.' };
+    if (!data?.success) {
+      const codes = Array.isArray(data?.['error-codes'])
+        ? data['error-codes'].filter((code) => typeof code === 'string').slice(0, 5)
+        : [];
+      // Cloudflare error codes are safe to log; never log the token, secret, or visitor IP.
+      console.warn('Turnstile siteverify failed', { status: res.status, codes });
+      if (codes.includes('invalid-input-secret') || codes.includes('missing-input-secret')) {
+        return { ok: false, error: 'Form verification is temporarily unavailable.', status: 503 };
+      }
+      if (codes.includes('timeout-or-duplicate')) {
+        return { ok: false, error: 'Verification expired or was already used. Please complete it again.', status: 403 };
+      }
+      return { ok: false, error: 'Verification failed. Please try again.', status: 403 };
+    }
     return { ok: true };
   } catch {
     // Fail closed on network errors so a Turnstile outage cannot be used to bypass it,

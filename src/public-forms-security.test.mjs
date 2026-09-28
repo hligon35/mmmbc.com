@@ -17,6 +17,29 @@ test('local forms may run without Turnstile configuration', async () => {
   assert.deepEqual(result, { ok: true, skipped: true });
 });
 
+test('Turnstile failures distinguish a bad secret from a used token without logging credentials', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalWarn = console.warn;
+  const warnings = [];
+  let code = 'invalid-input-secret';
+  globalThis.fetch = async () => Response.json({ success: false, 'error-codes': [code] });
+  console.warn = (...args) => warnings.push(args);
+  try {
+    const env = { ENVIRONMENT: 'production', TURNSTILE_SITE_KEY: 'public-key', TURNSTILE_SECRET_KEY: 'private-secret' };
+    const badSecret = await verifyTurnstile(env, 'visitor-token', '127.0.0.1');
+    assert.equal(badSecret.status, 503);
+    assert.match(badSecret.error, /temporarily unavailable/i);
+    code = 'timeout-or-duplicate';
+    const expired = await verifyTurnstile(env, 'visitor-token', '127.0.0.1');
+    assert.equal(expired.status, 403);
+    assert.match(expired.error, /expired|already used/i);
+    assert.doesNotMatch(JSON.stringify(warnings), /private-secret|visitor-token|127\.0\.0\.1/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.warn = originalWarn;
+  }
+});
+
 test('honeypot rejects filled bot fields', () => {
   assert.equal(honeypotTripped({ website: 'spam' }), true);
   assert.equal(honeypotTripped({ website: '' }), false);

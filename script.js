@@ -475,6 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 contactForm.reset();
                 if (typeof forms.resetTurnstile === 'function') forms.resetTurnstile(contactForm);
             } catch (error) {
+                if (typeof forms.resetTurnstile === 'function') forms.resetTurnstile(contactForm);
                 if (status) status.textContent = String(error?.message || 'Unable to send your message. Please try again.');
             } finally {
                 if (submitBtn) {

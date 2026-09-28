@@ -181,6 +181,7 @@
         form.reset();
         if (typeof forms.resetTurnstile === 'function') forms.resetTurnstile(form);
       } catch (error) {
+        if (typeof forms.resetTurnstile === 'function') forms.resetTurnstile(form);
         setStatus(status, String(error?.message || 'Unable to send your request. Please try again.'));
       } finally {
         if (submitButton) {
