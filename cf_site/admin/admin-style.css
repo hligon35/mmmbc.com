@@ -339,6 +339,17 @@ body{
 #tab-submissions .submissionsTable td:last-child{white-space:nowrap;}
 #tab-submissions .submissionsTable td:last-child .btn{margin:2px;}
 
+#tab-submissions .submissionDelivery{font-weight:800;overflow-wrap:anywhere;}
+#tab-submissions .submissionDelivery--ok{color:#126b35;}
+#tab-submissions .submissionDelivery--error{color:#ad2920;}
+#tab-submissions .submissionDelivery--pending{color:#835500;}
+body.theme-dark #tab-submissions .submissionDelivery--ok,
+body.theme-system.theme-effective-dark #tab-submissions .submissionDelivery--ok{color:#7cffb2;}
+body.theme-dark #tab-submissions .submissionDelivery--error,
+body.theme-system.theme-effective-dark #tab-submissions .submissionDelivery--error{color:#ffb0b0;}
+body.theme-dark #tab-submissions .submissionDelivery--pending,
+body.theme-system.theme-effective-dark #tab-submissions .submissionDelivery--pending{color:#ffd88a;}
+
 .label{display:grid;gap:6px;font-weight:700;}
 .label--inline{display:flex;align-items:center;gap:10px;font-weight:700;}
 

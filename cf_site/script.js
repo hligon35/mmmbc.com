@@ -503,8 +503,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (status) status.textContent = 'Sending your message securely...';
 
             try {
-                await postJson('/api/public/contact-message', payload);
-                if (status) status.textContent = 'Thank you. Your message has been sent.';
+                const result = await postJson('/api/public/contact-message', payload);
+                if (status) status.textContent = result?.warning || 'Thank you. Your message has been received.';
                 contactForm.reset();
                 if (typeof forms.resetTurnstile === 'function') forms.resetTurnstile(contactForm);
             } catch (error) {

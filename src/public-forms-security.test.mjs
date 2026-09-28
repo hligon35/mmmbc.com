@@ -132,6 +132,34 @@ test('production contact submission completes after Turnstile on an older site d
   }
 });
 
+test('contact form reports a failed auto-reply while keeping the saved submission', async () => {
+  const originalFetch = globalThis.fetch;
+  const db = mockSiteDb();
+  const recipients = [];
+  globalThis.fetch = async (_url, options) => {
+    const [recipient] = JSON.parse(options.body).to;
+    recipients.push(recipient);
+    return recipient === 'visitor@example.com'
+      ? Response.json({ message: 'Sending domain is not verified.' }, { status: 403 })
+      : Response.json({ id: 'email-123' });
+  };
+  try {
+    const response = await worker.fetch(new Request('https://preview.example/api/public/contact-message', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ firstName: 'Ada', lastName: 'Church', email: 'visitor@example.com', message: 'Please call me.' })
+    }), { ENVIRONMENT: 'development', SITE_DB: db, RESEND_API_KEY: 'test-key', RESEND_FROM_EMAIL: 'no-reply@mmmbc.com', SUPPORT_TO_EMAIL: 'team@example.com' }, {});
+    assert.equal(response.status, 200);
+    assert.match((await response.json()).warning, /confirmation email could not be sent/i);
+    assert.deepEqual(recipients, ['visitor@example.com', 'team@example.com']);
+    const recordedFailure = db.binds.find(({ sql }) => /UPDATE contact_messages SET auto_reply_status/.test(sql));
+    assert.equal(recordedFailure.args[0], 'failed');
+    assert.match(recordedFailure.args[2], /not verified/);
+    assert.ok(db.calls.some((sql) => /INSERT INTO contact_messages/.test(sql)));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('newsletter signup stores first and last name with its email', async () => {
   const db = mockSiteDb();
   const env = { ENVIRONMENT: 'preview', DEMO_MODE: 'true', SITE_DB: db };

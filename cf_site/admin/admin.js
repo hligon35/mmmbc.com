@@ -1434,7 +1434,12 @@ async function openWebsiteSubmission(id, type, rows) {
     row.sender_phone ? `<strong>Phone:</strong> ${escapeHtml(row.sender_phone)}` : '',
     row.sender_address ? `<strong>Address:</strong> ${escapeHtml(row.sender_address)}` : ''
   ].filter(Boolean).join('<br>');
-  detail.innerHTML = `<h3>${escapeHtml(row.subject || 'Website submission')}</h3><p><strong>From:</strong> ${escapeHtml(row.sender_name || '')} &lt;${escapeHtml(row.sender_email || '')}&gt;</p>${contactDetails ? `<p>${contactDetails}</p>` : ''}<pre class="submissionBody">${escapeHtml(content)}</pre>`;
+  const replyStatus = String(row.auto_reply_status || 'unknown').toLowerCase();
+  const replyLabel = { sent: 'Accepted by email provider', failed: 'Failed', pending: 'Pending', skipped_demo: 'Skipped for demo' }[replyStatus] || 'Unknown';
+  const replyClass = replyStatus === 'sent' ? 'submissionDelivery--ok' : replyStatus === 'failed' ? 'submissionDelivery--error' : 'submissionDelivery--pending';
+  const replyError = replyStatus === 'failed' && row.auto_reply_error
+    ? `<p class="submissionDelivery submissionDelivery--error"><strong>Email error:</strong> ${escapeHtml(row.auto_reply_error)}</p>` : '';
+  detail.innerHTML = `<h3>${escapeHtml(row.subject || 'Website submission')}</h3><p><strong>From:</strong> ${escapeHtml(row.sender_name || '')} &lt;${escapeHtml(row.sender_email || '')}&gt;</p>${contactDetails ? `<p>${contactDetails}</p>` : ''}<p><strong>Auto-reply:</strong> <span class="submissionDelivery ${replyClass}">${escapeHtml(replyLabel)}</span></p>${replyError}<pre class="submissionBody">${escapeHtml(content)}</pre>`;
   await loadWebsiteSubmissions();
 }
 

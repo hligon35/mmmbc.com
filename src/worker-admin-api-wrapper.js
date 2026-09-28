@@ -72,14 +72,14 @@ async function handleWebsiteSubmissions(request, env, ctx) {
       const result = await env.SITE_DB.prepare(`
       SELECT id, 'contact' AS type, name AS sender_name, email AS sender_email, subject,
         phone AS sender_phone, address AS sender_address, message AS body, created_at, status,
-        read_at, archived_at, auto_reply_status, auto_reply_at
+        read_at, archived_at, auto_reply_status, auto_reply_at, auto_reply_error
         FROM contact_messages WHERE (? = 1 OR archived_at IS NULL)
           AND (? = '' OR name LIKE ? OR email LIKE ? OR subject LIKE ? OR message LIKE ? OR phone LIKE ? OR address LIKE ?)
       UNION ALL
       SELECT id, 'facility_rental' AS type, person_responsible AS sender_name,
         contact_email AS sender_email, 'Facility Rental Request' AS subject, phone AS sender_phone,
         '' AS sender_address, form_json AS body, created_at, status, read_at, archived_at,
-        auto_reply_status, auto_reply_at
+        auto_reply_status, auto_reply_at, auto_reply_error
         FROM facility_rental_requests WHERE (? = 1 OR archived_at IS NULL)
           AND (? = '' OR person_responsible LIKE ? OR contact_email LIKE ? OR form_json LIKE ? OR phone LIKE ?)
       ORDER BY created_at DESC LIMIT 300`)
@@ -1233,7 +1233,7 @@ export default {
         if (env.SITE_DB) {
           await updateSubmissionIfSupported(env.SITE_DB, `UPDATE contact_messages SET status = 'emailed' WHERE id = ?`, [id]);
         }
-        return json({ ok: true });
+        return json(autoReply.ok ? { ok: true } : { ok: true, warning: 'Message received, but the confirmation email could not be sent.' });
       } catch (e) {
         const errMsg = String(e?.message || e).slice(0, 500);
         if (env.SITE_DB) {
@@ -1242,7 +1242,7 @@ export default {
         }
         // The message was still saved (if SITE_DB is configured); tell the visitor it was received.
         return json(env.SITE_DB
-          ? { ok: true, warning: 'Message received; email notification is delayed.' }
+          ? { ok: true, warning: 'Message received; an email notification could not be sent. Please check Website Messages for delivery details.' }
           : { error: `Unable to send message. ${errMsg}` }, env.SITE_DB ? 200 : 502);
       }
     }
@@ -1385,7 +1385,7 @@ export default {
         if (env.SITE_DB) {
           await updateSubmissionIfSupported(env.SITE_DB, `UPDATE facility_rental_requests SET status = 'emailed' WHERE id = ?`, [id]);
         }
-        return json({ ok: true });
+        return json(autoReply.ok ? { ok: true } : { ok: true, warning: 'Request received, but the confirmation email could not be sent.' });
       } catch (e) {
         const errMsg = String(e?.message || e).slice(0, 500);
         if (env.SITE_DB) {
@@ -1771,7 +1771,8 @@ export default {
         adminDatabase,
         siteDatabase,
         galleryBucket: env.GALLERY_BUCKET ? 'configured' : 'missing',
-        staticAssets: env.ASSETS && typeof env.ASSETS.fetch === 'function' ? 'configured' : 'missing'
+        staticAssets: env.ASSETS && typeof env.ASSETS.fetch === 'function' ? 'configured' : 'missing',
+        transactionalEmail: env.RESEND_API_KEY && env.RESEND_FROM_EMAIL ? 'configured' : 'missing'
       };
       const degraded = Object.values(checks).some((status) => status === 'missing' || status === 'unavailable');
       return json({ ok: !degraded, degraded, checkedAt: new Date().toISOString(), storage: { mode: 'Cloudflare D1 + R2' }, checks });

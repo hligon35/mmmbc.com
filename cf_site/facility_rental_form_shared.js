@@ -177,7 +177,7 @@
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(String(data?.error || 'Unable to send your request.'));
-        setStatus(status, 'Your request was sent. A confirmation email is on its way.');
+        setStatus(status, data?.warning || 'Your request was received. A confirmation email is on its way.');
         form.reset();
         if (typeof forms.resetTurnstile === 'function') forms.resetTurnstile(form);
       } catch (error) {
