@@ -4,7 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Clergy Housing Allowance Records</title>
-  <link rel="stylesheet" href="/admin/admin-style.css?v=20260927b" />
+  <link rel="stylesheet" href="/admin/admin-style.css?v=20260928k" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" />
 </head>
 <body data-page="housing">
   <main class="wrap">
@@ -58,7 +59,7 @@
         <label class="label fullSpan">Notes<textarea id="ministerNotes" class="textarea"></textarea></label>
         <div class="btnRow fullSpan">
           <button class="btn btnPrimary" type="submit">Save Housing Profile</button>
-          <button class="btn" type="reset">Cancel</button>
+          <button class="btn actionIconBtn" type="reset" aria-label="Cancel" title="Cancel"><span class="material-icons-round" aria-hidden="true">close</span></button>
           <a class="btn" href="#housingProfiles">Review</a>
           <a class="btn" href="/admin/">Back</a>
         </div>
@@ -79,13 +80,13 @@
         <label class="label fullSpan">Notes<textarea id="annualNotes" class="textarea"></textarea></label>
         <div class="btnRow fullSpan">
           <button class="btn btnPrimary" type="submit">Save Annual Record</button>
-          <button class="btn" type="reset">Cancel</button>
+          <button class="btn actionIconBtn" type="reset" aria-label="Cancel" title="Cancel"><span class="material-icons-round" aria-hidden="true">close</span></button>
         </div>
       </form>
       <p id="housingMsg" class="help"></p>
     </section>
     <p id="pageError" class="error"></p>
   </main>
-  <script src="/admin/finance_modern.js"></script>
+  <script src="/admin/finance_modern.js?v=20260928k"></script>
 </body>
 </html>

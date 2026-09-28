@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Church Website Manager</title>
   <meta name="description" content="Admin dashboard for Mt. Moriah Missionary Baptist Church website." />
-  <link rel="stylesheet" href="/admin/admin-style.css?v=20260928j" />
+  <link rel="stylesheet" href="/admin/admin-style.css?v=20260928k" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" />
 </head>
 <body>
@@ -77,7 +77,7 @@
               <p class="dashboardHome__subtitle" id="dashboardGeneratedAt">Loading current status...</p>
             </div>
             <div class="dashboardHome__actions">
-              <button class="btn" id="dashboardRefreshBtn" type="button">Refresh</button>
+              <button class="btn actionIconBtn" id="dashboardRefreshBtn" type="button" aria-label="Refresh" title="Refresh"><span class="material-icons-round" aria-hidden="true">refresh</span></button>
             </div>
           </div>
 
@@ -147,11 +147,11 @@
           <div class="iconGroup" aria-label="Photo gallery actions">
             <div class="iconGroup__row">
               <a class="iconBtn iconBtn--help" id="photoHelpBtn" href="#photoHelpDialog" aria-label="Photo upload instructions" title="Photo upload instructions"><span class="material-icons-round" aria-hidden="true">help_outline</span></a>
-              <button class="btn" id="exportBtn" type="button">Refresh Website Gallery</button>
+              <button class="btn actionIconBtn" id="exportBtn" type="button" aria-label="Refresh Website Gallery" title="Refresh Website Gallery"><span class="material-icons-round" aria-hidden="true">refresh</span></button>
             </div>
               <div class="photoBulkBar" id="photoBulkBar" hidden>
                 <button class="btn" id="photoBulkEditBtn" type="button">Edit selected photos</button>
-                <button class="btn btn--danger" id="photoBulkDeleteBtn" type="button">Delete selected photos</button>
+                <button class="btn actionIconBtn btn--danger" id="photoBulkDeleteBtn" type="button" aria-label="Delete selected photos" title="Delete selected photos"><span class="material-icons-round" aria-hidden="true">delete</span></button>
                 <span class="muted" id="photoBulkCount" aria-live="polite"></span>
               </div>
             <div class="syncProgress" id="syncProgressWrap" aria-live="polite" hidden>
@@ -166,7 +166,7 @@
           <div class="card dialog__inner">
             <div class="sectionHeader sectionHeader--compact">
               <h3 class="sectionHeader__title" id="photoHelpDialogTitle">How to add photos</h3>
-              <button class="btn" id="photoHelpCloseBtn" type="button">Close</button>
+              <button class="btn actionIconBtn" id="photoHelpCloseBtn" type="button" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
             </div>
 
             <p class="muted">Use these steps when you want to add a new album or update an existing one.</p>
@@ -196,7 +196,7 @@
           <div class="card dialog__inner photoViewDialog__inner">
             <div class="sectionHeader sectionHeader--compact">
               <h3 class="sectionHeader__title" id="photoViewDialogTitle">Photo preview</h3>
-              <button class="btn" id="photoViewCloseBtn" type="button">Close</button>
+              <button class="btn actionIconBtn" id="photoViewCloseBtn" type="button" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
             </div>
             <div class="photoViewDialog__body">
               <img class="photoViewDialog__image" id="photoViewImage" alt="Photo preview" />
@@ -264,17 +264,17 @@
           <div class="hint" id="photoDisplayNameToggleHint" aria-live="polite"></div>
 
           <div class="toolbar toolbar--tightTop photoPager" id="photoPager" aria-label="Photo gallery pagination" hidden>
-            <button class="btn" id="photoPrevPageBtn" type="button">Prev</button>
+            <button class="btn actionIconBtn" id="photoPrevPageBtn" type="button" aria-label="Prev" title="Prev"><span class="material-icons-round" aria-hidden="true">chevron_left</span></button>
             <span class="muted" id="photoPageInfo" aria-live="polite"></span>
-            <button class="btn" id="photoNextPageBtn" type="button">Next</button>
+            <button class="btn actionIconBtn" id="photoNextPageBtn" type="button" aria-label="Next" title="Next"><span class="material-icons-round" aria-hidden="true">chevron_right</span></button>
           </div>
 
           <div class="grid" id="photoGrid" aria-live="polite" tabindex="-1"></div>
 
           <div class="toolbar toolbar--tightTop photoPager photoPager--bottom" id="photoPagerBottom" aria-label="Photo gallery pagination (bottom)" hidden>
-            <button class="btn" id="photoPrevPageBtnBottom" type="button">Prev</button>
+            <button class="btn actionIconBtn" id="photoPrevPageBtnBottom" type="button" aria-label="Prev" title="Prev"><span class="material-icons-round" aria-hidden="true">chevron_left</span></button>
             <span class="muted" id="photoPageInfoBottom" aria-live="polite"></span>
-            <button class="btn" id="photoNextPageBtnBottom" type="button">Next</button>
+            <button class="btn actionIconBtn" id="photoNextPageBtnBottom" type="button" aria-label="Next" title="Next"><span class="material-icons-round" aria-hidden="true">chevron_right</span></button>
           </div>
 
           <details class="advancedTools" id="advancedPhotoTools">
@@ -284,9 +284,9 @@
               <div class="sectionHeader sectionHeader--compact">
                 <h3 class="sectionHeader__title">Photo Storage</h3>
                 <div class="inlineRow" aria-label="Photo storage actions">
-                  <button class="btn" id="r2RefreshBtn" type="button">Refresh</button>
-                  <button class="btn" id="r2UpBtn" type="button">Up</button>
-                  <button class="btn" id="r2SyncFolderBtn" type="button">Refresh This Folder</button>
+                  <button class="btn actionIconBtn" id="r2RefreshBtn" type="button" aria-label="Refresh" title="Refresh"><span class="material-icons-round" aria-hidden="true">refresh</span></button>
+                  <button class="btn actionIconBtn" id="r2UpBtn" type="button" aria-label="Up" title="Up"><span class="material-icons-round" aria-hidden="true">arrow_upward</span></button>
+                  <button class="btn actionIconBtn" id="r2SyncFolderBtn" type="button" aria-label="Refresh This Folder" title="Refresh This Folder"><span class="material-icons-round" aria-hidden="true">sync</span></button>
                 </div>
               </div>
 
@@ -297,7 +297,7 @@
                   Folder
                   <div class="inlineRow">
                     <input class="input" id="r2PrefixInput" type="text" value="gallery/" />
-                    <button class="btn" id="r2GoBtn" type="button">Go</button>
+                    <button class="btn actionIconBtn" id="r2GoBtn" type="button" aria-label="Go" title="Go"><span class="material-icons-round" aria-hidden="true">arrow_forward</span></button>
                   </div>
                 </label>
               </div>
@@ -471,7 +471,7 @@
                 </label>
               </div>
               <div class="wizardNav">
-                <button class="btn" type="button" data-wizard-back="direction">Back</button>
+                <button class="btn actionIconBtn" type="button" data-wizard-back="direction" aria-label="Back" title="Back"><span class="material-icons-round" aria-hidden="true">arrow_back</span></button>
                 <button class="btn btn--primary" type="button" id="financeStepDetailsContinueBtn">Continue to Payment</button>
               </div>
             </div>
@@ -503,7 +503,7 @@
               </div>
               <p class="fieldHint">Choose how the money was received or paid.</p>
               <div class="wizardNav">
-                <button class="btn" type="button" data-wizard-back="details">Back</button>
+                <button class="btn actionIconBtn" type="button" data-wizard-back="details" aria-label="Back" title="Back"><span class="material-icons-round" aria-hidden="true">arrow_back</span></button>
                 <button class="btn btn--primary" type="button" id="financeStepPaymentContinueBtn">Continue to Review</button>
               </div>
             </div>
@@ -514,7 +514,7 @@
               <dl class="wizardReview" id="financeReviewSummary"></dl>
               <div class="wizardNav">
                 <button class="btn" type="button" data-wizard-back="payment">Back and Edit</button>
-                <button class="btn" type="button" id="financeCancelEditBtn">Cancel</button>
+                <button class="btn actionIconBtn" type="button" id="financeCancelEditBtn" aria-label="Cancel" title="Cancel"><span class="material-icons-round" aria-hidden="true">close</span></button>
                 <button class="btn btn--primary" type="submit" id="financeSaveBtn">Save Entry</button>
               </div>
               <div class="hint" id="financeHint" aria-live="polite"></div>
@@ -734,7 +734,7 @@
           <form method="dialog" class="card dialog__inner">
             <div class="sectionHeader sectionHeader--compact">
               <h3 class="sectionHeader__title" id="financeReceiptsDialogTitle">Print receipts</h3>
-              <button class="btn" id="financeReceiptsCloseBtn" type="submit">Close</button>
+              <button class="btn actionIconBtn" id="financeReceiptsCloseBtn" type="submit" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
             </div>
 
             <p class="muted">Search and select one, multiple, or all finance entries to print as receipts.</p>
@@ -745,7 +745,7 @@
                 <button class="inputIconBtn" id="financeReceiptsSearchClear" type="button" aria-label="Clear search" title="Clear"><span class="material-icons-round" aria-hidden="true">close</span></button>
               </div>
               <button class="btn" id="financeReceiptsSelectAllBtn" type="button">Select all</button>
-              <button class="btn" id="financeReceiptsClearBtn" type="button">Clear</button>
+              <button class="btn actionIconBtn" id="financeReceiptsClearBtn" type="button" aria-label="Clear" title="Clear"><span class="material-icons-round" aria-hidden="true">clear_all</span></button>
             </div>
 
             <div class="hint" id="financeReceiptsCount" aria-live="polite"></div>
@@ -881,7 +881,7 @@
                     <option value="missing_both">Missing Email and Phone</option>
                   </select>
                 </label>
-                <button class="btn" id="directoryContactsClearFiltersBtn" type="button">Clear filters</button>
+                <button class="btn actionIconBtn" id="directoryContactsClearFiltersBtn" type="button" aria-label="Clear filters" title="Clear filters"><span class="material-icons-round" aria-hidden="true">filter_alt_off</span></button>
               </div>
             </div>
           </details>
@@ -940,7 +940,7 @@
                 <option value="missing_both">Missing Email and Phone</option>
               </select>
             </label>
-            <button class="btn" id="directoryContactsClearFiltersBtnDesktop" type="button">Clear filters</button>
+            <button class="btn actionIconBtn" id="directoryContactsClearFiltersBtnDesktop" type="button" aria-label="Clear filters" title="Clear filters"><span class="material-icons-round" aria-hidden="true">filter_alt_off</span></button>
           </div>
 
           <div class="directoryListMeta">
@@ -974,9 +974,9 @@
           <div class="directoryState directoryState--error" id="directoryContactsError" hidden></div>
 
           <div class="toolbar directoryPager" id="directoryContactsPager" aria-label="Directory contacts pagination">
-            <button class="btn" id="directoryContactsPrevBtn" type="button">Prev</button>
+            <button class="btn actionIconBtn" id="directoryContactsPrevBtn" type="button" aria-label="Prev" title="Prev"><span class="material-icons-round" aria-hidden="true">chevron_left</span></button>
             <span class="muted" id="directoryContactsPageInfo" aria-live="polite">Page 1 of 1</span>
-            <button class="btn" id="directoryContactsNextBtn" type="button">Next</button>
+            <button class="btn actionIconBtn" id="directoryContactsNextBtn" type="button" aria-label="Next" title="Next"><span class="material-icons-round" aria-hidden="true">chevron_right</span></button>
           </div>
         </div>
 
@@ -1023,7 +1023,7 @@
                 <option value="all">All</option>
               </select>
             </label>
-            <button class="btn" id="directorySubscribersClearFiltersBtn" type="button">Clear filters</button>
+            <button class="btn actionIconBtn" id="directorySubscribersClearFiltersBtn" type="button" aria-label="Clear filters" title="Clear filters"><span class="material-icons-round" aria-hidden="true">filter_alt_off</span></button>
           </div>
 
           <div class="directoryListMeta">
@@ -1056,9 +1056,9 @@
           <div class="directoryState directoryState--error" id="directorySubscribersError" hidden></div>
 
           <div class="toolbar directoryPager" id="directorySubscribersPager" aria-label="Subscriber pagination">
-            <button class="btn" id="directorySubscribersPrevBtn" type="button">Prev</button>
+            <button class="btn actionIconBtn" id="directorySubscribersPrevBtn" type="button" aria-label="Prev" title="Prev"><span class="material-icons-round" aria-hidden="true">chevron_left</span></button>
             <span class="muted" id="directorySubscribersPageInfo" aria-live="polite">Page 1 of 1</span>
-            <button class="btn" id="directorySubscribersNextBtn" type="button">Next</button>
+            <button class="btn actionIconBtn" id="directorySubscribersNextBtn" type="button" aria-label="Next" title="Next"><span class="material-icons-round" aria-hidden="true">chevron_right</span></button>
           </div>
         </div>
 
@@ -1144,7 +1144,7 @@
           <div class="card dialog__inner directoryFormDialog__inner">
             <div class="sectionHeader sectionHeader--compact">
               <h3 class="sectionHeader__title" id="directoryContactDialogTitle">Add Contact</h3>
-              <button class="btn" id="directoryContactDialogCloseBtn" type="button">Close</button>
+              <button class="btn actionIconBtn" id="directoryContactDialogCloseBtn" type="button" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
             </div>
 
             <form id="directoryContactForm" class="form" novalidate>
@@ -1249,7 +1249,7 @@
 
               <div class="toolbar">
                 <button class="btn btn--primary" id="directoryContactSaveBtn" type="submit">Save Contact</button>
-                <button class="btn" id="directoryContactCancelBtn" type="button">Cancel</button>
+                <button class="btn actionIconBtn" id="directoryContactCancelBtn" type="button" aria-label="Cancel" title="Cancel"><span class="material-icons-round" aria-hidden="true">close</span></button>
               </div>
               <div class="hint" id="directoryContactFormHint" aria-live="polite"></div>
               <div class="error" id="directoryContactFormError" role="alert" hidden></div>
@@ -1262,7 +1262,7 @@
           <div class="card dialog__inner">
             <div class="sectionHeader sectionHeader--compact">
               <h3 class="sectionHeader__title" id="directoryImportDialogTitle">Import Contacts</h3>
-              <button class="btn" id="directoryImportCloseBtn" type="button">Close</button>
+              <button class="btn actionIconBtn" id="directoryImportCloseBtn" type="button" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
             </div>
             <ol class="directoryWorkflowList">
               <li>Upload file</li>
@@ -1281,7 +1281,7 @@
           <div class="card dialog__inner">
             <div class="sectionHeader sectionHeader--compact">
               <h3 class="sectionHeader__title" id="directoryExportDialogTitle">Export Directory</h3>
-              <button class="btn" id="directoryExportCloseBtn" type="button">Close</button>
+              <button class="btn actionIconBtn" id="directoryExportCloseBtn" type="button" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
             </div>
             <form id="directoryExportForm" class="form">
               <label class="label label--inline"><input class="checkbox" type="radio" name="scope" value="all_contacts" checked /> All contacts</label>
@@ -1351,7 +1351,7 @@
               <h2 class="sectionHeader__title" id="ministryProfileDialogTitle">Add Ministry Profile</h2>
               <p class="muted">This edits one card. Save the page draft after making your card changes.</p>
             </div>
-            <button class="btn" id="ministryProfileDialogCloseBtn" type="button">Close</button>
+            <button class="btn actionIconBtn" id="ministryProfileDialogCloseBtn" type="button" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
           </div>
           <form class="form" id="ministryProfileForm">
             <input type="hidden" id="ministryProfileId" name="id" />
@@ -1385,7 +1385,7 @@
               </div>
             </div>
             <div class="toolbar ministryProfileDialog__actions">
-              <button class="btn" id="ministryProfileCancelBtn" type="button">Cancel</button>
+              <button class="btn actionIconBtn" id="ministryProfileCancelBtn" type="button" aria-label="Cancel" title="Cancel"><span class="material-icons-round" aria-hidden="true">close</span></button>
               <button class="btn btn--primary" type="submit">Save Profile</button>
             </div>
             <div class="error" id="ministryProfileFormError" role="alert" hidden></div>
@@ -1456,15 +1456,20 @@
       <section class="tabPanel" role="tabpanel" id="tab-submissions" aria-labelledby="tabBtn-submissions" hidden data-header-crumb="Website Messages" data-header-description="Review contact and facility-rental submissions received through the website.">
         <div class="card">
           <div class="sectionHeading"><div><h2>Website Messages</h2><p class="muted">Website submissions only. This is not an external email mailbox.</p></div></div>
-          <div class="formRow submissionsControls"><button class="btn" id="submissionsRefreshBtn" type="button">Refresh</button><input class="input" id="submissionsSearch" type="search" placeholder="Search name, email, subject, or message" autocomplete="off" /><label class="checkboxLabel"><input id="submissionsShowArchived" type="checkbox" /> Show archived</label></div>
+          <div class="formRow submissionsControls"><button class="btn actionIconBtn" id="submissionsRefreshBtn" type="button" aria-label="Refresh website messages" title="Refresh website messages"><span class="material-icons-round" aria-hidden="true">refresh</span></button><input class="input" id="submissionsSearch" type="search" placeholder="Search name, email, subject, or message" autocomplete="off" /></div>
           <div class="submissionsTypeFilters" id="submissionsTypeFilters" aria-label="Filter website messages by type">
             <button class="submissionsTypeChip" type="button" data-submission-type-filter="all" aria-pressed="true">All <span class="submissionsTypeChip__badge" id="submissionsTypeCountAll">0</span></button>
             <button class="submissionsTypeChip" type="button" data-submission-type-filter="contact" aria-pressed="false">Contact <span class="submissionsTypeChip__badge" id="submissionsTypeCountContact">0</span></button>
             <button class="submissionsTypeChip" type="button" data-submission-type-filter="facility_rental" aria-pressed="false">Facility Rental <span class="submissionsTypeChip__badge" id="submissionsTypeCountFacility">0</span></button>
           </div>
           <div class="tableWrap submissionsTableWrap"><table class="dataTable submissionsTable"><thead><tr><th scope="col">Status</th><th scope="col">Type</th><th scope="col">From</th><th scope="col">Subject</th><th scope="col">Received</th><th scope="col">Actions</th></tr></thead><tbody id="submissionsTableBody"><tr><td colspan="6" class="muted">No submissions loaded.</td></tr></tbody></table></div>
-          <div class="card" id="submissionDetail" hidden></div>
         </div>
+        <dialog class="dialog submissionDialog" id="submissionDialog" aria-labelledby="submissionDialogTitle">
+          <div class="card dialog__inner">
+            <div class="submissionDialog__header"><h3 id="submissionDialogTitle">Website Message</h3><button class="btn actionIconBtn" id="submissionDialogCloseBtn" type="button" aria-label="Close message" title="Close message"><span class="material-icons-round" aria-hidden="true">close</span></button></div>
+            <div id="submissionDetail"></div>
+          </div>
+        </dialog>
       </section>
 
       <!-- Newsletter -->
@@ -1629,7 +1634,7 @@
             <div class="hint" id="adminStorageHealthSummary" aria-live="polite">Checking storage health…</div>
             <div class="hint" id="adminStorageHealthDetails"></div>
             <div class="toolbar">
-              <button class="btn" id="adminStorageHealthRefreshBtn" type="button">Refresh Diagnostics</button>
+              <button class="btn actionIconBtn" id="adminStorageHealthRefreshBtn" type="button" aria-label="Refresh Diagnostics" title="Refresh Diagnostics"><span class="material-icons-round" aria-hidden="true">refresh</span></button>
             </div>
           </section>
 
@@ -1681,7 +1686,7 @@
           </div>
           <div class="settingsHeaderActions">
             <button class="btn" id="settingsRolesBtn" type="button">Standard role permissions</button>
-            <button class="btn" id="settingsRefreshBtn" type="button">Refresh</button>
+            <button class="btn actionIconBtn" id="settingsRefreshBtn" type="button" aria-label="Refresh" title="Refresh"><span class="material-icons-round" aria-hidden="true">refresh</span></button>
           </div>
         </div>
 
@@ -1717,9 +1722,9 @@
           </form>
           <div class="tableWrap"><table class="table settingsUsersTable"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last login</th><th>Date added</th><th>Actions</th></tr></thead><tbody id="settingsUsersBody"></tbody></table></div>
           <div class="settingsPager" aria-label="Administrator list pagination">
-            <button class="btn" id="settingsUsersPrevBtn" type="button">Previous</button>
+            <button class="btn actionIconBtn" id="settingsUsersPrevBtn" type="button" aria-label="Previous" title="Previous"><span class="material-icons-round" aria-hidden="true">chevron_left</span></button>
             <span id="settingsUsersPageInfo" aria-live="polite"></span>
-            <button class="btn" id="settingsUsersNextBtn" type="button">Next</button>
+            <button class="btn actionIconBtn" id="settingsUsersNextBtn" type="button" aria-label="Next" title="Next"><span class="material-icons-round" aria-hidden="true">chevron_right</span></button>
           </div>
         </section>
 
@@ -1734,7 +1739,7 @@
         <div class="card dialog__inner settingsRolesDialog__inner">
           <div class="sectionHeader sectionHeader--compact">
             <h3 class="sectionHeader__title" id="settingsRolesDialogTitle">Standard role permissions</h3>
-            <button class="btn" id="settingsRolesDialogCloseBtn" type="button">Close</button>
+            <button class="btn actionIconBtn" id="settingsRolesDialogCloseBtn" type="button" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
           </div>
           <p class="muted">View means read-only access. Manage means the role can create or change records.</p>
           <p class="hint">Roster labels are mapped to these standard roles: Master Admin uses the full-access Administrator role, Finance Officer uses Finance Officer, and Site Editor uses Site Editor.</p>
@@ -1755,13 +1760,13 @@
       <h2 class="card__subtitle" id="settingsConfirmTitle">Confirm administrator change</h2>
       <p id="settingsConfirmMessage"></p>
       <div class="toolbar">
-        <button class="btn" id="settingsConfirmCancelBtn" type="button">Cancel</button>
+        <button class="btn actionIconBtn" id="settingsConfirmCancelBtn" type="button" aria-label="Cancel" title="Cancel"><span class="material-icons-round" aria-hidden="true">close</span></button>
         <button class="btn btn--primary" id="settingsConfirmApplyBtn" type="button">Confirm change</button>
       </div>
     </div>
   </dialog>
 
-  <script src="/admin/admin.js?v=20260928j" defer></script>
+  <script src="/admin/admin.js?v=20260928k" defer></script>
   <script src="/admin/admin-ministry-profiles.js?v=20260927a" defer></script>
   <script src="/admin/admin-directory.js?v=20260927a" defer></script>
   <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>

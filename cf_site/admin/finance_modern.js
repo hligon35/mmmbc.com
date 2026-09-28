@@ -445,7 +445,7 @@
           <label class="label">Amount
             <input class="input" data-alloc-field="amount" type="number" min="0.01" step="0.01" value="${escapeHtml(centsToInput(item.amountCents || 0))}" />
           </label>
-          <button class="btn" type="button" data-remove-alloc="${idx}">Remove</button>
+          <button class="btn actionIconBtn" type="button" data-remove-alloc="${idx}" aria-label="Remove allocation" title="Remove allocation"><span class="material-icons-round" aria-hidden="true">delete</span></button>
           <label class="label" style="grid-column:1/-1">Note
             <input class="input" data-alloc-field="note" value="${escapeHtml(item.note || '')}" />
           </label>

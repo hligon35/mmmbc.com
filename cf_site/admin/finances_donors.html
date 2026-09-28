@@ -4,7 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Donor Management</title>
-  <link rel="stylesheet" href="/admin/admin-style.css?v=20260927b" />
+  <link rel="stylesheet" href="/admin/admin-style.css?v=20260928k" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" />
 </head>
 <body data-page="donors">
   <main class="wrap">
@@ -80,7 +81,7 @@
         </label>
         <div class="btnRow fullSpan">
           <button class="btn btnPrimary" type="submit">Save Donor Profile</button>
-          <button class="btn" type="reset">Cancel</button>
+          <button class="btn actionIconBtn" type="reset" aria-label="Cancel" title="Cancel"><span class="material-icons-round" aria-hidden="true">close</span></button>
           <button class="btn" type="button" id="reviewBtn" onclick="document.getElementById('donorSearchBtn').click()">Review</button>
           <a class="btn" href="/admin/">Back</a>
         </div>
@@ -128,6 +129,6 @@
     </section>
     <p id="pageError" class="error"></p>
   </main>
-  <script src="/admin/finance_modern.js"></script>
+  <script src="/admin/finance_modern.js?v=20260928k"></script>
 </body>
 </html>

@@ -4,7 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Board Financial Reports</title>
-  <link rel="stylesheet" href="/admin/admin-style.css?v=20260927b" />
+  <link rel="stylesheet" href="/admin/admin-style.css?v=20260928k" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" />
 </head>
 <body data-page="reports">
   <main class="wrap">
@@ -50,7 +51,7 @@
         <label class="label fullSpan">Treasurer notes<textarea id="reportNotes" class="textarea"></textarea></label>
         <div class="btnRow fullSpan">
           <button class="btn btnPrimary" type="submit">Generate Board Report Package</button>
-          <button class="btn" type="reset">Cancel</button>
+          <button class="btn actionIconBtn" type="reset" aria-label="Cancel" title="Cancel"><span class="material-icons-round" aria-hidden="true">close</span></button>
           <a class="btn" href="#reportOutput">Review</a>
           <a class="btn" href="/admin/">Back</a>
         </div>
@@ -65,6 +66,6 @@
     </section>
     <p id="pageError" class="error"></p>
   </main>
-  <script src="/admin/finance_modern.js"></script>
+  <script src="/admin/finance_modern.js?v=20260928k"></script>
 </body>
 </html>

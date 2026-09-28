@@ -270,7 +270,7 @@ body{
 }
 
 #tab-submissions .submissionsControls{
-  grid-template-columns:auto minmax(280px, 1fr) auto;
+  grid-template-columns:auto minmax(220px, 1fr);
   align-items:center;
 }
 
@@ -312,9 +312,14 @@ body{
   line-height:1;
 }
 
-#tab-submissions #submissionDetail{
-  margin-top:2px;
-}
+#tab-submissions .submissionActions{display:flex;align-items:center;gap:8px;}
+#tab-submissions .submissionDialog{width:min(800px,calc(100vw - 24px));max-width:min(800px,calc(100vw - 24px));}
+#tab-submissions .submissionDialog[open]{align-items:center;}
+#tab-submissions .submissionDialog .dialog__inner{width:100%;max-width:760px;max-height:calc(100dvh - 36px);overflow:auto;}
+#tab-submissions .submissionDialog__header{display:flex;align-items:center;justify-content:space-between;gap:20px;}
+#tab-submissions .submissionDialog__header h3{margin:0;overflow-wrap:anywhere;}
+#tab-submissions #submissionDetail{min-width:0;overflow-wrap:anywhere;}
+#tab-submissions .submissionBody{max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere;}
 
 #tab-submissions .submissionsTableWrap{width:100%;}
 #tab-submissions .submissionsTable{

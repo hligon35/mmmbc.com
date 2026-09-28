@@ -65,7 +65,6 @@ async function handleWebsiteSubmissions(request, env, ctx) {
   const url = new URL(request.url);
   const id = url.pathname.startsWith('/api/submissions/') ? decodeURIComponent(url.pathname.slice('/api/submissions/'.length)) : '';
   if (request.method === 'GET') {
-    const archived = url.searchParams.get('archived') === 'true' ? 1 : 0;
     const q = String(url.searchParams.get('q') || '').trim().slice(0, 120);
     const like = `%${q}%`;
     try {
@@ -73,19 +72,19 @@ async function handleWebsiteSubmissions(request, env, ctx) {
       SELECT id, 'contact' AS type, name AS sender_name, email AS sender_email, subject,
         phone AS sender_phone, address AS sender_address, message AS body, created_at, status,
         read_at, archived_at, auto_reply_status, auto_reply_at, auto_reply_error
-        FROM contact_messages WHERE (? = 1 OR archived_at IS NULL)
+        FROM contact_messages WHERE archived_at IS NULL
           AND (? = '' OR name LIKE ? OR email LIKE ? OR subject LIKE ? OR message LIKE ? OR phone LIKE ? OR address LIKE ?)
       UNION ALL
       SELECT id, 'facility_rental' AS type, person_responsible AS sender_name,
         contact_email AS sender_email, 'Facility Rental Request' AS subject, phone AS sender_phone,
         '' AS sender_address, form_json AS body, created_at, status, read_at, archived_at,
         auto_reply_status, auto_reply_at, auto_reply_error
-        FROM facility_rental_requests WHERE (? = 1 OR archived_at IS NULL)
+        FROM facility_rental_requests WHERE archived_at IS NULL
           AND (? = '' OR person_responsible LIKE ? OR contact_email LIKE ? OR form_json LIKE ? OR phone LIKE ?)
       ORDER BY created_at DESC LIMIT 300`)
         .bind(
-          archived, q, like, like, like, like, like, like,
-          archived, q, like, like, like, like
+          q, like, like, like, like, like, like,
+          q, like, like, like, like
         ).all();
       return json({ submissions: result.results || [] });
     } catch (error) {
@@ -95,16 +94,19 @@ async function handleWebsiteSubmissions(request, env, ctx) {
   }
   if (!session.permissions?.includes(PERMISSIONS.SUBMISSIONS_MANAGE)) return json({ error: 'Permission denied.' }, 403);
   if (!id) return json({ error: 'Submission id is required.' }, 400);
-  const body = await request.json().catch(() => ({}));
-  const table = String(body.type || '').toLowerCase() === 'facility_rental' ? 'facility_rental_requests' : 'contact_messages';
-  const action = String(body.action || 'read').toLowerCase();
-  if (action === 'archive') {
-    await env.SITE_DB.prepare(`UPDATE ${table} SET archived_at = ? WHERE id = ?`).bind(new Date().toISOString(), id).run();
-  } else if (action === 'restore') {
-    await env.SITE_DB.prepare(`UPDATE ${table} SET archived_at = NULL WHERE id = ?`).bind(id).run();
-  } else {
-    await env.SITE_DB.prepare(`UPDATE ${table} SET read_at = COALESCE(read_at, ?) WHERE id = ?`).bind(new Date().toISOString(), id).run();
+  if (request.method === 'DELETE') {
+    const type = url.searchParams.get('type');
+    if (type !== 'contact' && type !== 'facility_rental') return json({ error: 'Valid submission type is required.' }, 400);
+    const table = type === 'facility_rental' ? 'facility_rental_requests' : 'contact_messages';
+    const result = await env.SITE_DB.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run();
+    if (result?.meta?.changes === 0) return json({ error: 'Submission not found.' }, 404);
+    return json({ ok: true });
   }
+  if (request.method !== 'PATCH') return json({ error: 'Method not allowed.' }, 405);
+  const body = await request.json().catch(() => ({}));
+  if (body.action !== 'read' || !['contact', 'facility_rental'].includes(body.type)) return json({ error: 'Valid read action and type are required.' }, 400);
+  const table = body.type === 'facility_rental' ? 'facility_rental_requests' : 'contact_messages';
+  await env.SITE_DB.prepare(`UPDATE ${table} SET read_at = COALESCE(read_at, ?) WHERE id = ?`).bind(new Date().toISOString(), id).run();
   return json({ ok: true });
 }
 

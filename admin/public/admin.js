@@ -101,7 +101,7 @@ function ensureSessionWarningUi() {
       <p class="sessionWarning__message" id="sessionWarningMessage">Your session needs attention.</p>
     </div>
     <div class="sessionWarning__actions">
-      <button class="btn" id="sessionWarningRefreshBtn" type="button">Refresh session</button>
+      <button class="btn actionIconBtn" id="sessionWarningRefreshBtn" type="button" aria-label="Refresh session" title="Refresh session"><span class="material-icons-round" aria-hidden="true">refresh</span></button>
       <button class="btn btn--primary" id="sessionWarningSignInBtn" type="button">Sign in again</button>
     </div>
   `;
@@ -1374,9 +1374,8 @@ async function loadWebsiteSubmissions() {
   if (!body) return;
   body.innerHTML = '<tr><td colspan="6" class="muted">Loading…</td></tr>';
   const q = String($('submissionsSearch')?.value || '').trim();
-  const archived = $('submissionsShowArchived')?.checked ? '&archived=true' : '';
   try {
-    const data = await api(`/api/submissions?q=${encodeURIComponent(q)}${archived}`);
+    const data = await api(`/api/submissions?q=${encodeURIComponent(q)}`);
     const rows = data?.submissions || [];
     updateSubmissionTypeFilters(rows);
     const visibleRows = submissionsTypeFilter === 'all'
@@ -1385,10 +1384,24 @@ async function loadWebsiteSubmissions() {
     body.innerHTML = visibleRows.length ? visibleRows.map((row) => {
       const unread = !row.read_at;
       const type = submissionTypeLabel(row.type);
-      return `<tr class="${unread ? 'isUnread' : ''}"><td>${unread ? '<strong>Unread</strong>' : 'Read'}</td><td>${escapeHtml(type)}</td><td>${escapeHtml(row.sender_name || '')}<br><span class="muted">${escapeHtml(row.sender_email || '')}</span></td><td>${escapeHtml(row.subject || '')}</td><td>${escapeHtml(new Date(row.created_at).toLocaleString())}</td><td><button class="btn btn--small" data-submission-open="${escapeHtml(row.id)}" data-submission-type="${escapeHtml(row.type)}">Open</button> <button class="btn btn--small" data-submission-archive="${escapeHtml(row.id)}" data-submission-type="${escapeHtml(row.type)}">${row.archived_at ? 'Restore' : 'Archive'}</button></td></tr>`;
+      const deleteButton = currentPermissions.has('submissions.manage')
+        ? `<button class="btn btn--danger actionIconBtn" type="button" data-submission-delete="${escapeHtml(row.id)}" data-submission-type="${escapeHtml(row.type)}" aria-label="Delete message from ${escapeHtml(row.sender_name || 'sender')}" title="Delete message permanently"><span class="material-icons-round" aria-hidden="true">delete</span></button>` : '';
+      return `<tr class="${unread ? 'isUnread' : ''}"><td>${unread ? '<strong>Unread</strong>' : 'Read'}</td><td>${escapeHtml(type)}</td><td>${escapeHtml(row.sender_name || '')}<br><span class="muted">${escapeHtml(row.sender_email || '')}</span></td><td>${escapeHtml(row.subject || '')}</td><td>${escapeHtml(new Date(row.created_at).toLocaleString())}</td><td><div class="submissionActions"><button class="btn actionIconBtn" type="button" data-submission-open="${escapeHtml(row.id)}" data-submission-type="${escapeHtml(row.type)}" aria-label="Open message from ${escapeHtml(row.sender_name || 'sender')}" title="Open message"><span class="material-icons-round" aria-hidden="true">visibility</span></button>${deleteButton}</div></td></tr>`;
     }).join('') : `<tr><td colspan="6" class="muted">No ${escapeHtml(submissionsTypeFilter === 'all' ? 'website submissions' : submissionTypeLabel(submissionsTypeFilter).toLowerCase() + ' messages')} found.</td></tr>`;
-    body.querySelectorAll('[data-submission-open]').forEach((button) => button.addEventListener('click', () => openWebsiteSubmission(button.dataset.submissionOpen, button.dataset.submissionType, rows)));
-    body.querySelectorAll('[data-submission-archive]').forEach((button) => button.addEventListener('click', async () => { await api(`/api/submissions/${encodeURIComponent(button.dataset.submissionArchive)}`, { method: 'PATCH', body: JSON.stringify({ type: button.dataset.submissionType, action: button.textContent.trim() === 'Restore' ? 'restore' : 'archive' }) }); await loadWebsiteSubmissions(); }));
+    body.querySelectorAll('[data-submission-open]').forEach((button) => button.addEventListener('click', () => openWebsiteSubmission(button.dataset.submissionOpen, button.dataset.submissionType, rows, button).catch((error) => window.alert(error.message))));
+    body.querySelectorAll('[data-submission-delete]').forEach((button) => button.addEventListener('click', async () => {
+      const row = rows.find((item) => item.id === button.dataset.submissionDelete && item.type === button.dataset.submissionType);
+      if (!row || !confirmWrite(`Permanently delete the ${submissionTypeLabel(row.type).toLowerCase()} message from ${row.sender_name || row.sender_email || 'this sender'}? This cannot be undone.`)) return;
+      button.disabled = true;
+      try {
+        await api(`/api/submissions/${encodeURIComponent(row.id)}?type=${encodeURIComponent(row.type)}`, { method: 'DELETE' });
+        if ($('submissionDialog')?.dataset.submissionId === row.id) closeSubmissionDialog();
+        else await loadWebsiteSubmissions();
+      } catch (error) {
+        button.disabled = false;
+        window.alert(error.message || 'Unable to delete this message.');
+      }
+    }));
   } catch (error) { updateSubmissionTypeFilters([]); body.innerHTML = `<tr><td colspan="6" class="errorText">${escapeHtml(error.message || 'Unable to load submissions.')}</td></tr>`; }
 }
 
@@ -1421,15 +1434,27 @@ function updateSubmissionTypeFilters(rows) {
   });
 }
 
-async function openWebsiteSubmission(id, type, rows) {
+function closeSubmissionDialog() {
+  const dialog = $('submissionDialog');
+  if (!dialog?.open) return;
+  if (typeof dialog.close === 'function' && dialog.open) dialog.close();
+  else { dialog.removeAttribute('open'); dialog.dispatchEvent(new Event('close')); }
+  dialog.dataset.submissionId = '';
+}
+
+async function openWebsiteSubmission(id, type, rows, trigger) {
   const row = rows.find((item) => item.id === id && item.type === type);
   if (!row) return;
-  await api(`/api/submissions/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ type, action: 'read' }) });
+  if (currentPermissions.has('submissions.manage') && !row.read_at) {
+    await api(`/api/submissions/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ type, action: 'read' }) });
+  }
+  const dialog = $('submissionDialog');
   const detail = $('submissionDetail');
-  if (!detail) return;
+  if (!detail || !dialog) return;
   let content = row.body || '';
   if (type === 'facility_rental') { try { content = JSON.stringify(JSON.parse(content), null, 2); } catch { /* retain raw */ } }
-  detail.hidden = false;
+  dialog.dataset.submissionId = id;
+  dialog._returnFocus = trigger;
   const contactDetails = [
     row.sender_phone ? `<strong>Phone:</strong> ${escapeHtml(row.sender_phone)}` : '',
     row.sender_address ? `<strong>Address:</strong> ${escapeHtml(row.sender_address)}` : ''
@@ -1439,8 +1464,10 @@ async function openWebsiteSubmission(id, type, rows) {
   const replyClass = replyStatus === 'sent' ? 'submissionDelivery--ok' : replyStatus === 'failed' ? 'submissionDelivery--error' : 'submissionDelivery--pending';
   const replyError = replyStatus === 'failed' && row.auto_reply_error
     ? `<p class="submissionDelivery submissionDelivery--error"><strong>Email error:</strong> ${escapeHtml(row.auto_reply_error)}</p>` : '';
-  detail.innerHTML = `<h3>${escapeHtml(row.subject || 'Website submission')}</h3><p><strong>From:</strong> ${escapeHtml(row.sender_name || '')} &lt;${escapeHtml(row.sender_email || '')}&gt;</p>${contactDetails ? `<p>${contactDetails}</p>` : ''}<p><strong>Auto-reply:</strong> <span class="submissionDelivery ${replyClass}">${escapeHtml(replyLabel)}</span></p>${replyError}<pre class="submissionBody">${escapeHtml(content)}</pre>`;
-  await loadWebsiteSubmissions();
+  $('submissionDialogTitle').textContent = row.subject || 'Website message';
+  detail.innerHTML = `<p><strong>From:</strong> ${escapeHtml(row.sender_name || '')} &lt;${escapeHtml(row.sender_email || '')}&gt;</p>${contactDetails ? `<p>${contactDetails}</p>` : ''}<p><strong>Auto-reply:</strong> <span class="submissionDelivery ${replyClass}">${escapeHtml(replyLabel)}</span></p>${replyError}<pre class="submissionBody">${escapeHtml(content)}</pre>`;
+  if (typeof dialog.showModal === 'function') dialog.showModal();
+  else dialog.setAttribute('open', '');
 }
 
 function applyPermissionVisibility(loggedIn) {
@@ -6432,7 +6459,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.clearTimeout(submissionsSearchTimer);
     submissionsSearchTimer = window.setTimeout(() => loadWebsiteSubmissions().catch(() => {}), 250);
   });
-  if ($('submissionsShowArchived')) $('submissionsShowArchived').addEventListener('change', () => loadWebsiteSubmissions().catch(() => {}));
+  if ($('submissionDialogCloseBtn')) $('submissionDialogCloseBtn').addEventListener('click', closeSubmissionDialog);
+  if ($('submissionDialog')) {
+    $('submissionDialog').addEventListener('click', (event) => { if (event.target === $('submissionDialog')) closeSubmissionDialog(); });
+    $('submissionDialog').addEventListener('close', () => {
+      const dialog = $('submissionDialog');
+      const trigger = dialog._returnFocus;
+      dialog.dataset.submissionId = '';
+      if (trigger?.isConnected) trigger.focus();
+      loadWebsiteSubmissions().catch(() => {});
+    });
+  }
   document.querySelectorAll('[data-submission-type-filter]').forEach((chip) => {
     chip.addEventListener('click', () => {
       submissionsTypeFilter = String(chip.getAttribute('data-submission-type-filter') || 'all').toLowerCase();
