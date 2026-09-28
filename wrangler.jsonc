@@ -92,6 +92,13 @@
 				{
 					"pattern": "www.mmmbc.alphazonelabs.com/*",
 					"zone_name": "alphazonelabs.com"
+				},
+				{
+					"pattern": "mmmbc.alphazonelabs.com",
+					"zone_name": "alphazonelabs.com",
+					"custom_domain": true,
+					"enabled": true,
+					"previews_enabled": false
 				}
 			],
 			"r2_buckets": [
@@ -131,11 +138,11 @@
 				"SUPPORT_TO_EMAIL": "hligon@getsparqd.com",
 				"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
 				"SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church",
-				"RESEND_FROM_EMAIL": "info@mmmbc.com",
+				"RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
 				"RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church",
 				"PUBLIC_SITE_URL": "https://mmmbc.alphazonelabs.com",
-			    "TURNSTILE_SECRET_KEY": "0x4AAAAAAEzITQ-2a1kcgv-A8LBuSGK0m1Y",
-    			"TURNSTILE_SITE_KEY": "0x4AAAAAAEzITVJnJAQvjUET"
+				"TURNSTILE_SECRET_KEY": "0x4AAAAAAEzITQ-2a1kcgv-A8LBuSGK0m1Y",
+				"TURNSTILE_SITE_KEY": "0x4AAAAAAEzITVJnJAQvjUET"
 			}
 		},
 		"preview": {
