@@ -200,11 +200,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="footer-links-section" id="newsletter-signup">
                     <h4>Newsletter</h4>
-                    <form class="footer-subscribe-form" data-subscriber-form>
+                    <form class="footer-subscribe-form" data-subscriber-form data-cloudflare-form>
                         <label for="footerSubscriberEmail">Subscriber email</label>
                         <input class="input" id="footerSubscriberEmail" type="email" list="siteSubscriberOptions" placeholder="you@example.com" required>
+                        <div class="form-turnstile" data-turnstile-container hidden></div>
                         <button class="btn-contact btn-contact--spaced" type="submit">Join List</button>
-                        <p class="muted" data-subscriber-help>We will open your email app with a pre-filled request.</p>
+                        <p class="muted" data-subscriber-help role="status" aria-live="polite"></p>
                     </form>
                 </div>
             </div>
@@ -306,12 +307,42 @@ document.addEventListener('DOMContentLoaded', () => {
         return data;
     };
 
-    const applySiteSettings = (settings) => {
-        if (!settings || typeof settings !== 'object') return;
-        const forms = window.MMmbcForms || {};
-        if (settings.formVerificationUnavailable) {
-            document.querySelectorAll('form[data-cloudflare-form]').forEach((form) => {
-                const status = form.querySelector('.form-status');
+    const ensureFormUtils = () => {
+        if (window.MMmbcForms) return Promise.resolve();
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = '/public-form-utils.js?v=20260927g';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    };
+    const protectedForms = document.querySelectorAll('form[data-cloudflare-form]');
+    protectedForms.forEach((form) => {
+        const submit = form.querySelector('button[type="submit"]');
+        if (submit) submit.disabled = true;
+    });
+    const applySiteSettings = async (settings) => {
+        if (!settings || typeof settings !== 'object') return false;
+        let forms = window.MMmbcForms || {};
+        const verificationUnavailable = settings.formVerificationUnavailable ||
+            (settings.verificationRequired !== false && !settings.turnstileSiteKey);
+        let widgetReady = false;
+        if (!verificationUnavailable) {
+            try {
+                await ensureFormUtils();
+                forms = window.MMmbcForms || {};
+                if (settings.turnstileSiteKey && typeof forms.loadTurnstile === 'function') {
+                    const results = await Promise.all(Array.from(protectedForms, (form) => forms.loadTurnstile(form, settings.turnstileSiteKey)));
+                    widgetReady = results.length === protectedForms.length && results.every(Boolean);
+                } else if (settings.verificationRequired === false) {
+                    widgetReady = true;
+                }
+            } catch { /* Show the unavailable state below. */ }
+        }
+        if (!widgetReady) {
+            protectedForms.forEach((form) => {
+                const status = form.querySelector('.form-status, [data-subscriber-help]');
                 if (status) {
                     status.textContent = 'This form is temporarily unavailable. Please email us at ';
                     const email = String(settings.email || 'mtmoriahmbc1201@gmail.com').trim();
@@ -323,10 +354,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const submit = form.querySelector('button[type="submit"]');
                 if (submit) submit.disabled = true;
             });
-        }
-        if (settings.turnstileSiteKey && typeof forms.loadTurnstile === 'function') {
-            document.querySelectorAll('form[data-cloudflare-form]').forEach((form) => {
-                forms.loadTurnstile(form, settings.turnstileSiteKey).catch(() => {});
+        } else {
+            protectedForms.forEach((form) => {
+                const submit = form.querySelector('button[type="submit"]');
+                if (submit) submit.disabled = false;
             });
         }
         const subscribers = Array.isArray(settings.subscribers)
@@ -348,6 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
             list.appendChild(option);
         });
         document.querySelectorAll('[data-subscriber-form]').forEach((form) => {
+            if (!widgetReady) return;
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const emailInput = form.querySelector('input[type="email"]');
@@ -357,14 +389,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (help) help.textContent = 'Please enter a valid email address.';
                     return;
                 }
-                const to = String(settings.email || 'mtmoriahmbc1201@gmail.com').trim();
+                const turnstileToken = typeof forms.getTurnstileToken === 'function' ? forms.getTurnstileToken(form) : '';
+                if (settings.verificationRequired !== false && !turnstileToken) {
+                    if (help) help.textContent = 'Please complete the Cloudflare verification before joining.';
+                    return;
+                }
+                const submit = form.querySelector('button[type="submit"]');
+                if (submit) submit.disabled = true;
                 if (help) help.textContent = `Adding ${email} to the newsletter list...`;
                 try {
-                    await postJson('/api/public/newsletter/subscribe', { email });
+                    await postJson('/api/public/newsletter/subscribe', { email, turnstileToken });
                     if (help) help.textContent = `${email} has been added to the newsletter list.`;
-                } catch {
-                    window.location.href = `mailto:${to}?subject=${encodeURIComponent('Newsletter Subscription Request')}&body=${encodeURIComponent(`Please add ${email} to the church newsletter list.`)}`;
-                    if (help) help.textContent = `Preparing email subscription request for ${email}.`;
+                    form.reset();
+                } catch (error) {
+                    if (help) help.textContent = String(error?.message || 'Unable to join the list. Please try again.');
+                } finally {
+                    if (typeof forms.resetTurnstile === 'function') forms.resetTurnstile(form);
+                    if (submit) submit.disabled = false;
                 }
             });
         });
@@ -386,6 +427,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (span) span.textContent = String(settings.address);
             }
         });
+        return widgetReady;
     };
 
     const wireContactForm = (settings) => {
@@ -393,7 +435,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const forms = window.MMmbcForms || {};
         const submitBtn = contactForm.querySelector('button[type="submit"]');
         const status = contactForm.querySelector('#contactFormStatus');
-        if (settings.formVerificationUnavailable) return;
+        if (settings.formVerificationUnavailable || (settings.verificationRequired !== false && !settings.turnstileSiteKey)) return;
         if (typeof forms.wireFormatting === 'function') forms.wireFormatting(contactForm);
         contactForm.addEventListener('submit', async (event) => {
             event.preventDefault();
@@ -488,7 +530,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     (async () => {
         const settings = await tryFetchJson(['/api/public/site-settings', 'site-settings.json', '../site-settings.json', '/site-settings.json']);
-        if (settings) applySiteSettings(settings);
-        wireContactForm(settings || {});
+        if (settings) {
+            if (await applySiteSettings(settings)) wireContactForm(settings);
+        } else {
+            protectedForms.forEach((form) => {
+                const status = form.querySelector('.form-status, [data-subscriber-help]');
+                if (status) status.textContent = 'Forms are temporarily unavailable. Please try again later.';
+            });
+        }
     })();
 });

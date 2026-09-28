@@ -60,26 +60,32 @@
     const key = String(siteKey || '').trim();
     const container = form?.querySelector('[data-turnstile-container]');
     if (!form || !container || !key) return Promise.resolve(false);
-    container.hidden = false;
     container.dataset.sitekey = key;
     const render = () => {
-      if (!root.turnstile || container.dataset.widgetId) return Boolean(root.turnstile);
+      if (!root.turnstile) return false;
+      if (container.dataset.widgetId) return true;
+      container.hidden = false;
       const widgetId = root.turnstile.render(container, {
         sitekey: key,
+        appearance: 'always',
+        size: 'flexible',
+        'response-field': false,
         callback: (token) => { form.dataset.turnstileToken = String(token || ''); },
         'expired-callback': () => { form.dataset.turnstileToken = ''; },
         'error-callback': () => { form.dataset.turnstileToken = ''; }
       });
-      container.dataset.widgetId = String(widgetId || '');
+      container.dataset.widgetId = String(widgetId);
       return true;
     };
     if (render()) return Promise.resolve(true);
     if (!turnstileLoader) {
       turnstileLoader = new Promise((resolve) => {
+        const timeout = window.setTimeout(() => resolve(false), 10000);
+        const finish = (loaded) => { window.clearTimeout(timeout); resolve(loaded); };
         const existing = document.querySelector('script[data-mmmbc-turnstile]');
         if (existing) {
-          existing.addEventListener('load', () => resolve(true), { once: true });
-          existing.addEventListener('error', () => resolve(false), { once: true });
+          existing.addEventListener('load', () => finish(true), { once: true });
+          existing.addEventListener('error', () => finish(false), { once: true });
           return;
         }
         const script = document.createElement('script');
@@ -87,12 +93,18 @@
         script.async = true;
         script.defer = true;
         script.dataset.mmmbcTurnstile = 'true';
-        script.onload = () => resolve(true);
-        script.onerror = () => resolve(false);
+        script.onload = () => finish(true);
+        script.onerror = () => finish(false);
         document.head.appendChild(script);
       });
     }
-    return turnstileLoader.then(() => render());
+    return turnstileLoader.then((loaded) => {
+      if (!loaded) {
+        turnstileLoader = null;
+        return false;
+      }
+      return render();
+    });
   }
 
   function getTurnstileToken(form) {

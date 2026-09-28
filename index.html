@@ -7,7 +7,7 @@
     <link rel="icon" type="image/png" href="Icons/favicon.png">
     <link rel="apple-touch-icon" href="Icons/favicon.png"> <!-- Corrected path -->
     <title>Mt. Moriah Missionary Baptist Church</title>
-  <link rel="stylesheet" href="static-style.css?v=20260927b" />
+  <link rel="stylesheet" href="static-style.css?v=20260927g" />
 </head>
 <body class="home">
     <nav class="top-nav">
@@ -344,11 +344,12 @@
             </div>
             <div class="footer-links-section" id="newsletter-signup">
                 <h4>Newsletter</h4>
-                <form class="footer-subscribe-form" data-subscriber-form>
+                <form class="footer-subscribe-form" data-subscriber-form data-cloudflare-form>
                     <label for="footerSubscriberEmail">Subscriber email</label>
                     <input class="input" id="footerSubscriberEmail" type="email" list="siteSubscriberOptions" placeholder="you@example.com" required>
+                    <div class="form-turnstile" data-turnstile-container hidden></div>
                     <button class="btn-contact btn-contact--spaced" type="submit">Join List</button>
-                    <p class="muted" data-subscriber-help>We will open your email app with a pre-filled request.</p>
+                    <p class="muted" data-subscriber-help role="status" aria-live="polite"></p>
                 </form>
             </div>
         </div>
@@ -358,7 +359,7 @@
         </div>
     </footer>
 
-    <script src="script.js?v=20260730d"></script> <!-- Corrected path -->
+    <script src="script.js?v=20260927g"></script> <!-- Corrected path -->
     <script src="announcements_ticker.js"></script>
     <script src="bulletins_widget.js"></script>
     <script src="schedule_app.js"></script> <!-- Corrected path -->

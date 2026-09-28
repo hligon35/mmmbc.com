@@ -1028,6 +1028,11 @@ section div p {
 .footer-subscribe-form .input {
     width: 100%;
 }
+.form-turnstile:not([hidden]) {
+    width: 100%;
+    max-width: 100%;
+    min-height: 65px;
+}
 .btn-contact--spaced {
     margin-top: 6px;
 }

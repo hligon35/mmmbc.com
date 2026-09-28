@@ -52,6 +52,14 @@ export async function verifyTurnstile(env, token, remoteIp) {
       }
       return { ok: false, error: 'Verification failed. Please try again.', status: 403 };
     }
+    if (production && env.PUBLIC_SITE_URL) {
+      const hostname = new URL(env.PUBLIC_SITE_URL).hostname.toLowerCase();
+      const tokenHostname = String(data.hostname || '').toLowerCase();
+      if (tokenHostname !== hostname && tokenHostname !== `www.${hostname}`) {
+        console.warn('Turnstile hostname mismatch');
+        return { ok: false, error: 'Verification failed. Please try again.', status: 403 };
+      }
+    }
     return { ok: true };
   } catch {
     // Fail closed on network errors so a Turnstile outage cannot be used to bypass it,

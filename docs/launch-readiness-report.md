@@ -37,7 +37,7 @@ The legacy local Node admin server is not part of the production deployment. Its
 
 ## Remaining implementation gaps
 
-- Public forms need browser-side Turnstile rendering and token submission before production fail-closed verification can work.
+- Contact, facility rental, and newsletter forms render Turnstile and submit its token for server-side verification. Confirm the production widget allows `mmmbc.alphazonelabs.com`, its site key and Worker secret match, and a live browser submission succeeds after deployment.
 - Newsletter unsubscribe links, suppression across both subscriber stores, timezone handling, and durable per-recipient delivery records remain unfinished.
 - Preview IDs are placeholders; dry runs do not verify remote resources or Access policies.
 - XLSX export was removed during dependency cleanup; CSV remains. Restore XLSX with a supported library before claiming feature parity.

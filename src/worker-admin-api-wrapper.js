@@ -1072,6 +1072,7 @@ export default {
       if (!Array.isArray(out.subscribers)) out.subscribers = [];
       const siteKey = String(env.TURNSTILE_SITE_KEY || '').trim();
       const secretPresent = Boolean(String(env.TURNSTILE_SECRET_KEY || '').trim());
+      out.verificationRequired = Boolean(secretPresent || String(env.ENVIRONMENT || '').toLowerCase() === 'production');
       out.formVerificationUnavailable = String(env.ENVIRONMENT || '').toLowerCase() === 'production'
         && (!siteKey || !secretPresent);
       if (siteKey && !out.formVerificationUnavailable) out.turnstileSiteKey = siteKey;

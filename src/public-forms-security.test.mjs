@@ -40,6 +40,20 @@ test('Turnstile failures distinguish a bad secret from a used token without logg
   }
 });
 
+test('production rejects a valid Turnstile token from a different hostname', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ success: true, hostname: 'another-site.example' });
+  try {
+    const result = await verifyTurnstile({
+      ENVIRONMENT: 'production', PUBLIC_SITE_URL: 'https://mmmbc.alphazonelabs.com',
+      TURNSTILE_SITE_KEY: 'public-key', TURNSTILE_SECRET_KEY: 'private-key'
+    }, 'visitor-token', '127.0.0.1');
+    assert.equal(result.status, 403);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('honeypot rejects filled bot fields', () => {
   assert.equal(honeypotTripped({ website: 'spam' }), true);
   assert.equal(honeypotTripped({ website: '' }), false);
@@ -135,6 +149,7 @@ test('public settings disclose unavailable verification without exposing its sec
   }, {});
   const readySettings = await configured.json();
   assert.equal(readySettings.formVerificationUnavailable, false);
+  assert.equal(readySettings.verificationRequired, true);
   assert.equal(readySettings.turnstileSiteKey, 'public-widget-key');
   assert.equal(JSON.stringify(readySettings).includes('private-widget-secret'), false);
 });

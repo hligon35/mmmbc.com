@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" href="../Icons/favicon.png"/>
 <link rel="apple-touch-icon" href="../Icons/favicon.png"/>
 <title>Contact Us - Mt. Moriah Missionary Baptist Church</title>
-  <link rel="stylesheet" href="../static-style.css?v=20260927b" />
+  <link rel="stylesheet" href="../static-style.css?v=20260927g" />
 </head>
 <body>
 <nav class="top-nav">
@@ -123,11 +123,12 @@
 <section class="contact-form contact-form--spaced" aria-label="Newsletter signup">
 <h2>Join Our Newsletter</h2>
 <p>Choose your email from existing subscribers or enter a new one.</p>
-<form class="form" data-subscriber-form>
+<form class="form" data-subscriber-form data-cloudflare-form>
 <label for="contactSubscriberEmail">Subscriber email</label>
 <input id="contactSubscriberEmail" type="email" list="siteSubscriberOptions" placeholder="you@example.com" required/>
+<div class="form-turnstile" data-turnstile-container hidden></div>
 <button class="submit-btn" type="submit">Join Mailing List</button>
-<p class="muted" data-subscriber-help>We will open your email app with a pre-filled request.</p>
+<p class="muted" data-subscriber-help role="status" aria-live="polite"></p>
 </form>
 </section>
 </section>
@@ -167,8 +168,8 @@
 <p>&copy; 2026 Mt. Moriah Missionary Baptist Church. All rights reserved.</p>
 </div>
 </footer>
-<script src="../public-form-utils.js"></script>
-<script src="../script.js?v=20260927f"></script>
+<script src="../public-form-utils.js?v=20260927g"></script>
+<script src="../script.js?v=20260927g"></script>
 <script src="../site-content-loader.js" defer data-cms-page="contact"></script>
 </body>
 </html>
