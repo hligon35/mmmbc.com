@@ -72,6 +72,7 @@ function mockSiteDb({ oldSchema = false } = {}) {
           binds.push({ sql, args });
           return {
             all: async () => ({ results: [] }),
+            first: async () => null,
             run: async () => {
               if (oldSchema && /INSERT INTO (contact_messages|facility_rental_requests)/.test(sql) && /first_name/.test(sql)) {
                 throw new Error('table has no column named first_name: SQLITE_ERROR');
@@ -266,3 +267,4 @@ test('public settings disclose unavailable verification without exposing its sec
   assert.equal(readySettings.turnstileSiteKey, 'public-widget-key');
   assert.equal(JSON.stringify(readySettings).includes('private-widget-secret'), false);
 });
+

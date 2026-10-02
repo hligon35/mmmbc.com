@@ -191,7 +191,7 @@
             <td>${escapeHtml(d.firstName)} ${escapeHtml(d.lastName)}</td>
             <td>${escapeHtml(d.householdId || '')}</td>
             <td>${escapeHtml(d.envelopeNumber || '')}</td>
-            <td>${escapeHtml(d.envelopeCodeStatus || 'inactive')}</td>
+            <td>${escapeHtml(d.accountNumber || '')}</td>
             <td>${escapeHtml(d.email || '')}</td>
             <td>${escapeHtml(d.phone || '')}</td>
             <td>${d.active ? 'Active' : 'Inactive'}</td>
@@ -279,83 +279,7 @@
       }
     }
 
-    async function envelopeCodeAction(action){
-      if (!selectedDonorId) {
-        setMsg(envMsg, 'Select a donor first.', 'error');
-        return;
-      }
-      try {
-        const note = envelopeReason ? envelopeReason.value : '';
-        const data = await api(`/api/finances/donors/${encodeURIComponent(selectedDonorId)}/envelope-code/${action}`, {
-          method:'POST',
-          body: JSON.stringify({ reason: note })
-        });
-        setMsg(envMsg, `Envelope code ${action} successful.`, 'ok');
-        if (labelPreview) labelPreview.textContent = JSON.stringify(data.envelope || {}, null, 2);
-        await load();
-      } catch (err) {
-        setMsg(envMsg, err.message, 'error');
-      }
-    }
-
-    async function printEnvelopeLabel(){
-      if (!selectedDonorId) {
-        setMsg(envMsg, 'Select a donor first.', 'error');
-        return;
-      }
-      try {
-        const res = await fetch(`/api/finances/donors/${encodeURIComponent(selectedDonorId)}/envelope-label?format=svg`, {
-          credentials: 'include'
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(String(data?.error?.message || 'Unable to load label.'));
-        }
-        const svg = await res.text();
-        if (labelPreview) labelPreview.innerHTML = svg;
-        const popup = window.open('', '_blank', 'width=520,height=520');
-        if (popup) {
-          popup.document.write(`<!doctype html><html><head><title>Envelope Label</title></head><body>${svg}</body></html>`);
-          popup.document.close();
-          popup.focus();
-          popup.print();
-        }
-      } catch (err) {
-        setMsg(envMsg, err.message, 'error');
-      }
-    }
-
-    async function loadHistory(){
-      if (!selectedDonorId) {
-        setMsg(historyMsg, 'Select a donor first.', 'error');
-        return;
-      }
-      try {
-        const data = await api(`/api/finances/donors/${encodeURIComponent(selectedDonorId)}/history`, { method:'GET' });
-        const rows = Array.isArray(data.history) ? data.history : [];
-        if (historyTable) {
-          historyTable.innerHTML = rows.map((item) => `
-            <tr>
-              <td>${escapeHtml(item.date || '')}</td>
-              <td>${escapeHtml(item.source || '')}</td>
-              <td>${escapeHtml(item.fundCode || item.fundId || '')}</td>
-              <td>${money(item.amountCents)}</td>
-              <td>${escapeHtml(item.paymentMethod || '')}</td>
-              <td>${escapeHtml(item.checkNumber || item.id || '')}</td>
-            </tr>
-          `).join('');
-        }
-        setMsg(historyMsg, `Loaded ${rows.length} giving records.`, 'ok');
-      } catch (err) {
-        setMsg(historyMsg, err.message, 'error');
-      }
-    }
-
     if ($('donorEnvelopeSaveBtn')) $('donorEnvelopeSaveBtn').addEventListener('click', updateEnvelopeNumber);
-    if ($('donorEnvelopeIssueBtn')) $('donorEnvelopeIssueBtn').addEventListener('click', () => envelopeCodeAction('issue'));
-    if ($('donorEnvelopeReplaceBtn')) $('donorEnvelopeReplaceBtn').addEventListener('click', () => envelopeCodeAction('replace'));
-    if ($('donorEnvelopeDeactivateBtn')) $('donorEnvelopeDeactivateBtn').addEventListener('click', () => envelopeCodeAction('deactivate'));
-    if ($('donorEnvelopePrintBtn')) $('donorEnvelopePrintBtn').addEventListener('click', printEnvelopeLabel);
     if ($('donorHistoryLoadBtn')) $('donorHistoryLoadBtn').addEventListener('click', loadHistory);
 
     await load();
@@ -408,9 +332,7 @@
       funds: [],
       donor: null,
       duplicateEntryId: '',
-      scanStream: null,
-      scanActive: false,
-      scanRafId: 0
+      entryMode: 'manual'
     };
 
     function currentBatchId(){
@@ -482,11 +404,11 @@
       state.duplicateEntryId = '';
       if (dupWarn) dupWarn.hidden = true;
       if (donorConfirm) donorConfirm.innerHTML = '<strong>No donor resolved.</strong>';
-      if ($('collectionScannerInput')) $('collectionScannerInput').value = '';
+      if ($('collectionAccountInput')) $('collectionAccountInput').value = '';
       if ($('collectionCheckNumber')) $('collectionCheckNumber').value = '';
       if ($('collectionAmount')) $('collectionAmount').value = '';
       renderAllocations([{ fundId: '', amountCents: 0, note: '' }]);
-      if ($('collectionScannerInput')) $('collectionScannerInput').focus();
+      if ($('collectionAccountInput')) $('collectionAccountInput').focus();
     }
 
     function renderBatchDetails(detail){
@@ -570,9 +492,9 @@
 
     async function resolveEnvelope(){
       if (!ensureBatch()) return;
-      const code = String($('collectionScannerInput')?.value || '').trim();
+      const code = String($('collectionAccountInput')?.value || '').trim();
       if (!code) {
-        setMsg(msg, 'Scan or enter an envelope code first.', 'error');
+        setMsg(msg, 'Enter a donor account number first.', 'error');
         return;
       }
 
@@ -639,14 +561,14 @@
           method:'POST',
           body: JSON.stringify({
             entryId: opts.allowUpdateDuplicate ? state.duplicateEntryId : '',
-            envelopeCode: $('collectionScannerInput').value,
+            envelopeCode: $('collectionAccountInput').value,
             paymentMethod: $('collectionPaymentMethod').value,
             checkNumber: $('collectionCheckNumber').value,
             envelopeTotalCents,
             allocations: read.allocations
           })
         });
-        setMsg(msg, 'Envelope entry saved. Ready for next scan.', 'ok');
+        setMsg(msg, 'Envelope entry saved. Ready for the next entry.', 'ok');
         await loadCurrentBatch();
         clearEntryForNext();
       } catch (err) {
@@ -682,65 +604,6 @@
       } catch (err) {
         setMsg(msg, err.message, 'error');
       }
-    }
-
-    async function startCameraScan(){
-      const video = $('collectionCameraVideo');
-      const wrap = $('collectionCameraWrap');
-      const input = $('collectionScannerInput');
-      if (!video || !wrap || !input) return;
-
-      if (!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia) {
-        setMsg(msg, 'Camera scanning is not available in this browser. USB/Bluetooth scanner input still works.', 'warn');
-        return;
-      }
-
-      try {
-        const detector = new window.BarcodeDetector({ formats: ['qr_code', 'code_128'] });
-        state.scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-        video.srcObject = state.scanStream;
-        wrap.hidden = false;
-        state.scanActive = true;
-
-        const tick = async () => {
-          if (!state.scanActive) return;
-          try {
-            const codes = await detector.detect(video);
-            if (codes && codes.length) {
-              const text = String(codes[0].rawValue || '').trim();
-              if (text) {
-                input.value = text;
-                await resolveEnvelope();
-                stopCameraScan();
-                return;
-              }
-            }
-          } catch {
-            // keep scanning quietly
-          }
-          state.scanRafId = window.requestAnimationFrame(tick);
-        };
-
-        state.scanRafId = window.requestAnimationFrame(tick);
-      } catch (err) {
-        setMsg(msg, err.message || 'Unable to start camera scan.', 'error');
-      }
-    }
-
-    function stopCameraScan(){
-      state.scanActive = false;
-      if (state.scanRafId) {
-        window.cancelAnimationFrame(state.scanRafId);
-        state.scanRafId = 0;
-      }
-      if (state.scanStream) {
-        for (const track of state.scanStream.getTracks()) track.stop();
-        state.scanStream = null;
-      }
-      const video = $('collectionCameraVideo');
-      const wrap = $('collectionCameraWrap');
-      if (video) video.srcObject = null;
-      if (wrap) wrap.hidden = true;
     }
 
     if ($('collectionBatchSelect')) {
@@ -861,8 +724,8 @@
       allocContainer.addEventListener('change', updateAllocationTotals);
     }
 
-    if ($('collectionScannerInput')) {
-      $('collectionScannerInput').addEventListener('keydown', async (event) => {
+    if ($('collectionAccountInput')) {
+      $('collectionAccountInput').addEventListener('keydown', async (event) => {
         if (event.key === 'Enter') {
           event.preventDefault();
           await resolveEnvelope();
@@ -871,30 +734,6 @@
     }
 
     if ($('collectionAmount')) $('collectionAmount').addEventListener('input', updateAllocationTotals);
-    if ($('collectionCameraBtn')) $('collectionCameraBtn').addEventListener('click', startCameraScan);
-    if ($('collectionCameraStopBtn')) $('collectionCameraStopBtn').addEventListener('click', stopCameraScan);
-
-    if (entryTable) {
-      entryTable.addEventListener('click', async (event) => {
-        const btn = event.target.closest('[data-identify-entry]');
-        if (!btn) return;
-        const entryId = String(btn.getAttribute('data-identify-entry') || '');
-        if (!entryId) return;
-        const accountNumber = window.prompt('Enter the donor account number if known:', '') || '';
-        const donorName = window.prompt('If no account number is available, enter the exact donor name:', '') || '';
-        if (!accountNumber.trim() && !donorName.trim()) return;
-        try {
-          await api(`/api/finances/scans/entries/${encodeURIComponent(entryId)}/identify`, {
-            method:'POST',
-            body: JSON.stringify({ accountNumber, donorName })
-          });
-          setMsg(msg, 'Entry donor identified and reassigned.', 'ok');
-          await loadCurrentBatch();
-        } catch (err) {
-          setMsg(msg, err.message, 'error');
-        }
-      });
-    }
 
     if (looseForm) {
       looseForm.addEventListener('submit', async (e) => {
@@ -1119,3 +958,4 @@
     }
   })();
 })();
+

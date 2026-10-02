@@ -36,7 +36,8 @@ async function sendResendEmail(env, {
   replyTo = '',
   fromEmail = '',
   fromName = '',
-  idempotencyKey = ''
+  idempotencyKey = '',
+  emailHeaders = {}
 } = {}) {
   const apiKey = String(env.RESEND_API_KEY || '').trim();
   if (!apiKey) return { ok: false, status: 0, error: 'RESEND_API_KEY is not configured.' };
@@ -53,6 +54,7 @@ async function sendResendEmail(env, {
     to: recipients,
     subject: String(subject || '').trim().slice(0, 200) || '(no subject)'
   };
+  if (Object.keys(emailHeaders).length) payload.headers = emailHeaders;
   if (text) payload.text = String(text);
   if (html) payload.html = String(html);
   if (!text && !html) payload.text = '';
@@ -60,6 +62,7 @@ async function sendResendEmail(env, {
 
   try {
     const res = await fetch('https://api.resend.com/emails', {
+      signal: AbortSignal.timeout(10000),
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -137,3 +140,4 @@ async function sendResendBatch(env, {
 }
 
 export { sendResendEmail, sendResendBatch, normalizedResendError };
+

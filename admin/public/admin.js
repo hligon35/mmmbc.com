@@ -5531,7 +5531,7 @@ function updateNewsletterStepSummaries() {
     const subject = payload.subject || '(no subject yet)';
     const schedule = (payload.scheduleDate && payload.scheduleTime)
       ? `Scheduled for ${payload.scheduleDate} at ${payload.scheduleTime} ${payload.scheduleTimezone || 'America/Chicago'}.`
-      : 'This newsletter will be sent immediately when you choose Send Now.';
+      : 'This newsletter will be queued for delivery when you choose Send Now.';
     review.textContent = `${recipients} recipient(s) • Subject: ${subject}. ${schedule}`;
   }
 }
@@ -7283,7 +7283,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             emails: payload.emails
           })
         });
-        if (hint) hint.textContent = out?.disabled ? 'Sending is disabled on this server.' : `Sent to ${Number(out?.sent || 0)} recipient(s).`;
+        if (hint) hint.textContent = out?.disabled ? 'Sending is disabled on this server.' : out?.queued ? 'Queued for delivery. Check newsletter history for the result.' : `Sent to ${Number(out?.sent || 0)} recipient(s).`;
         await loadNewsletterRecords();
         const newsletterForm = $('newsletterForm');
         if (newsletterForm instanceof HTMLFormElement) resetUnsavedBaseline(newsletterForm);
@@ -8130,3 +8130,4 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('loginError').hidden = false;
   });
 });
+

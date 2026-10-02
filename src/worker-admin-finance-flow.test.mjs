@@ -1,3 +1,4 @@
+import { securityHeaders, mutationDenied, checkBodySize } from './launch-security.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,10 +32,12 @@ function loadWorkerAdminApi() {
     console,
     URL,
     Request,
+    securityHeaders, mutationDenied, checkBodySize,
     Response,
     Headers,
     crypto,
     worker: authWorker,
+    handleNewsletterPreferences: async () => null,
     handleGivingRequest: async () => null,
     handleGivingPageRequest: async () => null,
     maybeHandleFinanceReconciliationRequest: async () => null,
@@ -204,3 +207,4 @@ test('finance entry POST inserts into D1-compatible storage and GET returns the 
   const adminJs = fs.readFileSync(path.join(process.cwd(), 'admin', 'public', 'admin.js'), 'utf8');
   assert.match(adminJs, /const all = Array\.isArray\(finances\?\.entries\) \? finances\.entries : \[\];/);
 });
+

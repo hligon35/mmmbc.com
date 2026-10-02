@@ -1,3 +1,4 @@
+import { imageBytesAllowed } from './launch-security.js';
 // D1-backed storage + API handlers for the visual website editor (draft/published
 // content per public page). Mirrors the conventions in src/worker-communications.js.
 // Route wiring + admin-permission checks live in src/worker.js (which calls
@@ -312,7 +313,9 @@ export async function handleSitePageMediaUpload(request, env, page) {
     .slice(-80);
   const fileKey = `site/${key}/${Date.now()}-${safeName}`;
 
-  await env.GALLERY_BUCKET.put(fileKey, await file.arrayBuffer(), {
+  const bytes = await file.arrayBuffer();
+  if (!imageBytesAllowed(bytes, type)) return json({ error: 'Image content does not match its file type.' }, 400);
+  await env.GALLERY_BUCKET.put(fileKey, bytes, {
     httpMetadata: { contentType: type }
   });
 
@@ -361,3 +364,4 @@ export async function handlePublicSiteContentGet(request, env, page) {
     { 'Cache-Control': 'public, max-age=60' }
   );
 }
+

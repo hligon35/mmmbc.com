@@ -3,7 +3,8 @@
 // RESEND_API_KEY Worker secret. Mirrors the feature set in admin/server.js (the local
 // dev admin backend), but backed by D1 instead of JSON files.
 
-import { sendResendEmail, sendResendBatch } from './email-resend.js';
+import { sendResendEmail } from './email-resend.js';
+import { eligibleRecipients, unsubscribeToken, zonedSchedule } from './newsletter-preferences.js';
 
 function json(resBody, status = 200) {
   return new Response(JSON.stringify(resBody), {
@@ -263,12 +264,8 @@ async function handleSubscribersPut(request, env) {
     }))
     .filter((s) => isValidEmail(s.email));
 
-  await env.SITE_DB.prepare(`DELETE FROM subscribers`).run();
   for (const sub of normalized) {
-    await env.SITE_DB.prepare(
-      `INSERT INTO subscribers (id, email, name, status, created_at) VALUES (?, ?, ?, 'active', ?)
-       ON CONFLICT(email) DO UPDATE SET name=excluded.name, status='active'`
-    ).bind(crypto.randomUUID(), sub.email, sub.name, now).run();
+    await env.SITE_DB.prepare(`INSERT INTO subscribers (id,email,name,status,created_at) VALUES (?,?,?,'active',?) ON CONFLICT(email) DO UPDATE SET name=excluded.name`).bind(crypto.randomUUID(),sub.email,sub.name,now).run();
   }
 
   return handleSubscribersGet(request, env);
@@ -295,24 +292,32 @@ function buildNewsletterEmailTemplate({ subject, message }) {
   };
 }
 
-async function sendNewsletterEmail(env, { subject, message, emails, idempotencyKey = '' }) {
-  const fromEmail = String(env.RESEND_FROM_EMAIL || env.SUPPORT_FROM_EMAIL || 'no-reply@mmmbc.com').trim();
-  const fromName = String(env.SUPPORT_FROM_NAME || 'MMMBC Newsletter').trim() || 'MMMBC Newsletter';
-  const template = buildNewsletterEmailTemplate({ subject, message });
-
-  // Resend's batch endpoint sends one email per recipient (max 100/call), so recipients
-  // never see each other's addresses.
-  const out = await sendResendBatch(env, {
-    subject,
-    text: template.text,
-    html: template.html,
-    fromEmail,
-    fromName,
-    recipients: emails,
-    idempotencyKey
-  });
-  if (!out.ok) return { ok: false, error: out.error || 'Newsletter send failed.', sent: out.sent };
-  return { ok: true, sent: out.sent };
+async function sendNewsletterEmail(env, { subject, message, emails, idempotencyKey = '', test = false }) {
+  if (!env.NEWSLETTER_UNSUBSCRIBE_SECRET || String(env.NEWSLETTER_UNSUBSCRIBE_SECRET).length < 32) return { ok:false, sent:0, error:'Newsletter unsubscribe signing secret is not configured.' };
+  if (!/^https:\/\//.test(String(env.PUBLIC_SITE_URL || ''))) return { ok:false, sent:0, error:'Public newsletter URL is not configured.' };
+  const campaignId = idempotencyKey || `newsletter-${crypto.randomUUID()}`;
+  const eligible = test ? emails : await eligibleRecipients(env, emails);
+  let sent = 0, errors = [], pending = false;
+  const now=new Date().toISOString();
+  for (const email of eligible) await env.DB.prepare(`INSERT INTO newsletter_deliveries (campaign_id,email,status,updated_at) VALUES (?,?,'pending',?) ON CONFLICT(campaign_id,email) DO NOTHING`).bind(campaignId,email,now).run();
+  const deliveries=await env.DB.prepare('SELECT email,status,attempts FROM newsletter_deliveries WHERE campaign_id=?').bind(campaignId).all();
+  const remaining=(deliveries.results||[]).filter(d=>!['sent','failed'].includes(d.status)&&eligible.includes(d.email));
+  const chunk=remaining.slice(0,20);
+  for (const row of chunk) {
+    // Recheck suppression immediately before each actual send, including retries.
+    if (!test && !(await eligibleRecipients(env,[row.email])).length) continue;
+    const token=await unsubscribeToken(env,row.email);
+    const link=`${String(env.PUBLIC_SITE_URL).replace(/\/$/,'')}/newsletter/unsubscribe?token=${encodeURIComponent(token)}`;
+    const template=buildNewsletterEmailTemplate({subject,message});
+    const out=await sendResendEmail(env,{to:row.email,subject,text:`${template.text}\n\nUnsubscribe: ${link}`,html:template.html+`<p style="font-family:Arial;text-align:center"><a href="${escapeHtml(link)}">Unsubscribe from church newsletters</a></p>`,idempotencyKey:`${campaignId}-${row.email}`,emailHeaders:{'List-Unsubscribe':`<${link}>`,'List-Unsubscribe-Post':'List-Unsubscribe=One-Click'}});
+    await env.DB.prepare('UPDATE newsletter_deliveries SET status=?,provider_id=?,attempts=attempts+1,error=?,updated_at=? WHERE campaign_id=? AND email=?').bind(out.ok?'sent':Number(row.attempts||0)+1>=3?'failed':'pending',out.id||null,out.error||'',new Date().toISOString(),campaignId,row.email).run();
+    if(out.ok) sent++;else errors.push(out.error||'Delivery failed');
+  }
+  const after=await env.DB.prepare('SELECT email,status,attempts FROM newsletter_deliveries WHERE campaign_id=?').bind(campaignId).all();
+  pending=(after.results||[]).some(d=>d.status==='pending'&&eligible.includes(d.email));
+  if((after.results||[]).some(d=>d.status==='failed'&&eligible.includes(d.email))) errors.push('Some recipients could not be delivered after three attempts.');
+  const totals=await env.DB.prepare("SELECT COUNT(*) AS c FROM newsletter_deliveries WHERE campaign_id=? AND status='sent'").bind(campaignId).first();
+  return {ok:!errors.length&&!pending,pending,sent:Number(totals?.c||sent),error:errors.join('; ').slice(0,500)};
 }
 
 function rowToRecord(r) {
@@ -360,20 +365,12 @@ async function validateNewsletterRecipients(env, emailsInput) {
     throw err;
   }
 
-  if (!env.SITE_DB) return unique;
-  const rows = await env.SITE_DB.prepare(`SELECT email FROM subscribers WHERE status='active'`).all();
-  const allowed = new Set((rows?.results || []).map((r) => r.email));
-  const notSubscribed = unique.filter((e) => !allowed.has(e));
-  if (notSubscribed.length) {
-    const err = new Error('Some selected recipients are not in subscribers.');
-    err.statusCode = 400;
-    throw err;
-  }
-  return unique;
+  const allowed = await eligibleRecipients(env, unique);
+  if (allowed.length !== unique.length) { const err=new Error('Some recipients are inactive or unsubscribed.');err.statusCode=400;throw err; }
+  return allowed;
 }
 
 async function handleNewsletterRecordsGet(request, env) {
-  await processScheduledNewsletters(env);
   return json(await getNewsletterRecords(env));
 }
 
@@ -383,7 +380,6 @@ async function handleNewsletterRecordsPost(request, env) {
   const action = String(body?.action || '').trim().toLowerCase();
   const now = new Date().toISOString();
 
-  await processScheduledNewsletters(env);
 
   if (action === 'delete') {
     const id = String(body?.id || '').trim();
@@ -415,10 +411,10 @@ async function handleNewsletterRecordsPost(request, env) {
   if (action === 'schedule') {
     const scheduleDate = String(body?.scheduleDate || '').trim();
     const scheduleTime = String(body?.scheduleTime || '').trim();
-    const scheduleTimezone = String(body?.scheduleTimezone || 'America/Chicago').trim() || 'America/Chicago';
-    const scheduleAtRaw = `${scheduleDate}T${scheduleTime || '00:00'}:00`;
-    const scheduleAt = new Date(scheduleAtRaw).toISOString();
-    if (Number.isNaN(Date.parse(scheduleAt))) return json({ error: 'Schedule date, time, and time zone are required.' }, 400);
+    const scheduleTimezone = String(body?.scheduleTimezone || env.NEWSLETTER_TIMEZONE || 'America/Chicago').trim() || 'America/Chicago';
+    let scheduleAt;
+    try { scheduleAt=zonedSchedule(scheduleDate,scheduleTime,scheduleTimezone); }
+    catch(error) { return json({error:error.message},400); }
     if (Date.parse(scheduleAt) <= Date.now()) return json({ error: 'Scheduled time must be in the future.' }, 400);
 
     await env.DB.prepare(
@@ -449,7 +445,8 @@ async function handleNewsletterTest(request, env, actorEmail) {
     recipients = [actorEmail];
   }
 
-  const out = await sendNewsletterEmail(env, { subject, message, emails: recipients });
+  if (recipients.length > 20) return json({error:'Send test mail to no more than 20 recipients at a time.'},400);
+  const out = await sendNewsletterEmail(env, { subject, message, emails: recipients, test: true });
   if (!out.ok) return json({ error: out.error }, 502);
   return json({ ok: true, recipients, sent: out.sent });
 }
@@ -468,18 +465,10 @@ async function handleNewsletterSend(request, env) {
   if (!subject || !message) return json({ error: 'Subject and message are required.' }, 400);
   if (!emails.length) return json({ error: 'Select at least one recipient.' }, 400);
 
-  const out = await sendNewsletterEmail(env, { subject, message, emails });
   const now = new Date().toISOString();
-  await env.DB.prepare(
-    `INSERT INTO newsletter_records (id, subject, message, emails, status, sent_count, created_at, updated_at, sent_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(
-    crypto.randomUUID(), subject, message, JSON.stringify(emails),
-    out.ok ? 'sent' : 'failed', out.sent || 0, now, now, now
-  ).run();
-
-  if (!out.ok) return json({ error: out.error }, 502);
-  return json({ ok: true, sent: out.sent });
+  const id=crypto.randomUUID();
+  await env.DB.prepare(`INSERT INTO newsletter_records (id,subject,message,emails,status,schedule_at,retry_count,created_at,updated_at) VALUES (?,?,?,?,'scheduled',?,0,?,?)`).bind(id,subject,message,JSON.stringify(emails),now,now,now).run();
+  return json({ok:true,queued:true,message:'Newsletter queued for delivery.'},202);
 }
 
 async function processScheduledNewsletters(env) {
@@ -519,6 +508,10 @@ async function processScheduledNewsletters(env) {
       continue;
     }
 
+    if (out.pending) {
+      await env.DB.prepare("UPDATE newsletter_records SET status='scheduled',sent_count=?,schedule_at=?,updated_at=? WHERE id=?").bind(out.sent,new Date(Date.now()+300000).toISOString(),now,record.id).run();
+      continue;
+    }
     const retryCount = (record.retryCount || 0) + 1;
     if (retryCount < 3) {
       const nextAttempt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
@@ -546,3 +539,4 @@ export {
   handleNewsletterSend,
   processScheduledNewsletters
 };
+

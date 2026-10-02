@@ -1,5 +1,4 @@
 const DEFAULT_SIZE_KEY = 'standard';
-const QR_SIZE_INCHES = 0.7874; // 2 cm
 
 const ENVELOPE_SIZES = {
   standard: { width: 6.25, height: 3.125 },
@@ -25,10 +24,7 @@ function getEnvelopeLayout(size){
   const topPad = isLandscape ? 0.3 : 0.34;
   const rightPad = isLandscape ? 0.36 : 0.32;
   const bottomPad = isLandscape ? 0.28 : 0.32;
-  const qrWidth = QR_SIZE_INCHES;
-  const qrX = size.width - rightPad - qrWidth;
-  const textRightEdge = qrX - (isLandscape ? 0.24 : 0.18);
-  const textWidth = Math.max(1.6, textRightEdge - leftPad);
+  const textWidth = Math.max(1.6, size.width - rightPad - leftPad);
 
   return {
     isLandscape,
@@ -36,12 +32,6 @@ function getEnvelopeLayout(size){
     topPad,
     rightPad,
     bottomPad,
-    qr: {
-      x: qrX,
-      y: topPad,
-      width: qrWidth,
-      height: qrWidth
-    },
     heading: {
       x: leftPad,
       y: topPad,
@@ -56,14 +46,6 @@ function getEnvelopeLayout(size){
   };
 }
 
-function getQrStyleFromLayout(size, layout){
-  return {
-    leftPercent: inchesToPercent(layout.qr.x, size.width),
-    topPercent: inchesToPercent(layout.qr.y, size.height),
-    widthPercent: inchesToPercent(layout.qr.width, size.width),
-    heightPercent: inchesToPercent(layout.qr.height, size.height)
-  };
-}
 
 function buildPrintDocumentHtml(sizeKey, previewInnerHtml){
   const size = getEnvelopeSize(sizeKey);
@@ -79,8 +61,6 @@ function buildPrintDocumentHtml(sizeKey, previewInnerHtml){
     csrf: '',
     donors: [],
     selectedDonorId: '',
-    selectedCode: '',
-    oneTimeCode: '',
     backgroundDataUrl: ''
   };
 
@@ -127,27 +107,16 @@ function buildPrintDocumentHtml(sizeKey, previewInnerHtml){
     return state.donors.find((donor) => String(donor.id) === state.selectedDonorId) || null;
   }
 
-  function selectedCodeValue(){
-    return state.selectedCode || state.oneTimeCode || '';
-  }
-
-  async function fetchQrSvg(codeValue){
-    if (!codeValue) return '';
-    const res = await fetch(`/api/finances/scan-codes/render?code=${encodeURIComponent(codeValue)}`, { credentials:'include' });
-    if (!res.ok) return '';
-    return res.text();
-  }
 
   function renderResults(){
     const body = $('envelopeDesignerResults');
     if (!body) return;
     body.innerHTML = state.donors.map((donor) => `
       <tr>
-        <td>${donor.firstName} ${donor.lastName}</td>
-        <td>${donor.accountNumber || ''}</td>
-        <td>${donor.envelopeNumber || ''}</td>
-        <td>${donor.envelopeCodeStatus || 'inactive'}</td>
-        <td><button class="btn" type="button" data-select-donor="${donor.id}">Select</button></td>
+        <td>${escapeHtml(donor.firstName)} ${escapeHtml(donor.lastName)}</td>
+        <td>${escapeHtml(donor.accountNumber || '')}</td>
+        <td>${escapeHtml(donor.envelopeNumber || '')}</td>
+        <td><button class="btn" type="button" data-select-donor="${escapeHtml(donor.id)}">Select</button></td>
       </tr>
     `).join('');
   }
@@ -160,8 +129,6 @@ function buildPrintDocumentHtml(sizeKey, previewInnerHtml){
     const size = getEnvelopeSize(sizeKey);
     const layout = getEnvelopeLayout(size);
     const opacity = Math.max(0, Math.min(100, Number($('envelopeDesignerOpacity')?.value || 15))) / 100;
-    const codeValue = selectedCodeValue();
-    const qrSvg = await fetchQrSvg(codeValue);
     const heading = 'Mt.Moriah Missionary Baptist Church';
     const churchLine1 = '1201 S 8th St';
     const churchLine2 = 'Paducah, KY 42003 · (270) 443-3714';
@@ -198,7 +165,6 @@ function buildPrintDocumentHtml(sizeKey, previewInnerHtml){
     const gridR2C3 = escapeHtml($('envelopeDesignerGridR2C3')?.value || 'Building Fund');
     const gridR2C4 = escapeHtml($('envelopeDesignerGridR2C4')?.value || 'Youth');
     const gridR2C5 = escapeHtml($('envelopeDesignerGridR2C5')?.value || 'Other');
-    const codeDisplay = escapeHtml(codeValue || 'No QR code selected');
     const headingFontRem = layout.isLandscape ? '0.84rem' : '0.95rem';
     const bodyFontRem = layout.isLandscape ? '0.62rem' : '0.68rem';
     const detailsFontRem = layout.isLandscape ? '0.62rem' : '0.7rem';
@@ -260,8 +226,6 @@ function buildPrintDocumentHtml(sizeKey, previewInnerHtml){
     const scriptureRaisePx = 75;
     const gridRaisePx = 75;
     const ratio = `${size.width}/${size.height}`;
-    const qrMarkup = qrSvg || '<div style="width:100%;height:100%;display:grid;place-items:center;color:#444;font-size:.72rem;">Issue or select a code</div>';
-    const qrStyle = getQrStyleFromLayout(size, layout);
 
     const contentHtml = `
       <div class="envelopePreviewSheet" style="position:relative;width:100%;height:100%;background:#fff;color:#111;overflow:hidden;">
@@ -316,8 +280,6 @@ function buildPrintDocumentHtml(sizeKey, previewInnerHtml){
 
           <div style="position:absolute;left:${sectionPadding.thankYouCenterPercent}%;transform:translateX(-50%);bottom:${thankYouBottomPercent}%;width:${inchesToPercent(thankYouBlockWidth, layout.textBounds.width)}%;text-align:center;font-size:${layout.isLandscape ? '0.53rem' : '0.58rem'};line-height:1.15;font-weight:700;">${messageDisplay}</div>
         </div>
-        <div data-qr-block="true" style="position:absolute;left:${qrStyle.leftPercent}%;top:${qrStyle.topPercent}%;width:${qrStyle.widthPercent}%;height:${qrStyle.heightPercent}%;background:#fff;border:1px solid rgba(0,0,0,.2);padding:${layout.isLandscape ? '5px' : '8px'};z-index:1;box-sizing:border-box;display:grid;place-items:center;">${qrMarkup}</div>
-        <div style="position:absolute;left:${qrStyle.leftPercent}%;top:${inchesToPercent(layout.qr.y + layout.qr.height + 0.08, size.height)}%;width:${qrStyle.widthPercent}%;font-size:${layout.isLandscape ? '0.58rem' : '0.66rem'};line-height:1.2;text-align:center;word-break:break-all;z-index:1;">${codeDisplay}</div>
       </div>
     `;
 
@@ -341,48 +303,6 @@ function buildPrintDocumentHtml(sizeKey, previewInnerHtml){
       state.donors = Array.isArray(data.donors) ? data.donors : [];
       renderResults();
       setMsg(`Loaded ${state.donors.length} donor result(s).`, 'ok');
-    } catch (error) {
-      setMsg(error.message, 'error');
-    }
-  }
-
-  async function ensureMemberCode(){
-    const donor = selectedDonor();
-    if (!donor) {
-      setMsg('Select a donor first.', 'error');
-      return;
-    }
-    try {
-      if (donor.envelopeCodeStatus === 'active' && donor.envelopeCode) {
-        state.selectedCode = donor.envelopeCode;
-      } else {
-        const data = await api(`/api/finances/donors/${encodeURIComponent(donor.id)}/envelope-code/issue`, {
-          method:'POST',
-          body: JSON.stringify({ reason: 'Envelope designer issue/reuse request.' })
-        });
-        state.selectedCode = String(data?.envelope?.envelopeCode || '');
-        donor.envelopeCodeStatus = 'active';
-      }
-      state.oneTimeCode = '';
-      setMsg('Member code ready for preview and printing.', 'ok');
-      await searchDonors();
-      await renderPreview();
-    } catch (error) {
-      setMsg(error.message, 'error');
-    }
-  }
-
-  async function createOneTimeCode(){
-    try {
-      const data = await api('/api/finances/scan-codes/one-time', {
-        method:'POST',
-        body: JSON.stringify({ note: 'Envelope designer generated reusable one-time donor code.' })
-      });
-      state.oneTimeCode = String(data?.code?.codeValue || '');
-      state.selectedCode = '';
-      $('envelopeDesignerSelected').value = 'Reusable one-time donor envelope';
-      setMsg('Reusable one-time donor code created.', 'ok');
-      await renderPreview();
     } catch (error) {
       setMsg(error.message, 'error');
     }
@@ -414,17 +334,13 @@ function buildPrintDocumentHtml(sizeKey, previewInnerHtml){
       event.preventDefault();
       searchDonors();
     });
-    $('envelopeDesignerIssueCodeBtn')?.addEventListener('click', ensureMemberCode);
-    $('envelopeDesignerOneTimeBtn')?.addEventListener('click', createOneTimeCode);
     $('envelopeDesignerPrintBtn')?.addEventListener('click', printPreview);
     $('envelopeDesignerResults')?.addEventListener('click', async (event) => {
       const btn = event.target.closest('[data-select-donor]');
       if (!btn) return;
       state.selectedDonorId = String(btn.getAttribute('data-select-donor') || '');
-      state.oneTimeCode = '';
       const donor = selectedDonor();
       $('envelopeDesignerSelected').value = donor ? `${donor.firstName} ${donor.lastName} (${donor.accountNumber || donor.id})` : '';
-      state.selectedCode = String(donor?.envelopeCode || '');
       await renderPreview();
     });
     $('envelopeDesignerBackground')?.addEventListener('change', async (event) => {

@@ -7,7 +7,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPORT_PATH = join(ROOT, 'monthlyReport.md');
 const MAX_EVIDENCE = 2400;
 const SKIP_DIRS = new Set(['.git', '.wrangler', 'node_modules', 'uploads', 'sessions', 'logs']);
-const SECRET_ENV_NAMES = ['RESEND_API_KEY', 'SQUARE_ACCESS_TOKEN', 'SQUARE_WEBHOOK_SIGNATURE_KEY', 'STRIPE_SECRET_KEY'];
+const SECRET_ENV_NAMES = ['TURNSTILE_SECRET_KEY', 'NEWSLETTER_UNSUBSCRIBE_SECRET', 'RESEND_API_KEY', 'SQUARE_ACCESS_TOKEN', 'SQUARE_WEBHOOK_SIGNATURE_KEY', 'STRIPE_SECRET_KEY'];
 
 const compact = (value, limit = MAX_EVIDENCE) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(-limit);
 const redact = (value) => {
@@ -162,6 +162,7 @@ function auditCloudflareConfig() {
 function auditSecrets() {
   const suspicious = [];
   const patterns = [
+    /["']TURNSTILE_SECRET_KEY["']\s*:\s*["'][^"']+["']/,
     /-----BEGIN (?:RSA|OPENSSH|EC|PRIVATE) KEY-----/,
     /\bsk_live_[A-Za-z0-9]{16,}\b/,
     /\bre_[A-Za-z0-9]{16,}\b/,
@@ -238,9 +239,9 @@ export function runMaintenanceChecks() {
   return [
     runCommand('Admin local migrations', 'npm', ['run', 'migrate:local:admin']),
     runCommand('Site local migrations', 'npm', ['run', 'migrate:local:site']),
+    runCommand('Static build', 'npm', ['run', 'build:cf']),
     runCommand('Application tests', 'npm', ['test']),
     runCommand('Admin tests', 'npm', ['run', 'test:admin']),
-    runCommand('Static build', 'npm', ['run', 'build:cf']),
     runCommand('Integration test suite', 'npm', ['run', 'verify:integrations']),
     runCommand('Production Wrangler dry run', 'npm', ['run', 'worker:dry-run']),
     runCommand('Preview Wrangler dry run', 'npm', ['run', 'preview:dry-run']),
@@ -282,7 +283,11 @@ Commit: ${commit}
 Working tree: ${escapeCell(workingTree)}
 Status: ${status}
 
-This report is generated on the first day of each month at 09:17 UTC and by manual dispatch. The workflow updates the \`monthlyUpdate\` branch and its pull request only. It does not auto-merge, deploy to production, send email, charge payments, rotate secrets, or apply remote database migrations.
+This report is generated on the first day of each month at 02:00 America/Indiana/Indianapolis and by manual dispatch. The workflow updates the \`monthly-maintenance\` branch and its pull request only. It does not auto-merge, deploy to production, charge payments, rotate secrets, or apply remote database migrations.
+
+## What this means
+
+${failed.length ? 'Some required checks failed. Review the findings before accepting the updates.' : 'The required checks passed.'} ${reviews.length ? 'There are warnings that need review.' : ''} ${skipped.length ? 'Some live-service checks could not run; their absence does not prove the site is ready.' : ''}
 
 ## Checks
 
@@ -321,3 +326,4 @@ export function main() {
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) main();
+

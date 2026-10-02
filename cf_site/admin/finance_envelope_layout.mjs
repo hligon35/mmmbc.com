@@ -1,5 +1,4 @@
 export const DEFAULT_SIZE_KEY = 'standard';
-export const QR_SIZE_INCHES = 0.7874; // 2 cm
 
 export const ENVELOPE_SIZES = {
   standard: { width: 6.25, height: 3.125 },
@@ -25,10 +24,7 @@ export function getEnvelopeLayout(size){
   const topPad = isLandscape ? 0.3 : 0.34;
   const rightPad = isLandscape ? 0.36 : 0.32;
   const bottomPad = isLandscape ? 0.28 : 0.32;
-  const qrWidth = QR_SIZE_INCHES;
-  const qrX = size.width - rightPad - qrWidth;
-  const textRightEdge = qrX - (isLandscape ? 0.24 : 0.18);
-  const textWidth = Math.max(1.6, textRightEdge - leftPad);
+  const textWidth = Math.max(1.6, size.width - rightPad - leftPad);
 
   return {
     isLandscape,
@@ -36,12 +32,6 @@ export function getEnvelopeLayout(size){
     topPad,
     rightPad,
     bottomPad,
-    qr: {
-      x: qrX,
-      y: topPad,
-      width: qrWidth,
-      height: qrWidth
-    },
     heading: {
       x: leftPad,
       y: topPad,
@@ -56,33 +46,8 @@ export function getEnvelopeLayout(size){
   };
 }
 
-export function getQrPlacementForSize(sizeKey){
-  const size = getEnvelopeSize(sizeKey);
-  const layout = getEnvelopeLayout(size);
-  return {
-    size,
-    layout,
-    leftPercent: inchesToPercent(layout.qr.x, size.width),
-    topPercent: inchesToPercent(layout.qr.y, size.height),
-    widthPercent: inchesToPercent(layout.qr.width, size.width),
-    heightPercent: inchesToPercent(layout.qr.height, size.height)
-  };
-}
 
-export function getQrStyleFromLayout(size, layout){
-  return {
-    leftPercent: inchesToPercent(layout.qr.x, size.width),
-    topPercent: inchesToPercent(layout.qr.y, size.height),
-    widthPercent: inchesToPercent(layout.qr.width, size.width),
-    heightPercent: inchesToPercent(layout.qr.height, size.height)
-  };
-}
 
-export function getQrStyleForSize(sizeKey){
-  const size = getEnvelopeSize(sizeKey);
-  const layout = getEnvelopeLayout(size);
-  return getQrStyleFromLayout(size, layout);
-}
 
 export function getPrintDimensionsStyle(sizeKey){
   const size = getEnvelopeSize(sizeKey);
@@ -94,3 +59,4 @@ export function buildPrintDocumentHtml(sizeKey, previewInnerHtml){
   const body = String(previewInnerHtml || '');
   return `<!doctype html><html><head><title>Envelope Print Preview</title><style>@page{size:auto;margin:.25in}html,body{margin:0;padding:0}body{display:grid;place-items:start center;background:#fff;padding:.1in}.envelopePreviewPrint{width:${size.width}in;height:${size.height}in;box-sizing:border-box}</style></head><body><main><div class="envelopePreviewPrint">${body}</div></main></body></html>`;
 }
+

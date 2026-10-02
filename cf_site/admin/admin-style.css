@@ -5431,41 +5431,8 @@ body[data-page] .fullSpan{grid-column:1/-1;}
 body[data-page] .preBlock{white-space:pre-wrap;max-height:480px;overflow:auto;}
 body[data-page] .stackList{display:grid;gap:10px;}
 body[data-page] .stackListRow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:10px;align-items:end;}
-.scannerVideo{
-  width:min(540px, 100%);
-  max-height:320px;
-  border:2px solid #586274;
-  border-radius:12px;
-  background:#0a0f16;
-}
 .selectedHint{color:#ffd7ad;font-weight:700;}
 
-#donorEnvelopeLabelPreview svg{
-  width:min(380px, 100%);
-  height:auto;
-  border:1px solid #3a414d;
-  background:#fff;
-}
-
-@media print{
-  body.printEnvelopeLabel .topBar,
-  body.printEnvelopeLabel .panel:not(#donorEnvelopeLabelPanel),
-  body.printEnvelopeLabel .btn,
-  body.printEnvelopeLabel .help,
-  body.printEnvelopeLabel .warn,
-  body.printEnvelopeLabel .error,
-  body.printEnvelopeLabel .ok{
-    display:none !important;
-  }
-
-  body.printEnvelopeLabel #donorEnvelopeLabelPanel{
-    display:block !important;
-    border:0 !important;
-    padding:0 !important;
-    margin:0 !important;
-    background:#fff !important;
-  }
-}
 
 @media (max-width:700px){
   body[data-page] .wrap{padding:14px;}
@@ -6241,3 +6208,4 @@ body {
     min-height: 40px;
   }
 }
+

@@ -2,7 +2,7 @@ name: CodeQL
 
 on:
   push:
-    branches: [master, monthlyUpdate]
+    branches: [master, monthly-maintenance]
   pull_request:
     branches: [master]
   schedule:
@@ -31,3 +31,4 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:javascript"
+

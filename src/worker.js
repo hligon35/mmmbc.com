@@ -1,3 +1,4 @@
+import { imageUploadAllowed, imageBytesAllowed } from './launch-security.js';
 // Cloudflare Worker (Option B scaffold)
 // - Serves static site assets from ./cf_site via env.ASSETS
 // - Implements gallery API + CDN endpoints using D1 + R2
@@ -1257,6 +1258,7 @@ async function handleGalleryUpload(request, env) {
   const files = form.getAll('images').filter((f) => f && typeof f === 'object' && 'arrayBuffer' in f);
   if (!files.length) return json({ error: 'No images uploaded.' }, { status: 400 });
 
+  if(files.length>10 || files.some(file=>!imageUploadAllowed(file))) return json({error:'Upload up to 10 JPG, PNG, GIF, or WebP images, each no larger than 10 MB.'},{status:400});
   const added = [];
   for (const file of files) {
     const id = crypto.randomUUID();
@@ -1267,8 +1269,10 @@ async function handleGalleryUpload(request, env) {
 
     const fileKey = `gallery/${album}/${createdAt.slice(0, 10)}_${safeBase}_${id}.${ext || 'jpg'}`;
 
+    const imageBytes=await file.arrayBuffer();
+    if(!imageBytesAllowed(imageBytes,file.type)) return json({error:'Image content does not match its file type.'},{status:400});
     // Store original in R2
-    await env.GALLERY_BUCKET.put(fileKey, await file.arrayBuffer(), {
+    await env.GALLERY_BUCKET.put(fileKey, imageBytes, {
       httpMetadata: {
         contentType: file.type || guessContentType(fileKey)
       }
@@ -1529,6 +1533,10 @@ async function handleCdn(request, env) {
   const key = decodeURI(url.pathname.slice(prefix.length));
   if (!key) return new Response('Not found', { status: 404 });
 
+  if (key.startsWith('gallery/')) {
+    const visibility=await env.DB.prepare('SELECT is_hidden FROM gallery_items WHERE file_key=? OR thumb_key=? LIMIT 1').bind(key,key).first();
+    if(!visibility || Number(visibility.is_hidden)) return new Response('Not found',{status:404});
+  }
   let obj = await env.GALLERY_BUCKET.get(key);
   // The pastor's profile image is shipped with the site source. Seed the
   // canonical site/ R2 key lazily when the public URL is first requested so
@@ -1552,7 +1560,7 @@ async function handleCdn(request, env) {
   if (!ct || ct === 'application/octet-stream' || ct === 'binary/octet-stream') {
     headers.set('Content-Type', guessed);
   }
-  headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+  headers.set('Cache-Control', 'no-store');
   headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
 
   applySecurityHeaders(headers);
@@ -2152,3 +2160,4 @@ export default {
     ctx.waitUntil(processScheduledNewsletters(env));
   }
 };
+

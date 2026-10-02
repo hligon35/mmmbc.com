@@ -1,3 +1,6 @@
+import { securityHeaders, mutationDenied, checkBodySize } from './launch-security.js';
+import { handleNewsletterPreferences } from './newsletter-preferences.js';
+import { deliverSubmissionEmail, retrySubmissionEmails } from './submission-delivery.js';
 import worker from './worker-auth-wrapper.js';
 import { handleGivingRequest } from './worker-giving.js';
 import { handleGivingPageRequest } from './worker-giving-pages.js';
@@ -110,7 +113,7 @@ async function handleWebsiteSubmissions(request, env, ctx) {
   return json({ ok: true });
 }
 
-async function sendWebsiteAutoReply(env, { to, kind = 'contact' }) {
+async function sendWebsiteAutoReply(env, { to, kind = 'contact', submissionId }) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(to || ''))) return { ok: true, skipped: true };
   const facility = kind === 'facility_rental';
   const subject = facility ? 'We received your facility rental request' : 'We received your message';
@@ -120,7 +123,7 @@ async function sendWebsiteAutoReply(env, { to, kind = 'contact' }) {
   const html = facility
     ? '<p>Thank you for submitting your facility rental request to Mt. Moriah Missionary Baptist Church.</p><p>We received your request and will contact you after reviewing the details.</p>'
     : '<p>Thank you for contacting Mt. Moriah Missionary Baptist Church.</p><p>We received your message and will respond as soon as possible.</p>';
-  return sendResendEmail(env, { to, subject, text, html });
+  return deliverSubmissionEmail(env, { to, subject, text, html, submissionId, submissionType:kind,kind:'confirmation' });
 }
 
 const FORM_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -349,7 +352,8 @@ async function sendSupportEmailMessage(env, {
   subject,
   textBody,
   replyTo = '',
-  fromNameOverride = ''
+  fromNameOverride = '',
+  submissionId = '', submissionType = ''
 } = {}) {
   const toEmail = String(env.SUPPORT_TO_EMAIL || 'support@hldesignedit.com').trim();
   const deliveryToEmail = String(env.SUPPORT_EMAIL_DESTINATION || toEmail).trim();
@@ -358,7 +362,8 @@ async function sendSupportEmailMessage(env, {
   const safeSubject = String(subject || '').trim().slice(0, 180);
   const safeBody = String(textBody || '').trim().slice(0, 12000);
 
-  const out = await sendResendEmail(env, {
+  const sender=submissionId ? (env,payload)=>deliverSubmissionEmail(env,{...payload,submissionId,submissionType,kind:'notification'}) : sendResendEmail;
+  const out = await sender(env, {
     to: deliveryToEmail,
     subject: safeSubject,
     text: safeBody,
@@ -985,9 +990,13 @@ async function transformPublicHtml(response, pathname) {
   return new Response(html, { status: response.status, headers });
 }
 
-export default {
+const applicationWorker = {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    if (url.pathname === '/scan' || url.pathname.startsWith('/scan/') || url.pathname === '/scan.js') return json({error:'Scanning has been retired.'},410);
+    const preferences=await handleNewsletterPreferences(request,env);
+    if(preferences) return preferences;
 
     const givingPageResponse = await handleGivingPageRequest(request, env);
     if (givingPageResponse) return givingPageResponse;
@@ -1108,6 +1117,13 @@ export default {
     }
 
     if (url.pathname === '/api/public/newsletter/subscribe' && request.method === 'POST') {
+      const input=await request.clone().json().catch(()=>({}));
+      const signupEmail=String(input.email||'').trim().toLowerCase();
+      if(env.DB) {
+        const suppressed=await env.DB.prepare("SELECT email FROM newsletter_suppressions WHERE email=? UNION SELECT email FROM newsletter_subscribers WHERE lower(email)=? AND status IN ('unsubscribed','suppressed','bounced','complained') LIMIT 1").bind(signupEmail,signupEmail).first();
+        if(suppressed) return json({error:'This address has opted out. Please contact the church to request renewed subscription consent.'},409);
+      }
+
       const body = await request.json().catch(() => ({}));
       if (honeypotTripped(body)) return json({ ok: true, email: '' });
       const demoMode = previewDemoModeEnabled(env);
@@ -1126,7 +1142,9 @@ export default {
         const turnstile = await verifyTurnstile(env, body?.turnstileToken, clientIp(request));
         if (!turnstile.ok) return json({ error: turnstile.error }, turnstile.status || 403);
       }
-      if (!env.SITE_DB) return json({ ok: true, email, warning: 'DB unavailable; accepted without persistence.' });
+      if (!env.SITE_DB) return json({ error: 'Subscriptions are temporarily unavailable.' }, 503);
+      const prior = await env.SITE_DB.prepare('SELECT status FROM subscribers WHERE lower(email)=? LIMIT 1').bind(email).first();
+      if (prior && ['unsubscribed','suppressed','bounced','complained'].includes(prior.status)) return json({error:'This address has opted out. Please contact the church to renew your consent.'},409);
       const now = new Date().toISOString();
       try {
         await env.SITE_DB.prepare(
@@ -1224,13 +1242,13 @@ export default {
       ].join('\n');
 
       try {
-        const autoReply = await sendWebsiteAutoReply(env, { to: email, kind: 'contact' });
+        const autoReply = await sendWebsiteAutoReply(env, { to: email, kind: 'contact', submissionId:id });
         if (env.SITE_DB) await updateSubmissionIfSupported(env.SITE_DB, `UPDATE contact_messages SET auto_reply_status = ?, auto_reply_at = ?, auto_reply_error = ? WHERE id = ?`, [autoReply.ok ? 'sent' : 'failed', autoReply.ok ? new Date().toISOString() : null, autoReply.error || '', id]);
         await sendSupportEmailMessage(env, {
           subject: '[MMMBC Contact] New Website Message',
           textBody,
           replyTo: email,
-          fromNameOverride: 'MMMBC Public Contact'
+          fromNameOverride: 'MMMBC Public Contact', submissionId:id, submissionType:'contact'
         });
         if (env.SITE_DB) {
           await updateSubmissionIfSupported(env.SITE_DB, `UPDATE contact_messages SET status = 'emailed' WHERE id = ?`, [id]);
@@ -1376,13 +1394,13 @@ export default {
       ].join('\n');
 
       try {
-        const autoReply = await sendWebsiteAutoReply(env, { to: contactEmail, kind: 'facility_rental' });
+        const autoReply = await sendWebsiteAutoReply(env, { to: contactEmail, kind: 'facility_rental', submissionId:id });
         await updateSubmissionIfSupported(env.SITE_DB, `UPDATE facility_rental_requests SET auto_reply_status = ?, auto_reply_at = ?, auto_reply_error = ? WHERE id = ?`, [autoReply.ok ? 'sent' : 'failed', autoReply.ok ? new Date().toISOString() : null, autoReply.error || '', id]);
         await sendSupportEmailMessage(env, {
           subject: `[MMMBC Facility Rental] ${audience === 'non_member' ? 'Non-member' : 'Member'} Request`,
           textBody,
           replyTo: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail) ? contactEmail : '',
-          fromNameOverride: 'MMMBC Public Facility Rental'
+          fromNameOverride: 'MMMBC Public Facility Rental', submissionId:id, submissionType:'facility_rental'
         });
         if (env.SITE_DB) {
           await updateSubmissionIfSupported(env.SITE_DB, `UPDATE facility_rental_requests SET status = 'emailed' WHERE id = ?`, [id]);
@@ -1903,8 +1921,26 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
+    try { await retrySubmissionEmails(env); } catch (error) { console.error('Submission email retry failed', { name: error?.name || 'Error' }); }
     if (typeof worker.scheduled === 'function') {
       return worker.scheduled(event, env, ctx);
     }
   }
+};
+
+
+export default {
+  async fetch(request,env,ctx) {
+    const path=new URL(request.url).pathname;
+    try {
+      if(mutationDenied(request)) return securityHeaders(json({error:'Requests must come from this website.'},403),path);
+      const max=request.headers.get('content-type')?.includes('multipart/form-data') ? 20*1024*1024 : 1024*1024;
+      if(!await checkBodySize(request,max)) return securityHeaders(json({error:'Request is too large.'},413),path);
+      return securityHeaders(await applicationWorker.fetch(request,env,ctx),path);
+    } catch(error) {
+      console.error('Request failed',{path,name:error?.name||'Error'});
+      return securityHeaders(json({error:'This service is temporarily unavailable. Please try again.'},503),path);
+    }
+  },
+  scheduled: applicationWorker.scheduled
 };

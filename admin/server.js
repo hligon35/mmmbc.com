@@ -15,7 +15,6 @@ const csrf = require('csurf');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const speakeasy = require('speakeasy');
-const qrcode = require('qrcode');
 const mime = require('mime-types');
 const sharp = require('sharp');
 const { OAuth2Client } = require('google-auth-library');
@@ -1400,7 +1399,7 @@ app.get('/admin/finances/envelopes', requirePermission(PERMISSIONS.DONOR_READ), 
 });
 
 app.get('/scan', (req, res) => {
-  return res.sendFile(path.join(ROOT_DIR, 'scan.html'));
+  return res.status(410).json({ error: 'Scanning has been retired.' });
 });
 
 app.use('/admin', express.static(path.join(ADMIN_DIR, 'public'), {
@@ -7294,3 +7293,4 @@ if (require.main === module) {
 }
 
 module.exports = { app, boot };
+

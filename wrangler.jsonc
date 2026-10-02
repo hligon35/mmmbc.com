@@ -8,12 +8,7 @@
 	"assets": {
 		"directory": "./cf_site",
 		"binding": "ASSETS",
-		"run_worker_first": [
-			"/api/*",
-			"/cdn/*",
-			"/scan",
-			"/scan/*"
-		]
+		"run_worker_first": true
 	},
 	"routes": [
 		{
@@ -79,7 +74,9 @@
 		"SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church",
 		"RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
 		"RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church",
-		"PUBLIC_SITE_URL": "https://mmmbc.alphazonelabs.com"
+		"PUBLIC_SITE_URL": "https://mmmbc.alphazonelabs.com",
+		"GIVING_PROVIDER": "zeffy",
+		"NEWSLETTER_TIMEZONE": "America/Chicago"
 	},
 	"env": {
 		"production": {
@@ -141,9 +138,12 @@
 				"RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
 				"RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church",
 				"PUBLIC_SITE_URL": "https://mmmbc.alphazonelabs.com",
-				"TURNSTILE_SECRET_KEY": "0x4AAAAAAEzITQ-2a1kcgv-A8LBuSGK0m1Y",
-				"TURNSTILE_SITE_KEY": "0x4AAAAAAEzITVJnJAQvjUET"
-			}
+				"TURNSTILE_SITE_KEY": "0x4AAAAAAEzITVJnJAQvjUET",
+				"GIVING_PROVIDER": "zeffy",
+				"NEWSLETTER_TIMEZONE": "America/Chicago"
+			},
+			"workers_dev": false,
+			"preview_urls": false
 		},
 		"preview": {
 			"name": "mmmbc-preview",
@@ -185,7 +185,9 @@
 				"SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church Preview",
 				"RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
 				"RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church Preview",
-				"PUBLIC_SITE_URL": ""
+				"PUBLIC_SITE_URL": "",
+				"GIVING_PROVIDER": "zeffy",
+				"NEWSLETTER_TIMEZONE": "America/Chicago"
 			}
 		},
 		"legacy_alphazonelabs": {
@@ -222,7 +224,9 @@
 				"SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church",
 				"RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
 				"RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church",
-				"PUBLIC_SITE_URL": "https://mmmbc.alphazonelabs.com"
+				"PUBLIC_SITE_URL": "https://mmmbc.alphazonelabs.com",
+				"GIVING_PROVIDER": "zeffy",
+				"NEWSLETTER_TIMEZONE": "America/Chicago"
 			}
 		}
 	}

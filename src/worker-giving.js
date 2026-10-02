@@ -554,6 +554,7 @@ async function getCheckoutStatus(request, env) {
 
 export async function handleGivingRequest(request, env) {
   const url = new URL(request.url);
+  if (env.GIVING_PROVIDER !== 'stripe') return null;
 
   if (request.method === 'POST' && url.pathname === '/api/giving/checkout') {
     return createCheckoutSession(request, env);
@@ -566,3 +567,4 @@ export async function handleGivingRequest(request, env) {
   }
   return null;
 }
+

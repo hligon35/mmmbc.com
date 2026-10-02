@@ -1,3 +1,4 @@
+process.env.ENABLE_EXPORTS = 'false';
 process.env.NODE_ENV = 'test';
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-session-secret';
 process.env.ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@example.com';

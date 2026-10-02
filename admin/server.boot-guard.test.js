@@ -1,3 +1,4 @@
+process.env.ENABLE_EXPORTS = 'false';
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -37,3 +38,4 @@ describe('admin production startup guards', () => {
     try { fs.rmSync(tempSessionsDir, { recursive: true, force: true }); } catch { /* ignore */ }
   });
 });
+

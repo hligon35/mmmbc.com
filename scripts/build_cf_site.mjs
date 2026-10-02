@@ -14,7 +14,7 @@ const rootFiles = [
   'theme.css', 'schedule_app.js', 'script.js',
   'public-form-utils.js', 'facility_rental_form_shared.js',
   'announcements_ticker.js', 'bulletins_widget.js',
-  'site-content-loader.js', 'scan.html', 'scan.js',
+  'site-content-loader.js', '_headers',
   'announcements.json', 'bulletins.json', 'documents.json', 'gallery.json', 'livestream.json', 'schedule.json', 'site-settings.json', 'profiles.json',
   'pastorHarvey.jpeg'
 ];
@@ -103,6 +103,9 @@ async function mirrorAdmin() {
 }
 
 async function main() {
+  for (const required of ['index.html', '_headers', 'public-form-utils.js', 'facility_rental_form_shared.js', 'Pages/facility_rental_members_form.html', 'Pages/facility_rental_nonmembers_form.html', 'admin/public/index.html', 'admin/public/admin.js']) {
+    if (!(await exists(path.join(root, required)))) throw new Error(`Missing required deployment source: ${required}`);
+  }
   await recreateDir(dest);
   await copyRootFiles();
   await copyRootDirs();
@@ -114,3 +117,4 @@ main().catch((error) => {
   console.error(error?.stack || String(error));
   process.exitCode = 1;
 });
+

@@ -23,15 +23,6 @@ export async function handleGivingPageRequest(request, env) {
     return redirectResponse(request, '/give', 301);
   }
 
-  if (url.pathname === '/scan') {
-    if (!env?.ASSETS || typeof env.ASSETS.fetch !== 'function') {
-      return new Response('Scan page is unavailable.', { status: 503 });
-    }
-    const assetUrl = new URL(request.url);
-    assetUrl.pathname = '/scan.html';
-    assetUrl.search = '';
-    return env.ASSETS.fetch(new Request(assetUrl.toString(), { method: request.method, headers: request.headers }));
-  }
   return null;
 }
 

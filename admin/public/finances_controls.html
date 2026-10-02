@@ -43,7 +43,7 @@
 
     <section class="panel">
       <h2>Collection Batch</h2>
-      <p class="help">Start a service batch, then scan envelope codes and reconcile before verification.</p>
+      <p class="help">Start a service batch, then enter gifts manually and reconcile before verification.</p>
       <form id="collectionBatchForm" class="grid">
         <label class="label">Existing batch
           <select id="collectionBatchSelect" class="select">
@@ -88,21 +88,14 @@
     </section>
 
     <section class="panel">
-      <h2>Envelope Scanner Workspace</h2>
-      <p class="help">Use a USB/Bluetooth scanner that ends with Enter, or camera scan if available.</p>
+      <h2>Manual Envelope Entry</h2>
+      <p class="help">Enter the donor account number, confirm the donor, and record the gift.</p>
       <form id="collectionEntryForm" class="grid">
-        <label class="label fullSpan">Scanner input
-          <input id="collectionScannerInput" class="input" autocomplete="off" placeholder="MMMBC-ENV-V1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" required />
+        <label class="label fullSpan">Donor account number
+          <input id="collectionAccountInput" class="input" autocomplete="off" placeholder="MM account number" required />
         </label>
         <div class="btnRow fullSpan">
-          <button class="btn btnPrimary" id="collectionResolveBtn" type="button">Resolve Envelope</button>
-          <button class="btn" id="collectionCameraBtn" type="button">Camera Scan</button>
-        </div>
-        <div id="collectionCameraWrap" class="fullSpan" hidden>
-          <video id="collectionCameraVideo" class="scannerVideo" autoplay muted playsinline></video>
-          <div class="btnRow">
-            <button class="btn" id="collectionCameraStopBtn" type="button">Stop Camera</button>
-          </div>
+          <button class="btn btnPrimary" id="collectionResolveBtn" type="button">Find Donor</button>
         </div>
 
         <div id="collectionDonorConfirm" class="card fullSpan" aria-live="polite">
@@ -137,7 +130,7 @@
         </div>
 
         <div class="btnRow fullSpan">
-          <button class="btn btnPrimary" id="collectionSaveNextBtn" type="submit">Save and Scan Next</button>
+          <button class="btn btnPrimary" id="collectionSaveNextBtn" type="submit">Save and Enter Next</button>
           <button class="btn" id="collectionUpdateBtn" type="button">Update Existing Entry</button>
           <button class="btn" type="reset">Clear Entry</button>
         </div>
@@ -211,3 +204,4 @@
   <script src="/admin/finance_modern.js?v=20260928k"></script>
 </body>
 </html>
+

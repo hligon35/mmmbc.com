@@ -7,7 +7,7 @@
     "test": "node --test src/*.test.mjs",
     "test:admin": "npm --prefix admin test",
     "test:all": "npm test && npm run test:admin",
-    "check": "npm run test:all && npm run build:cf && npm run verify:integrations && npm run worker:dry-run",
+    "check": "npm run build:cf && npm run migrate:local:admin && npm run migrate:local:site && npm run test:all && npm run verify:integrations && npm run worker:dry-run",
     "worker:dry-run": "wrangler deploy --env production --dry-run",
     "preview:dry-run": "wrangler deploy --env preview --dry-run",
     "migrate:local:admin": "wrangler d1 migrations apply admin --local",
@@ -20,8 +20,7 @@
     "deploy": "npm run build:cf && npx wrangler deploy --env production"
   },
   "dependencies": {
-    "jose": "^6.2.12",
-    "qrcode": "^1.5.4"
+    "jose": "^6.2.12"
   },
   "devDependencies": {
     "wrangler": "^4.131.1"

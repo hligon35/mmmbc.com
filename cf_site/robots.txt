@@ -2,4 +2,5 @@ User-agent: *
 Disallow: /admin/
 Disallow: /api/
 
-Sitemap: https://mmmbc.com/sitemap.xml
+Sitemap: https://mmmbc.alphazonelabs.com/sitemap.xml
+
