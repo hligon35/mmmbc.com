@@ -1752,11 +1752,14 @@ export default {
       return handlePublicSiteContentGet(request, env, page);
     }
 
-    // Finance dashboard aliases map clean URLs to the shipped admin finance pages.
-    // This keeps links like /admin/finances/dashboard working in production.
+    // The standalone dashboard is retired; the Church Finances workspace remains in /admin/.
+    if (['/admin/finances/dashboard', '/admin/finances_dashboard.html'].includes(url.pathname.replace(/\/$/, ''))) {
+      return new Response('This finance dashboard has been retired.', { status: 410, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
+    }
+
+    // Map clean URLs to the remaining admin finance tools.
     if (request.method === 'GET' || request.method === 'HEAD') {
       const financeRouteMap = {
-        '/admin/finances/dashboard': '/admin/finances_dashboard.html',
         '/admin/finances/funds': '/admin/finances_funds.html',
         '/admin/finances/donors': '/admin/finances_donors.html',
         '/admin/finances/envelopes': '/admin/finance_envelope_designer.html',

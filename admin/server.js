@@ -1374,8 +1374,8 @@ function sendAdminFinancePage(res, fileName) {
 app.get('/admin/finances/funds', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
   return sendAdminFinancePage(res, 'finances_funds.html');
 });
-app.get('/admin/finances/dashboard', requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
-  return sendAdminFinancePage(res, 'finances_dashboard.html');
+app.get(['/admin/finances/dashboard', '/admin/finances_dashboard.html'], requirePermission(PERMISSIONS.FINANCE_READ), (req, res) => {
+  return res.status(410).json({ error: 'This finance dashboard has been retired.' });
 });
 
 app.get('/admin/finances/donors', requirePermission(PERMISSIONS.DONOR_READ), (req, res) => {

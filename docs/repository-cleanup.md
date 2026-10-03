@@ -82,3 +82,7 @@ The detached branded-giving-page CSS was also removed; the active /give route st
 ## Validation limits
 
 All 138 Worker/admin UI/development-server guard tests passed. Asset builds passed, including reconstruction from a checkout with no cf_site directory, stable repeated-build hashes, and rejection of missing required inputs before clearing output. PDF fixture parsing/rendering and Worker bundle compilation also passed. Removed asset filenames are checked against source references and the authoritative remote inventory; surviving source assets and data are retained. Cloudflare dashboard settings, live deployments, remote migrations and live form/email behavior were not exercised by this cleanup. The previously observed GitHub Actions startup failure remains a separate CI issue.
+
+## Additional dashboard retirement
+
+At the owner's request, admin/public/finances_dashboard.html was removed after the initial cleanup. Its clean URL and direct HTML URL return 410 in both the Worker and the local server. The main Church Finances workspace and the dedicated donor, fund, controls, reports and clergy-housing tools remain. This additional deletion is separate from the 181-file cleanup counted above.
