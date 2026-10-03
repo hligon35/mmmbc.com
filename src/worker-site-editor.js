@@ -195,11 +195,12 @@ export async function handleSitePageDraftPut(request, env, page, actorEmail) {
   const nextVersion = row.draft_version + 1;
   const email = String(actorEmail || 'unknown').toLowerCase();
 
-  await env.DB.prepare(
+  const saved = await env.DB.prepare(
     `UPDATE site_page_content
        SET draft_fields = ?, draft_version = ?, draft_updated_at = ?, draft_updated_by = ?
-     WHERE page = ?`
-  ).bind(JSON.stringify(fields), nextVersion, ts, email, key).run();
+     WHERE page = ? AND draft_version = ?`
+  ).bind(JSON.stringify(fields), nextVersion, ts, email, key, row.draft_version).run();
+  if (!saved.meta?.changes) return json({ error: 'This draft changed elsewhere. Reload before saving.', code: 'STALE_DRAFT' }, 409);
 
   return json({
     page: key,
@@ -232,16 +233,17 @@ export async function handleSitePagePublishPost(request, env, page, actorEmail) 
   const email = String(actorEmail || 'unknown').toLowerCase();
   const nextPublishedVersion = row.published_version + 1;
 
-  await env.DB.prepare(
+  const published = await env.DB.prepare(
     `UPDATE site_page_content
        SET published_fields = ?, published_version = ?, published_updated_at = ?, published_updated_by = ?,
            previous_published_fields = ?, previous_published_version = ?, previous_published_updated_at = ?
-     WHERE page = ?`
+     WHERE page = ? AND draft_version = ? AND published_version = ?`
   ).bind(
     JSON.stringify(fields), nextPublishedVersion, ts, email,
     row.published_fields, row.published_version, row.published_updated_at,
-    key
+    key, row.draft_version, row.published_version
   ).run();
+  if (!published.meta?.changes) return json({ error: 'This draft changed elsewhere. Reload before publishing.', code: 'STALE_DRAFT' }, 409);
 
   return json({
     page: key,
@@ -268,16 +270,17 @@ export async function handleSitePageRestorePreviousPost(request, env, page, acto
   const email = String(actorEmail || 'unknown').toLowerCase();
   const nextPublishedVersion = row.published_version + 1;
 
-  await env.DB.prepare(
+  const restored = await env.DB.prepare(
     `UPDATE site_page_content
        SET published_fields = ?, published_version = ?, published_updated_at = ?, published_updated_by = ?,
            previous_published_fields = ?, previous_published_version = ?, previous_published_updated_at = ?
-     WHERE page = ?`
+     WHERE page = ? AND published_version = ?`
   ).bind(
     row.previous_published_fields, nextPublishedVersion, ts, email,
     row.published_fields, row.published_version, row.published_updated_at,
-    key
+    key, row.published_version
   ).run();
+  if (!restored.meta?.changes) return json({ error: 'The published page changed elsewhere. Reload before restoring.', code: 'STALE_PUBLISHED' }, 409);
 
   return json({
     page: key,

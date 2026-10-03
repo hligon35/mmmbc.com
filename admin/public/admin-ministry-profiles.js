@@ -601,7 +601,7 @@
       if (file) updateDialogImagePreview(URL.createObjectURL(file), $('ministryProfileImageAlt')?.value);
     });
     window.addEventListener('admin:section-activated', (event) => {
-      if (event.detail?.sectionId === 'tab-ministries') loadEditor();
+      if (event.detail?.sectionId === 'tab-ministries' && !state.loaded) loadEditor();
     });
     if (document.querySelector('#tab-ministries:not([hidden])')) loadEditor();
   }
@@ -609,3 +609,4 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire, { once: true });
   else wire();
 }());
+

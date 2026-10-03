@@ -55,8 +55,8 @@ function buildPrintDocumentHtml(sizeKey, previewInnerHtml){
 
 (function(){
   'use strict';
-
-  const $ = (id) => document.getElementById(id);
+  function mount(root) {
+  const $ = (id) => root.querySelector('[data-tool-id="'+id+'"],#'+id);
   const state = {
     csrf: '',
     donors: [],
@@ -76,6 +76,7 @@ function buildPrintDocumentHtml(sizeKey, previewInnerHtml){
   async function fetchCsrf(){
     if (state.csrf) return state.csrf;
     const res = await fetch('/api/csrf', { credentials:'include' });
+    if (res.status === 401) window.location.assign('/cdn-cgi/access/login?redirect_url='+encodeURIComponent(window.location.href));
     if (!res.ok) throw new Error('Sign in is required.');
     const data = await res.json().catch(() => ({}));
     state.csrf = String(data.csrfToken || '');
@@ -89,6 +90,7 @@ function buildPrintDocumentHtml(sizeKey, previewInnerHtml){
     if (!['GET','HEAD'].includes(method)) headers['X-CSRF-Token'] = await fetchCsrf();
     const res = await fetch(url, Object.assign({}, opts, { method, headers, credentials:'include' }));
     const data = await res.json().catch(() => ({}));
+    if (res.status === 401) window.location.assign('/cdn-cgi/access/login?redirect_url='+encodeURIComponent(window.location.href));
     if (!res.ok) {
       const msg = typeof data?.error === 'string' ? data.error : String(data?.error?.message || 'Request failed.');
       throw new Error(msg);
@@ -383,7 +385,7 @@ function buildPrintDocumentHtml(sizeKey, previewInnerHtml){
     }
   }
 
-  (async function init(){
+  return (async function init(){
     bind();
     try {
       await searchDonors();
@@ -392,4 +394,8 @@ function buildPrintDocumentHtml(sizeKey, previewInnerHtml){
       setMsg(error.message || 'Unable to initialize the envelope designer.', 'error');
     }
   })();
+  }
+  window.MMEnvelopeDesigner = { mount };
+  if (document.body.getAttribute('data-page') === 'envelope-designer') mount(document);
 })();
+

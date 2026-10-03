@@ -9,6 +9,10 @@ import { handlePublicSiteContentGet } from './worker-site-editor.js';
 import { PERMISSIONS } from './admin-rbac.js';
 import { honeypotTripped, verifyTurnstile, checkRateLimit, clientIp } from './public-forms-security.js';
 import { sendResendEmail } from './email-resend.js';
+import { handleFinanceOperations } from './worker-finance-operations.js';
+import { handleWorkspaceRequest } from './worker-workspace.js';
+import { resolveRoute, legacyRoutes } from '../admin/public/workspace/modules.mjs';
+import { authenticateAdminRequest, authErrorResponse } from './admin-auth.js';
 
 const authStateCache = new WeakMap();
 
@@ -993,6 +997,29 @@ async function transformPublicHtml(response, pathname) {
 const applicationWorker = {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    const financeResponse = await handleFinanceOperations(request, env, ensureFinanceSchema);
+    if (financeResponse) return financeResponse;
+    const workspaceResponse = await handleWorkspaceRequest(request, env);
+    if (workspaceResponse) return workspaceResponse;
+    const shellRoute = resolveRoute(url.pathname, url.hash);
+    if (shellRoute && (request.method === 'GET' || request.method === 'HEAD')) {
+      try {
+        await authenticateAdminRequest(request, env, env.__ACCESS_JWKS ? { jwks: env.__ACCESS_JWKS } : {});
+      } catch (error) {
+        if (error.status !== 401) return authErrorResponse(error);
+        const login = new URL('/cdn-cgi/access/login', url.origin);
+        login.searchParams.set('redirect_url', url.href);
+        return new Response(null, { status: 302, headers: { Location: login.href, 'Cache-Control': 'no-store' } });
+      }
+      if (legacyRoutes[url.pathname]) return new Response(null, { status: 302,
+        headers: { Location: '/admin/' + shellRoute.module, 'Cache-Control': 'no-store' } });
+      const assetUrl = new URL('/admin/index.html', url.origin);
+      const headers = new Headers(request.headers);
+      headers.set('Accept-Encoding', 'identity');
+      const response = await env.ASSETS.fetch(new Request(assetUrl, { method: request.method, headers }));
+      return request.method === 'HEAD' ? response : transformAdminHtml(response);
+    }
 
     if (url.pathname === '/scan' || url.pathname.startsWith('/scan/') || url.pathname === '/scan.js') return json({error:'Scanning has been retired.'},410);
     const preferences=await handleNewsletterPreferences(request,env);

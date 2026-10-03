@@ -1,11 +1,13 @@
 (function(){
   'use strict';
-
-  const $ = (id) => document.getElementById(id);
-  const page = document.body.getAttribute('data-page') || '';
+  function mount(root, page, context = {}) {
+  const permissions = context.permissions;
+  const allowed = p => !permissions || permissions.includes(p);
+  const $ = (id) => root.querySelector('[data-tool-id="'+id+'"],#'+id);
 
   async function fetchCsrf(){
     const r = await fetch('/api/csrf', { credentials:'include' });
+    if (r.status === 401) window.location.assign('/cdn-cgi/access/login?redirect_url='+encodeURIComponent(window.location.href));
     if (!r.ok) throw new Error('Sign in is required.');
     const j = await r.json();
     return String(j.csrfToken || '');
@@ -19,6 +21,7 @@
     }
     const res = await fetch(url, Object.assign({}, opts, { headers, credentials:'include' }));
     const data = await res.json().catch(() => ({}));
+    if (res.status === 401) { window.location.assign('/cdn-cgi/access/login?redirect_url='+encodeURIComponent(window.location.href)); }
     if (!res.ok) {
       const message = typeof data?.error === 'string'
         ? data.error
@@ -65,7 +68,11 @@
     const summary = $('fundSummary');
     const form = $('fundForm');
     const transferForm = $('transferForm');
-    let funds = [];
+    if (!allowed('finance.funds_categories')) { if(form)form.hidden=true; if(transferForm)transferForm.hidden=true; }
+    const transfers = document.createElement('div'); transfers.className='card';
+    transfers.setAttribute('data-transfer-history','');
+    if(transferForm)transferForm.after(transfers);
+    let funds = [],transferKey=crypto.randomUUID(),transferSending=false;
 
     async function load(){
       const dash = await api('/api/finances/funds/dashboard', { method:'GET' });
@@ -78,12 +85,28 @@
           <div class="card"><strong>Savings and reserves</strong><div>${money(dash.summary.savingsAndReservesCents)}</div></div>
         `;
       }
+      const fundOptions = funds.filter(f=>f.active).map(f=>`<option value="${escapeHtml(f.id)}">${escapeHtml(f.fundName)}</option>`).join('');
+      for(const name of ['transferFrom','transferTo'])if($(name))$(name).innerHTML=`<option value="">Select fund</option>${fundOptions}`;
+      transfers.replaceChildren();
+      const title=document.createElement('h3'); title.textContent='Transfer history';transfers.append(title);
+      for(const t of dash.transfers || []) {
+        const row=document.createElement('p');
+        row.textContent=`${funds.find(f=>f.id===t.fromFundId)?.fundName || t.fromFundId} → ${funds.find(f=>f.id===t.toFundId)?.fundName || t.toFundId}: ${money(t.amountCents)} · ${t.status.replaceAll('_',' ')} · ${t.reason}`;
+        if(t.status==='pending_approval' && allowed('finance.funds_categories') && t.requestedBy!==context.user?.email) {
+          for(const decision of ['approved','declined']) {
+            const action=document.createElement('button');action.type='button';action.className='btn';action.textContent=decision==='approved'?'Approve transfer':'Decline transfer';
+            action.addEventListener('click',async()=>{action.disabled=true;try{await api('/api/finances/funds/transfers/'+encodeURIComponent(t.id)+'/review',{method:'POST',body:JSON.stringify({status:decision})});await load();}catch(e){setMsg(msg,e.message,'error');action.disabled=false;}});row.append(action);
+          }
+        }
+        transfers.append(row);
+      }
+      if (!(dash.transfers || []).length) {const empty=document.createElement('p');empty.textContent='No recorded transfers.';transfers.append(empty);}
       if (table) {
         table.innerHTML = funds.map((f) => `
           <tr>
-            <td>${f.fundName}</td>
-            <td>${f.fundType}</td>
-            <td>${f.restrictionStatus}</td>
+            <td>${escapeHtml(f.fundName)}</td>
+            <td>${escapeHtml(f.fundType)}</td>
+            <td>${escapeHtml(f.restrictionStatus)}</td>
             <td>${money(f.currentBalanceCents)}</td>
             <td>${money(f.availableBalanceCents)}</td>
             <td>${money(f.pendingDepositsCents)}</td>
@@ -94,7 +117,7 @@
       }
     }
 
-    if (form) {
+    if (form && allowed(page==='funds'?'finance.funds_categories':'finance.record')) {
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         try {
@@ -122,13 +145,16 @@
       });
     }
 
-    if (transferForm) {
+    if (transferForm && allowed('finance.funds_categories')) {
       transferForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if(transferSending)return;transferSending=true;
+        const submit=transferForm.querySelector('[type=submit]');if(submit)submit.disabled=true;
         try {
           await api('/api/finances/funds/transfers', {
             method:'POST',
             body: JSON.stringify({
+              idempotencyKey:transferKey,
               fromFundId: $('transferFrom').value,
               toFundId: $('transferTo').value,
               amount: $('transferAmount').value,
@@ -136,16 +162,16 @@
             })
           });
           setMsg(msg, 'Transfer request saved. If restricted funds are involved, Treasurer approval is required.', 'ok');
-          transferForm.reset();
+          transferForm.reset();transferKey=crypto.randomUUID();
           await load();
         } catch (err) {
           setMsg(msg, err.message, 'error');
-        }
+        }finally{transferSending=false;if(submit)submit.disabled=false;}
       });
     }
 
     await load();
-    const fundOptions = funds.map((f) => `<option value="${f.id}">${f.fundName}</option>`).join('');
+    const fundOptions = funds.map((f) => `<option value="${escapeHtml(f.id)}">${escapeHtml(f.fundName)}</option>`).join('');
     if ($('transferFrom')) $('transferFrom').innerHTML = `<option value="">Select fund</option>${fundOptions}`;
     if ($('transferTo')) $('transferTo').innerHTML = `<option value="">Select fund</option>${fundOptions}`;
   }
@@ -156,6 +182,7 @@
     const form = $('donorForm');
     const envMsg = $('donorEnvelopeMsg');
     const selectedInput = $('donorEnvelopeSelected');
+    if(!allowed('finance.record')) {if(form)form.hidden=true; for(const name of ['donorEnvelopeSaveBtn'])if($(name))$(name).hidden=true;}
     const envelopeEdit = $('donorEnvelopeNumberEdit');
     const envelopeReason = $('donorEnvelopeReason');
     const labelPreview = $('donorEnvelopeLabelPreview');
@@ -218,7 +245,7 @@
       });
     }
 
-    if (form) {
+    if (form && allowed(page==='funds'?'finance.funds_categories':'finance.record')) {
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         try {
@@ -290,6 +317,7 @@
     const out = $('reportOutput');
     const msg = $('reportMsg');
     if (!form) return;
+    if (!allowed('finance.statements_controls')) { form.hidden=true; api('/api/finances/reports/board').then(data=>{out.textContent=data.packages.length?JSON.stringify(data.packages,null,2):'No board report packages have been generated.';}).catch(e=>setMsg(msg,e.message,'error'));return; }
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
@@ -349,7 +377,7 @@
 
     function fundOptions(selectedValue){
       const opts = state.funds.map((f) => {
-        const label = `${f.fundName}${f.fundCode ? ` (${f.fundCode})` : ''}`;
+        const label = `${escapeHtml(f.fundName)}${f.fundCode ? ` (${f.fundCode})` : ''}`;
         const selected = String(f.id) === String(selectedValue || '') ? ' selected' : '';
         return `<option value="${escapeHtml(f.id)}"${selected}>${escapeHtml(label)}</option>`;
       }).join('');
@@ -836,6 +864,8 @@
       });
     }
 
+    if(!allowed('finance.record')) {root.querySelectorAll('form').forEach(f=>f.hidden=true);for(const name of ['collectionApproveBtn','collectionStartBtn','collectionUpdateBtn'])if($(name))$(name).hidden=true;}
+    if(!allowed('finance.statements_controls'))for(const name of ['collectionFinalizeBtn','collectionDepositForm','collectionReopenBtn','collectionVoidBtn'])if($(name))$(name).hidden=true;
     renderAllocations();
     await loadFunds();
     await loadBatches();
@@ -845,28 +875,6 @@
     async function load(){
       const data = await api('/api/finances/controls/dashboard', { method:'GET' });
       dash.textContent = JSON.stringify(data.dashboard, null, 2);
-    }
-
-    if (form) {
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        try {
-          await api('/api/finances/controls/collections', {
-            method:'POST',
-            body: JSON.stringify({
-              serviceDate: $('collectionDate').value,
-              amount: $('collectionAmount').value,
-              counters: String($('collectionCounters').value || '').split(',').map((x) => x.trim()).filter(Boolean),
-              attachment: $('collectionAttachment').value
-            })
-          });
-          setMsg(msg, 'Collection saved. Complete verification before posting.', 'ok');
-          form.reset();
-          await load();
-        } catch (err) {
-          setMsg(msg, err.message, 'error');
-        }
-      });
     }
 
     await load();
@@ -883,11 +891,11 @@
       const data = await api('/api/finances/clergy-housing', { method:'GET' });
       profiles = Array.isArray(data.profiles) ? data.profiles : [];
       if (list) {
-        list.innerHTML = profiles.map((p) => `<option value="${p.id}">${p.ministerName} (${p.compensationYear || 'Year not set'})</option>`).join('');
+        list.innerHTML = profiles.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.ministerName)} (${escapeHtml(p.compensationYear || 'Year not set')})</option>`).join('');
       }
     }
 
-    if (form) {
+    if (form && allowed(page==='funds'?'finance.funds_categories':'finance.record')) {
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         try {
@@ -945,7 +953,7 @@
     await load();
   }
 
-  (async () => {
+  return (async () => {
     try {
       if (page === 'funds') await initFunds();
       if (page === 'donors') await initDonors();
@@ -957,5 +965,10 @@
       if (sink) sink.textContent = err.message || 'Unable to load this page.';
     }
   })();
+  }
+  window.MMFinanceTools = { mount };
+  const page = document.body.getAttribute('data-page');
+  if (page) mount(document, page);
 })();
+
 

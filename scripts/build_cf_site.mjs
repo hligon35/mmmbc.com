@@ -97,6 +97,28 @@ async function mirrorAdmin() {
   html = html.replace('</body>', `${structureScriptTag}\n</body>`);
   await fs.writeFile(indexPath, html, 'utf8');
 
+  // Convert existing finance tools to repository-owned fragments. Their existing
+  // controllers mount against a scoped root in the shared application shell.
+  const tools = {
+    funds: 'finances_funds.html', donors: 'finances_donors.html',
+    controls: 'finances_controls.html', housing: 'finances_clergy_housing.html',
+    reports: 'finances_reports_board.html', envelopes: 'finance_envelope_designer.html'
+  };
+  const toolsDir = path.join(adminDest, 'workspace-tools');
+  await fs.mkdir(toolsDir, { recursive: true });
+  for (const [tool, filename] of Object.entries(tools)) {
+    const source = await fs.readFile(path.join(adminSrc, filename), 'utf8');
+    const main = source.match(/<main[^>]*>([\s\S]*?)<\/main>/)?.[1];
+    if (!main) throw new Error(`Missing finance tool body: ${filename}`);
+    const start = main.indexOf('<section');
+    const fragment = main.slice(start).replace(/<a\b[^>]*href="\/admin\/"[^>]*>Back<\/a>/g, '')
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, '');
+    const scoped = fragment.replace(/\bid="([^"]+)"/g, (_, id) => `data-tool-id="${id}" id="${tool}-${id}"`)
+      .replace(/\bfor="([^"]+)"/g, (_, id) => `for="${tool}-${id}"`)
+      .replace(/href="#([^"]+)"/g, (_, id) => `href="#${tool}-${id}"`);
+    await fs.writeFile(path.join(toolsDir, tool + '.html'), scoped);
+  }
+
 }
 
 async function main() {
@@ -114,4 +136,3 @@ main().catch((error) => {
   console.error(error?.stack || String(error));
   process.exitCode = 1;
 });
-

@@ -1307,7 +1307,7 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
     subTabId = '';
   }
   const currentPanel = document.querySelector('.tabPanel:not([hidden])');
-  if (currentPanel && currentPanel.id !== sectionId && !confirmUnsavedChanges()) {
+  if (currentPanel && currentPanel.id !== sectionId && !window.MMWorkspaceEnabled && !confirmUnsavedChanges()) {
     return;
   }
 
@@ -1344,7 +1344,7 @@ function activateMainSection(sectionId, { subTabId = '' } = {}) {
     'tab-settings': 'settings'
   };
   const nextHash = hashMap[sectionId];
-  if (nextHash) {
+  if (nextHash && !window.MMWorkspaceEnabled) {
     try { window.location.hash = nextHash; } catch { /* ignore */ }
   }
 
@@ -1545,7 +1545,12 @@ async function refreshAuthUI() {
   if (loggedIn) {
     csrfReady = fetchCsrfToken();
     await csrfReady;
-    await loadAll();
+    if (window.MMWorkspaceEnabled) {
+      window.MMWorkspaceSession = me;
+      window.dispatchEvent(new CustomEvent('admin:authenticated', { detail: me }));
+    } else {
+      await loadAll();
+    }
     if (canViewDiagnostics) {
       await loadAdminStorageHealth();
     }
@@ -1571,6 +1576,7 @@ function normalizeHash() {
 }
 
 function applyHashNavigation() {
+  if (window.MMWorkspaceEnabled) return;
   const h = normalizeHash();
   if (!h) {
     activateMainSection('tab-home');
@@ -6270,6 +6276,26 @@ async function loadAll() {
   applyPermissionVisibility(true);
 }
 
+// The unified shell loads a module only when it becomes visible. Existing forms
+// keep their original event handlers, APIs, and unsaved-change guards.
+const workspaceLoadedSections = new Set();
+window.MMWorkspaceLoadSection = async (panel) => {
+  if (workspaceLoadedSections.has(panel)) return;
+  const loaders = {
+    'tab-photos': () => loadGallery(),
+    'tab-content': () => Promise.all([loadAnnouncements(), loadBulletins()]),
+    'tab-events': () => loadEvents(),
+    'tab-finances': () => loadFinances(),
+    'tab-directory': () => window.AdminDirectory?.refresh(),
+    'tab-newsletter': () => Promise.all([loadSubscribers(), loadNewsletterRecords()]),
+    'tab-settings': () => loadSettings()
+  };
+  if (loaders[panel]) await loaders[panel]();
+  workspaceLoadedSections.add(panel);
+  applyPermissionVisibility(true);
+  document.getElementById(panel)?.querySelectorAll('form[id]').forEach(resetUnsavedBaseline);
+};
+
 function renderStorageHealthStatus(data) {
   const summary = $('adminStorageHealthSummary');
   const details = $('adminStorageHealthDetails');
@@ -8130,4 +8156,3 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('loginError').hidden = false;
   });
 });
-

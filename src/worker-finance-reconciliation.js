@@ -240,7 +240,7 @@ async function ensureSchema(env) {
   await maybeRun(envelopeColumns.has('transaction_kind'), "ALTER TABLE finance_collection_envelopes ADD COLUMN transaction_kind TEXT NOT NULL DEFAULT 'registered_envelope'");
 }
 
-async function resolveFinanceAccess(env, email) {
+async function resolveFinanceAccess(env, email, authenticatedRole) {
   const normalizedEmail = normalizeEmail(email);
   let role = 'administrator';
 
@@ -250,6 +250,8 @@ async function resolveFinanceAccess(env, email) {
     ).bind(normalizedEmail).first().catch(() => null);
     if (row?.role) role = normalizeText(row.role, 40).toLowerCase();
   }
+
+  if (authenticatedRole) role = authenticatedRole;
 
   const permissions = {
     canRead: true,
@@ -279,9 +281,7 @@ async function resolveFinanceAccess(env, email) {
     permissions.canManageEnvelopeCodes = true;
     permissions.canViewSensitiveChecks = true;
   } else if (role === 'auditor') {
-    permissions.canApprove = true;
-    permissions.canFinalize = true;
-    permissions.canViewSensitiveChecks = true;
+    // Auditors can read records but cannot approve or finalize collections.
   }
 
   return {
@@ -295,7 +295,7 @@ async function requireFinanceUser(env, user, { mutation = false, permission = 'c
   if (!user?.email) {
     return { error: financeError(401, 'UNAUTHORIZED', 'Sign-in is required for finance operations.') };
   }
-  const access = await resolveFinanceAccess(env, user.email);
+  const access = await resolveFinanceAccess(env, user.email, user.role);
   if (!access.permissions[permission]) {
     const message = mutation ? 'You do not have permission to change finance records.' : 'You do not have permission to access finance records.';
     return { error: financeError(403, 'FORBIDDEN', message) };
@@ -1873,4 +1873,5 @@ export async function maybeHandleFinanceReconciliationRequest(request, env, ctx,
 
   return financeError(404, 'NOT_FOUND', 'Finance endpoint not found.');
 }
+
 
