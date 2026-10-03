@@ -1,12 +1,14 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, '..');
 const dest = path.join(root, 'cf_site');
-const assetVersion = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+const structureSource = await fs.readFile(path.join(root, 'admin/public/admin-structure-overrides.js'));
+const assetVersion = createHash('sha256').update(structureSource).digest('hex').slice(0, 14);
 
 const rootFiles = [
   'index.html', 'robots.txt', 'sitemap.xml',
@@ -20,7 +22,6 @@ const rootFiles = [
 ];
 
 const rootDirs = ['Pages', 'Icons', 'ConImg', 'bulletins', 'rental'];
-const adminRemove = new Set(['login.html', 'login.js', 'login_legacy.html']);
 const structureScriptTag = `  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=${assetVersion}" defer></script>`;
 
 async function exists(target) {
@@ -83,10 +84,6 @@ async function mirrorAdmin() {
 
   await copyDirRecursive(adminSrc, adminDest);
 
-  for (const fileName of adminRemove) {
-    const target = path.join(adminDest, fileName);
-    if (await exists(target)) await fs.rm(target, { force: true });
-  }
 
   const maybeServer = path.join(adminDest, 'server.js');
   if (await exists(maybeServer)) await fs.rm(maybeServer, { force: true });

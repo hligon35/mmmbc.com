@@ -17,7 +17,9 @@
     "import:admins": "node ./scripts/import_admin_roster.mjs",
     "verify:integrations": "node ./scripts/verify_local_integrations.mjs",
     "verify:integrations:target": "node ./scripts/verify_integrations.mjs",
-    "deploy": "npm run build:cf && npx wrangler deploy --env production"
+    "deploy": "npm run build:cf && npx wrangler deploy --env production",
+    "build": "npm run build:cf",
+    "prepare": "npm run build:cf"
   },
   "dependencies": {
     "jose": "^6.2.12"

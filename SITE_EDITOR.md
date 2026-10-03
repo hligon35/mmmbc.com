@@ -148,7 +148,7 @@ also add its default value to the matching page's entry in
    — this single map drives both the launcher grid and the overlay's page tabs.
 3. Mark up the new public HTML page with `data-cms-*` attributes and include
    `<script src="site-content-loader.js" defer data-cms-page="<key>"></script>`.
-4. Add the page to `scripts/build_cf_site.ps1`'s explicit root-level `$files`
+4. Add the page to `scripts/build_cf_site.mjs`'s explicit root-level `rootFiles`
    list if it's a new top-level file (pages under `Pages/` are already mirrored
    via existing directory copy rules — check the script before assuming).
 
@@ -298,3 +298,4 @@ Collection fields render their items differently depending on the schema:
 13. Tab through a page with only the keyboard (no mouse) → verify every
     editable field and item action is reachable via Tab and activates with
     Enter/Space.
+

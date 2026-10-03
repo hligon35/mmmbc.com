@@ -18,3 +18,5 @@ Never test destructive admin, finance, bulk-email, or real-payment behavior agai
 
 
 The owner performs the final mmmbc.com domain switch after validation. See launch-readiness-report.md for required secrets and migration prerequisites.
+
+`cf_site/` is generated output and is no longer committed. For Workers Builds, use `npm run build` as the build command and `npm run deploy` as the deploy command. A normal `npm ci` generates assets via `prepare`; if installing with `--ignore-scripts`, explicitly build before deploying.

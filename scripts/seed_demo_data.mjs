@@ -264,7 +264,7 @@ function buildData({ count = DEFAULT_COUNT, asOf = new Date().toISOString() } = 
     r2: [
       { key: 'site/pastorHarvey.jpeg', source: 'pastorHarvey.jpeg', contentType: 'image/jpeg' },
       ...gallery.map((item) => ({ key: item.file_key, source: 'pastorHarvey.jpeg', contentType: 'image/jpeg' })),
-      ...bulletins.map((item) => ({ key: item.file_key, source: 'Facility-Rental-Non-Members.pdf', contentType: 'application/pdf' }))
+      ...bulletins.map((item) => ({ key: item.file_key, source: 'scripts/fixtures/demo-bulletin.pdf', contentType: 'application/pdf' }))
     ]
   };
 }
@@ -528,3 +528,4 @@ async function main(argv = process.argv.slice(2)) {
 
 const invoked = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 if (invoked) main().catch((error) => { console.error(error?.stack || String(error)); process.exitCode = 1; });
+

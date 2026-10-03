@@ -33,3 +33,10 @@ npm run deploy
 ```
 
 The preview configuration intentionally contains non-production placeholder D1 IDs until isolated preview resources are provisioned.
+
+
+## Source and generated output
+
+Public pages, approved asset folders, and `admin/public/` are canonical. `cf_site/` is generated and ignored by Git. `npm ci` runs the asset build through `prepare`; `npm run build` explicitly rebuilds it. Wrangler CLI also has a custom build command. In Cloudflare Workers Builds, configure **Build command: `npm run build`**, **Deploy command: `npm run deploy`**, and repository root as the working directory. Do not deploy an unbuilt checkout with lifecycle scripts disabled.
+
+See [cleanup notes](docs/repository-cleanup.md) for removed files and uncertain candidates retained.

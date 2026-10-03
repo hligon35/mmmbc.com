@@ -229,5 +229,36 @@
 				"NEWSLETTER_TIMEZONE": "America/Chicago"
 			}
 		}
+	},
+	"build": {
+		"command": "npm run build:cf",
+		"watch_dir": [
+			"index.html",
+			"Pages",
+			"admin/public",
+			"Icons",
+			"ConImg",
+			"rental",
+			"static-style.css",
+			"theme.css",
+			"script.js",
+			"schedule_app.js",
+			"site-content-loader.js",
+			"announcements_ticker.js",
+			"bulletins_widget.js",
+			"public-form-utils.js",
+			"facility_rental_form_shared.js",
+			"_headers",
+			"profiles.json",
+			"announcements.json",
+			"bulletins.json",
+			"documents.json",
+			"gallery.json",
+			"livestream.json",
+			"schedule.json",
+			"site-settings.json",
+			"robots.txt",
+			"sitemap.xml"
+		]
 	}
 }

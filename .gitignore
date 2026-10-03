@@ -24,3 +24,13 @@ Thumbs.db
 
 .dev.vars
 .dev.vars.*
+
+
+# Deployment output is rebuilt from canonical sources
+cf_site/
+
+# Temporary exports and diagnostic artifacts
+*.tmp
+*.bak
+r2-test*.txt
+scripts/gallery_variant_audit_latest.json

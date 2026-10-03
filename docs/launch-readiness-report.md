@@ -1,6 +1,6 @@
 # Launch readiness implementation
 
-Implemented October 2, 2026. General legacy-file cleanup is paused pending the owner's review.
+Implemented October 2, 2026. The owner authorized repository cleanup on October 3; see repository-cleanup.md.
 
 ## Implemented behavior
 
@@ -29,6 +29,6 @@ Worker, admin UI, and development-server guard tests pass. Fresh admin and site 
 6. Purge previously cached gallery media after deployment; old cached public objects cannot be recalled by a source change. Test hidden media and authorized admin access, public forms/inbox, newsletter consent/scheduling, partial delivery recovery, and mobile layout in preview.
 7. The owner performs the final domain switch. Current routes, public URLs, canonical tags, robots and sitemap deliberately use `mmmbc.alphazonelabs.com`. Change those together with Cloudflare routes, Access applications, Turnstile hostnames, redirects, and DNS when ready. Existing profile images referenced from mmmbc.com/wp-content must remain available or be migrated before retiring the WordPress host.
 
-## Cleanup hold
+## Cleanup completed
 
-Legacy backend files, old PDFs, unused icons/assets, duplicated generated output, and obsolete documentation are not being removed in this implementation. Scanner-specific retirement is the exception explicitly requested by the owner. Review cleanup candidates before the next pass.
+Confirmed obsolete assets, old rental PDFs, stale scaffold/scanner notes, temporary files, committed local runtime state, and generated deployment copies were removed from the tracked repository. The source build recreates deployment output. Uncertain legacy server/data and migration candidates remain listed in repository-cleanup.md.

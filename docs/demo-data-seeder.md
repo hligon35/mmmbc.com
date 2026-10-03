@@ -40,3 +40,6 @@ Use `--preserve-page-content` when existing CMS rows must not be replaced. Use
 `--clean --apply` to remove the generated database records. Production seeding
 is blocked unless `MMBC_ALLOW_REMOTE_DEMO_SEED=1` is explicitly set, and public
 form submission is always blocked for the production target.
+
+
+R2 demo bulletin uploads use `scripts/fixtures/demo-bulletin.pdf`, a synthetic sample. Retired rental agreements are no longer required for demo setup.
