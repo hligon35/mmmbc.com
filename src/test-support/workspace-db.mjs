@@ -4,8 +4,10 @@ export function sqliteD1(migrations) {
   const sqlite=new DatabaseSync(':memory:');
   for(const file of fs.readdirSync(migrations).filter(f=>f.endsWith('.sql')).sort())sqlite.exec(fs.readFileSync(migrations+'/'+file,'utf8'));
   const db={sqlite,prepare(sql) {
-    const stmt=sqlite.prepare(sql);let args=[];
-    const statement={bind(...values){args=values;return statement;},async first(){return stmt.get(...args)||null;},async all(){return {results:stmt.all(...args)};},async run(){return {meta:{changes:Number(stmt.run(...args).changes)}};}};
+    let args=[];
+    // D1 can batch CREATE TABLE followed by statements that use that new table.
+    // Prepare against SQLite at execution time so the fixture has the same behavior.
+    const statement={bind(...values){args=values;return statement;},async first(){return sqlite.prepare(sql).get(...args)||null;},async all(){return {results:sqlite.prepare(sql).all(...args)};},async run(){return {meta:{changes:Number(sqlite.prepare(sql).run(...args).changes)}};}};
     return statement;
   },async batch(statements){sqlite.exec('BEGIN');try{const out=[];for(const s of statements)out.push(await s.run());sqlite.exec('COMMIT');return out;}catch(e){sqlite.exec('ROLLBACK');throw e;}}};
   return db;

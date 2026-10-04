@@ -108,43 +108,10 @@ try {
     await page.goBack();await page.locator('.ws-rental-context').waitFor();
     await page.goForward();await page.locator('.ws-calendar').waitFor();
   });
-  await check('reports export and first-class finance tools',async()=>{
-    await page.locator('[data-module=reports]').click();await page.locator('.ws-report-section').first().waitFor();
+  await check('operational reports export without finance navigation',async()=>{
+    await page.goto(origin+'/admin/reports');await page.locator('.ws-report-section').first().waitFor();
     const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export CSV',exact:true}).click();assert.match((await download).suggestedFilename(),/church-operations/);
-    await page.locator('[data-module=finances]').click();await page.locator('.ws-tool-links').waitFor();
-    await page.locator('.ws-tool-links').getByRole('link',{name:'Funds',exact:true}).click();await page.locator('[data-tool-id=fundForm]').waitFor();
-    await page.locator('[data-tool-id=fundName]').fill('Unsaved fund');
-    await page.locator('[data-module=reports]').click();await page.locator('.ws-report-section').first().waitFor();
-    await page.goto(origin+'/admin/finances_funds.html');assert.match(page.url(),/\/admin\/finances\/funds$/);
-    await page.locator('[data-tool-id=fundForm]').waitFor();
-  });
-  await check('fund creation and finance operations persist through Worker APIs',async()=>{
-    await page.locator('[data-tool-id=fundName]').fill('Browser Operating Fund');
-    await page.locator('[data-tool-id=fundOpening]').fill('100.00');
-    await page.locator('[data-tool-id=fundForm]').getByRole('button',{name:'Save Fund',exact:true}).click();
-    await page.locator('[data-tool-id=fundMsg]').filter({hasText:'Fund saved.'}).waitFor();
-    await page.locator('[data-tool-id=fundTableBody]').getByRole('cell',{name:'Browser Operating Fund',exact:true}).waitFor();
-    assert.equal(env.DB.sqlite.prepare('SELECT count(*) AS n FROM finance_fund_profiles').get().n,1);
-    for(const route of ['controls','clergy-housing','reports/board','envelopes']){
-      await page.goto(origin+'/admin/finances/'+route);
-      await page.locator('.ws-finance-tool').waitFor();
-      if(route==='controls')await page.locator('[data-tool-id=controlsDash]').filter({hasText:'collectionsByStatus'}).waitFor();
-      if(route==='clergy-housing'){
-        await page.locator('[data-tool-id=ministerName]').fill('Browser Minister');
-        await page.locator('[data-tool-id=ministerYear]').fill('2026');
-        await page.locator('[data-tool-id=housingProfileForm]').getByRole('button',{name:'Save Housing Profile',exact:true}).click();
-        await page.locator('[data-tool-id=housingMsg]').filter({hasText:'Housing profile saved.'}).waitFor();
-        assert.equal(env.DB.sqlite.prepare('SELECT count(*) AS n FROM finance_housing_profiles').get().n,1);
-      }
-      if(route==='reports/board'){
-        await page.locator('[data-tool-id=reportDate]').fill('2026-10-03');
-        await page.locator('[data-tool-id=reportForm]').getByRole('button',{name:'Generate Board Report Package',exact:true}).click();
-        await page.locator('[data-tool-id=reportMsg]').filter({hasText:'Board report package generated.'}).waitFor();
-        assert.equal(env.DB.sqlite.prepare('SELECT count(*) AS n FROM finance_board_report_packages').get().n,1);
-      }
-      if(route==='envelopes')await page.locator('[data-tool-id=envelopeDesignerPreview]').waitFor();
-      assert.equal(await page.locator('[data-tool-id=pageError]').innerText().catch(()=>''),'');
-    }
+    assert.equal(await page.locator('[data-module=finances],[data-module=giving]').count(),0);
   });
   await check('site editor preserves page edits, saves, publishes, and restores',async()=>{
     await page.goto(origin+'/admin/site-editor');
@@ -166,12 +133,12 @@ try {
     const failures=[];
     const watch=response=>{if(new URL(response.url()).pathname.startsWith('/api/')&&response.status()>=500)failures.push(response.url());};
     page.on('response',watch);
-    for(const [route,title]of [['directory','Church Directory'],['ministries','Ministry Profiles'],['leadership','Leadership & Staff'],['newsletter','Newsletter'],['giving','Giving / Donors'],['access','Access Management'],['settings','Settings & Support'],['announcements','Announcements & Bulletins'],['photos','Photos']]){
+    for(const [route,title]of [['directory','Church Directory'],['ministries','Ministry Profiles'],['leadership','Leadership & Staff'],['newsletter','Newsletter'],['access','Access Management'],['settings','Settings & Support'],['announcements','Announcements & Bulletins'],['photos','Photos']]){
       await page.locator('[data-module="'+route+'"]').click();
       await page.waitForFunction(title=>document.title===title+' · Mount Moriah',title);
       assert.equal(await page.locator('.ws-shell').count(),1);
       if(route==='ministries'){
-        await page.waitForFunction(()=>document.getElementById('ministriesPageTitle')?.value);
+        await page.waitForFunction(()=>document.getElementById('ministriesVersionSummary')?.textContent.startsWith('Draft v') && document.querySelector('[data-profile-page=ministries]')?.getAttribute('aria-selected')==='true');
         await page.locator('#ministriesPageTitle').fill('Browser cached ministry heading');
         await page.locator('[data-module=mail]').click();await page.locator('.ws-message').first().waitFor();
         await page.locator('[data-module=ministries]').click();

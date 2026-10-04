@@ -67,8 +67,8 @@ test('generated account numbers use the non-PII MM format', () => {
 test('manual imported account number is preserved on contact create', async () => {
   const { env, runLog } = createMockEnv(({ sql, args, kind }) => {
     if (sql.includes('WHERE account_number = ?') && kind === 'first') return null;
-    if (sql.includes('SELECT * FROM finance_donors') && kind === 'first') return null;
-    if (sql.includes('SELECT * FROM finance_donors') && kind === 'all') return { results: [] };
+
+
     return null;
   });
 
@@ -116,13 +116,11 @@ test('duplicate account number rejection returns a clear conflict', async () => 
   assert.equal(payload.error, 'Unable to save contact.');
 });
 
-test('contact update synchronizes a linked finance donor account number', async () => {
+test('contact update preserves directory account number without finance storage', async () => {
   const { env, runLog } = createMockEnv(({ sql, kind }) => {
     if (sql.includes('SELECT id, created_at FROM directory_contacts')) return { id: 'contact-1', created_at: '2026-08-01T00:00:00.000Z' };
     if (sql.includes('WHERE account_number = ?') && kind === 'first') return null;
-    if (sql.includes('SELECT * FROM finance_donors WHERE directory_contact_id')) {
-      return { id: 'donor-1', directory_contact_id: 'contact-1', created_at: '2026-08-01T00:00:00.000Z' };
-    }
+
     return null;
   });
 
@@ -141,5 +139,6 @@ test('contact update synchronizes a linked finance donor account number', async 
 
   const res = await handleDirectoryContactUpdate(req, env, { email: 'admin@example.com', permissions: { canManageContacts: true } }, 'contact-1');
   assert.equal(res.status, 200);
-  assert.equal(runLog.some((entry) => entry.sql.includes('UPDATE finance_donors')), true);
+  assert.equal(runLog.some((entry) => entry.sql.includes('finance_')), false);
+  assert.equal(runLog.some((entry) => entry.sql.includes('UPDATE directory_contacts')), true);
 });

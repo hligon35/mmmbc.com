@@ -1,9 +1,10 @@
 # Mount Moriah admin workspace
 
 The authenticated `/admin` application opens the Mailbox. Modules and deep links
-are registered in `admin/public/workspace/modules.mjs`. Existing church editors
-and scoped finance controllers run inside the same shell. The retired standalone
-finance dashboard and scanner remain retired.
+are registered in `admin/public/workspace/modules.mjs`. Mailbox, rentals, calendar,
+directory, ministry and leadership profiles, newsletter, operational reports, Site
+Editor, access management, and support run inside the same shell. The entire
+financial dashboard and its tooling are removed.
 
 ## Deployment
 
@@ -40,14 +41,36 @@ Accepted means accepted by the provider, not confirmed delivered. Failed and
 uncertain sends remain visible with Retry. Ambiguous sends outside the provider
 idempotency window require checking Resend before composing a new message.
 
-Reports use date-bounded stored data and role checks. An auditor can read finance
-reports but cannot export finance data. CSV export escapes spreadsheet formulas.
-Finance tools retain their backend role restrictions. Admin migration 0011 adds
-fund profiles, transfer reservations and independent approvals, housing records,
-and stored board report packages alongside the existing ledger. These APIs now
-run on D1 rather than depending on the legacy local Express server. The Site Editor uses the
-existing draft/version/publish/media APIs and preserves unsaved page fields in the
-current administrator's browser session.
+Reports use date-bounded submissions, rental, outbound-message, and newsletter
+records with role checks. CSV export escapes spreadsheet formulas. Finance
+entries, funds and transfers, reconciliation, controls, clergy housing, envelopes,
+contribution statements, board reports, and their API routes are removed. Removed
+URLs have no shell registrations or backend handlers and return 404.
+
+The directory keeps its own account numbers and newsletter synchronization; it
+never reads or writes finance donor records. Event printing has its own header and
+print body. The Site Editor keeps the existing draft/version/publish/media APIs
+and preserves unsaved fields in the current administrator's browser session.
+
+`/give` remains the independent Zeffy redirect. The existing optional Stripe
+checkout, subscription/webhook records, and signature validation remain isolated
+in `worker-giving.js`, disabled unless `GIVING_PROVIDER=stripe`. Giving does not
+require ledger, donor, fund, collection, or reconciliation tables. The former
+admin Giving / Donors screen is removed because it depended on those tables.
+
+No `finance.*` permissions are advertised or granted. Stored `finance_entry` and
+`treasurer` role keys remain compatible with existing D1 users but now grant only
+their existing directory and support permissions, labeled Directory Assistant and
+Directory Manager. `auditor` retains support access only, labeled Support Viewer.
+No existing user receives broader website, mailbox, or administrator access.
+Administrators still manage users and roles through Access Management.
+
+Fresh schemas and migrations create no finance tables. Historical slots 0005 and
+0011 are no-ops; 0006 retains only directory account-number setup. Filenames remain
+stable for existing migration journals. Already-applied finance tables and real
+historical records are left untouched and unused; this change does not run DROP or
+DELETE against production data. Site migration 0005 remains required for mailbox
+and rental state. Apply the remaining migrations through the normal process.
 
 ## App support
 

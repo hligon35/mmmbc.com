@@ -1,7 +1,7 @@
 import {modules,canOpen,resolveRoute,routeUrl,legacyRoutes} from './modules.mjs';
 import {el,icon,button,api,showError} from './shared.mjs';
 import {Mailbox} from './mailbox.mjs';
-import {calendar,reports,editor,financeTool} from './views.mjs';
+import {calendar,reports,editor} from './views.mjs';
 
 let started=false;
 async function start(session) {
@@ -33,7 +33,7 @@ async function start(session) {
   searchForm.hidden=!mailbox;
   const signout=()=>{if(confirmUnsavedChanges())location.assign('/api/auth/logout');};
   const header=el('header',{class:'ws-header'},toggle,el('div',{class:'ws-brand'},el('img',{src:'/ConImg/MtMoriahLogo-1.png',alt:'Mount Moriah logo',width:'48',height:'48'}),el('div',{},el('strong',{text:'Mount Moriah'}),el('span',{text:'Church Administration'}))),searchForm,
-    el('div',{class:'ws-account'},el('span',{class:'ws-avatar',text:name.split(/[\s@.]+/).filter(Boolean).slice(0,2).map(s=>s[0]).join('').toUpperCase()}),el('div',{class:'ws-account-name'},el('strong',{text:name}),el('small',{text:session.user.role.replaceAll('_',' ')})),button('Sign out',signout,{symbol:'logout'})));
+    el('div',{class:'ws-account'},el('span',{class:'ws-avatar',text:name.split(/[\s@.]+/).filter(Boolean).slice(0,2).map(s=>s[0]).join('').toUpperCase()}),el('div',{class:'ws-account-name'},el('strong',{text:name}),el('small',{text:session.roles?.find(r=>r.key===session.user.role)?.label || window.formatUserRoleLabel?.(session.user.role) || session.user.role.replaceAll('_',' ')})),button('Sign out',signout,{symbol:'logout'})));
   drawer.append(el('p',{class:'ws-eyebrow',text:'YOUR WORKSPACE'}),el('h2',{text:'Mount Moriah'}));
   if(mailbox&&permissions.includes('submissions.manage'))drawer.append(button('New Message',()=>mailbox.compose(),{symbol:'add',primary:true}));
   const nav=el('nav',{'aria-label':'Church operations'});
@@ -53,9 +53,6 @@ async function start(session) {
   drawer.append(button('Sign out',signout,{symbol:'logout',class:'ws-button ws-drawer-signout'}));
   shell.append(header,drawer,canvas,back,toast);dashboard.append(shell);canvas.append(oldLayout);
   oldLayout.classList.add('ws-legacy-workarea');
-  const financeLinks=el('nav',{class:'ws-tool-links','aria-label':'Finance tools'},...allowed.filter(m=>m.parent==='finances'||m.id==='giving').map(m=>el('a',{href:routeUrl(m.id),onclick:e=>{e.preventDefault();navigate(m.id);},text:m.label})));
-  document.getElementById('tab-finances').prepend(financeLinks);
-
   async function navigate(id,key='',params={},historyMode='push') {
     const module=allowed.find(m=>m.id===id)||allowed[0];if(!module)return;
     // Module roots stay mounted, so changing modules preserves form values.
@@ -72,12 +69,12 @@ async function start(session) {
         oldLayout.hidden=false;
         const panel=params.editEvents?'tab-events':module.panel;
         activateMainSection(panel);
-        if(module.profile){await new Promise(resolve=>setTimeout(resolve,0));document.querySelector('[data-profile-page="'+module.profile+'"]')?.click();}
+        if(module.profile) await window.MMWorkspaceLoadProfiles(module.profile);
         await window.MMWorkspaceLoadSection(panel);
       } else {
         let instance=instances.get(module.id);
         if(!instance) {
-          instance=module.view==='mail'?{root:mailbox.root,open:r=>mailbox.open(r)}:module.view==='calendar'?calendar(ctx):module.view==='reports'?reports(ctx):module.view==='editor'?editor(ctx):await financeTool(ctx,module);
+          instance=module.view==='mail'?{root:mailbox.root,open:r=>mailbox.open(r)}:module.view==='calendar'?calendar(ctx):module.view==='reports'?reports(ctx):editor(ctx);
           instances.set(module.id,instance);canvas.append(instance.root);
         }
         if(seq!==navSequence)return;

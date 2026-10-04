@@ -6,27 +6,15 @@ export const modules = Object.freeze([
   {id:'ministries',label:'Ministry Profiles',icon:'groups',permissions:['settings.manage'],panel:'tab-ministries',profile:'ministries'},
   {id:'leadership',label:'Leadership & Staff',icon:'badge',permissions:['settings.manage'],panel:'tab-ministries',profile:'leadership'},
   {id:'newsletter',label:'Newsletter',icon:'campaign',permissions:['newsletter.view'],panel:'tab-newsletter'},
-  {id:'finances',label:'Finances',icon:'account_balance',permissions:['finance.view'],panel:'tab-finances'},
-  {id:'giving',label:'Giving / Donors',icon:'volunteer_activism',permissions:['finance.view'],view:'tool',tool:'donors'},
-  {id:'reports',label:'Reports',icon:'bar_chart',permissions:['submissions.view','newsletter.view','finance.reports_receipts'],view:'reports'},
+  {id:'reports',label:'Reports',icon:'bar_chart',permissions:['submissions.view','newsletter.view'],view:'reports'},
   {id:'site-editor',label:'Site Editor',icon:'edit_note',permissions:['settings.manage'],view:'editor'},
   {id:'announcements',label:'Announcements & Bulletins',icon:'feed',permissions:['announcements.view'],panel:'tab-content'},
   {id:'photos',label:'Photos',icon:'photo_library',permissions:['photos.view'],panel:'tab-photos'},
   {id:'access',label:'Access Management',icon:'admin_panel_settings',permissions:['users.manage'],panel:'tab-settings'},
   {id:'settings',label:'Settings & Support',icon:'settings',permissions:['support.send'],panel:'tab-support'},
-  {id:'finances/funds',label:'Funds',icon:'savings',permissions:['finance.view'],view:'tool',tool:'funds',parent:'finances'},
-  {id:'finances/controls',label:'Controls & Reconciliation',icon:'fact_check',permissions:['finance.view'],view:'tool',tool:'controls',parent:'finances'},
-  {id:'finances/clergy-housing',label:'Clergy Housing',icon:'home',permissions:['finance.statements_controls'],view:'tool',tool:'housing',parent:'finances'},
-  {id:'finances/envelopes',label:'Envelope Designer',icon:'mail_outline',permissions:['finance.view'],view:'tool',tool:'envelopes',parent:'finances'},
-  {id:'finances/reports/board',label:'Board Reports',icon:'summarize',permissions:['finance.reports_receipts'],view:'tool',tool:'reports',parent:'finances'}
 ]);
 export const canOpen = (module,permissions) => module.permissions.some(p=>permissions.includes(p));
-export const legacyRoutes = Object.freeze({
-  '/admin/finances_funds.html':'finances/funds', '/admin/finances_donors.html':'giving',
-  '/admin/finances_controls.html':'finances/controls', '/admin/finances_clergy_housing.html':'finances/clergy-housing',
-  '/admin/finance_envelope_designer.html':'finances/envelopes', '/admin/finances_reports_board.html':'finances/reports/board',
-  '/admin/finances/donors':'giving'
-});
+export const legacyRoutes = Object.freeze({});
 export function resolveRoute(path,hash='') {
   const normalized=path.replace(/\/$/,'');
   if(legacyRoutes[normalized])return {module:legacyRoutes[normalized],key:''};
@@ -37,7 +25,7 @@ export function resolveRoute(path,hash='') {
   const id=normalized.replace(/^\/admin\/?/,'');
   if(modules.some(m=>m.id===id))return {module:id,key:''};
   if(['','index.html'].includes(id)) {
-    const aliases={home:'mail',submissions:'mail',events:'calendar',content:'announcements',settings:'access',support:'settings',finance:'finances'};
+    const aliases={home:'mail',submissions:'mail',events:'calendar',content:'announcements',settings:'access',support:'settings'};
     const old=hash.replace(/^#/,'');
     return {module:aliases[old] || (modules.some(m=>m.id===old)?old:'mail'),key:''};
   }

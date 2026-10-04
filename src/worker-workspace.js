@@ -224,17 +224,9 @@ async function reports(env,url,permissions) {
       WHERE r.created_at>=? AND r.created_at<? GROUP BY COALESCE(w.status,'pending')`).bind(from,end).all()).results;
   }
   if(permissions.includes('newsletter.view'))data.sections.newsletter=(await env.DB.prepare('SELECT status,COUNT(*) AS count,SUM(sent_count) AS acceptedCount FROM newsletter_records WHERE created_at>=? AND created_at<? GROUP BY status').bind(from,end).all()).results;
-  if(permissions.includes('finance.reports_receipts')) {
-    // The original finance API adds workflow columns on first use. Fresh
-    // databases still have the initial ledger shape until that API is opened.
-    const columns=(await env.DB.prepare('PRAGMA table_info(finance_entries)').all()).results;
-    const postedOnly=columns.some(c=>c.name==='status') ? " AND COALESCE(status,'posted')<>'voided'" : '';
-    data.sections.finance=(await env.DB.prepare('SELECT type,COUNT(*) AS count,SUM(amount_cents) AS amountCents FROM finance_entries WHERE entry_date>=? AND entry_date<=?'+postedOnly+' GROUP BY type').bind(from,to).all()).results;
-  }
   if(url.searchParams.get('format')==='csv') {
-    if(data.sections.finance && !permissions.includes('finance.export')) delete data.sections.finance;
-    const lines=[['Module','Type','Status','Count','Amount (cents)','Accepted by provider'].map(csvCell).join(',')];
-    for(const [section,rows] of Object.entries(data.sections))for(const row of rows)lines.push([section,row.type,row.status,row.count,row.amountCents,row.acceptedCount].map(csvCell).join(','));
+    const lines=[['Module','Type','Status','Count','Accepted by provider'].map(csvCell).join(',')];
+    for(const [section,rows] of Object.entries(data.sections))for(const row of rows)lines.push([section,row.type,row.status,row.count,row.acceptedCount].map(csvCell).join(','));
     return new Response(lines.join('\r\n'),{headers:{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="church-operations-'+from+'.csv"','Cache-Control':'no-store'}});
   }
   return json(data);
@@ -247,7 +239,7 @@ export async function handleWorkspaceRequest(request,env) {
     const session=await authenticateAdminRequest(request,env,env.__ACCESS_JWKS?{jwks:env.__ACCESS_JWKS}:{});
     const {user,permissions}=session,actor=user.email;
     if(path.includes('/workspace/reports')) {
-      requireAnyPermission(user,['submissions.view','newsletter.view','finance.reports_receipts']);
+      requireAnyPermission(user,['submissions.view','newsletter.view']);
       if(request.method!=='GET')return json({error:'Method not allowed.'},405);
       return await reports(env,url,permissions);
     }

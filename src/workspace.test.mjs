@@ -15,8 +15,8 @@ test('mailbox authenticates, rejects inactive users, and preserves role boundari
   assert.equal((await call(env,'/api/admin/mail/items')).status,403);
   const auditor=workspaceEnv('auditor');
   assert.equal((await call(auditor,'/api/admin/mail/items')).status,403);
-  assert.equal((await call(auditor,'/api/admin/workspace/reports')).status,200);
-  assert.equal((await call(auditor,'/api/admin/workspace/reports?format=csv')).status,200);
+  assert.equal((await call(auditor,'/api/admin/workspace/reports')).status,403);
+  assert.equal((await call(auditor,'/api/admin/workspace/reports?format=csv')).status,403);
 });
 test('paged lists search, filter, sort, unread and star on separate metadata; delete/restore preserve sources',async()=>{
   const env=workspaceEnv();
@@ -88,20 +88,20 @@ test('rental decisions retain source delivery status, guard versions and reject 
   assert.equal(env.SITE_DB.sqlite.prepare("SELECT status FROM facility_rental_requests WHERE id='rent-a'").get().status,'received');
   const schedule=await(await call(env,'/api/admin/workspace/schedule?from=2026-10-01&to=2026-10-31')).json();assert.equal(schedule.rentals.length,3);assert.equal(schedule.rentals[0].facilities[0],'Fellowship Hall');
 });
-test('reports use bounded real data and enforce finance export restrictions',async()=>{
+test('reports use bounded operational data and enforce role access',async()=>{
   const env=workspaceEnv();let response=await call(env,'/api/admin/workspace/reports?from=2026-10-01&to=2026-10-31');
-  const data=await response.json();assert.equal(data.sections.submissions.reduce((n,r)=>n+r.count,0),4);assert.ok(data.sections.finance);
+  const data=await response.json();assert.equal(data.sections.submissions.reduce((n,r)=>n+r.count,0),4);assert.equal(data.sections.finance,undefined);
   response=await call(env,'/api/admin/workspace/reports?from=2026-10-01&to=2026-10-31&format=csv');assert.match(await response.text(),/"facility_rental"/);
-  const auditor=workspaceEnv('auditor');const csv=await(await call(auditor,'/api/admin/workspace/reports?format=csv')).text();assert.doesNotMatch(csv,/"finance"/);
+  const auditor=workspaceEnv('auditor');assert.equal((await call(auditor,'/api/admin/workspace/reports?format=csv')).status,403);
   assert.equal((await call(env,'/api/admin/workspace/reports?from=2020-01-01&to=2026-10-31')).status,400);
   assert.equal(csvCell('=HYPERLINK("evil")'),'"\'=HYPERLINK(""evil"")"');assert.equal(escapeHtml('<img>'),'&lt;img&gt;');
 });
 test('deep links resolve modules and legacy routes without resurrecting retired dashboard',()=>{
   assert.deepEqual(resolveRoute(routeUrl('mail','contact:one')),{module:'mail',key:'contact:one'});
-  assert.deepEqual(resolveRoute('/admin/finances_funds.html'),{module:'finances/funds',key:''});
+  assert.equal(resolveRoute('/admin/finances_funds.html'),null);
   assert.equal(resolveRoute('/admin/finances/dashboard'),null);
   assert.equal(resolveRoute('/admin/finances_dashboard.html'),null);
-  assert.equal(canOpen(modules.find(m=>m.id==='finances'),['submissions.view']),false);
+  assert.equal(modules.some(m=>m.id==='finances'||m.id==='giving'),false);
   assert.equal(resolveRoute('/admin','#submissions').module,'mail');
 });
 test('unauthenticated shell deep links redirect to Access and never return admin HTML',async()=>{

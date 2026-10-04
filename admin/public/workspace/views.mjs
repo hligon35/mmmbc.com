@@ -41,8 +41,8 @@ export function reports(ctx) {
       const data=await api('/api/admin/workspace/reports?'+query());
       const sections=[];
       for(const [name,rows]of Object.entries(data.sections)) {
-        const table=el('table',{class:'ws-table'},el('thead',{},el('tr',{},...['Type','Status','Count',...(name==='finance'?['Amount']:name==='newsletter'?['Accepted recipients']:[])].map(text=>el('th',{text})))));
-        table.append(el('tbody',{},...rows.map(r=>el('tr',{},el('td',{text:r.type||name}),el('td',{text:statusLabel(r.status)}),el('td',{text:String(r.count)}),name==='finance'?el('td',{text:new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(r.amountCents)/100)}):name==='newsletter'?el('td',{text:String(r.acceptedCount||0)}):null))));
+        const table=el('table',{class:'ws-table'},el('thead',{},el('tr',{},...['Type','Status','Count',...(name==='newsletter'?['Accepted recipients']:[])].map(text=>el('th',{text})))));
+        table.append(el('tbody',{},...rows.map(r=>el('tr',{},el('td',{text:r.type||name}),el('td',{text:statusLabel(r.status)}),el('td',{text:String(r.count)}),name==='newsletter'?el('td',{text:String(r.acceptedCount||0)}):null))));
         sections.push(el('details',{class:'ws-report-section',open:''},el('summary',{text:name[0].toUpperCase()+name.slice(1)+' · '+rows.reduce((s,r)=>s+r.count,0)+' records'}),rows.length?el('div',{class:'ws-table-wrap'},table):el('p',{text:'No activity in this date range.'})));
       }
       body.replaceChildren(el('p',{class:'ws-muted',text:'Counts come from stored records for '+data.from+' through '+data.to+'. Accepted by the email service does not confirm delivery.'}),...sections);
@@ -111,25 +111,4 @@ export function editor(ctx) {
   })),status,body);
   async function open(){if(current)return;try{const data=await api('/api/admin/site-pages');pages.replaceChildren(...data.pages.map(p=>el('option',{value:p.page,text:p.label})));await load(data.pages[0].page);}catch(error){showError(body,error,open);}}
   return {root,open};
-}
-
-export async function financeTool(ctx,module) {
-  const root=el('section',{class:'ws-module ws-finance-tool'}),body=el('div');
-  root.append(heading(module.label,'Church finance operations',button('Finances',()=>ctx.navigate('finances'),{symbol:'arrow_back'})),body);
-  let initialized=false;
-  async function load() {
-    if(initialized)return;
-    try {
-      const response=await fetch('/admin/workspace-tools/'+module.tool+'.html',{credentials:'same-origin'});
-      if(!response.ok)throw Error('This finance tool could not be loaded.');
-      // Only repository-owned static markup is parsed; scripts and navigation
-      // are removed at build time. All dynamic data stays inside the existing APIs.
-      const doc=new DOMParser().parseFromString(await response.text(),'text/html');
-      body.replaceChildren(...Array.from(doc.body.childNodes));
-      if(module.tool==='envelopes')await window.MMEnvelopeDesigner.mount(body);
-      else await window.MMFinanceTools.mount(body,module.tool,ctx);
-      initialized=true;
-    }catch(error){showError(body,error,load);}
-  }
-  return {root,open:load};
 }

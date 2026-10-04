@@ -459,7 +459,13 @@
     setStatus('Profile order or content changed in this draft. Select Save Draft to store it.', 'ok');
   }
 
-  async function loadEditor({ silent = false } = {}) {
+  let editorLoadPromise;
+  function loadEditor(options) {
+    if (!editorLoadPromise) editorLoadPromise = loadEditorOnce(options).finally(() => { editorLoadPromise = null; });
+    return editorLoadPromise;
+  }
+
+  async function loadEditorOnce({ silent = false } = {}) {
     if (state.loading) return;
     state.loading = true;
     if (!silent) setStatus('Loading profile pages…');
@@ -571,6 +577,11 @@
     if (typeof resetUnsavedBaseline === 'function') resetUnsavedBaseline($('ministriesPageForm'));
     setStatus(`Editing ${pageConfig().label}. Changes stay in draft until you save.`, 'ok');
   }
+
+  window.MMWorkspaceLoadProfiles = async (page) => {
+    if (!state.loaded) await loadEditor();
+    if (state.loaded) switchPage(page);
+  };
 
   function wire() {
     const pageForm = $('ministriesPageForm');

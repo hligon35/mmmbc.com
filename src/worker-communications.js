@@ -75,10 +75,10 @@ function roleDisplayName(role) {
   const normalized = String(role || '').trim().toLowerCase();
   if (normalized === 'master_admin') return 'Master Admin';
   if (normalized === 'administrator') return 'Administrator';
-  if (normalized === 'finance_officer') return 'Finance Officer';
-  if (normalized === 'finance_entry') return 'Finance Entry';
-  if (normalized === 'treasurer') return 'Finance Officer';
-  if (normalized === 'auditor') return 'Auditor';
+  if (normalized === 'finance_officer') return 'Directory Manager';
+  if (normalized === 'finance_entry') return 'Directory Assistant';
+  if (normalized === 'treasurer') return 'Directory Manager';
+  if (normalized === 'auditor') return 'Support Viewer';
   if (normalized === 'site_editor') return 'Site Editor';
   return 'Site Editor';
 }
@@ -539,4 +539,3 @@ export {
   handleNewsletterSend,
   processScheduledNewsletters
 };
-

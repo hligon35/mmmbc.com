@@ -14,7 +14,7 @@ Provision `admin-preview`, `site-preview`, and `mmmbc-preview`. Replace the inte
 6. Run `npm run deploy`.
 7. Purge any previously cached gallery media. Verify public pages, security headers, unauthenticated rejection, authenticated reads, forms with test data, and a Resend test recipient.
 
-Never test destructive admin, finance, bulk-email, or real-payment behavior against production.
+Never test destructive admin, bulk-email, or real-payment behavior against production.
 
 
 The owner performs the final mmmbc.com domain switch after validation. See launch-readiness-report.md for required secrets and migration prerequisites.

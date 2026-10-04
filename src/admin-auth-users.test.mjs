@@ -87,13 +87,13 @@ async function json(response) {
   return response.json();
 }
 
-test('RBAC matrix grants only the intended finance and user permissions', () => {
+test('RBAC preserves directory access and removes all financial permissions', () => {
   assert.equal(roleHasPermission('administrator', PERMISSIONS.USERS_MANAGE), true);
   assert.equal(roleHasPermission('website_editor', PERMISSIONS.USERS_MANAGE), false);
-  assert.equal(roleHasPermission('treasurer', PERMISSIONS.FINANCE_EDIT_VOID), true);
-  assert.equal(roleHasPermission('finance_entry', PERMISSIONS.FINANCE_EDIT_VOID), false);
-  assert.equal(roleHasPermission('auditor', PERMISSIONS.FINANCE_VIEW), true);
-  assert.equal(roleHasPermission('auditor', PERMISSIONS.FINANCE_RECORD), false);
+  for(const role of ['administrator','website_editor','treasurer','finance_entry','auditor']) assert.equal(permissionsForRole(role).some(p=>p.startsWith('finance.')),false);
+  assert.equal(roleHasPermission('treasurer',PERMISSIONS.DIRECTORY_MANAGE),true);
+  assert.equal(roleHasPermission('finance_entry',PERMISSIONS.DIRECTORY_MANAGE),true);
+  assert.equal(roleHasPermission('auditor',PERMISSIONS.DIRECTORY_MANAGE),false);
   assert.deepEqual(new Set(permissionsForRole('admin')), new Set(permissionsForRole('administrator')));
   assert.equal(normalizeRole('Master Admin'), 'administrator');
   assert.equal(normalizeRole('Finance Officer'), 'treasurer');
@@ -149,7 +149,7 @@ test('/api/me returns stored fields, permissions and capabilities and throttles 
   assert.equal(state.user.status, 'active');
   assert.equal(state.user.developer, true);
   assert.equal(state.permissions.includes(PERMISSIONS.USERS_MANAGE), true);
-  assert.equal(state.capabilities.permissions[PERMISSIONS.FINANCE_VIEW], true);
+  assert.equal(state.capabilities.permissions['finance.view'], undefined);
 
   const firstLogin = DB.database.prepare('SELECT last_login_at FROM admin_users WHERE id = ?').get('admin-1').last_login_at;
   assert.ok(firstLogin);

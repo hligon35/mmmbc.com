@@ -62,7 +62,7 @@
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-newsletter" id="tabBtn-newsletter">Newsletter</button>
 
             <p class="sideNav__groupLabel" aria-hidden="true">Administration</p>
-            <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-finances" id="tabBtn-finances">Church Finances</button>
+
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-directory" id="tabBtn-directory">Directory</button>
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-support" id="tabBtn-support">Help &amp; Support</button>
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-settings" id="tabBtn-settings">Settings</button>
@@ -105,12 +105,6 @@
           </div>
 
           <div class="dashboardColumns">
-            <section class="card dashboardCard" aria-labelledby="dashboardGivingTitle" id="dashboardGivingCard">
-              <div class="dashboardCard__head">
-                <h3 class="card__subtitle" id="dashboardGivingTitle">Giving Snapshot</h3>
-              </div>
-              <div class="dashboardStats" id="dashboardGivingStats"></div>
-            </section>
 
             <section class="card dashboardCard" aria-labelledby="dashboardNewsletterTitle">
               <div class="dashboardCard__head">
@@ -409,388 +403,6 @@
         </div>
       </section>
 
-      <!-- Finances -->
-      <section class="tabPanel" role="tabpanel" id="tab-finances" aria-labelledby="tabBtn-finances" hidden data-header-crumb="Church Finances" data-header-description="Record gifts, review transactions, and generate reports.">
-        <div class="tabs subTabs financeMainTabs" role="tablist" aria-label="Church Finances views">
-          <button class="tab tab--sub" role="tab" aria-selected="true" aria-controls="panel-finances-record" id="subTabBtn-finances-record" type="button">Record Money</button>
-          <button class="tab tab--sub" role="tab" aria-selected="false" aria-controls="panel-finances-review" id="subTabBtn-finances-review" type="button">Review Transactions</button>
-          <button class="tab tab--sub" role="tab" aria-selected="false" aria-controls="panel-finances-reports" id="subTabBtn-finances-reports" type="button">Reports &amp; Printing</button>
-        </div>
-
-        <div class="printOnly" id="adminPrintBody" aria-label="Print report body"></div>
-        <div class="financePrintHeader printOnly" aria-label="Print header">
-          <div class="financePrintHeader__title" id="financePrintTitle">Mt. Moriah Missionary Baptist Church — Finance</div>
-          <div class="financePrintHeader__meta" id="financePrintMeta"></div>
-        </div>
-
-        <!-- Record Money -->
-        <div class="subTabPanel financeWizardPanel noPrint" role="tabpanel" id="panel-finances-record" aria-labelledby="subTabBtn-finances-record">
-          <h3 class="wizard__heading" id="financeWizardHeading">Record Money</h3>
-
-          <ol class="wizardProgress" id="financeWizardProgress" aria-label="Entry steps">
-            <li><button class="wizardProgress__step" type="button" data-wizard-goto="direction" aria-current="step" aria-label="Money Type">1 Money Type</button></li>
-            <li><button class="wizardProgress__step" type="button" data-wizard-goto="details" aria-label="Details">2</button></li>
-            <li><button class="wizardProgress__step" type="button" data-wizard-goto="payment" aria-label="Payment">3</button></li>
-            <li><button class="wizardProgress__step" type="button" data-wizard-goto="review" aria-label="Review">4</button></li>
-          </ol>
-
-          <form id="financeEntryForm" class="form wizardForm" aria-label="Record money">
-            <input id="financeEditId" type="hidden" />
-            <input id="financeType" type="hidden" value="income" />
-
-            <!-- Step 1: Money Direction -->
-            <div class="wizardStep" data-step-panel="direction">
-              <p class="wizardStep__question" id="financeDirectionQuestion">What are you recording?</p>
-              <div class="wizardChoices" role="group" aria-label="What are you recording?">
-                <button class="wizardChoice" type="button" id="financeChoiceIncomeBtn" data-direction="income" aria-pressed="true">Money Received</button>
-                <button class="wizardChoice" type="button" id="financeChoiceExpenseBtn" data-direction="expense" aria-pressed="false">Money Spent</button>
-              </div>
-              <div class="wizardNav">
-                <button class="btn btn--primary" type="button" id="financeStepDirectionContinueBtn">Continue</button>
-              </div>
-            </div>
-
-            <!-- Step 2: Details -->
-            <div class="wizardStep" data-step-panel="details" hidden>
-              <div class="formRow formRow--wizard financeDetailsGrid">
-                <label class="label financeWizardField">
-                  <span id="financeDateLabelText">Date received</span>
-                  <input class="input" id="financeDate" type="date" required />
-                </label>
-                <label class="label financeWizardField">
-                  <span id="financeCategoryLabelText">What kind of giving?</span>
-                  <select class="select" id="financeCategory" required></select>
-                  <span class="fieldHint" id="financeCategoryHint">Choose what the money was received for.</span>
-                  <span class="fieldError" id="financeCategoryError" role="alert" hidden></span>
-                </label>
-                <label class="label financeWizardField">
-                  Amount
-                  <input class="input" id="financeAmount" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" required />
-                  <span class="fieldError" id="financeAmountError" role="alert" hidden></span>
-                </label>
-                <label class="label financeWizardField">
-                  <span id="financeFundLabelText">Which church fund?</span>
-                  <select class="select" id="financeFund" required></select>
-                  <span class="fieldHint" id="financeFundHint">Choose where this money should be recorded, such as General Fund or Building Fund.</span>
-                  <span class="fieldError" id="financeFundError" role="alert" hidden></span>
-                </label>
-              </div>
-              <div class="wizardNav">
-                <button class="btn actionIconBtn" type="button" data-wizard-back="direction" aria-label="Back" title="Back"><span class="material-icons-round" aria-hidden="true">arrow_back</span></button>
-                <button class="btn btn--primary" type="button" id="financeStepDetailsContinueBtn">Continue to Payment</button>
-              </div>
-            </div>
-
-            <!-- Step 3: Payment Information -->
-            <div class="wizardStep" data-step-panel="payment" hidden>
-              <div class="formRow formRow--wizard">
-                <label class="label">
-                  Payment method
-                  <select class="select" id="financeMethod" required>
-                    <option value="">Choose payment method</option>
-                    <option value="cash">Cash</option>
-                    <option value="check">Check</option>
-                    <option value="card">Card</option>
-                    <option value="online">Online</option>
-                    <option value="other">Other</option>
-                  </select>
-                  <span class="fieldError" id="financeMethodError" role="alert" hidden></span>
-                </label>
-                <label class="label">
-                  <span id="financePartyLabel">Received From (optional)</span>
-                  <input class="input" id="financeParty" type="text" maxlength="120" list="financePartiesList" autocomplete="off" />
-                  <span class="fieldError" id="financePartyError" role="alert" hidden></span>
-                </label>
-                <label class="label">
-                  Note (optional)
-                  <input class="input" id="financeMemo" type="text" maxlength="200" placeholder="Notes" />
-                </label>
-              </div>
-              <p class="fieldHint">Choose how the money was received or paid.</p>
-              <div class="wizardNav">
-                <button class="btn actionIconBtn" type="button" data-wizard-back="details" aria-label="Back" title="Back"><span class="material-icons-round" aria-hidden="true">arrow_back</span></button>
-                <button class="btn btn--primary" type="button" id="financeStepPaymentContinueBtn">Continue to Review</button>
-              </div>
-            </div>
-
-            <!-- Step 4: Review -->
-            <div class="wizardStep" data-step-panel="review" hidden>
-              <h4 class="wizardStep__question" id="financeReviewHeading">Review this entry</h4>
-              <dl class="wizardReview" id="financeReviewSummary"></dl>
-              <div class="wizardNav">
-                <button class="btn" type="button" data-wizard-back="payment">Back and Edit</button>
-                <button class="btn actionIconBtn" type="button" id="financeCancelEditBtn" aria-label="Cancel" title="Cancel"><span class="material-icons-round" aria-hidden="true">close</span></button>
-                <button class="btn btn--primary" type="submit" id="financeSaveBtn">Save Entry</button>
-              </div>
-              <div class="hint" id="financeHint" aria-live="polite"></div>
-            </div>
-
-            <!-- Step 5: Saved -->
-            <div class="wizardStep wizardStep--saved" data-step-panel="saved" hidden>
-              <h4 class="wizardStep__question" id="financeSavedHeading" tabindex="-1">Entry saved</h4>
-              <p id="financeSavedSummary" aria-live="polite"></p>
-              <div class="wizardNav">
-                <button class="btn btn--primary" type="button" id="financeSavedAddAnotherBtn">Record Another Entry</button>
-                <button class="btn" type="button" id="financeSavedViewBtn">View This Transaction</button>
-                <button class="btn" type="button" id="financeSavedReviewAllBtn">Review All Transactions</button>
-              </div>
-            </div>
-          </form>
-
-          <datalist id="financePartiesList"></datalist>
-        </div>
-
-        <!-- Review Transactions -->
-        <div class="subTabPanel" role="tabpanel" id="panel-finances-review" aria-labelledby="subTabBtn-finances-review" hidden>
-          <h3 class="sectionHeader__title">Transaction History</h3>
-
-          <div class="financeContextActions noPrint">
-            <form class="financeHeaderSearch" id="financeSearchForm" role="search" aria-label="Search transactions">
-              <div class="inputGroup">
-                <input class="input" id="financeSearch" type="text" placeholder="Search transactions&hellip;" autocomplete="off" />
-                <button class="inputIconBtn" type="submit" aria-label="Search" title="Search">
-                  <span class="material-icons-round" aria-hidden="true">search</span>
-                </button>
-              </div>
-            </form>
-
-            <div class="financeQuickTabs noPrint" id="financeQuickTabs" role="group" aria-label="Filter by money direction">
-              <button class="miniTab" type="button" aria-pressed="true" data-fin-kind="income">Money Received</button>
-              <button class="miniTab" type="button" aria-pressed="false" data-fin-kind="expense">Money Spent</button>
-            </div>
-
-            <div class="financeHeaderRight">
-              <details class="menu" id="financeFilterMenu">
-                <summary class="btn" aria-label="Filters" title="Filters">Filters</summary>
-                <form class="menu__panel financeFilterPanel" id="financeFilterForm" aria-label="Finance filters">
-                  <fieldset class="financeFilterFieldset financeFilterFieldset--presets">
-                    <legend class="menu__title">Date range</legend>
-
-                    <div class="financeFilterPresetGrid">
-                      <label class="menu__checkItem">
-                        <input class="menu__check" type="radio" name="financeDateRange" value="all" id="financeRangeAll" checked />
-                        <span>All dates</span>
-                      </label>
-                      <label class="menu__checkItem">
-                        <input class="menu__check" type="radio" name="financeDateRange" value="7" id="financeRange7" />
-                        <span>Last 7 days</span>
-                      </label>
-                      <label class="menu__checkItem">
-                        <input class="menu__check" type="radio" name="financeDateRange" value="30" id="financeRange30" />
-                        <span>Last 30 days</span>
-                      </label>
-                      <label class="menu__checkItem">
-                        <input class="menu__check" type="radio" name="financeDateRange" value="90" id="financeRange90" />
-                        <span>Last 90 days</span>
-                      </label>
-                      <label class="menu__checkItem">
-                        <input class="menu__check" type="radio" name="financeDateRange" value="custom" id="financeRangeCustom" />
-                        <span>Custom date range</span>
-                      </label>
-                    </div>
-                  </fieldset>
-
-                  <div class="menu__custom financeFilterCustomGrid" id="financeCustomRange" hidden>
-                    <div class="formRow financeFilterDateGrid">
-                      <label class="label">
-                        From
-                        <input class="input" id="financeFrom" type="date" />
-                      </label>
-                      <label class="label">
-                        To
-                        <input class="input" id="financeTo" type="date" />
-                      </label>
-                    </div>
-                    <p class="hint" id="financeDateRangeHint" aria-live="polite"></p>
-                  </div>
-
-                  <div class="menu__divider" role="separator" aria-hidden="true"></div>
-
-                  <details class="financeAdvancedFilters" id="financeAdvancedFilters">
-                    <summary class="menu__title menu__title--spaced">Advanced filters</summary>
-                    <div class="formRow financeFilterDetailGrid">
-                      <label class="label">
-                        Category
-                        <select class="select" id="financeFilterCategory"><option value="">(All categories)</option></select>
-                      </label>
-                      <label class="label">
-                        Fund
-                        <select class="select" id="financeFilterFund"><option value="">(All funds)</option></select>
-                      </label>
-                      <label class="label">
-                        Payment method
-                        <select class="select" id="financeFilterMethod">
-                          <option value="">(All payment methods)</option>
-                          <option value="cash">Cash</option>
-                          <option value="check">Check</option>
-                          <option value="card">Card</option>
-                          <option value="online">Online</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </label>
-                    </div>
-                  </details>
-
-                  <div class="toolbar toolbar--tightTop financeFilterActions">
-                    <button class="btn btn--primary" id="financeApplyCustomRangeBtn" type="button">Apply custom dates</button>
-                    <button class="btn" id="financeClearRangeBtn" type="button">Reset All Filters</button>
-                  </div>
-                </form>
-              </details>
-            </div>
-          </div>
-
-          <p class="hint" id="financeFilterSummary" aria-live="polite">Showing all dates and all entry types.</p>
-
-          <div class="tableWrap financeReviewTableWrap" aria-label="Transaction table">
-            <table class="financeTable financeTable--simple">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Description</th>
-                  <th class="num">Money In</th>
-                  <th class="num">Money Out</th>
-                  <th class="noPrint">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="financeTableBody"></tbody>
-            </table>
-          </div>
-          <div class="financeCardList" id="financeCardList" aria-label="Transactions"></div>
-        </div>
-
-        <!-- Reports & Printing -->
-        <div class="subTabPanel" role="tabpanel" id="panel-finances-reports" aria-labelledby="subTabBtn-finances-reports" hidden>
-          <h3 class="sectionHeader__title">Reports &amp; Printing</h3>
-
-          <div class="financeReportsLayout">
-            <div class="financeReportsLayout__left">
-              <div class="list financeReportActions" aria-label="Reports and printing actions">
-                <div class="row">
-                  <div class="row__main">
-                    <div class="row__title">Print Transaction History</div>
-                    <div class="row__meta">Prints the transaction list using your current filters.</div>
-                  </div>
-                  <div class="row__actions">
-                    <button class="btn btn--primary" id="printFinanceLedgerBtn" type="button">Print Transaction History</button>
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="row__main">
-                    <div class="row__title">Print Selected Receipts</div>
-                    <div class="row__meta">Search and select one, multiple, or all transactions to print as receipts.</div>
-                  </div>
-                  <div class="row__actions">
-                    <button class="btn btn--primary" id="printFinanceReceiptsBtn" type="button">Print Selected Receipts</button>
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="row__main">
-                    <div class="row__title">Export Transactions</div>
-                    <div class="row__meta">Export the currently filtered transactions as CSV or into a new Google Sheet.</div>
-                    <div class="hint" id="financeExportHint" aria-live="polite"></div>
-                  </div>
-                  <div class="row__actions">
-                    <details class="menu financeExportMenu" id="financeExportMenu">
-                      <summary class="btn btn--primary" aria-label="Export transactions" title="Export transactions">Export Transactions</summary>
-                      <div class="menu__panel" aria-label="Export transaction formats">
-                        <div class="menu__title">Choose export format</div>
-                        <button class="menu__item" id="financeExportCsvBtn" type="button">CSV</button>
-                        <button class="menu__item" id="financeExportSheetsBtn" type="button">Google Sheets</button>
-                      </div>
-                    </details>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="financeReportsLayout__right">
-              <div class="financePeriodTabs" role="tablist" aria-label="Giving period">
-                <button class="miniTab miniTab--xs" id="financePeriodWeekBtn" type="button" role="tab" aria-selected="true">This Week</button>
-                <button class="miniTab miniTab--xs" id="financePeriodMonthBtn" type="button" role="tab" aria-selected="false">This Month</button>
-              </div>
-
-              <div class="financeCharts" id="financeReportsTotals" aria-label="Financial summary charts">
-                <section class="financeChartCard" aria-label="Money flow">
-                  <h4 class="financeChartCard__title">Money Flow</h4>
-                  <div class="financePie" id="financeFlowPie" role="img" aria-label="Money flow chart"></div>
-                  <ul class="financePieLegend" aria-label="Money flow values">
-                    <li class="financePieLegend__item"><span class="financePieLegend__dot financePieLegend__dot--income" aria-hidden="true"></span><span class="financePieLegend__label">Money Received</span><span class="financePieLegend__value" id="financeIncomeTotal">$0.00</span></li>
-                    <li class="financePieLegend__item"><span class="financePieLegend__dot financePieLegend__dot--expense" aria-hidden="true"></span><span class="financePieLegend__label">Money Spent</span><span class="financePieLegend__value" id="financeExpenseTotal">$0.00</span></li>
-                    <li class="financePieLegend__item financePieLegend__item--net"><span class="financePieLegend__label">Net Total</span><span class="financePieLegend__value" id="financeNetTotal">$0.00</span></li>
-                  </ul>
-                </section>
-
-                <section class="financeChartCard" aria-label="Giving breakdown">
-                  <h4 class="financeChartCard__title">Giving Breakdown <span class="financeChartCard__period" id="financeGivingPeriodLabel">(This Week)</span></h4>
-                  <div class="financePie" id="financeGivingPie" role="img" aria-label="Giving breakdown chart"></div>
-                  <ul class="financePieLegend" aria-label="Giving values">
-                    <li class="financePieLegend__item"><span class="financePieLegend__dot financePieLegend__dot--tithes" aria-hidden="true"></span><span class="financePieLegend__label">Tithes</span><span class="financePieLegend__value" id="financeTithesTotal">$0.00</span></li>
-                    <li class="financePieLegend__item"><span class="financePieLegend__dot financePieLegend__dot--offerings" aria-hidden="true"></span><span class="financePieLegend__label">Offerings</span><span class="financePieLegend__value" id="financeOfferingsTotal">$0.00</span></li>
-                    <li class="financePieLegend__item"><span class="financePieLegend__dot financePieLegend__dot--giving" aria-hidden="true"></span><span class="financePieLegend__label">Total Giving</span><span class="financePieLegend__value" id="financeGivingTotal">$0.00</span></li>
-                  </ul>
-                </section>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <dialog class="dialog" id="financeReceiptsDialog" aria-labelledby="financeReceiptsDialogTitle" aria-modal="true">
-          <form method="dialog" class="card dialog__inner">
-            <div class="sectionHeader sectionHeader--compact">
-              <h3 class="sectionHeader__title" id="financeReceiptsDialogTitle">Print receipts</h3>
-              <button class="btn actionIconBtn" id="financeReceiptsCloseBtn" type="submit" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
-            </div>
-
-            <p class="muted">Search and select one, multiple, or all finance entries to print as receipts.</p>
-
-            <div class="toolbarGroup">
-              <div class="inputGroup financeReceiptsSearchGroup">
-                <input class="input" id="financeReceiptsSearch" type="search" placeholder="Search entries…" autocomplete="off" />
-                <button class="inputIconBtn" id="financeReceiptsSearchClear" type="button" aria-label="Clear search" title="Clear"><span class="material-icons-round" aria-hidden="true">close</span></button>
-              </div>
-              <button class="btn" id="financeReceiptsSelectAllBtn" type="button">Select all</button>
-              <button class="btn actionIconBtn" id="financeReceiptsClearBtn" type="button" aria-label="Clear" title="Clear"><span class="material-icons-round" aria-hidden="true">clear_all</span></button>
-            </div>
-
-            <div class="hint" id="financeReceiptsCount" aria-live="polite"></div>
-            <div class="list list--scroll5" id="financeReceiptsList" aria-label="Receipt entries"></div>
-
-            <div class="toolbar">
-              <button class="btn btn--primary" id="financeReceiptsPrintSelectedBtn" type="button">Print selected</button>
-              <button class="btn" id="financeReceiptsPrintAllBtn" type="button">Print all (current filters)</button>
-            </div>
-          </form>
-        </dialog>
-
-        <dialog class="dialog" id="financeUnsavedDialog" aria-labelledby="financeUnsavedDialogTitle" aria-modal="true">
-          <div class="card dialog__inner">
-            <h3 class="sectionHeader__title" id="financeUnsavedDialogTitle">Unsaved entry</h3>
-            <p id="financeUnsavedDialogBody">You have entered information for a new transaction that has not been saved.</p>
-            <div class="toolbar">
-              <button class="btn btn--primary" id="financeUnsavedKeepBtn" type="button">Keep Editing</button>
-              <button class="btn btn--danger" id="financeUnsavedDiscardBtn" type="button">Discard Entry</button>
-            </div>
-          </div>
-        </dialog>
-
-        <dialog class="dialog" id="financeDeleteDialog" aria-labelledby="financeDeleteDialogTitle" aria-modal="true">
-          <div class="card dialog__inner">
-            <h3 class="sectionHeader__title" id="financeDeleteDialogTitle">Void this transaction?</h3>
-            <p id="financeDeleteDialogBody"></p>
-            <label class="label" for="financeDeleteReason">
-              Reason for void
-              <textarea class="textarea" id="financeDeleteReason" rows="3" maxlength="500" placeholder="Briefly explain why this transaction is being voided."></textarea>
-            </label>
-            <p class="muted">The original transaction stays in history and will be marked as voided.</p>
-            <div class="toolbar">
-              <button class="btn btn--danger" id="financeDeleteConfirmBtn" type="button">Void Transaction</button>
-              <button class="btn" id="financeDeleteKeepBtn" type="button">Keep Transaction</button>
-            </div>
-          </div>
-        </dialog>
-      </section>
-
       <!-- Directory -->
       <section class="tabPanel" role="tabpanel" id="tab-directory" aria-labelledby="tabBtn-directory" hidden data-header-crumb="Directory" data-header-description="Manage church contacts, households, communication preferences, and newsletter subscribers.">
         <div class="sectionHeader sectionHeader--compact directoryHeaderActions" aria-label="Directory actions">
@@ -954,7 +566,7 @@
           </div>
 
           <div class="tableWrap directoryTableWrap" id="directoryContactsTableWrap" aria-label="Directory contacts table">
-            <table class="financeTable directoryTable" aria-describedby="directoryContactsResultCount">
+            <table class="directoryTable" aria-describedby="directoryContactsResultCount">
               <thead>
                 <tr>
                   <th scope="col">Select</th>
@@ -1037,7 +649,7 @@
           </div>
 
           <div class="tableWrap directoryTableWrap" aria-label="Newsletter subscribers table">
-            <table class="financeTable directoryTable">
+            <table class="directoryTable">
               <thead>
                 <tr>
                   <th scope="col">Select</th>
@@ -1747,12 +1359,10 @@
             <button class="btn actionIconBtn" id="settingsRolesDialogCloseBtn" type="button" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
           </div>
           <p class="muted">View means read-only access. Manage means the role can create or change records.</p>
-          <p class="hint">Roster labels are mapped to these standard roles: Master Admin uses the full-access Administrator role, Finance Officer uses Finance Officer, and Site Editor uses Site Editor.</p>
+          <p class="hint">Roster labels are mapped to these standard roles: Administrator manages all modules. Directory roles manage contacts and support. Site Editor manages website content and communications.</p>
           <div class="tableWrap"><table class="table settingsMatrix"><thead id="settingsRolesHead"></thead><tbody id="settingsRolesBody"></tbody></table></div>
         </div>
       </dialog>
-
-
 
         </div>
       </div>
@@ -1775,8 +1385,8 @@
   <script src="/admin/admin-ministry-profiles.js?v=20260927a" defer></script>
   <script src="/admin/admin-directory.js?v=20260927a" defer></script>
   <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>
-  <script src="/admin/finance_modern.js?v=20261003" defer></script>
-  <script src="/admin/finance_envelope_designer.js?v=20261003" defer></script>
   <script type="module" src="/admin/workspace/shell.mjs?v=20261003"></script>
+  <div class="eventsPrintHeader printOnly"><div id="eventsPrintTitle"></div><div id="eventsPrintMeta"></div></div>
+  <div class="printOnly" id="adminPrintBody"></div>
 </body>
 </html>
