@@ -129,6 +129,10 @@ function youtubeChannelId(env) {
   return String(env.YOUTUBE_CHANNEL_ID || 'UCkAaHiYmUKIdKePifg1D2pg').trim();
 }
 
+function youtubeApiKey(env) {
+  return String(env.YOUTUBE_API_KEY || '').trim();
+}
+
 function decodeHtmlEntities(input) {
   return String(input || '')
     .replace(/&amp;/g, '&')
@@ -476,6 +480,162 @@ async function fetchYoutubeFeed(channelId) {
   return entries;
 }
 
+async function fetchYoutubeApiJson(resource, params, apiKey) {
+  const url = new URL(`https://www.googleapis.com/youtube/v3/${resource}`);
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value != null && String(value) !== '') url.searchParams.set(key, String(value));
+  });
+  url.searchParams.set('key', apiKey);
+
+  const resp = await fetch(url.toString(), {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'MMMBC-Worker/1.0'
+    }
+  });
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    throw new Error(
+      `YouTube Data API ${resource} failed (${resp.status})${body ? ': ' + body.slice(0, 180) : ''}`
+    );
+  }
+  return resp.json();
+}
+
+async function fetchYoutubeApiChannelFeed(channelId, apiKey) {
+  const channelData = await fetchYoutubeApiJson(
+    'channels',
+    { part: 'contentDetails', id: channelId, maxResults: 1 },
+    apiKey
+  );
+  const uploadsPlaylistId =
+    channelData?.items?.[0]?.contentDetails?.relatedPlaylists?.uploads || '';
+  if (!uploadsPlaylistId) {
+    throw new Error('YouTube channel uploads playlist was not returned.');
+  }
+
+  const playlistData = await fetchYoutubeApiJson(
+    'playlistItems',
+    {
+      part: 'snippet,contentDetails',
+      playlistId: uploadsPlaylistId,
+      maxResults: 25
+    },
+    apiKey
+  );
+
+  const orderedIds = [];
+  for (const item of playlistData?.items || []) {
+    const id = String(item?.contentDetails?.videoId || item?.snippet?.resourceId?.videoId || '').trim();
+    if (id && !orderedIds.includes(id)) orderedIds.push(id);
+  }
+  if (!orderedIds.length) {
+    return {
+      live: { isLive: false, videoId: '', source: 'youtube-data-api' },
+      videos: []
+    };
+  }
+
+  const videosData = await fetchYoutubeApiJson(
+    'videos',
+    {
+      part: 'snippet,status,liveStreamingDetails',
+      id: orderedIds.join(',')
+    },
+    apiKey
+  );
+
+  const byId = new Map();
+  for (const item of videosData?.items || []) {
+    const id = String(item?.id || '').trim();
+    if (id) byId.set(id, item);
+  }
+
+  const videos = orderedIds
+    .map((id) => {
+      const item = byId.get(id);
+      if (!item) return null;
+      const snippet = item.snippet || {};
+      const status = item.status || {};
+      const liveDetails = item.liveStreamingDetails || {};
+      const broadcastState = String(snippet.liveBroadcastContent || 'none').toLowerCase();
+      const actualStartTime = String(liveDetails.actualStartTime || '');
+      const actualEndTime = String(liveDetails.actualEndTime || '');
+      const scheduledStartTime = String(liveDetails.scheduledStartTime || '');
+      const isLive =
+        broadcastState === 'live' ||
+        Boolean(actualStartTime && !actualEndTime);
+      const isUpcoming = !isLive && broadcastState === 'upcoming';
+
+      return {
+        id,
+        title: String(snippet.title || '').trim(),
+        published: String(snippet.publishedAt || '').trim(),
+        isLive,
+        isUpcoming,
+        scheduledStartTime,
+        embeddable: status.embeddable !== false
+      };
+    })
+    .filter(Boolean);
+
+  const liveItem = videos.find((video) => video.isLive && video.embeddable) || null;
+
+  // Smash Balloon's Channel feed is newest-first. Keep the live item at the top,
+  // then show completed/published channel videos. Upcoming streams do not replace
+  // the most recent service until YouTube marks them live.
+  const displayVideos = videos
+    .filter((video) => video.embeddable && (!video.isUpcoming || video.isLive))
+    .sort((a, b) => {
+      if (a.isLive && !b.isLive) return -1;
+      if (!a.isLive && b.isLive) return 1;
+      return orderedIds.indexOf(a.id) - orderedIds.indexOf(b.id);
+    })
+    .map((video) => ({
+      id: video.id,
+      title: video.title,
+      published: video.published
+    }));
+
+  return {
+    live: liveItem
+      ? { isLive: true, videoId: liveItem.id, source: 'youtube-data-api' }
+      : { isLive: false, videoId: '', source: 'youtube-data-api' },
+    videos: displayVideos
+  };
+}
+
+async function fetchYoutubeApiChannelFeedCached(request, channelId, apiKey) {
+  const cacheUrl = new URL(request.url);
+  cacheUrl.pathname = '/__internal/youtube-channel-feed';
+  cacheUrl.search = '';
+  cacheUrl.searchParams.set('channel', channelId);
+  const cacheKey = new Request(cacheUrl.toString(), { method: 'GET' });
+
+  try {
+    const cached = await caches.default.match(cacheKey);
+    if (cached) return await cached.json();
+  } catch {
+    // Cache API is best-effort; continue to YouTube if unavailable.
+  }
+
+  const data = await fetchYoutubeApiChannelFeed(channelId, apiKey);
+
+  try {
+    const cacheResponse = new Response(JSON.stringify(data), {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'public, max-age=55'
+      }
+    });
+    await caches.default.put(cacheKey, cacheResponse);
+  } catch {
+    // Cache write failure must never break the public feed.
+  }
+
+  return data;
+}
+
 function parseVideoIdFromWatchUrl(urlStr) {
   try {
     const u = new URL(urlStr);
@@ -501,9 +661,6 @@ async function detectYoutubeLiveVideo(channelId) {
   const fromUrl = parseVideoIdFromWatchUrl(finalUrl);
   const fromHtml = (html.match(/\"videoId\"\s*:\s*\"([a-zA-Z0-9_-]{11})\"/) || [])[1] || '';
   const videoId = fromUrl || fromHtml;
-
-  // A channel /live URL can resolve to an upcoming stream or a completed replay.
-  // Only call it LIVE when YouTube's page state explicitly says it is live now.
   const isLiveNow =
     /\"isLiveNow\"\s*:\s*true/i.test(html) ||
     /\"isLive\"\s*:\s*true/i.test(html) &&
@@ -527,26 +684,53 @@ async function detectYoutubeLiveVideo(channelId) {
 
 async function handlePublicYoutube(request, env) {
   const channelId = youtubeChannelId(env);
+  const apiKey = youtubeApiKey(env);
 
   let live = { isLive: false, videoId: '', source: 'none' };
   let videos = [];
   let errors = [];
+  let source = 'fallback';
 
-  try {
-    live = await detectYoutubeLiveVideo(channelId);
-  } catch (e) {
-    errors.push({ type: 'live', error: String(e?.message || e).slice(0, 200) });
+  if (apiKey) {
+    try {
+      const apiFeed = await fetchYoutubeApiChannelFeedCached(request, channelId, apiKey);
+      live = apiFeed.live;
+      videos = apiFeed.videos;
+      source = 'youtube-data-api';
+    } catch (e) {
+      errors.push({ type: 'youtube-data-api', error: String(e?.message || e).slice(0, 300) });
+    }
+  } else {
+    errors.push({
+      type: 'youtube-data-api',
+      error: 'YOUTUBE_API_KEY is not configured; using public fallbacks.'
+    });
   }
 
-  try {
-    videos = await fetchYoutubeFeed(channelId);
-  } catch (e) {
-    errors.push({ type: 'feed', error: String(e?.message || e).slice(0, 200) });
+  if (!videos.length) {
+    try {
+      videos = await fetchYoutubeFeed(channelId);
+      source = 'rss-fallback';
+    } catch (e) {
+      errors.push({ type: 'feed', error: String(e?.message || e).slice(0, 200) });
+    }
   }
 
-  // YouTube feeds can include scheduled/upcoming livestream entries. Embedding those
-  // often shows a "Live stream offline" state. Prefer videos already published.
-  if (Array.isArray(videos) && videos.length) {
+  if (!live.isLive) {
+    try {
+      const fallbackLive = await detectYoutubeLiveVideo(channelId);
+      if (fallbackLive.isLive) {
+        live = fallbackLive;
+        source = source === 'youtube-data-api' ? source : 'html-live-fallback';
+      }
+    } catch (e) {
+      errors.push({ type: 'live-fallback', error: String(e?.message || e).slice(0, 200) });
+    }
+  }
+
+  // Public RSS can contain scheduled/upcoming entries. The official API path above
+  // already classifies them; only apply this date guard to the fallback path.
+  if (source !== 'youtube-data-api' && Array.isArray(videos) && videos.length) {
     const now = Date.now();
     const graceMs = 5 * 60 * 1000;
     const published = videos.filter((v) => {
@@ -556,10 +740,19 @@ async function handlePublicYoutube(request, env) {
     if (published.length) videos = published;
   }
 
+  // Keep the current live broadcast first, matching the WordPress Channel feed.
+  if (live.isLive && live.videoId) {
+    const liveVideo = videos.find((video) => video?.id === live.videoId);
+    if (liveVideo) {
+      videos = [liveVideo, ...videos.filter((video) => video?.id !== live.videoId)];
+    }
+  }
+
   return json(
     {
       ok: true,
       channelId,
+      source,
       live,
       videos,
       fetchedAt: new Date().toISOString(),
@@ -567,7 +760,6 @@ async function handlePublicYoutube(request, env) {
     },
     {
       headers: {
-        // Keep this fresh so it can flip quickly when you start streaming.
         'Cache-Control': 'public, max-age=60'
       }
     }
