@@ -46,7 +46,7 @@
     <main id="main-content">
         <section class="content-section">
             <h1 data-cms-field="page.title" data-cms-type="text">Live Praise</h1>
-            <p class="live-praise-live-banner" data-cms-field="currently_live" data-cms-type="boolean" hidden>We are currently LIVE — join us now!</p>
+            <p class="live-praise-live-banner" id="livePraiseLiveBanner" hidden>We are currently LIVE — join us now!</p>
             <div data-cms-field="page.description" data-cms-type="rich_text">
             <p>When our services are being broadcast LIVE, the current service will be shown at the top of the page. </p>
             <p>Otherwise, the most recent service will appear at the top.</p>
@@ -56,7 +56,7 @@
             <div class="youtube-live-placeholder" aria-label="YouTube live stream">
                 <div class="youtube-live-placeholder__inner">
                     <div class="youtube-embed">
-                        <iframe id="livePraiseTopPlayer" title="Mt. Moriah Missionary Baptist Church - Live Stream" loading="lazy" src="https://www.youtube.com/embed/QQXSV759Zys?rel=0" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen data-cms-field="stream.url" data-cms-type="url" data-cms-attr="src"></iframe>
+                        <iframe id="livePraiseTopPlayer" title="Mt. Moriah Missionary Baptist Church - Live Stream" loading="lazy" src="https://www.youtube.com/embed/QQXSV759Zys?rel=0" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
                     </div>
                     <div class="live-player-actions live-player-actions--spaced">
                         <a class="youtube-live-placeholder__button" id="livePraiseWatchLink" href="https://www.youtube.com/watch?v=QQXSV759Zys" rel="noopener noreferrer" target="_blank" aria-label="Watch on YouTube">
@@ -186,6 +186,7 @@
                 var fbWatchLink = document.getElementById('livePraiseFacebookLink');
                 var grid = document.getElementById('recentVideosGrid');
                 var statusEl = document.getElementById('youtubeFeedStatus');
+                var liveBanner = document.getElementById('livePraiseLiveBanner');
 
                 if (!topPlayer || !grid) return;
 
@@ -301,35 +302,49 @@
                 // - If you are LIVE right now, show the live video.
                 // - Otherwise, show the most recent upload.
                 // - Always show a most-to-least-recent list below.
-                fetch('/api/public/youtube', { cache: 'no-store' })
-                    .then(function (r) { return r.ok ? r.json() : null; })
-                    .then(function (data) {
-                        if (!data || !data.ok) return;
+                // - Re-check periodically so an already-open page can switch to LIVE.
+                var lastTopVideoId = '';
 
-                        var topVideoId = '';
-                        if (data.live && data.live.isLive && data.live.videoId) {
-                            topVideoId = data.live.videoId;
-                            setTop(topVideoId);
-                        } else if (Array.isArray(data.videos) && data.videos[0] && data.videos[0].id) {
-                            topVideoId = data.videos[0].id;
-                            setTop(topVideoId);
-                        } else {
-                            // Fall back to the live-by-channel embed if we couldn't determine anything.
-                            topPlayer.src = liveUrl();
-                        }
+                function refreshYoutubeFeed() {
+                    fetch('/api/public/youtube?ts=' + Date.now(), { cache: 'no-store' })
+                        .then(function (r) { return r.ok ? r.json() : null; })
+                        .then(function (data) {
+                            if (!data || !data.ok) return;
 
-                        renderRecent(data.videos, topVideoId);
+                            var topVideoId = '';
+                            var isLive = Boolean(data.live && data.live.isLive && data.live.videoId);
 
-                        if (statusEl) {
-                            statusEl.textContent = 'Updated: ' + (data.fetchedAt || 'just now');
-                        }
-                    })
-                    .catch(function () {
-                        if (statusEl) {
-                            statusEl.textContent = 'Could not load the latest list. Showing the built-in videos below.';
-                        }
-                        // Keep the existing hardcoded embeds as a safe fallback.
-                    });
+                            if (isLive) {
+                                topVideoId = data.live.videoId;
+                            } else if (Array.isArray(data.videos) && data.videos[0] && data.videos[0].id) {
+                                topVideoId = data.videos[0].id;
+                            }
+
+                            if (topVideoId && topVideoId !== lastTopVideoId) {
+                                setTop(topVideoId);
+                                lastTopVideoId = topVideoId;
+                            } else if (!topVideoId && !lastTopVideoId) {
+                                topPlayer.src = liveUrl();
+                            }
+
+                            if (liveBanner) liveBanner.hidden = !isLive;
+                            renderRecent(data.videos, topVideoId);
+
+                            if (statusEl) {
+                                statusEl.textContent = isLive
+                                    ? 'LIVE now'
+                                    : 'Updated: ' + (data.fetchedAt || 'just now');
+                            }
+                        })
+                        .catch(function () {
+                            if (statusEl) {
+                                statusEl.textContent = 'Could not refresh the latest list. Showing the last known videos.';
+                            }
+                        });
+                }
+
+                refreshYoutubeFeed();
+                window.setInterval(refreshYoutubeFeed, 45000);
             })();
         </script>
 </body>
