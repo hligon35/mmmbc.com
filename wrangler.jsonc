@@ -10,16 +10,6 @@
 		"binding": "ASSETS",
 		"run_worker_first": true
 	},
-	"routes": [
-		{
-			"pattern": "mmmbc.alphazonelabs.com/*",
-			"zone_name": "alphazonelabs.com"
-		},
-		{
-			"pattern": "www.mmmbc.alphazonelabs.com/*",
-			"zone_name": "alphazonelabs.com"
-		}
-	],
 	"r2_buckets": [
 		{
 			"binding": "GALLERY_BUCKET",
@@ -85,17 +75,6 @@
 				{
 					"pattern": "mmmbc.alphazonelabs.com/*",
 					"zone_name": "alphazonelabs.com"
-				},
-				{
-					"pattern": "www.mmmbc.alphazonelabs.com/*",
-					"zone_name": "alphazonelabs.com"
-				},
-				{
-					"pattern": "mmmbc.alphazonelabs.com",
-					"zone_name": "alphazonelabs.com",
-					"custom_domain": true,
-					"enabled": true,
-					"previews_enabled": false
 				}
 			],
 			"r2_buckets": [
