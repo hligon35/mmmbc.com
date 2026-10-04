@@ -990,9 +990,21 @@ async function transformPublicHtml(response, pathname) {
   return new Response(html, { status: response.status, headers });
 }
 
+const BUILD_MARKER = 'mmmbc-youtube-feed-v3-20261004';
+
 const applicationWorker = {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    if (url.pathname === '/api/build-info' && request.method === 'GET') {
+      return json({
+        ok: true,
+        build: BUILD_MARKER,
+        environment: String(env.ENVIRONMENT || ''),
+        youtubeApiConfigured: Boolean(String(env.YOUTUBE_API_KEY || '').trim()),
+        youtubeChannelId: String(env.YOUTUBE_CHANNEL_ID || 'UCkAaHiYmUKIdKePifg1D2pg').trim()
+      });
+    }
 
     if (url.pathname === '/scan' || url.pathname.startsWith('/scan/') || url.pathname === '/scan.js') return json({error:'Scanning has been retired.'},410);
     const preferences=await handleNewsletterPreferences(request,env);
