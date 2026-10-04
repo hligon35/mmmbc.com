@@ -497,20 +497,32 @@ async function detectYoutubeLiveVideo(channelId) {
   });
 
   const finalUrl = String(resp.url || url);
-  const fromUrl = parseVideoIdFromWatchUrl(finalUrl);
-  if (fromUrl) return { isLive: true, videoId: fromUrl, source: 'redirect' };
-
-  // Fallback: some setups may not redirect. Try a best-effort parse.
   const html = await resp.text().catch(() => '');
-  const fromHtml = (html.match(/\"videoId\"\s*:\s*\"([a-zA-Z0-9_-]{11})\"/) || [])[1];
-  if (fromHtml) {
-    // We can't reliably tell if it's live from HTML alone without a full parse.
-    // Only treat this as live if the /live page strongly indicates live content.
-    const indicatesLive = /isLiveContent\"\s*:\s*true|\"LIVE\"/i.test(html);
-    if (indicatesLive) return { isLive: true, videoId: fromHtml, source: 'html' };
+  const fromUrl = parseVideoIdFromWatchUrl(finalUrl);
+  const fromHtml = (html.match(/\"videoId\"\s*:\s*\"([a-zA-Z0-9_-]{11})\"/) || [])[1] || '';
+  const videoId = fromUrl || fromHtml;
+
+  // A channel /live URL can resolve to an upcoming stream or a completed replay.
+  // Only call it LIVE when YouTube's page state explicitly says it is live now.
+  const isLiveNow =
+    /\"isLiveNow\"\s*:\s*true/i.test(html) ||
+    /\"isLive\"\s*:\s*true/i.test(html) &&
+      !/\"isUpcoming\"\s*:\s*true/i.test(html) &&
+      !/\"isPostLiveDvr\"\s*:\s*true/i.test(html);
+
+  if (videoId && isLiveNow) {
+    return {
+      isLive: true,
+      videoId,
+      source: fromUrl ? 'redirect-live-now' : 'html-live-now'
+    };
   }
 
-  return { isLive: false, videoId: '', source: 'none' };
+  return {
+    isLive: false,
+    videoId: '',
+    source: videoId ? 'resolved-not-live' : 'none'
+  };
 }
 
 async function handlePublicYoutube(request, env) {
