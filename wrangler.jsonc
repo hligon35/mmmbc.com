@@ -73,8 +73,8 @@
 			"name": "mmmbc",
 			"routes": [
 				{
-					"pattern": "mmmbc.alphazonelabs.com/*",
-					"zone_name": "alphazonelabs.com"
+					"pattern": "mmmbc.alphazonelabs.com",
+					"custom_domain": true
 				}
 			],
 			"r2_buckets": [
