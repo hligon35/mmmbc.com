@@ -52,27 +52,14 @@
     const root = $('dashboardSummaryGrid');
     if (!root) return;
 
+    // null/undefined means unavailable or restricted; only a real number is shown as a count.
+    const count = (value) => (Number.isFinite(value) && value !== null ? String(value) : '\u2014');
+    const meta = (value, suffix) => (Number.isFinite(value) && value !== null ? `${value} ${suffix}` : 'Unavailable');
     const cards = [
-      {
-        label: 'Upcoming Events (14 days)',
-        value: Number(summary?.upcomingEvents14d || 0),
-        meta: `${Number(summary?.todayEvents || 0)} today`
-      },
-      {
-        label: 'Active Announcements',
-        value: Number(summary?.activeAnnouncements || 0),
-        meta: `${Number(summary?.totalAnnouncements || 0)} total`
-      },
-      {
-        label: 'Newsletter Subscribers',
-        value: Number(summary?.subscribers || 0),
-        meta: `${Number(summary?.scheduledNewsletters || 0)} scheduled`
-      },
-      {
-        label: 'Photos in Gallery',
-        value: Number(summary?.galleryItems || 0),
-        meta: `${Number(summary?.galleryAlbums || 0)} albums`
-      }
+      { label: 'Upcoming Events (14 days)', value: count(summary?.upcomingEvents14d), meta: meta(summary?.todayEvents, 'today') },
+      { label: 'Active Announcements', value: count(summary?.activeAnnouncements), meta: meta(summary?.totalAnnouncements, 'total') },
+      { label: 'Newsletter Subscribers', value: count(summary?.subscribers), meta: meta(summary?.scheduledNewsletters, 'scheduled') },
+      { label: 'Photos in Gallery', value: count(summary?.galleryItems), meta: meta(summary?.galleryAlbums, 'albums') }
     ];
 
     root.innerHTML = cards.map((card) => `
@@ -136,12 +123,12 @@
     if (!root) return;
 
     if (!newsletter) {
-      renderEmpty('dashboardNewsletterStats', 'Newsletter data is unavailable.');
+      renderEmpty('dashboardNewsletterStats', 'Newsletter data is unavailable or not permitted for your role.');
       return;
     }
 
     const stats = [
-      { label: 'Drafts', value: Number(newsletter.drafts || 0) },
+      { label: 'Drafts', value: Number(newsletter.drafts) || 0 },
       { label: 'Scheduled', value: Number(newsletter.scheduled || 0) },
       { label: 'Sent/History', value: Number(newsletter.history || 0) },
       { label: 'Next Scheduled Send', value: newsletter.nextScheduledAt ? formatDateTime(newsletter.nextScheduledAt) : 'Not scheduled' }
@@ -172,17 +159,17 @@
       {
         title: 'Announcements Storage',
         detail: String(websiteStatus?.announcementsStorage || 'unknown'),
-        level: statusLevel(Boolean(subsystemStatus?.announcements?.ok))
+        level: statusLevel(subsystemStatus?.announcements?.ok !== false)
       },
       {
         title: 'Newsletter Scheduler',
-        detail: websiteStatus?.schedulerRunning ? 'Running' : 'Not running',
-        level: websiteStatus?.schedulerRunning ? 'ok' : 'warning'
+        detail: websiteStatus?.schedulerRunning == null ? 'Status not available' : (websiteStatus.schedulerRunning ? 'Running' : 'Overdue sends detected'),
+        level: websiteStatus?.schedulerRunning === false ? 'warning' : 'ok'
       },
       {
         title: 'Gallery Data',
-        detail: statusLevel(Boolean(subsystemStatus?.gallery?.ok)) === 'ok' ? 'Available' : String(subsystemStatus?.gallery?.error || 'Unavailable'),
-        level: statusLevel(Boolean(subsystemStatus?.gallery?.ok))
+        detail: subsystemStatus?.gallery?.ok === false ? String(subsystemStatus.gallery.error || 'Unavailable') : (subsystemStatus?.gallery?.restricted ? 'Not available for your role' : 'Available'),
+        level: statusLevel(subsystemStatus?.gallery?.ok !== false)
       }
     ];
 

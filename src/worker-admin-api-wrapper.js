@@ -427,18 +427,6 @@ const READ_ENDPOINTS = new Set([
   '/api/profiles'
 ]);
 
-function parseDateOnlyToTime(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return Number.NaN;
-  const ms = Date.parse(`${raw}T00:00:00`);
-  return Number.isFinite(ms) ? ms : Number.NaN;
-}
-
-function startOfTodayMs() {
-  const now = new Date();
-  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-}
-
 function isoFromDateTimeParts(datePart, timePart) {
   const d = String(datePart || '').trim();
   if (!d) return '';
@@ -448,188 +436,239 @@ function isoFromDateTimeParts(datePart, timePart) {
   return new Date(ms).toISOString();
 }
 
-async function buildDashboardOverview(request, env) {
-  const now = Date.now();
-  const todayStart = startOfTodayMs();
-  const in14Days = now + (14 * 24 * 60 * 60 * 1000);
+const DASHBOARD_TIME_ZONE = 'America/Chicago';
+const SCHEDULER_STALL_MS = 15 * 60 * 1000;
 
-  let announcements = [];
-  let events = [];
-  let subscribers = 0;
-  let drafts = 0;
-  let scheduled = 0;
-  let history = 0;
-  let nextScheduledAt = '';
-  let galleryItemsCount = 0;
-  let galleryAlbumsCount = 0;
+function dashboardToday(nowMs) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: DASHBOARD_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' })
+    .format(new Date(nowMs));
+}
 
-  if (env.DB) {
-    const announcementsRows = await env.DB.prepare(
-      'SELECT id, title, body, created_at, expires_at FROM announcements ORDER BY created_at DESC LIMIT 250'
-    ).all().catch(() => ({ results: [] }));
-    announcements = Array.isArray(announcementsRows?.results) ? announcementsRows.results : [];
+function addDaysToDateOnly(dateOnly, days) {
+  const ms = Date.parse(dateOnly + 'T00:00:00Z') + days * 86400000;
+  return new Date(ms).toISOString().slice(0, 10);
+}
 
-    const eventRows = await env.DB.prepare(
-      'SELECT id, title, event_date, event_time, created_at FROM events ORDER BY event_date ASC, event_time ASC LIMIT 250'
-    ).all().catch(() => ({ results: [] }));
-    events = Array.isArray(eventRows?.results) ? eventRows.results : [];
-
-    const subCountRow = env.SITE_DB
-      ? await env.SITE_DB.prepare(
-          "SELECT COUNT(*) AS c FROM subscribers WHERE lower(coalesce(status, 'active')) = 'active'"
-        ).first().catch(() => ({ c: 0 }))
-      : { c: 0 };
-    subscribers = Number(subCountRow?.c || 0);
-
-    const newsletterRows = await env.DB.prepare(
-      'SELECT status, schedule_at, sent_at FROM newsletter_records ORDER BY created_at DESC LIMIT 500'
-    ).all().catch(() => ({ results: [] }));
-    const newsletterRecords = Array.isArray(newsletterRows?.results) ? newsletterRows.results : [];
-    for (const row of newsletterRecords) {
-      const status = String(row?.status || '').toLowerCase();
-      if (status === 'draft') drafts += 1;
-      if (status === 'scheduled' || status === 'retrying') {
-        scheduled += 1;
-        const sch = isoOrEmpty(row?.schedule_at);
-        if (sch && (!nextScheduledAt || Date.parse(sch) < Date.parse(nextScheduledAt))) {
-          nextScheduledAt = sch;
-        }
-      }
-      if (status === 'sent' || status === 'delivered' || status === 'completed') history += 1;
-    }
-
-    const galleryCountRow = await env.DB.prepare(
-      `SELECT
-          COUNT(*) AS items_count,
-          COUNT(DISTINCT CASE WHEN trim(coalesce(album, '')) <> '' THEN trim(album) ELSE NULL END) AS albums_count
-       FROM gallery_items`
-    ).first().catch(() => null);
-    galleryItemsCount = Number(galleryCountRow?.items_count || 0);
-    galleryAlbumsCount = Number(galleryCountRow?.albums_count || 0);
-  } else {
-    const announcementData = await readAssetJson(request, env, '/announcements.json', { posts: [] });
-    announcements = Array.isArray(announcementData?.posts) ? announcementData.posts : [];
-
-    const eventData = await readAssetJson(request, env, '/schedule.json', []);
-    events = Array.isArray(eventData?.events)
-      ? eventData.events
-      : (Array.isArray(eventData) ? eventData : []);
-
-    const galleryData = await readAssetJson(request, env, '/gallery.json', { items: [], albums: [] });
-    const galleryItems = Array.isArray(galleryData?.items) ? galleryData.items : (Array.isArray(galleryData) ? galleryData : []);
-    const galleryAlbums = Array.isArray(galleryData?.albums) ? galleryData.albums : [];
-    galleryItemsCount = galleryItems.length;
-    galleryAlbumsCount = galleryAlbums.length;
+// Resolves to { ok, value } so one failed query marks only its own metrics unavailable.
+async function dashboardMetric(query) {
+  try {
+    return { ok: true, value: await query() };
+  } catch {
+    return { ok: false, value: null };
   }
+}
 
-  const activeAnnouncements = announcements.filter((row) => {
+async function readDashboardAssets(request, env) {
+  const announcementData = await readAssetJson(request, env, '/announcements.json', { posts: [] });
+  const posts = Array.isArray(announcementData?.posts) ? announcementData.posts : [];
+  const eventData = await readAssetJson(request, env, '/schedule.json', []);
+  const events = Array.isArray(eventData?.events) ? eventData.events : (Array.isArray(eventData) ? eventData : []);
+  const galleryData = await readAssetJson(request, env, '/gallery.json', { items: [], albums: [] });
+  const items = Array.isArray(galleryData?.items) ? galleryData.items : (Array.isArray(galleryData) ? galleryData : []);
+  const albums = Array.isArray(galleryData?.albums) ? galleryData.albums : [];
+  return { posts, events, items, albums };
+}
+
+function dashboardDataFromAssets(assets, { nowMs, today, horizon }) {
+  const active = assets.posts.filter((row) => {
     const exp = isoOrEmpty(row?.expires_at || row?.expiresAt || '');
-    return !exp || Date.parse(exp) > now;
+    return !exp || Date.parse(exp) > nowMs;
   });
+  const upcoming = assets.events
+    .map((row) => ({
+      title: String(row?.title || 'Event').trim() || 'Event',
+      date: String(row?.event_date || row?.date || '').trim(),
+      time: String(row?.event_time || row?.time || '').trim()
+    }))
+    .filter((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.date) && row.date >= today)
+    .sort((x, y) => (x.date + x.time).localeCompare(y.date + y.time));
+  return {
+    announcements: {
+      active: active.length,
+      total: assets.posts.length,
+      recent: active.slice(0, 3).map((row) => ({ title: String(row?.title || 'Untitled'), createdAt: isoOrEmpty(row?.created_at || row?.createdAt || '') }))
+    },
+    events: {
+      upcoming14d: upcoming.filter((row) => row.date <= horizon).length,
+      today: upcoming.filter((row) => row.date === today).length,
+      upcoming: upcoming.slice(0, 8)
+    },
+    gallery: { items: assets.items.length, albums: assets.albums.length }
+  };
+}
 
-  const upcomingEvents = events
-    .map((row) => {
-      const title = String(row?.title || 'Event').trim() || 'Event';
-      const date = String(row?.event_date || row?.date || '').trim();
-      const time = String(row?.event_time || row?.time || '').trim();
-      const dateMs = parseDateOnlyToTime(date);
+async function dashboardDataFromDatabase(env, { nowIso, today, horizon, can }) {
+  const unavailable = new Set();
+  const out = {};
+  const run = async (key, permitted, query) => {
+    if (!permitted) return;
+    const result = await dashboardMetric(query);
+    if (result.ok) out[key] = result.value;
+    else unavailable.add(key);
+  };
+
+  await Promise.all([
+    run('announcements', can.announcements, async () => {
+      const counts = await env.DB.prepare(
+        "SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN expires_at IS NULL OR expires_at = '' OR expires_at > ? THEN 1 ELSE 0 END), 0) AS active FROM announcements"
+      ).bind(nowIso).first();
+      const recent = await env.DB.prepare(
+        "SELECT title, created_at FROM announcements WHERE expires_at IS NULL OR expires_at = '' OR expires_at > ? ORDER BY created_at DESC LIMIT 3"
+      ).bind(nowIso).all();
       return {
-        title,
-        date,
-        time,
-        dateMs,
-        createdAt: String(row?.created_at || row?.createdAt || '')
+        active: Number(counts?.active) || 0,
+        total: Number(counts?.total) || 0,
+        recent: (recent.results || []).map((row) => ({ title: String(row.title || 'Untitled'), createdAt: isoOrEmpty(row.created_at) }))
+      };
+    }),
+    run('events', can.events, async () => {
+      const counts = await env.DB.prepare(
+        'SELECT COALESCE(SUM(CASE WHEN event_date <= ? THEN 1 ELSE 0 END), 0) AS upcoming14d, COALESCE(SUM(CASE WHEN event_date = ? THEN 1 ELSE 0 END), 0) AS today FROM events WHERE event_date >= ?'
+      ).bind(horizon, today, today).first();
+      const upcoming = await env.DB.prepare(
+        "SELECT title, event_date, event_time FROM events WHERE event_date >= ? ORDER BY event_date ASC, coalesce(event_time, '') ASC LIMIT 8"
+      ).bind(today).all();
+      return {
+        upcoming14d: Number(counts?.upcoming14d) || 0,
+        today: Number(counts?.today) || 0,
+        upcoming: (upcoming.results || []).map((row) => ({ title: String(row.title || 'Event'), date: String(row.event_date || ''), time: String(row.event_time || '') }))
+      };
+    }),
+    run('gallery', can.gallery, async () => {
+      const row = await env.DB.prepare(
+        "SELECT COUNT(*) AS items, COUNT(DISTINCT CASE WHEN trim(coalesce(album, '')) <> '' THEN trim(album) END) AS albums FROM gallery_items"
+      ).first();
+      return { items: Number(row?.items) || 0, albums: Number(row?.albums) || 0 };
+    }),
+    run('subscribers', can.newsletter, async () => {
+      if (!env.SITE_DB) throw new Error('subscriber database unavailable');
+      const row = await env.SITE_DB.prepare(
+        "SELECT COUNT(*) AS c FROM subscribers WHERE lower(coalesce(status, 'active')) = 'active'"
+      ).first();
+      return Number(row?.c) || 0;
+    }),
+    run('newsletter', can.newsletter, async () => {
+      const rows = await env.DB.prepare(
+        'SELECT lower(status) AS status, COUNT(*) AS c FROM newsletter_records GROUP BY lower(status)'
+      ).all();
+      const byStatus = new Map((rows.results || []).map((row) => [row.status, row]));
+      const count = (...names) => names.reduce((sum, name) => sum + (Number(byStatus.get(name)?.c) || 0), 0);
+      const upcoming = await env.DB.prepare(
+        "SELECT MIN(schedule_at) AS next_at FROM newsletter_records WHERE lower(status) IN ('scheduled','retrying') AND schedule_at IS NOT NULL AND schedule_at <> ''"
+      ).first();
+      const overdue = await env.DB.prepare(
+        "SELECT COUNT(*) AS c FROM newsletter_records WHERE lower(status) = 'scheduled' AND schedule_at IS NOT NULL AND schedule_at <> '' AND schedule_at < ?"
+      ).bind(new Date(Date.parse(nowIso) - SCHEDULER_STALL_MS).toISOString()).first();
+      return {
+        drafts: count('draft'),
+        scheduled: count('scheduled', 'retrying'),
+        history: count('sent', 'delivered', 'completed'),
+        nextScheduledAt: isoOrEmpty(upcoming?.next_at),
+        overdue: Number(overdue?.c) || 0
       };
     })
-    .filter((row) => Number.isFinite(row.dateMs) && row.dateMs >= todayStart)
-    .sort((a, b) => a.dateMs - b.dateMs);
+  ]);
+  return { data: out, unavailable };
+}
 
-  const upcoming14 = upcomingEvents.filter((row) => row.dateMs <= in14Days);
-  const todayEvents = upcomingEvents.filter((row) => row.dateMs === todayStart);
+async function buildDashboardOverview(request, env, permissions = []) {
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+  const today = dashboardToday(nowMs);
+  const horizon = addDaysToDateOnly(today, 14);
+  const granted = new Set(permissions);
+  const can = {
+    announcements: granted.has(PERMISSIONS.ANNOUNCEMENTS_VIEW),
+    events: granted.has(PERMISSIONS.EVENTS_VIEW),
+    gallery: granted.has(PERMISSIONS.PHOTOS_VIEW),
+    newsletter: granted.has(PERMISSIONS.NEWSLETTER_VIEW)
+  };
+
+  let data = {};
+  let unavailable = new Set();
+  if (env.DB) {
+    ({ data, unavailable } = await dashboardDataFromDatabase(env, { nowIso, today, horizon, can }));
+  } else {
+    const fromAssets = dashboardDataFromAssets(await readDashboardAssets(request, env), { nowMs, today, horizon });
+    if (can.announcements) data.announcements = fromAssets.announcements;
+    if (can.events) data.events = fromAssets.events;
+    if (can.gallery) data.gallery = fromAssets.gallery;
+  }
+
+  const { announcements, events, gallery, newsletter } = data;
+  const subscribers = data.subscribers ?? null;
 
   const needsAttention = [];
-  if (!activeAnnouncements.length) {
+  if (announcements && !announcements.active) {
     needsAttention.push({
       title: 'No active announcements',
       detail: 'Post an announcement so members see fresh updates.',
-      action: {
-        label: 'Open Announcements',
-        sectionTarget: 'tab-content'
-      }
+      action: { label: 'Open Announcements', sectionTarget: 'tab-content' }
     });
   }
-  if (!upcoming14.length) {
+  if (events && !events.upcoming14d) {
     needsAttention.push({
       title: 'No events in the next 14 days',
       detail: 'Add an upcoming event to keep the calendar current.',
-      action: {
-        label: 'Open Events',
-        sectionTarget: 'tab-events'
-      }
+      action: { label: 'Open Events', sectionTarget: 'tab-content' }
     });
   }
-  if (!subscribers) {
+  if (subscribers === 0) {
     needsAttention.push({
       title: 'No active subscribers',
       detail: 'Invite members to subscribe to the newsletter list.',
-      action: {
-        label: 'Open Newsletter',
-        sectionTarget: 'tab-newsletter'
-      }
+      action: { label: 'Open Newsletter', sectionTarget: 'tab-newsletter' }
+    });
+  }
+  if (newsletter?.overdue) {
+    needsAttention.push({
+      title: 'Scheduled newsletters are overdue',
+      detail: newsletter.overdue + ' scheduled send(s) have not been delivered on time.',
+      action: { label: 'Open Newsletter', sectionTarget: 'tab-newsletter' }
     });
   }
 
-  const recentActivity = [];
-  for (const row of activeAnnouncements.slice(0, 3)) {
-    recentActivity.push({
-      title: `Announcement: ${String(row?.title || 'Untitled')}`,
-      detail: isoOrEmpty(row?.created_at || row?.createdAt || '') || 'Recently updated'
-    });
-  }
-  for (const row of upcomingEvents.slice(0, 4)) {
-    recentActivity.push({
-      title: `Event: ${String(row?.title || 'Event')}`,
-      detail: isoFromDateTimeParts(row.date, row.time) || row.date
-    });
-  }
+  const recentActivity = [
+    ...(announcements?.recent || []).map((row) => ({ title: 'Announcement: ' + row.title, detail: row.createdAt || 'Recently updated' })),
+    ...(events?.upcoming || []).slice(0, 4).map((row) => ({ title: 'Event: ' + row.title, detail: isoFromDateTimeParts(row.date, row.time) || row.date }))
+  ];
+
+  // null means "not available to this user or failed to load"; 0 is a real zero.
+  const pick = (value) => (value === undefined ? null : value);
+  const degraded = unavailable.size > 0;
+  const sectionStatus = (key, allowed) => (allowed ? (unavailable.has(key) ? { ok: false, error: 'Unavailable' } : { ok: true }) : { ok: null, restricted: true });
 
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt: nowIso,
     summary: {
-      upcomingEvents14d: upcoming14.length,
-      todayEvents: todayEvents.length,
-      activeAnnouncements: activeAnnouncements.length,
-      totalAnnouncements: announcements.length,
-      subscribers,
-      scheduledNewsletters: scheduled,
-      galleryItems: galleryItemsCount,
-      galleryAlbums: galleryAlbumsCount
+      upcomingEvents14d: pick(events?.upcoming14d),
+      todayEvents: pick(events?.today),
+      activeAnnouncements: pick(announcements?.active),
+      totalAnnouncements: pick(announcements?.total),
+      subscribers: pick(subscribers),
+      scheduledNewsletters: pick(newsletter?.scheduled),
+      galleryItems: pick(gallery?.items),
+      galleryAlbums: pick(gallery?.albums)
     },
+    unavailable: Array.from(unavailable),
     needsAttention,
-    upcomingEvents: upcoming14.slice(0, 8).map((row) => ({
-      title: row.title,
-      date: row.date,
-      time: row.time
-    })),
-    newsletter: {
-      drafts,
-      scheduled,
-      history,
-      nextScheduledAt: nextScheduledAt || ''
-    },
+    upcomingEvents: (events?.upcoming || []).filter((row) => row.date <= horizon).map(({ title, date, time }) => ({ title, date, time })),
+    newsletter: newsletter
+      ? { drafts: newsletter.drafts, scheduled: newsletter.scheduled, history: newsletter.history, nextScheduledAt: newsletter.nextScheduledAt }
+      : null,
     websiteStatus: {
       storageMode: env.DB ? 'd1' : 'assets_only',
       announcementsStorage: env.DB ? 'd1' : 'assets',
-      schedulerRunning: true,
-      degraded: false
+      schedulerRunning: newsletter ? newsletter.overdue === 0 : null,
+      degraded
     },
     status: {
-      announcements: { ok: true },
-      gallery: { ok: true },
-      newsletter: { ok: true }
+      announcements: sectionStatus('announcements', can.announcements),
+      gallery: sectionStatus('gallery', can.gallery),
+      newsletter: sectionStatus('newsletter', can.newsletter)
     },
     recentActivity: recentActivity.slice(0, 10),
-    permissions: {}
+    permissions: { announcements: can.announcements, events: can.events, gallery: can.gallery, newsletter: can.newsletter }
   };
 }
 
@@ -1306,7 +1345,7 @@ const applicationWorker = {
     if (url.pathname === '/api/dashboard/overview' && request.method === 'GET') {
       const user = await requireSession(request, env, ctx);
       if (!user) return json({ error: 'Unauthorized' }, 401);
-      const overview = await buildDashboardOverview(request, env);
+      const overview = await buildDashboardOverview(request, env, Array.isArray(user.permissions) ? user.permissions : []);
       return json(overview);
     }
 
