@@ -108,3 +108,10 @@ test('unauthenticated shell deep links redirect to Access and never return admin
   const response=await worker.fetch(new Request('https://church.example/admin/mail/thread/contact%3Aone'),{},{});
   assert.equal(response.status,302);assert.match(response.headers.get('location'),/cdn-cgi\/access\/login/);assert.equal(await response.text(),'');
 });
+
+test('public site routes are not treated as admin shell routes',async()=>{
+  const {resolveRoute}=await import('../admin/public/workspace/modules.mjs');
+  for(const path of ['/','/index.html','/Pages/live_praise','/adminfoo']) assert.equal(resolveRoute(path),null);
+  assert.equal(resolveRoute('/admin/').module,'mail');
+  assert.equal(resolveRoute('/admin/rentals').module,'rentals');
+});

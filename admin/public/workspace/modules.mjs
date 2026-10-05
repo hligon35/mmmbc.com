@@ -22,6 +22,7 @@ export function resolveRoute(path,hash='') {
   if(match) {
     try{return {module:match[1],key:decodeURIComponent(match[2])};}catch{return null;}
   }
+  if(normalized!=='/admin'&&!normalized.startsWith('/admin/'))return null;
   const id=normalized.replace(/^\/admin\/?/,'');
   if(modules.some(m=>m.id===id))return {module:id,key:''};
   if(['','index.html'].includes(id)) {
