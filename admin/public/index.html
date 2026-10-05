@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/admin/admin-style.css?v=20260928k" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" />
   <link rel="stylesheet" href="/admin/workspace/workspace.css?v=20261003" />
-  <link rel="manifest" href="/admin/manifest.webmanifest" />
+  <link rel="manifest" href="/admin/manifest.webmanifest" crossorigin="use-credentials" />
   <meta name="theme-color" content="#a54c1e" />
   <link rel="apple-touch-icon" href="/admin/icons/icon-192.png" />
   <script>window.MMWorkspaceEnabled = true;</script>
@@ -1359,7 +1359,7 @@
             <button class="btn actionIconBtn" id="settingsRolesDialogCloseBtn" type="button" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
           </div>
           <p class="muted">View means read-only access. Manage means the role can create or change records.</p>
-          <p class="hint">Roster labels are mapped to these standard roles: Administrator manages all modules. Directory roles manage contacts and support. Site Editor manages website content and communications.</p>
+          <p class="hint">Roster labels are mapped to these standard roles: Administrator manages all modules. Directory roles manage contacts and support. Website Manager manages website content and communications.</p>
           <div class="tableWrap"><table class="table settingsMatrix"><thead id="settingsRolesHead"></thead><tbody id="settingsRolesBody"></tbody></table></div>
         </div>
       </dialog>
