@@ -1,40 +1,16 @@
 /*
  * site-content-loader.js
  *
- * Reusable public-page hydration loader for the visual website editor.
- * Include with: <script src="site-content-loader.js" defer data-cms-page="home"></script>
- * (use a relative path such as "../site-content-loader.js" from files under Pages/).
+ * Published profile-content hydration loader.
+ * The standalone visual Site Editor has been removed. Static HTML remains the
+ * fallback whenever no published profile payload is available.
  *
- * Normal (public) mode:
+ * Public mode:
  *   - Fetches GET /api/site-content/{page} (published fields only, unauthenticated).
  *   - Hydrates every [data-cms-field] element found on the page.
  *   - On any failure, silently keeps the static HTML already baked into the page
  *     (graceful fallback — the page must never break or show blank/error content).
  *
- * Editor (admin) mode — activated by a ?cms_edit=1 query string, expected to be used
- * only when this page is loaded inside the admin visual editor's iframe:
- *   - Never fetches published content itself; waits for the parent frame to push the
- *     current draft via postMessage so the admin always edits/see the draft, not the
- *     live published copy.
- *   - Adds hover/focus affordances to editable elements and intercepts clicks on them,
- *     reporting the field key/type/position back to the parent so it can position a
- *     contextual popover editor.
- *   - Intercepts other internal link clicks so the iframe never navigates away from
- *     the page being edited.
- *
- * postMessage protocol (all messages are validated for shape + same-origin):
- *   iframe -> parent: { source: 'mmmbc-cms', type: 'ready', page }
- *   iframe -> parent: { source: 'mmmbc-cms', type: 'fieldClick', page, field, fieldType, rect }
- *   iframe -> parent: { source: 'mmmbc-cms', type: 'collectionItemClick', page, collection, itemId, field, fieldType, rect }
- *   iframe -> parent: { source: 'mmmbc-cms', type: 'collectionItemActions', page, collection, itemId, rect }
- *   iframe -> parent: { source: 'mmmbc-cms', type: 'navigateBlocked', page, href }
- *   iframe -> parent: { source: 'mmmbc-cms', type: 'error', page, message }
- *   parent -> iframe: { source: 'mmmbc-cms', type: 'init', page, fields }
- *   parent -> iframe: { source: 'mmmbc-cms', type: 'refresh', page, fields }
- *   parent -> iframe: { source: 'mmmbc-cms', type: 'setField', page, field, value }
- *   parent -> iframe: { source: 'mmmbc-cms', type: 'setCollectionItemField', page, collection, itemId, field, value }
- *   parent -> iframe: { source: 'mmmbc-cms', type: 'setSelection', page, collection, itemId, field }
- *   parent -> iframe: { source: 'mmmbc-cms', type: 'clearSelection', page }
  */
 (function () {
   'use strict';
@@ -49,11 +25,6 @@
   var RICH_TEXT_URL_PROTOCOLS = ['http:', 'https:', 'mailto:'];
 
   var isEditorMode = false;
-  try {
-    isEditorMode = new URLSearchParams(window.location.search || '').get('cms_edit') === '1';
-  } catch (e) {
-    isEditorMode = false;
-  }
 
   var state = { fields: {} };
 
@@ -456,253 +427,11 @@
       });
   }
 
-  // ---------------------------------------------------------------------
-  // Editor mode
-  // ---------------------------------------------------------------------
-  function postToParent(message) {
-    if (!window.parent || window.parent === window) return;
-    try {
-      window.parent.postMessage(Object.assign({ source: 'mmmbc-cms', page: PAGE }, message), window.location.origin);
-    } catch (e) {
-      // ignore postMessage failures (e.g. parent already navigated away)
-    }
-  }
-
-  function isValidParentMessage(event) {
-    if (event.origin !== window.location.origin) return false;
-    if (event.source !== window.parent) return false;
-    var data = event.data;
-    if (!data || typeof data !== 'object') return false;
-    if (data.source !== 'mmmbc-cms') return false;
-    if (data.page !== PAGE) return false;
-    return true;
-  }
-
-  function findFieldAncestor(el) {
-    var node = el;
-    while (node && node !== document.body) {
-      if (node.hasAttribute && node.hasAttribute('data-cms-field')) return node;
-      node = node.parentElement;
-    }
-    return null;
-  }
-
-  function findItemFieldAncestor(el) {
-    var node = el;
-    while (node && node !== document.body) {
-      if (node.hasAttribute && node.hasAttribute('data-cms-item-field')) return node;
-      node = node.parentElement;
-    }
-    return null;
-  }
-
-  function findItemActionsAncestor(el) {
-    var node = el;
-    while (node && node !== document.body) {
-      if (node.hasAttribute && node.hasAttribute('data-cms-item-actions')) return node;
-      node = node.parentElement;
-    }
-    return null;
-  }
-
-  function findCollectionAncestor(el) {
-    var node = el;
-    while (node && node !== document.body) {
-      if (node.hasAttribute && node.hasAttribute('data-cms-collection')) return node;
-      node = node.parentElement;
-    }
-    return null;
-  }
-
-  function findItemRootAncestor(el) {
-    var node = el;
-    while (node && node !== document.body) {
-      if (node.hasAttribute && node.hasAttribute('data-cms-item-id') && node.hasAttribute('data-cms-item')) return node;
-      node = node.parentElement;
-    }
-    return null;
-  }
-
-  function findAnchorAncestor(el) {
-    var node = el;
-    while (node && node !== document.body) {
-      if (node.tagName === 'A' && node.hasAttribute('href')) return node;
-      node = node.parentElement;
-    }
-    return null;
-  }
-
-  function rectOf(el) {
-    var r = el.getBoundingClientRect();
-    return { top: r.top, left: r.left, width: r.width, height: r.height };
-  }
-
-  // Injects a small stylesheet, only in editor mode, giving every editable element a
-  // visible hover / keyboard-focus / selected state so senior-friendly users can always
-  // see what is clickable before they click it. Never loaded in normal public mode.
-  function injectEditorStyles() {
-    var style = document.createElement('style');
-    style.setAttribute('data-cms-editor-styles', '');
-    style.textContent =
-      '.cms-editable{outline:2px solid transparent;outline-offset:2px;cursor:pointer;border-radius:4px;transition:outline-color .12s ease,background-color .12s ease;}' +
-      '.cms-editable:hover{outline-color:#4c8bf5;background-color:rgba(76,139,245,0.08);}' +
-      '.cms-editable:focus-visible{outline-color:#1a56db;outline-width:3px;background-color:rgba(26,86,219,0.10);}' +
-      '.cms-editable--selected{outline-color:#e08a00 !important;outline-width:3px !important;background-color:rgba(224,138,0,0.12) !important;}' +
-      '.cms-item-actions-btn{position:absolute;top:-10px;right:-10px;width:26px;height:26px;border-radius:50%;border:1px solid #ccc;background:#fff;color:#333;font-size:14px;line-height:1;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.25);opacity:0;pointer-events:none;z-index:5;}' +
-      '[data-cms-item]{position:relative;}' +
-      '[data-cms-item]:hover .cms-item-actions-btn,[data-cms-item]:focus-within .cms-item-actions-btn,.cms-item-actions-btn:focus-visible{opacity:1;pointer-events:auto;}';
-    document.head.appendChild(style);
-  }
-
-  // Marks every plain [data-cms-field] element as keyboard-focusable/hoverable. Collection
-  // item fields and schedule-rendered fields already get this treatment where they're built
-  // (hydrateCollectionField / renderScheduleCollection), since those are (re)created on the fly.
-  function markScalarFieldsEditable() {
-    document.querySelectorAll('[data-cms-field]').forEach(function (el) {
-      el.classList.add('cms-editable');
-      if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
-      if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
-      if (!el.hasAttribute('aria-label')) {
-        el.setAttribute('aria-label', 'Edit ' + (el.getAttribute('data-cms-field') || 'this content'));
-      }
-    });
-  }
-
-  function clearSelectionClasses() {
-    document.querySelectorAll('.cms-editable--selected').forEach(function (el) {
-      el.classList.remove('cms-editable--selected');
-    });
-  }
-
-  function applySelection(data) {
-    clearSelectionClasses();
-    if (!data || (!data.field && !data.itemId)) return;
-    var selector;
-    if (data.collection && data.itemId && data.field) {
-      selector = '[data-cms-item-id="' + cssEscape(data.itemId) + '"][data-cms-item-field="' + cssEscape(data.field) + '"]';
-    } else if (data.field) {
-      selector = '[data-cms-field="' + cssEscape(data.field) + '"]';
-    }
-    if (!selector) return;
-    document.querySelectorAll(selector).forEach(function (el) { el.classList.add('cms-editable--selected'); });
-  }
-
-  function handleEditableActivation(target) {
-    var itemFieldEl = findItemFieldAncestor(target);
-    if (itemFieldEl) {
-      var collectionEl = findCollectionAncestor(itemFieldEl);
-      var itemRoot = findItemRootAncestor(itemFieldEl);
-      postToParent({
-        type: 'collectionItemClick',
-        collection: collectionEl ? collectionEl.getAttribute('data-cms-collection') : '',
-        itemId: itemFieldEl.getAttribute('data-cms-item-id') || (itemRoot ? itemRoot.getAttribute('data-cms-item-id') : ''),
-        field: itemFieldEl.getAttribute('data-cms-item-field'),
-        fieldType: itemFieldEl.getAttribute('data-cms-type') || 'text',
-        rect: rectOf(itemFieldEl)
-      });
-      return true;
-    }
-
-    var actionsEl = findItemActionsAncestor(target);
-    if (actionsEl) {
-      var itemRoot2 = findItemRootAncestor(actionsEl);
-      var collectionEl2 = findCollectionAncestor(actionsEl);
-      postToParent({
-        type: 'collectionItemActions',
-        collection: collectionEl2 ? collectionEl2.getAttribute('data-cms-collection') : '',
-        itemId: itemRoot2 ? itemRoot2.getAttribute('data-cms-item-id') : '',
-        rect: rectOf(actionsEl)
-      });
-      return true;
-    }
-
-    var fieldEl = findFieldAncestor(target);
-    if (fieldEl) {
-      postToParent({
-        type: 'fieldClick',
-        field: fieldEl.getAttribute('data-cms-field'),
-        fieldType: fieldEl.getAttribute('data-cms-type') || 'text',
-        rect: rectOf(fieldEl)
-      });
-      return true;
-    }
-
-    return false;
-  }
-
-  function initEditorMode() {
-    injectEditorStyles();
-    markScalarFieldsEditable();
-
-    document.addEventListener('click', function (event) {
-      if (handleEditableActivation(event.target)) {
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
-      var anchorEl = findAnchorAncestor(event.target);
-      if (anchorEl) {
-        event.preventDefault();
-        event.stopPropagation();
-        postToParent({ type: 'navigateBlocked', href: anchorEl.getAttribute('href') });
-      }
-    }, true);
-
-    // Keyboard activation (Enter / Space) for every focusable editable element, so the
-    // editor is fully usable without a mouse.
-    document.addEventListener('keydown', function (event) {
-      if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
-      var target = event.target;
-      if (!target || !target.classList || !target.classList.contains('cms-editable')) return;
-      if (handleEditableActivation(target)) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    }, true);
-
-    window.addEventListener('message', function (event) {
-      if (!isValidParentMessage(event)) return;
-      var data = event.data;
-      if (data.type === 'init' || data.type === 'refresh') {
-        applyFields(data.fields);
-        markScalarFieldsEditable();
-      } else if (data.type === 'setField') {
-        if (typeof data.field === 'string') {
-          state.fields[data.field] = data.value;
-          if (Array.isArray(data.value)) {
-            hydrateCollectionField(data.field);
-          } else {
-            hydrateScalarField(data.field);
-          }
-        }
-      } else if (data.type === 'setCollectionItemField') {
-        var items = state.fields[data.collection];
-        if (Array.isArray(items) && typeof data.itemId === 'string' && typeof data.field === 'string') {
-          var item = items.filter(function (it) { return it && it.id === data.itemId; })[0];
-          if (item) {
-            item[data.field] = data.value;
-            hydrateCollectionField(data.collection);
-          }
-        }
-      } else if (data.type === 'setSelection') {
-        applySelection(data);
-      } else if (data.type === 'clearSelection') {
-        clearSelectionClasses();
-      }
-    });
-
-    postToParent({ type: 'ready' });
-  }
-
   function start() {
     try {
-      if (isEditorMode) {
-        initEditorMode();
-      } else {
-        loadPublished();
-      }
+      loadPublished();
     } catch (err) {
-      if (isEditorMode) postToParent({ type: 'error', message: String(err && err.message || err) });
+      // Keep the static page content if hydration fails.
     }
   }
 
