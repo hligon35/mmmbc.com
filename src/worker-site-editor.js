@@ -4,7 +4,7 @@ import { imageBytesAllowed } from './launch-security.js';
 // Route wiring + admin-permission checks live in src/worker.js (which calls
 // requireAdmin() before invoking any handler here, passing the authenticated email).
 
-import { PAGE_KEYS, getPageSchema, INITIAL_PUBLISHED_CONTENT } from './site-editor-schema.js';
+import { getPageSchema, INITIAL_PUBLISHED_CONTENT } from './site-editor-schema.js';
 import { validatePageFields } from './site-editor-validate.js';
 
 function json(resBody, status = 200, extraHeaders = {}) {
