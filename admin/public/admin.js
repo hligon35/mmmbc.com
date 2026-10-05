@@ -1487,26 +1487,63 @@ function applyHashNavigation({ updateHash = false } = {}) {
   }
 }
 
-async function loadWebsiteSubmissions() {
+const SUBMISSIONS_PAGE_SIZE = 25;
+let submissionsOffset = 0;
+let submissionsRequestSeq = 0;
+let submissionsAbort = null;
+
+function submissionRowHtml(row) {
+  const unread = !row.read_at;
+  const type = submissionTypeLabel(row.type);
+  const sender = escapeHtml(row.sender_name || 'sender');
+  const deleteButton = currentPermissions.has('submissions.manage')
+    ? `<button class="btn btn--danger actionIconBtn" type="button" data-submission-delete="${escapeHtml(row.id)}" data-submission-type="${escapeHtml(row.type)}" aria-label="Delete message from ${sender}" title="Delete message permanently"><span class="material-icons-round" aria-hidden="true">delete</span></button>` : '';
+  return `<tr class="${unread ? 'isUnread' : ''}"><td>${unread ? '<strong>Unread</strong>' : 'Read'}</td><td>${escapeHtml(type)}</td><td>${escapeHtml(row.sender_name || '')}<br><span class="muted">${escapeHtml(row.sender_email || '')}</span></td><td>${escapeHtml(row.subject || '')}</td><td>${escapeHtml(new Date(row.created_at).toLocaleString())}</td><td><div class="submissionActions"><button class="btn actionIconBtn" type="button" data-submission-open="${escapeHtml(row.id)}" data-submission-type="${escapeHtml(row.type)}" aria-label="Open message from ${sender}" title="Open message"><span class="material-icons-round" aria-hidden="true">visibility</span></button>${deleteButton}</div></td></tr>`;
+}
+
+function updateSubmissionsPager(total, shown) {
+  const info = $('submissionsPageInfo');
+  const prev = $('submissionsPrevBtn');
+  const next = $('submissionsNextBtn');
+  if (info) {
+    info.textContent = total
+      ? `${submissionsOffset + 1}\u2013${submissionsOffset + shown} of ${total}`
+      : '0 messages';
+  }
+  if (prev) prev.disabled = submissionsOffset <= 0;
+  if (next) next.disabled = submissionsOffset + shown >= total;
+}
+
+// Server-side filtering and paging. A newer request cancels and supersedes older ones.
+async function loadWebsiteSubmissions({ resetPage = false } = {}) {
   const body = $('submissionsTableBody');
   if (!body) return;
-  body.innerHTML = '<tr><td colspan="6" class="muted">Loading…</td></tr>';
-  const q = String($('submissionsSearch')?.value || '').trim();
+  if (resetPage) submissionsOffset = 0;
+  if (submissionsAbort) submissionsAbort.abort();
+  const controller = new AbortController();
+  submissionsAbort = controller;
+  const sequence = ++submissionsRequestSeq;
+  body.setAttribute('aria-busy', 'true');
+  if (!body.querySelector('[data-submission-open]')) body.innerHTML = '<tr><td colspan="6" class="muted">Loading…</td></tr>';
+  const params = new URLSearchParams({
+    q: String($('submissionsSearch')?.value || '').trim(),
+    type: submissionsTypeFilter,
+    limit: String(SUBMISSIONS_PAGE_SIZE),
+    offset: String(submissionsOffset)
+  });
   try {
-    const data = await api(`/api/submissions?q=${encodeURIComponent(q)}`);
+    const data = await api(`/api/submissions?${params}`, { signal: controller.signal });
+    if (sequence !== submissionsRequestSeq) return;
     const rows = data?.submissions || [];
-    updateSubmissionTypeFilters(rows);
-    const visibleRows = submissionsTypeFilter === 'all'
-      ? rows
-      : rows.filter((row) => String(row?.type || '').toLowerCase() === submissionsTypeFilter);
-    body.innerHTML = visibleRows.length ? visibleRows.map((row) => {
-      const unread = !row.read_at;
-      const type = submissionTypeLabel(row.type);
-      const deleteButton = currentPermissions.has('submissions.manage')
-        ? `<button class="btn btn--danger actionIconBtn" type="button" data-submission-delete="${escapeHtml(row.id)}" data-submission-type="${escapeHtml(row.type)}" aria-label="Delete message from ${escapeHtml(row.sender_name || 'sender')}" title="Delete message permanently"><span class="material-icons-round" aria-hidden="true">delete</span></button>` : '';
-      return `<tr class="${unread ? 'isUnread' : ''}"><td>${unread ? '<strong>Unread</strong>' : 'Read'}</td><td>${escapeHtml(type)}</td><td>${escapeHtml(row.sender_name || '')}<br><span class="muted">${escapeHtml(row.sender_email || '')}</span></td><td>${escapeHtml(row.subject || '')}</td><td>${escapeHtml(new Date(row.created_at).toLocaleString())}</td><td><div class="submissionActions"><button class="btn actionIconBtn" type="button" data-submission-open="${escapeHtml(row.id)}" data-submission-type="${escapeHtml(row.type)}" aria-label="Open message from ${escapeHtml(row.sender_name || 'sender')}" title="Open message"><span class="material-icons-round" aria-hidden="true">visibility</span></button>${deleteButton}</div></td></tr>`;
-    }).join('') : `<tr><td colspan="6" class="muted">No ${escapeHtml(submissionsTypeFilter === 'all' ? 'website submissions' : submissionTypeLabel(submissionsTypeFilter).toLowerCase() + ' messages')} found.</td></tr>`;
-    body.querySelectorAll('[data-submission-open]').forEach((button) => button.addEventListener('click', () => openWebsiteSubmission(button.dataset.submissionOpen, button.dataset.submissionType, rows, button).catch((error) => window.alert(error.message))));
+    const total = Number(data?.total) || 0;
+    if (!rows.length && submissionsOffset > 0 && total > 0) {
+      submissionsOffset = Math.floor((total - 1) / SUBMISSIONS_PAGE_SIZE) * SUBMISSIONS_PAGE_SIZE;
+      return loadWebsiteSubmissions();
+    }
+    updateSubmissionTypeFilters(data?.counts);
+    updateSubmissionsPager(total, rows.length);
+    body.innerHTML = rows.length ? rows.map(submissionRowHtml).join('') : `<tr><td colspan="6" class="muted">No ${escapeHtml(submissionsTypeFilter === 'all' ? 'website submissions' : submissionTypeLabel(submissionsTypeFilter).toLowerCase() + ' messages')} found.</td></tr>`;
+    body.querySelectorAll('[data-submission-open]').forEach((button) => button.addEventListener('click', () => openWebsiteSubmission(button.dataset.submissionOpen, button.dataset.submissionType, button).catch((error) => window.alert(error.message))));
     body.querySelectorAll('[data-submission-delete]').forEach((button) => button.addEventListener('click', async () => {
       const row = rows.find((item) => item.id === button.dataset.submissionDelete && item.type === button.dataset.submissionType);
       if (!row || !confirmWrite(`Permanently delete the ${submissionTypeLabel(row.type).toLowerCase()} message from ${row.sender_name || row.sender_email || 'this sender'}? This cannot be undone.`)) return;
@@ -1520,31 +1557,30 @@ async function loadWebsiteSubmissions() {
         window.alert(error.message || 'Unable to delete this message.');
       }
     }));
-  } catch (error) { updateSubmissionTypeFilters([]); body.innerHTML = `<tr><td colspan="6" class="errorText">${escapeHtml(error.message || 'Unable to load submissions.')}</td></tr>`; }
+  } catch (error) {
+    if (error?.name === 'AbortError' || sequence !== submissionsRequestSeq) return;
+    updateSubmissionsPager(0, 0);
+    body.innerHTML = `<tr><td colspan="6" class="errorText">${escapeHtml(error.message || 'Unable to load submissions.')}</td></tr>`;
+  } finally {
+    if (sequence === submissionsRequestSeq) body.removeAttribute('aria-busy');
+  }
 }
 
 function submissionTypeLabel(type) {
   return String(type || '').toLowerCase() === 'facility_rental' ? 'Facility Rental' : 'Contact';
 }
 
-function updateSubmissionTypeFilters(rows) {
-  const submissions = Array.isArray(rows) ? rows : [];
-  const counts = submissions.reduce((totals, row) => {
-    const type = String(row?.type || '').toLowerCase();
-    if (type === 'facility_rental') totals.facility_rental += 1;
-    else totals.contact += 1;
-    totals.all += 1;
-    return totals;
-  }, { all: 0, contact: 0, facility_rental: 0 });
-
+function updateSubmissionTypeFilters(counts) {
   const badgeMap = {
     all: $('submissionsTypeCountAll'),
     contact: $('submissionsTypeCountContact'),
     facility_rental: $('submissionsTypeCountFacility')
   };
-  Object.entries(badgeMap).forEach(([type, badge]) => {
-    if (badge) badge.textContent = String(counts[type] || 0);
-  });
+  if (counts) {
+    Object.entries(badgeMap).forEach(([type, badge]) => {
+      if (badge) badge.textContent = String(Number(counts[type]) || 0);
+    });
+  }
 
   document.querySelectorAll('[data-submission-type-filter]').forEach((chip) => {
     const type = String(chip.getAttribute('data-submission-type-filter') || 'all').toLowerCase();
@@ -1560,8 +1596,8 @@ function closeSubmissionDialog() {
   dialog.dataset.submissionId = '';
 }
 
-async function openWebsiteSubmission(id, type, rows, trigger) {
-  const row = rows.find((item) => item.id === id && item.type === type);
+async function openWebsiteSubmission(id, type, trigger) {
+  const row = (await api(`/api/submissions/${encodeURIComponent(id)}?type=${encodeURIComponent(type)}`))?.submission;
   if (!row) return;
   if (currentPermissions.has('submissions.manage') && !row.read_at) {
     await api(`/api/submissions/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ type, action: 'read' }) });
@@ -1746,7 +1782,7 @@ function setDirectorySubTab(panelId) {
 let galleryItems = [];
 let photoArrangeAlbum = '';
 let photoSelectedIds = new Set();
-let photoFilteredItems = [];
+let photoTotalItems = 0;
 let photoCurrentPage = 1;
 let photoGalleryDisplaySettings = { showImageNames: true };
 const PHOTO_ROWS_PER_PAGE = 6;
@@ -1864,7 +1900,7 @@ function photoUpdatePager() {
   const nextBottom = $('photoNextPageBtnBottom');
 
   const pageSize = photoPageSize();
-  const total = photoFilteredItems.length;
+  const total = photoTotalItems;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   if (photoCurrentPage > totalPages) photoCurrentPage = totalPages;
@@ -1894,7 +1930,7 @@ function photoUpdatePager() {
 
 function photoPromptJumpToPage() {
   const pageSize = photoPageSize();
-  const totalPages = Math.max(1, Math.ceil(photoFilteredItems.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(photoTotalItems / pageSize));
   if (totalPages <= 1) return;
 
   const raw = window.prompt(`Go to photo page (1-${totalPages}):`, String(photoCurrentPage));
@@ -1937,16 +1973,10 @@ function toNumberOrNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-function buildAlbumList(items) {
-  const albums = Array.from(new Set((items || []).map((i) => String(i.album || '').trim()).filter(Boolean)));
-  albums.sort((a, b) => a.localeCompare(b));
-  return albums;
-}
-
 function renderArrangeAlbumOptions() {
   const select = $('photoArrangeAlbum');
   if (!select) return;
-  const albums = buildAlbumList(galleryItems);
+  const albums = photoAlbums;
   const current = String(photoArrangeAlbum || '');
 
   select.innerHTML = '<option value="">(Pick an album)</option>';
@@ -1963,44 +1993,51 @@ function isManualMode() {
   return $('photoSort')?.value === 'manual' && String(photoArrangeAlbum || '').trim();
 }
 
-function applyPhotoFilters({ resetPage = true } = {}) {
-  const sort = $('photoSort').value;
-  const albumFilter = $('photoAlbumFilter').value.trim().toLowerCase();
-  const tagFilter = $('photoTagFilter').value.trim().toLowerCase();
+let photoRequestSeq = 0;
+let photoAbort = null;
+let photoAlbums = [];
 
-  let items = [...galleryItems];
-  if (albumFilter) items = items.filter((i) => String(i.album || '').toLowerCase().includes(albumFilter));
-  if (tagFilter) items = items.filter((i) => (i.tags || []).some((t) => String(t).toLowerCase().includes(tagFilter)));
-
-  const manualAlbum = String(photoArrangeAlbum || '').trim();
-  if (sort === 'manual' && manualAlbum) {
-    items = items.filter((i) => String(i.album || '') === manualAlbum);
-    items.sort((a, b) => {
-      const ap = toNumberOrNull(a.position);
-      const bp = toNumberOrNull(b.position);
-      if (ap === null && bp === null) return String(b.createdAt).localeCompare(String(a.createdAt));
-      if (ap === null) return 1;
-      if (bp === null) return -1;
-      if (ap !== bp) return ap - bp;
-      return String(b.createdAt).localeCompare(String(a.createdAt));
-    });
-  } else {
-    items.sort((a, b) => {
-      if (sort === 'name-asc') return String(a.originalName).localeCompare(String(b.originalName));
-      if (sort === 'name-desc') return String(b.originalName).localeCompare(String(a.originalName));
-      if (sort === 'date-asc') return String(a.createdAt).localeCompare(String(b.createdAt));
-      return String(b.createdAt).localeCompare(String(a.createdAt));
-    });
-  }
-
-  photoFilteredItems = items;
+// Filtering, sorting, and paging run on the server; stale responses are discarded.
+async function applyPhotoFilters({ resetPage = true } = {}) {
   if (resetPage) photoCurrentPage = 1;
-
   const pageSize = photoPageSize();
-  const start = (photoCurrentPage - 1) * pageSize;
-  const pageItems = items.slice(start, start + pageSize);
-  photoUpdatePager();
-  renderPhotoGrid(pageItems);
+  const params = new URLSearchParams({
+    limit: String(pageSize),
+    offset: String((Math.max(1, photoCurrentPage) - 1) * pageSize),
+    sort: $('photoSort').value || 'date-desc'
+  });
+  const album = $('photoAlbumFilter').value.trim();
+  const tag = $('photoTagFilter').value.trim();
+  if (album) params.set('album', album);
+  if (tag) params.set('tag', tag);
+  if (String(photoArrangeAlbum || '').trim()) params.set('arrangeAlbum', photoArrangeAlbum);
+
+  const seq = ++photoRequestSeq;
+  if (photoAbort) photoAbort.abort();
+  photoAbort = new AbortController();
+  const grid = $('photoGrid');
+  if (grid) grid.setAttribute('aria-busy', 'true');
+  try {
+    const data = await api('/api/gallery?' + params.toString(), { method: 'GET', signal: photoAbort.signal });
+    if (seq !== photoRequestSeq) return;
+    const total = Number(data.total) || 0;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    if (photoCurrentPage > totalPages) {
+      photoCurrentPage = totalPages;
+      return applyPhotoFilters({ resetPage: false });
+    }
+    galleryItems = data.items || [];
+    photoAlbums = data.albums || [];
+    photoTotalItems = total;
+    renderArrangeAlbumOptions();
+    photoUpdatePager();
+    renderPhotoGrid(galleryItems);
+  } catch (err) {
+    if (err?.name === 'AbortError' || seq !== photoRequestSeq) return;
+    throw err;
+  } finally {
+    if (seq === photoRequestSeq && grid) grid.removeAttribute('aria-busy');
+  }
 }
 
 async function saveManualOrder(album, orderedIds) {
@@ -2208,10 +2245,7 @@ function renderPhotoGrid(items) {
 }
 
 async function loadGallery() {
-  const data = await api('/api/gallery', { method: 'GET' });
-  galleryItems = data.items || [];
-  renderArrangeAlbumOptions();
-  applyPhotoFilters();
+  await applyPhotoFilters({ resetPage: false });
   if ($('photoShowImageNames')) {
     try {
       await loadPhotoDisplayNameSetting();
@@ -4550,7 +4584,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('submissionsRefreshBtn')) $('submissionsRefreshBtn').addEventListener('click', () => loadWebsiteSubmissions().catch(() => {}));
   if ($('submissionsSearch')) $('submissionsSearch').addEventListener('input', () => {
     window.clearTimeout(submissionsSearchTimer);
-    submissionsSearchTimer = window.setTimeout(() => loadWebsiteSubmissions().catch(() => {}), 250);
+    submissionsSearchTimer = window.setTimeout(() => loadWebsiteSubmissions({ resetPage: true }).catch(() => {}), 250);
+  });
+  if ($('submissionsPrevBtn')) $('submissionsPrevBtn').addEventListener('click', () => {
+    submissionsOffset = Math.max(0, submissionsOffset - SUBMISSIONS_PAGE_SIZE);
+    loadWebsiteSubmissions().catch(() => {});
+  });
+  if ($('submissionsNextBtn')) $('submissionsNextBtn').addEventListener('click', () => {
+    submissionsOffset += SUBMISSIONS_PAGE_SIZE;
+    loadWebsiteSubmissions().catch(() => {});
   });
   if ($('submissionDialogCloseBtn')) $('submissionDialogCloseBtn').addEventListener('click', closeSubmissionDialog);
   if ($('submissionDialog')) {
@@ -4566,7 +4608,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.querySelectorAll('[data-submission-type-filter]').forEach((chip) => {
     chip.addEventListener('click', () => {
       submissionsTypeFilter = String(chip.getAttribute('data-submission-type-filter') || 'all').toLowerCase();
-      loadWebsiteSubmissions().catch(() => {});
+      loadWebsiteSubmissions({ resetPage: true }).catch(() => {});
     });
   });
 

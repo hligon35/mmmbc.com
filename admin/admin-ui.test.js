@@ -154,8 +154,8 @@ describe('Admin accessibility redesign guards', () => {
     expect(adminCss).toContain('#tab-submissions .submissionsTypeFilters{');
     expect(adminCss).toContain('background:var(--danger);');
     expect(adminJs).toContain('let submissionsTypeFilter = \'all\';');
-    expect(adminJs).toContain('function updateSubmissionTypeFilters(rows)');
-    expect(adminJs).toContain("String(row?.type || '').toLowerCase() === submissionsTypeFilter");
+    expect(adminJs).toContain('function updateSubmissionTypeFilters(counts)');
+    expect(adminJs).toContain("type: submissionsTypeFilter");
   });
 
   test('Newsletter actions retain send/test/draft/schedule behavior', () => {

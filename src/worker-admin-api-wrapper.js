@@ -64,6 +64,85 @@ async function requireSession(request, env, ctx) {
   return state;
 }
 
+const SUBMISSION_TYPES = new Set(['contact', 'facility_rental']);
+const SUBMISSION_PAGE_DEFAULT = 25;
+const SUBMISSION_PAGE_MAX = 100;
+
+function boundedInteger(value, fallback, min, max) {
+  const number = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : fallback;
+}
+
+function escapeLike(value) {
+  return value.replace(/[\\%_]/g, (character) => '\\' + character);
+}
+
+// Search predicate shared by list, counts, and detail so totals match visible rows.
+const SUBMISSION_UNION_SQL = `
+  SELECT id, 'contact' AS type, name AS sender_name, email AS sender_email, subject,
+    created_at, read_at, auto_reply_status
+    FROM contact_messages WHERE archived_at IS NULL
+      AND (? = '' OR name LIKE ? ESCAPE '\\' OR email LIKE ? ESCAPE '\\' OR subject LIKE ? ESCAPE '\\'
+        OR message LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\' OR address LIKE ? ESCAPE '\\')
+  UNION ALL
+  SELECT id, 'facility_rental' AS type, person_responsible AS sender_name,
+    contact_email AS sender_email, 'Facility Rental Request' AS subject,
+    created_at, read_at, auto_reply_status
+    FROM facility_rental_requests WHERE archived_at IS NULL
+      AND (? = '' OR person_responsible LIKE ? ESCAPE '\\' OR contact_email LIKE ? ESCAPE '\\'
+        OR form_json LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\')`;
+
+function submissionSearchBinds(q) {
+  const like = '%' + escapeLike(q) + '%';
+  return [q, like, like, like, like, like, like, q, like, like, like, like];
+}
+
+async function listSubmissions(env, url) {
+  const q = String(url.searchParams.get('q') || '').trim().slice(0, 120);
+  const requestedType = String(url.searchParams.get('type') || 'all').toLowerCase();
+  const type = SUBMISSION_TYPES.has(requestedType) ? requestedType : 'all';
+  const limit = boundedInteger(url.searchParams.get('limit'), SUBMISSION_PAGE_DEFAULT, 1, SUBMISSION_PAGE_MAX);
+  const offset = boundedInteger(url.searchParams.get('offset'), 0, 0, 1_000_000);
+  const binds = submissionSearchBinds(q);
+  const [page, totals] = await Promise.all([
+    env.SITE_DB.prepare(`SELECT * FROM (${SUBMISSION_UNION_SQL}) WHERE (? = 'all' OR type = ?)
+      ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`).bind(...binds, type, type, limit, offset).all(),
+    env.SITE_DB.prepare(`SELECT type, COUNT(*) AS total, SUM(CASE WHEN read_at IS NULL THEN 1 ELSE 0 END) AS unread
+      FROM (${SUBMISSION_UNION_SQL}) GROUP BY type`).bind(...binds).all()
+  ]);
+  const counts = { all: 0, contact: 0, facility_rental: 0 };
+  let unread = 0;
+  for (const row of totals.results || []) {
+    if (!SUBMISSION_TYPES.has(row.type)) continue;
+    counts[row.type] = Number(row.total) || 0;
+    counts.all += counts[row.type];
+    unread += Number(row.unread) || 0;
+  }
+  return json({
+    submissions: page.results || [],
+    total: type === 'all' ? counts.all : counts[type],
+    counts,
+    unread,
+    limit,
+    offset
+  });
+}
+
+async function getSubmissionDetail(env, id, requestedType) {
+  const type = String(requestedType || '');
+  if (!SUBMISSION_TYPES.has(type)) return json({ error: 'Valid submission type is required.' }, 400);
+  const sql = type === 'facility_rental'
+    ? `SELECT id, 'facility_rental' AS type, person_responsible AS sender_name,
+        contact_email AS sender_email, 'Facility Rental Request' AS subject, phone AS sender_phone,
+        '' AS sender_address, form_json AS body, created_at, status, read_at, archived_at,
+        auto_reply_status, auto_reply_at, auto_reply_error FROM facility_rental_requests WHERE id = ?`
+    : `SELECT id, 'contact' AS type, name AS sender_name, email AS sender_email, subject,
+        phone AS sender_phone, address AS sender_address, message AS body, created_at, status,
+        read_at, archived_at, auto_reply_status, auto_reply_at, auto_reply_error FROM contact_messages WHERE id = ?`;
+  const row = await env.SITE_DB.prepare(sql).bind(id).first();
+  return row ? json({ submission: row }) : json({ error: 'Submission not found.' }, 404);
+}
+
 async function handleWebsiteSubmissions(request, env, ctx) {
   const session = await requireSession(request, env, ctx);
   if (!session) return json({ error: 'Unauthorized' }, 401);
@@ -72,28 +151,9 @@ async function handleWebsiteSubmissions(request, env, ctx) {
   const url = new URL(request.url);
   const id = url.pathname.startsWith('/api/submissions/') ? decodeURIComponent(url.pathname.slice('/api/submissions/'.length)) : '';
   if (request.method === 'GET') {
-    const q = String(url.searchParams.get('q') || '').trim().slice(0, 120);
-    const like = `%${q}%`;
     try {
-      const result = await env.SITE_DB.prepare(`
-      SELECT id, 'contact' AS type, name AS sender_name, email AS sender_email, subject,
-        phone AS sender_phone, address AS sender_address, message AS body, created_at, status,
-        read_at, archived_at, auto_reply_status, auto_reply_at, auto_reply_error
-        FROM contact_messages WHERE archived_at IS NULL
-          AND (? = '' OR name LIKE ? OR email LIKE ? OR subject LIKE ? OR message LIKE ? OR phone LIKE ? OR address LIKE ?)
-      UNION ALL
-      SELECT id, 'facility_rental' AS type, person_responsible AS sender_name,
-        contact_email AS sender_email, 'Facility Rental Request' AS subject, phone AS sender_phone,
-        '' AS sender_address, form_json AS body, created_at, status, read_at, archived_at,
-        auto_reply_status, auto_reply_at, auto_reply_error
-        FROM facility_rental_requests WHERE archived_at IS NULL
-          AND (? = '' OR person_responsible LIKE ? OR contact_email LIKE ? OR form_json LIKE ? OR phone LIKE ?)
-      ORDER BY created_at DESC LIMIT 300`)
-        .bind(
-          q, like, like, like, like, like, like,
-          q, like, like, like, like
-        ).all();
-      return json({ submissions: result.results || [] });
+      if (id) return await getSubmissionDetail(env, id, url.searchParams.get('type'));
+      return await listSubmissions(env, url);
     } catch (error) {
       console.error('Website submissions query failed', error);
       return json({ error: 'Unable to load website messages. Check the site database migrations and try again.' }, 503);

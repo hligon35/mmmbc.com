@@ -1209,31 +1209,81 @@ async function listGallery(env, { publicOnly = false } = {}) {
      ORDER BY datetime(created_at) DESC, id DESC`
   ).all();
 
-  const items = (rows.results || []).map((r) => {
-    const tags = (() => {
-      try {
-        const parsed = JSON.parse(r.tags_json || '[]');
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    })();
+  return { items: (rows.results || []).map(mapGalleryRow) };
+}
 
-    return {
-      id: r.id,
-      album: r.album,
-      label: r.label,
-      tags,
-      file: `/cdn/gallery/${encodeURI(r.file_key)}`,
-      thumb: r.thumb_key ? `/cdn/gallery/${encodeURI(r.thumb_key)}` : `/cdn/gallery/${encodeURI(r.file_key)}`,
-      originalName: r.original_name,
-      createdAt: r.created_at,
-      position: r.position,
-      hideFromPublic: Number(r.is_hidden || 0) !== 0
-    };
-  });
+function mapGalleryRow(r) {
+  let tags = [];
+  try {
+    const parsed = JSON.parse(r.tags_json || '[]');
+    tags = Array.isArray(parsed) ? parsed : [];
+  } catch { /* malformed tags are treated as untagged */ }
+  return {
+    id: r.id,
+    album: r.album,
+    label: r.label,
+    tags,
+    file: `/cdn/gallery/${encodeURI(r.file_key)}`,
+    thumb: r.thumb_key ? `/cdn/gallery/${encodeURI(r.thumb_key)}` : `/cdn/gallery/${encodeURI(r.file_key)}`,
+    originalName: r.original_name,
+    createdAt: r.created_at,
+    position: r.position,
+    hideFromPublic: Number(r.is_hidden || 0) !== 0
+  };
+}
 
-  return { items };
+const GALLERY_PAGE_DEFAULT = 48;
+const GALLERY_PAGE_MAX = 200;
+const GALLERY_SORTS = {
+  'date-desc': 'datetime(created_at) DESC, id DESC',
+  'date-asc': 'datetime(created_at) ASC, id ASC',
+  'name-asc': "lower(coalesce(original_name, '')) ASC, id ASC",
+  'name-desc': "lower(coalesce(original_name, '')) DESC, id DESC"
+};
+
+function galleryLikePattern(value) {
+  return '%' + String(value || '').trim().toLowerCase().slice(0, 80).replace(/[\\%_]/g, (c) => '\\' + c) + '%';
+}
+
+// Server-side filter, sort, and paging so the admin never downloads the whole library.
+async function listGalleryPage(env, params) {
+  const hasVisibility = await ensureGalleryVisibilityColumn(env);
+  const visibilityColumn = hasVisibility ? 'COALESCE(is_hidden, 0) AS is_hidden' : '0 AS is_hidden';
+  const limit = Math.min(GALLERY_PAGE_MAX, Math.max(1, Number.parseInt(params.get('limit'), 10) || GALLERY_PAGE_DEFAULT));
+  const offset = Math.max(0, Math.min(1_000_000, Number.parseInt(params.get('offset'), 10) || 0));
+  const where = [];
+  const binds = [];
+  const album = String(params.get('album') || '').trim();
+  const tag = String(params.get('tag') || '').trim();
+  const arrangeAlbum = String(params.get('arrangeAlbum') || '').trim();
+  if (album) {
+    where.push("lower(coalesce(album, '')) LIKE ? ESCAPE '\\'");
+    binds.push(galleryLikePattern(album));
+  }
+  if (tag) {
+    where.push("EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(tags_json) THEN tags_json ELSE '[]' END) WHERE lower(value) LIKE ? ESCAPE '\\')");
+    binds.push(galleryLikePattern(tag));
+  }
+  let orderBy = GALLERY_SORTS[String(params.get('sort') || '')] || GALLERY_SORTS['date-desc'];
+  if (params.get('sort') === 'manual' && arrangeAlbum) {
+    where.push("coalesce(album, '') = ?");
+    binds.push(arrangeAlbum);
+    orderBy = 'position IS NULL, position ASC, datetime(created_at) DESC, id DESC';
+  }
+  const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+  const [rows, count, albums] = await Promise.all([
+    env.DB.prepare(`SELECT id, album, label, tags_json, file_key, thumb_key, original_name, created_at, position, ${visibilityColumn}
+      FROM gallery_items ${whereSql} ORDER BY ${orderBy} LIMIT ? OFFSET ?`).bind(...binds, limit, offset).all(),
+    env.DB.prepare(`SELECT COUNT(*) AS total FROM gallery_items ${whereSql}`).bind(...binds).first(),
+    env.DB.prepare("SELECT DISTINCT trim(album) AS album FROM gallery_items WHERE trim(coalesce(album, '')) <> '' ORDER BY lower(trim(album))").all()
+  ]);
+  return {
+    items: (rows.results || []).map(mapGalleryRow),
+    total: Number(count?.total) || 0,
+    albums: (albums.results || []).map((row) => row.album),
+    limit,
+    offset
+  };
 }
 
 async function ensureGalleryPreferencesTable(env) {
@@ -2109,6 +2159,7 @@ export default {
     if (url.pathname === '/api/gallery' && request.method === 'GET') {
       const auth = await requireAdmin(request, env);
       if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+      if (url.searchParams.has('limit')) return json(await listGalleryPage(env, url.searchParams));
       return json(await listGallery(env));
     }
 
