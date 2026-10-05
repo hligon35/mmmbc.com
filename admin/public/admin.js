@@ -1166,8 +1166,8 @@ function formatUserRoleLabel(roleValue) {
   if (role === 'finance_entry' || role === 'financeentry' || role === 'finance') return 'Directory Assistant';
   if (role === 'treasurer') return 'Directory Manager';
   if (role === 'auditor') return 'Support Viewer';
-  if (role === 'site_editor') return 'Site Editor';
-  if (role === 'website_editor' || role === 'editor' || role === 'website') return 'Site Editor';
+  if (role === 'site_editor') return 'Website Manager';
+  if (role === 'website_editor' || role === 'editor' || role === 'website') return 'Website Manager';
   return role ? role.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase()) : 'Member';
 }
 
