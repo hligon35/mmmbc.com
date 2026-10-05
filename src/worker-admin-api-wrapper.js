@@ -750,6 +750,8 @@ const applicationWorker = {
         await authenticateAdminRequest(request, env, env.__ACCESS_JWKS ? { jwks: env.__ACCESS_JWKS } : {});
       } catch (error) {
         if (error.status !== 401) return authErrorResponse(error);
+        // Access only guards /admin/*, so send bare /admin there to reach its login.
+        if (url.pathname === '/admin') return new Response(null, { status: 302, headers: { Location: '/admin/' + url.search, 'Cache-Control': 'no-store' } });
         const login = new URL('/cdn-cgi/access/login', url.origin);
         login.searchParams.set('redirect_url', url.href);
         return new Response(null, { status: 302, headers: { Location: login.href, 'Cache-Control': 'no-store' } });

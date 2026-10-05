@@ -115,3 +115,8 @@ test('public site routes are not treated as admin shell routes',async()=>{
   assert.equal(resolveRoute('/admin/').module,'mail');
   assert.equal(resolveRoute('/admin/rentals').module,'rentals');
 });
+
+test('bare /admin redirects to /admin/ so Access can authenticate it',async()=>{
+  const response=await worker.fetch(new Request('https://church.example/admin'),{},{});
+  assert.equal(response.status,302);assert.equal(new URL(response.headers.get('location'),'https://church.example').pathname,'/admin/');
+});

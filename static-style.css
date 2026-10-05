@@ -3738,3 +3738,11 @@ body:not(.admin-page) svg {
 :focus-visible { outline:3px solid #b35b27;outline-offset:3px; }
 .rental-form-choices { display:grid;grid-template-columns:minmax(0,1fr);gap:16px;max-width:680px; }
 @media(max-width:600px) { .rental-form-choices { width:100%; } }
+
+/* Reservation form menu sizes to its content and never overflows the viewport */
+.rental-form-choices { display:flex; justify-content:center; width:100%; max-width:none; margin:22px auto; }
+.rental-form-menu { width:fit-content; max-width:100%; }
+.rental-form-menu > summary { width:fit-content; max-width:100%; box-sizing:border-box; margin-inline:auto; list-style-position:inside; }
+.rental-form-menu[open] > summary { margin-bottom:8px; }
+.rental-form-menu__links { width:max-content; max-width:100%; box-sizing:border-box; }
+.rental-form-menu__links a { overflow-wrap:anywhere; }
