@@ -19,61 +19,6 @@
       .filter((value) => value && value !== '__CREATE__' && value !== FIN_DELETE_VALUE);
   }
 
-  function addFinanceCategoryDelete() {
-    const select = document.getElementById('financeCategory');
-    const fundSelect = document.getElementById('financeFund');
-    if (!(select instanceof HTMLSelectElement) || select.dataset.deleteCategoryBound === '1') return;
-    select.dataset.deleteCategoryBound = '1';
-
-    const ensureDeleteOption = () => {
-      if (Array.from(select.options).some((option) => option.value === FIN_DELETE_VALUE)) return;
-      const createOption = Array.from(select.options).find((option) => option.value === '__CREATE__');
-      const option = document.createElement('option');
-      option.value = FIN_DELETE_VALUE;
-      option.textContent = 'Delete a category…';
-      if (createOption) createOption.insertAdjacentElement('afterend', option);
-      else select.appendChild(option);
-    };
-
-    new MutationObserver(ensureDeleteOption).observe(select, { childList: true });
-    ensureDeleteOption();
-
-    select.addEventListener('change', async () => {
-      if (select.value !== FIN_DELETE_VALUE) return;
-      select.value = '';
-      const categories = selectableValues(select);
-      if (!categories.length) {
-        if (typeof window.setFinanceHint === 'function') window.setFinanceHint('There are no categories to delete.');
-        return;
-      }
-
-      const typed = window.prompt(`Type the category name to delete:\n\n${categories.join('\n')}`);
-      const target = String(typed || '').trim();
-      if (!target) return;
-      const match = categories.find((value) => value.toLowerCase() === target.toLowerCase());
-      if (!match) {
-        if (typeof window.setFinanceHint === 'function') window.setFinanceHint('Category not found.');
-        return;
-      }
-
-      const warning = `Delete “${match}” from the category list?\n\nExisting ledger entries will keep their saved category text, but this category will no longer appear as a selectable option.`;
-      if (!window.confirm(warning)) return;
-
-      try {
-        await window.api('/api/finances/meta', {
-          method: 'PUT',
-          body: JSON.stringify({
-            categories: categories.filter((value) => value.toLowerCase() !== match.toLowerCase()),
-            funds: selectableValues(fundSelect)
-          })
-        });
-        window.location.reload();
-      } catch (error) {
-        if (typeof window.setFinanceHint === 'function') window.setFinanceHint(String(error?.message || error || 'Unable to delete category.'));
-      }
-    });
-  }
-
   function useOriginalGalleryImages() {
     const grid = document.getElementById('photoGrid');
     if (!grid) return;
@@ -281,7 +226,6 @@
   function apply() {
     injectStyles();
     fixBreadcrumbs();
-    addFinanceCategoryDelete();
     repairPhotoWorkspace();
     combineAnnouncementsAndEvents();
     fixBreadcrumbs();

@@ -1956,32 +1956,6 @@ export default {
       return handlePublicSiteContentGet(request, env, page);
     }
 
-    // The standalone dashboard is retired; the Church Finances workspace remains in /admin/.
-    if (['/admin/finances/dashboard', '/admin/finances_dashboard.html'].includes(url.pathname.replace(/\/$/, ''))) {
-      return new Response('This finance dashboard has been retired.', { status: 410, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
-    }
-
-    // Map clean URLs to the remaining admin finance tools.
-    if (request.method === 'GET' || request.method === 'HEAD') {
-      const financeRouteMap = {
-        '/admin/finances/funds': '/admin/finances_funds.html',
-        '/admin/finances/donors': '/admin/finances_donors.html',
-        '/admin/finances/envelopes': '/admin/finance_envelope_designer.html',
-        '/admin/finances/reports/board': '/admin/finances_reports_board.html',
-        '/admin/finances/controls': '/admin/finances_controls.html',
-        '/admin/finances/clergy-housing': '/admin/finances_clergy_housing.html'
-      };
-      const mapped = financeRouteMap[url.pathname];
-      if (mapped) {
-        const headers = new Headers({
-          Location: mapped,
-          'Cache-Control': 'no-store'
-        });
-        applySecurityHeaders(headers, { isHttps });
-        return new Response(null, { status: 302, headers });
-      }
-    }
-
     // CDN endpoint for gallery objects in R2
     if (url.pathname.startsWith('/cdn/gallery/')) {
       return handleCdn(request, env);
@@ -2367,4 +2341,3 @@ export default {
     ctx.waitUntil(processScheduledNewsletters(env));
   }
 };
-

@@ -7,13 +7,6 @@ export const PERMISSIONS = Object.freeze({
   PHOTOS_MANAGE: 'photos.manage',
   NEWSLETTER_VIEW: 'newsletter.view',
   NEWSLETTER_MANAGE: 'newsletter.manage',
-  FINANCE_VIEW: 'finance.view',
-  FINANCE_RECORD: 'finance.record',
-  FINANCE_EDIT_VOID: 'finance.edit_void',
-  FINANCE_REPORTS_RECEIPTS: 'finance.reports_receipts',
-  FINANCE_FUNDS_CATEGORIES: 'finance.funds_categories',
-  FINANCE_EXPORT: 'finance.export',
-  FINANCE_STATEMENTS_CONTROLS: 'finance.statements_controls',
   DIRECTORY_VIEW: 'directory.view',
   DIRECTORY_MANAGE: 'directory.manage',
   SUPPORT_SEND: 'support.send',
@@ -40,30 +33,19 @@ const WEBSITE_PERMISSIONS = [
   PERMISSIONS.SETTINGS_MANAGE
 ];
 
-const FINANCE_ENTRY_PERMISSIONS = [
-  PERMISSIONS.FINANCE_VIEW,
-  PERMISSIONS.FINANCE_RECORD,
+const DIRECTORY_ASSISTANT_PERMISSIONS = [
   PERMISSIONS.DIRECTORY_VIEW,
   PERMISSIONS.DIRECTORY_MANAGE,
   PERMISSIONS.SUPPORT_SEND
 ];
 
 const TREASURER_PERMISSIONS = [
-  PERMISSIONS.FINANCE_VIEW,
-  PERMISSIONS.FINANCE_RECORD,
-  PERMISSIONS.FINANCE_EDIT_VOID,
-  PERMISSIONS.FINANCE_REPORTS_RECEIPTS,
-  PERMISSIONS.FINANCE_FUNDS_CATEGORIES,
-  PERMISSIONS.FINANCE_EXPORT,
-  PERMISSIONS.FINANCE_STATEMENTS_CONTROLS,
   PERMISSIONS.DIRECTORY_VIEW,
   PERMISSIONS.DIRECTORY_MANAGE,
   PERMISSIONS.SUPPORT_SEND
 ];
 
 const AUDITOR_PERMISSIONS = [
-  PERMISSIONS.FINANCE_VIEW,
-  PERMISSIONS.FINANCE_REPORTS_RECEIPTS,
   PERMISSIONS.SUPPORT_SEND
 ];
 
@@ -71,31 +53,31 @@ export const ROLES = Object.freeze({
   administrator: Object.freeze({
     key: 'administrator',
     label: 'Administrator',
-    description: 'Full access to website, finance, directory, settings, and administrator management.',
+    description: 'Full access to website, directory, settings, and administrator management.',
     permissions: Object.freeze(Object.values(PERMISSIONS))
   }),
   website_editor: Object.freeze({
     key: 'website_editor',
     label: 'Site Editor',
-    description: 'Manages website content, communications, directory records, and general settings. No finance or administrator management.',
+    description: 'Manages website content, communications, directory records, and general settings. No administrator management.',
     permissions: Object.freeze(WEBSITE_PERMISSIONS)
   }),
   finance_entry: Object.freeze({
     key: 'finance_entry',
-    label: 'Finance Entry',
-    description: 'Views finance, records transactions, maintains donor and contact information, and uses support.',
-    permissions: Object.freeze(FINANCE_ENTRY_PERMISSIONS)
+    label: 'Directory Assistant',
+    description: 'Maintains directory contacts and uses support.',
+    permissions: Object.freeze(DIRECTORY_ASSISTANT_PERMISSIONS)
   }),
   treasurer: Object.freeze({
     key: 'treasurer',
-    label: 'Finance Officer',
-    description: 'Broad finance, fund, donor, statement, report, export, and control access. No website or administrator management.',
+    label: 'Directory Manager',
+    description: 'Manages directory contacts and uses support. No website or administrator management.',
     permissions: Object.freeze(TREASURER_PERMISSIONS)
   }),
   auditor: Object.freeze({
     key: 'auditor',
-    label: 'Auditor',
-    description: 'Read-only finance and report access, plus Help & Support. No create, edit, void, export, approval, or administrator management.',
+    label: 'Support Viewer',
+    description: 'Help and Support access only.',
     permissions: Object.freeze(AUDITOR_PERMISSIONS)
   })
 });

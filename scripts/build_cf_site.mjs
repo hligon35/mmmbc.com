@@ -97,6 +97,7 @@ async function mirrorAdmin() {
   html = html.replace('</body>', `${structureScriptTag}\n</body>`);
   await fs.writeFile(indexPath, html, 'utf8');
 
+
 }
 
 async function main() {
@@ -114,4 +115,3 @@ main().catch((error) => {
   console.error(error?.stack || String(error));
   process.exitCode = 1;
 });
-

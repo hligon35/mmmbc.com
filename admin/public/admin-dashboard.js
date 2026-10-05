@@ -144,36 +144,6 @@
     }).join('');
   }
 
-  function renderGiving(giving, canView) {
-    const card = $('dashboardGivingCard');
-    const root = $('dashboardGivingStats');
-    if (!root || !card) return;
-
-    if (!canView) {
-      card.hidden = false;
-      root.innerHTML = '<div class="dashboardEmpty">Finance access is required to view giving details.</div>';
-      return;
-    }
-
-    card.hidden = false;
-
-    const safeGiving = giving && typeof giving === 'object' ? giving : {};
-
-    const stats = [
-      { label: 'Last 30 Days (Received)', value: formatMoneyCents(safeGiving.last30dIncomeCents) },
-      { label: 'Last 30 Days (Spent)', value: formatMoneyCents(safeGiving.last30dExpenseCents) },
-      { label: 'Pending Review Entries', value: Number(safeGiving.pendingReviewCount || 0) },
-      { label: 'Current Month Entries', value: Number(safeGiving.currentMonthEntries || 0) }
-    ];
-
-    root.innerHTML = stats.map((row) => `
-      <article class="dashboardStat">
-        <p class="dashboardStat__label">${row.label}</p>
-        <p class="dashboardStat__value">${row.value}</p>
-      </article>
-    `).join('');
-  }
-
   function renderNewsletter(newsletter) {
     const root = $('dashboardNewsletterStats');
     if (!root) return;
@@ -304,7 +274,6 @@
       renderSummaryCards(data.summary || {});
       renderNeedsAttention(data.needsAttention || []);
       renderUpcomingEvents(data.upcomingEvents || []);
-      renderGiving(data.giving || null, Boolean(data?.permissions?.canViewFinance));
       renderNewsletter(data.newsletter || null);
       renderWebsiteStatus(data.websiteStatus || {}, data.status || {});
       renderRecentActivity(data.recentActivity || []);

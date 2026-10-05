@@ -56,7 +56,6 @@ describe('Admin accessibility redesign guards', () => {
     expect(indexHtml).toContain('id="tabBtn-events"');
     expect(indexHtml).toContain('id="tabBtn-newsletter"');
     expect(indexHtml).toContain('id="tabBtn-photos"');
-    expect(indexHtml).toContain('id="tabBtn-finances"');
     expect(adminJs).toContain("for (const trigger of Array.from(document.querySelectorAll('[data-section-target]'))) {");
   });
 
@@ -65,7 +64,6 @@ describe('Admin accessibility redesign guards', () => {
     expect(indexHtml).toContain('Communication');
     expect(indexHtml).toContain('Administration');
     expect(indexHtml).not.toContain('Edit Website Pages');
-    expect(indexHtml).toContain('Church Finances');
     expect(indexHtml).toContain('Help &amp; Support');
   });
 
@@ -159,11 +157,6 @@ describe('Admin accessibility redesign guards', () => {
     expect(adminJs).toContain('window.addEventListener(\'beforeunload\'');
   });
 
-  test('Finance period controls use full labels', () => {
-    expect(indexHtml).toContain('This Week');
-    expect(indexHtml).toContain('This Month');
-  });
-
   test('Appearance controls support light dark and device options', () => {
     expect(indexHtml).toContain('id="appearanceSelect"');
     expect(indexHtml).toContain('id="headerThemeToggle"');
@@ -187,7 +180,6 @@ describe('Admin accessibility redesign guards', () => {
     expect(adminCss).toContain('background-repeat:no-repeat;');
     expect(adminCss).toContain('body.theme-dark .settingsMatrix td[data-access="manage"]');
     expect(adminCss).toContain('body.theme-dark .newsletterTemplate,');
-    expect(adminCss).toContain('body[data-page] .card{background:#1b212b;');
   });
 
   test('Keyboard accessibility handlers remain for tabs and popovers', () => {
@@ -274,7 +266,6 @@ describe('Users and roles settings', () => {
     expect(adminJs).toContain("'tab-events': 'events.view'");
     expect(adminJs).toContain("'tab-photos': 'photos.view'");
     expect(adminJs).toContain("'tab-newsletter': 'newsletter.view'");
-    expect(adminJs).toContain("'tab-finances': 'finance.view'");
     expect(adminJs).toContain("'tab-directory': 'directory.view'");
     expect(adminJs).toContain("'tab-support': 'support.send'");
     expect(adminJs).toContain("'tab-settings': USERS_MANAGE_PERMISSION");
@@ -303,134 +294,11 @@ describe('Users and roles settings', () => {
   });
 });
 
-describe('Church Finances wizard redesign', () => {
+describe('Event printing and responsive layout', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
   const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-style.css'), 'utf8');
   const serverJs = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
-
-  test('Finance section keeps its section target and heading', () => {
-    expect(indexHtml).toContain('id="tabBtn-finances"');
-    expect(indexHtml).toContain('aria-controls="tab-finances"');
-    expect(indexHtml).toMatch(/Church Finances/);
-  });
-
-  test('Record Money defaults to the first sub-tab with a 4-step wizard', () => {
-    expect(indexHtml).toContain('id="subTabBtn-finances-record"');
-    expect(indexHtml).toContain('id="subTabBtn-finances-review"');
-    expect(indexHtml).toContain('id="subTabBtn-finances-reports"');
-    expect(indexHtml).toContain('id="panel-finances-record"');
-    expect(indexHtml).toContain('data-wizard-goto="direction"');
-    expect(indexHtml).toContain('data-wizard-goto="details"');
-    expect(indexHtml).toContain('data-wizard-goto="payment"');
-    expect(indexHtml).toContain('data-wizard-goto="review"');
-  });
-
-  test('Money Direction step offers plain-language choices', () => {
-    expect(indexHtml).toContain('What are you recording?');
-    expect(indexHtml).toContain('Money Received');
-    expect(indexHtml).toContain('Money Spent');
-  });
-
-  test('Payment method step removes the old "(Any)" option and requires a real choice', () => {
-    expect(indexHtml).toContain('Choose payment method');
-    expect(indexHtml).not.toContain('(Any)');
-  });
-
-  test('Review step reuses field values and is not gated by confirm()', () => {
-    expect(indexHtml).toContain('id="financeReviewSummary"');
-    expect(indexHtml).toContain('Review this entry');
-    expect(adminJs).toContain('function financeRenderReviewSummary()');
-    expect(adminJs).not.toContain("confirmWrite(id ? 'Save changes to this entry?' : 'Add this finance entry?')");
-  });
-
-  test('Saving is protected against duplicate submits', () => {
-    expect(adminJs).toContain('if (financeWizard.saving) return;');
-    expect(adminJs).toContain('financeWizard.saving = true;');
-  });
-
-  test('Edit mode reuses the wizard and relabels the heading/buttons', () => {
-    expect(adminJs).toContain("heading.textContent = isEditing ? 'Edit Transaction' : 'Record Money';");
-    expect(adminJs).toContain("reviewHeading.textContent = isEditing ? 'Review changes' : 'Review this entry';");
-    expect(adminJs).toContain("saveBtn.textContent = isEditing ? 'Save Changes' : 'Save Entry';");
-  });
-
-  test('Client-side validation uses the exact required copy', () => {
-    expect(adminJs).toContain('Enter an amount greater than $0.00.');
-    expect(adminJs).toContain('Choose what the money was received for.');
-    expect(adminJs).toContain('Choose what this expense was for.');
-    expect(adminJs).toContain('Choose a payment method.');
-    expect(adminJs).toContain('Enter who was paid.');
-  });
-
-  test('Server enforces Paid To for expenses without breaking existing validation', () => {
-    expect(serverJs).toContain("if (type === 'expense' && !party) return res.status(400).json({ error: 'Enter who was paid.' });");
-    expect(serverJs).toContain("if (!Number.isFinite(amountCents) || amountCents <= 0) return res.status(400).json({ error: 'Amount must be greater than 0.' });");
-  });
-
-  test('Unsaved-change and delete confirmations use dedicated accessible dialogs', () => {
-    expect(indexHtml).toContain('id="financeUnsavedDialog"');
-    expect(indexHtml).toContain('Keep Editing');
-    expect(indexHtml).toContain('Discard Entry');
-    expect(indexHtml).toContain('id="financeDeleteDialog"');
-    expect(indexHtml).toContain('Void Transaction');
-    expect(indexHtml).toContain('Keep Transaction');
-    expect(adminJs).toContain('function financeOpenUnsavedDialog(');
-    expect(adminJs).toContain('function financeOpenDeleteDialog(');
-  });
-
-  test('Review Transactions shows a simplified table with visible-label actions', () => {
-    expect(indexHtml).toContain('Transaction History');
-    expect(indexHtml).toContain('Money In');
-    expect(indexHtml).toContain('Money Out');
-    expect(adminJs).toContain("setActionIconButton(viewBtn, 'view', 'View details');");
-    expect(adminJs).toContain("setActionIconButton(editBtn, 'edit', 'Edit entry');");
-    expect(adminJs).toContain("receiptBtn.textContent = 'Print Receipt';");
-    expect(adminJs).toContain("delBtn.textContent = 'Void';");
-  });
-
-  test('Review Transactions supports advanced filters and Reset All Filters', () => {
-    expect(indexHtml).toContain('id="financeAdvancedFilters"');
-    expect(indexHtml).toContain('id="financeFilterCategory"');
-    expect(indexHtml).toContain('id="financeFilterFund"');
-    expect(indexHtml).toContain('id="financeFilterMethod"');
-    expect(indexHtml).toContain('Reset All Filters');
-    expect(adminJs).toContain('financeClearQuickKind({ render: false });');
-  });
-
-  test('Reports & Printing view keeps summary, printing, and new export actions while hiding removed entry points', () => {
-    expect(indexHtml).toContain('Print Transaction History');
-    expect(indexHtml).toContain('Print Selected Receipts');
-    expect(indexHtml).toContain('Export Transactions');
-    expect(indexHtml).toContain('id="financeExportCsvBtn"');
-    expect(indexHtml).toContain('id="financeExportSheetsBtn"');
-    expect(indexHtml).not.toContain('financeViewSummaryBtn');
-    expect(indexHtml).toContain('Money Flow');
-    expect(indexHtml).toContain('Giving Breakdown');
-    expect(indexHtml).not.toContain('Design &amp; Print Envelopes');
-    expect(indexHtml).not.toContain('Finance Dashboard');
-    expect(indexHtml).not.toMatch(/id="financeReportsTotals"[^>]*hidden|hidden[^>]*id="financeReportsTotals"/);
-    expect(adminJs).not.toContain('function toggleFinanceSummaryPanel(');
-    expect(adminJs).toContain('function financeExportToGoogleSheets(rows)');
-  });
-
-  test('Receipt printing only renders when an entry is valid for receipt output', () => {
-    expect(adminJs).toContain('function financeCanPrintReceipt(entry)');
-    expect(adminJs).toContain('if (financeCanPrintReceipt(e)) {');
-    expect(adminJs).toContain('No valid transactions are available to print.');
-  });
-
-  test('Record Money removes the visible scan QR action and keeps the wider two-column detail layout', () => {
-    expect(indexHtml).not.toContain('id="financeScanQrBtn"');
-    expect(indexHtml).toContain('class="label financeWizardField"');
-    expect(adminCss).toContain('.financeWizardField{');
-    expect(adminCss).toContain('.financeWizardPanel{');
-  });
-
-  test('Finance period controls use full labels', () => {
-    expect(indexHtml).toContain('This Week');
-    expect(indexHtml).toContain('This Month');
-  });
 
   test('Event printing moved out of Finances and into the Events tab', () => {
     expect(indexHtml).toContain('id="eventsPrintMenu"');
@@ -438,9 +306,7 @@ describe('Church Finances wizard redesign', () => {
     expect(indexHtml).toContain('id="printEventsGroupBtn"');
     expect(indexHtml).toContain('id="printEventId"');
 
-    const financesSectionMatch = indexHtml.match(/<section class="tabPanel"[^>]*id="tab-finances"[\s\S]*?<\/section>/);
-    expect(financesSectionMatch).not.toBeNull();
-    expect(financesSectionMatch[0]).not.toContain('printEventsAllBtn');
+    expect(indexHtml).not.toContain('id="tab-finances"');
 
     const eventsSectionMatch = indexHtml.match(/<section class="tabPanel"[^>]*id="tab-events"[\s\S]*?<\/section>/);
     expect(eventsSectionMatch).not.toBeNull();

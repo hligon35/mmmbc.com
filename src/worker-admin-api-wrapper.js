@@ -4,11 +4,13 @@ import { deliverSubmissionEmail, retrySubmissionEmails } from './submission-deli
 import worker from './worker-auth-wrapper.js';
 import { handleGivingRequest } from './worker-giving.js';
 import { handleGivingPageRequest } from './worker-giving-pages.js';
-import { maybeHandleFinanceReconciliationRequest } from './worker-finance-reconciliation.js';
 import { handlePublicSiteContentGet } from './worker-site-editor.js';
 import { PERMISSIONS } from './admin-rbac.js';
 import { honeypotTripped, verifyTurnstile, checkRateLimit, clientIp } from './public-forms-security.js';
 import { sendResendEmail } from './email-resend.js';
+import { handleWorkspaceRequest } from './worker-workspace.js';
+import { resolveRoute, legacyRoutes } from '../admin/public/workspace/modules.mjs';
+import { authenticateAdminRequest, authErrorResponse } from './admin-auth.js';
 
 const authStateCache = new WeakMap();
 
@@ -245,26 +247,9 @@ function authFailure(status, code, message) {
 }
 
 function requiredOuterPermission(pathname, method) {
-  if (pathname === '/api/profiles') return PERMISSIONS.SETTINGS_MANAGE;
+  if (pathname === '/api/profiles' || pathname === '/api/export') return PERMISSIONS.SETTINGS_MANAGE;
   if (pathname === '/api/livestream' || pathname === '/api/settings' || pathname.startsWith('/api/theme/')) {
     return PERMISSIONS.SETTINGS_MANAGE;
-  }
-  if (pathname === '/api/export') return PERMISSIONS.FINANCE_EXPORT;
-  if (pathname === '/api/finances') return PERMISSIONS.FINANCE_VIEW;
-  if (pathname === '/api/finances/meta') {
-    return method === 'GET' ? PERMISSIONS.FINANCE_VIEW : PERMISSIONS.FINANCE_FUNDS_CATEGORIES;
-  }
-  if (pathname === '/api/finances/funds' || /^\/api\/finances\/funds\/[^/]+\/archive$/.test(pathname)) {
-    return method === 'GET' ? PERMISSIONS.FINANCE_VIEW : PERMISSIONS.FINANCE_FUNDS_CATEGORIES;
-  }
-  if (/^\/api\/finances\/entries\/[^/]+(?:\/void)?$/.test(pathname)) {
-    return method === 'GET' ? PERMISSIONS.FINANCE_VIEW : PERMISSIONS.FINANCE_EDIT_VOID;
-  }
-  if (pathname === '/api/finances/entries') {
-    return method === 'GET' ? PERMISSIONS.FINANCE_VIEW : PERMISSIONS.FINANCE_RECORD;
-  }
-  if (pathname.startsWith('/api/finances/')) {
-    return method === 'GET' ? PERMISSIONS.FINANCE_VIEW : PERMISSIONS.FINANCE_RECORD;
   }
   return '';
 }
@@ -376,219 +361,7 @@ async function sendSupportEmailMessage(env, {
   }
 }
 
-function emptyFinances() {
-  return {
-    entries: [],
-    meta: {
-      categories: [],
-      funds: []
-    }
-  };
-}
-
-function financeText(value, max = 240) {
-  return String(value || '').trim().replace(/\s+/g, ' ').slice(0, max);
-}
-
-function financeDate(value) {
-  const raw = String(value || '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
-  const t = Date.parse(`${raw}T00:00:00Z`);
-  if (!Number.isFinite(t)) return '';
-  return raw;
-}
-
-function financeAmountToCents(value) {
-  const num = Number(String(value || '').trim());
-  if (!Number.isFinite(num) || num <= 0) return Number.NaN;
-  return Math.round(num * 100);
-}
-
-function financeUniqueSorted(values) {
-  return Array.from(new Set((Array.isArray(values) ? values : [])
-    .map((v) => financeText(v, 120))
-    .filter(Boolean)))
-    .sort((a, b) => a.localeCompare(b));
-}
-
-async function ensureFinanceSchema(env) {
-  if (!env.DB) return false;
-
-  await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS finance_entries (
-      id TEXT PRIMARY KEY,
-      entry_date TEXT NOT NULL,
-      type TEXT NOT NULL,
-      category TEXT,
-      fund TEXT,
-      fund_id TEXT,
-      method TEXT,
-      party TEXT,
-      memo TEXT,
-      amount_cents INTEGER NOT NULL,
-      status TEXT NOT NULL DEFAULT 'posted',
-      voided_by TEXT,
-      voided_at TEXT,
-      void_reason TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    )`
-  ).run().catch(() => null);
-
-  await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS finance_funds (
-      id TEXT PRIMARY KEY,
-      fund_name TEXT NOT NULL UNIQUE,
-      fund_code TEXT,
-      active INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    )`
-  ).run().catch(() => null);
-
-  await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS finance_meta (
-      key TEXT PRIMARY KEY,
-      value_json TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    )`
-  ).run().catch(() => null);
-
-  const info = await env.DB.prepare('PRAGMA table_info(finance_entries)').all().catch(() => ({ results: [] }));
-  const cols = new Set((info?.results || []).map((r) => String(r?.name || '').toLowerCase()));
-  const maybeAdd = async (name, ddl) => {
-    if (cols.has(name)) return;
-    await env.DB.prepare(ddl).run().catch(() => null);
-  };
-
-  await maybeAdd('fund_id', 'ALTER TABLE finance_entries ADD COLUMN fund_id TEXT');
-  await maybeAdd('status', "ALTER TABLE finance_entries ADD COLUMN status TEXT NOT NULL DEFAULT 'posted'");
-  await maybeAdd('voided_by', 'ALTER TABLE finance_entries ADD COLUMN voided_by TEXT');
-  await maybeAdd('voided_at', 'ALTER TABLE finance_entries ADD COLUMN voided_at TEXT');
-  await maybeAdd('void_reason', 'ALTER TABLE finance_entries ADD COLUMN void_reason TEXT');
-
-  return true;
-}
-
-async function listFinanceFunds(env, { includeInactive = false } = {}) {
-  if (!env.DB) return [];
-  await ensureFinanceSchema(env);
-  const sql = includeInactive
-    ? 'SELECT id, fund_name, fund_code, active, created_at, updated_at FROM finance_funds ORDER BY lower(fund_name) ASC'
-    : 'SELECT id, fund_name, fund_code, active, created_at, updated_at FROM finance_funds WHERE active = 1 ORDER BY lower(fund_name) ASC';
-  const rows = await env.DB.prepare(sql).all().catch(() => ({ results: [] }));
-  return (rows?.results || []).map((r) => ({
-    id: String(r.id || ''),
-    fundName: financeText(r.fund_name, 120),
-    fundCode: financeText(r.fund_code, 50),
-    active: Number(r.active || 0) === 1,
-    createdAt: String(r.created_at || ''),
-    updatedAt: String(r.updated_at || '')
-  }));
-}
-
-async function readFinanceMeta(env) {
-  if (!env.DB) return { categories: [], funds: [] };
-  await ensureFinanceSchema(env);
-
-  let categories = [];
-  let funds = [];
-
-  const row = await env.DB.prepare('SELECT value_json FROM finance_meta WHERE key = ?').bind('default').first().catch(() => null);
-  if (row?.value_json) {
-    try {
-      const parsed = JSON.parse(String(row.value_json || '{}'));
-      categories = financeUniqueSorted(parsed?.categories || []);
-      funds = financeUniqueSorted(parsed?.funds || []);
-    } catch {
-      categories = [];
-      funds = [];
-    }
-  }
-
-  if (!categories.length) {
-    const catRows = await env.DB.prepare(
-      `SELECT DISTINCT category
-       FROM finance_entries
-       WHERE category IS NOT NULL AND trim(category) <> ''
-       ORDER BY lower(category) ASC`
-    ).all().catch(() => ({ results: [] }));
-    categories = (catRows?.results || []).map((r) => financeText(r.category, 120)).filter(Boolean);
-  }
-
-  const activeFunds = await listFinanceFunds(env);
-  if (!funds.length) {
-    funds = activeFunds.map((f) => f.fundName);
-  }
-
-  return {
-    categories: financeUniqueSorted(categories),
-    funds: financeUniqueSorted(funds)
-  };
-}
-
-async function writeFinanceMeta(env, { categories = [], funds = [] } = {}) {
-  if (!env.DB) return { categories: [], funds: [] };
-  await ensureFinanceSchema(env);
-  const next = {
-    categories: financeUniqueSorted(categories),
-    funds: financeUniqueSorted(funds)
-  };
-  await env.DB.prepare(
-    `INSERT INTO finance_meta (key, value_json, updated_at)
-     VALUES (?, ?, ?)
-     ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at`
-  ).bind('default', JSON.stringify(next), new Date().toISOString()).run();
-  return next;
-}
-
-async function readFinanceData(env) {
-  if (!env.DB) return emptyFinances();
-  await ensureFinanceSchema(env);
-
-  const fundsAll = await listFinanceFunds(env, { includeInactive: true });
-  const fundById = new Map(fundsAll.map((f) => [String(f.id), f]));
-
-  const rows = await env.DB.prepare(
-    `SELECT id, entry_date, type, category, fund, fund_id, method, party, memo,
-            amount_cents, status, voided_by, voided_at, void_reason, created_at, updated_at
-     FROM finance_entries
-     ORDER BY entry_date DESC, created_at DESC`
-  ).all().catch(() => ({ results: [] }));
-
-  const entries = (rows?.results || []).map((r) => {
-    const fundId = String(r.fund_id || '').trim();
-    const linkedFund = fundId ? fundById.get(fundId) : null;
-    const fundName = financeText(r.fund, 120) || financeText(linkedFund?.fundName || '', 120);
-    return {
-      id: String(r.id || ''),
-      date: String(r.entry_date || ''),
-      type: String(r.type || ''),
-      category: financeText(r.category, 120),
-      fund: fundName,
-      fundId,
-      method: financeText(r.method, 60),
-      party: financeText(r.party, 120),
-      memo: financeText(r.memo, 2000),
-      amountCents: Number(r.amount_cents || 0),
-      status: financeText(r.status || 'posted', 20) || 'posted',
-      voidedBy: financeText(r.voided_by, 120),
-      voidedAt: String(r.voided_at || ''),
-      voidReason: financeText(r.void_reason, 500),
-      createdAt: String(r.created_at || ''),
-      updatedAt: String(r.updated_at || '')
-    };
-  });
-
-  const meta = await readFinanceMeta(env);
-  return {
-    entries,
-    meta
-  };
-}
-
 const READ_ENDPOINTS = new Set([
-  '/api/finances',
   '/api/profiles'
 ]);
 
@@ -625,10 +398,6 @@ async function buildDashboardOverview(request, env) {
   let scheduled = 0;
   let history = 0;
   let nextScheduledAt = '';
-  let givingIncome30d = 0;
-  let givingExpense30d = 0;
-  let pendingReviewCount = 0;
-  let currentMonthEntries = 0;
   let galleryItemsCount = 0;
   let galleryAlbumsCount = 0;
 
@@ -665,31 +434,6 @@ async function buildDashboardOverview(request, env) {
         }
       }
       if (status === 'sent' || status === 'delivered' || status === 'completed') history += 1;
-    }
-
-    const monthStart = new Date();
-    monthStart.setUTCDate(1);
-    monthStart.setUTCHours(0, 0, 0, 0);
-    const monthStartIso = monthStart.toISOString();
-    const day30Iso = new Date(now - (30 * 24 * 60 * 60 * 1000)).toISOString();
-
-    const financeRows = await env.DB.prepare(
-      `SELECT type, amount_cents, entry_date AS date, status
-       FROM finance_entries
-       WHERE date(entry_date) >= date(?)
-       ORDER BY entry_date DESC
-       LIMIT 1000`
-    ).bind(day30Iso).all().catch(() => ({ results: [] }));
-    const financeEntries = Array.isArray(financeRows?.results) ? financeRows.results : [];
-    for (const row of financeEntries) {
-      const type = String(row?.type || '').toLowerCase();
-      const amount = Number(row?.amount_cents || 0);
-      if (type === 'income') givingIncome30d += amount;
-      if (type === 'expense') givingExpense30d += amount;
-      const st = String(row?.status || '').toLowerCase();
-      if (st === 'pending' || st === 'review') pendingReviewCount += 1;
-      const dateMs = Date.parse(String(row?.date || ''));
-      if (Number.isFinite(dateMs) && dateMs >= Date.parse(monthStartIso)) currentMonthEntries += 1;
     }
 
     const galleryCountRow = await env.DB.prepare(
@@ -805,12 +549,6 @@ async function buildDashboardOverview(request, env) {
       date: row.date,
       time: row.time
     })),
-    giving: {
-      last30dIncomeCents: givingIncome30d,
-      last30dExpenseCents: givingExpense30d,
-      pendingReviewCount,
-      currentMonthEntries
-    },
     newsletter: {
       drafts,
       scheduled,
@@ -829,9 +567,7 @@ async function buildDashboardOverview(request, env) {
       newsletter: { ok: true }
     },
     recentActivity: recentActivity.slice(0, 10),
-    permissions: {
-      canViewFinance: true
-    }
+    permissions: {}
   };
 }
 
@@ -1004,6 +740,27 @@ const applicationWorker = {
         youtubeApiConfigured: Boolean(String(env.YOUTUBE_API_KEY || '').trim()),
         youtubeChannelId: String(env.YOUTUBE_CHANNEL_ID || 'UCkAaHiYmUKIdKePifg1D2pg').trim()
       });
+    }
+
+    const workspaceResponse = await handleWorkspaceRequest(request, env);
+    if (workspaceResponse) return workspaceResponse;
+    const shellRoute = resolveRoute(url.pathname, url.hash);
+    if (shellRoute && (request.method === 'GET' || request.method === 'HEAD')) {
+      try {
+        await authenticateAdminRequest(request, env, env.__ACCESS_JWKS ? { jwks: env.__ACCESS_JWKS } : {});
+      } catch (error) {
+        if (error.status !== 401) return authErrorResponse(error);
+        const login = new URL('/cdn-cgi/access/login', url.origin);
+        login.searchParams.set('redirect_url', url.href);
+        return new Response(null, { status: 302, headers: { Location: login.href, 'Cache-Control': 'no-store' } });
+      }
+      if (legacyRoutes[url.pathname]) return new Response(null, { status: 302,
+        headers: { Location: '/admin/' + shellRoute.module, 'Cache-Control': 'no-store' } });
+      const assetUrl = new URL('/admin/index.html', url.origin);
+      const headers = new Headers(request.headers);
+      headers.set('Accept-Encoding', 'identity');
+      const response = await env.ASSETS.fetch(new Request(assetUrl, { method: request.method, headers }));
+      return request.method === 'HEAD' ? response : transformAdminHtml(response);
     }
 
     if (url.pathname === '/scan' || url.pathname.startsWith('/scan/') || url.pathname === '/scan.js') return json({error:'Scanning has been retired.'},410);
@@ -1463,7 +1220,6 @@ const applicationWorker = {
       const user = await requireSession(request, env, ctx);
       if (!user) return json({ error: 'Unauthorized' }, 401);
 
-      if (url.pathname === '/api/finances') return json(await readFinanceData(env));
 
       if (url.pathname === '/api/profiles') {
         const data = await readAssetJson(request, env, '/profiles.json', { profiles: [], metadata: {} });
@@ -1480,10 +1236,6 @@ const applicationWorker = {
 
     if (url.pathname.startsWith('/api/directory/')) {
       return worker.fetch(request, env, ctx);
-    }
-
-    if (url.pathname.startsWith('/api/finances/donors') || url.pathname.startsWith('/api/finances/collections') || url.pathname.startsWith('/api/finances/scans') || url.pathname.startsWith('/api/finances/scan-codes')) {
-      return maybeHandleFinanceReconciliationRequest(request, env, ctx, requireSession);
     }
 
     if (
@@ -1510,261 +1262,6 @@ const applicationWorker = {
       url.pathname.startsWith('/api/admin/users/')
     ) {
       return worker.fetch(request, env, ctx);
-    }
-
-    // Finance compatibility surface expected by current admin UI.
-    if (url.pathname === '/api/finances/entries' && request.method === 'POST') {
-      const user = await requireSession(request, env, ctx);
-      if (!user) return json({ error: 'Unauthorized' }, 401);
-      if (!env.DB) return json({ error: 'D1 database is not configured.' }, 500);
-      await ensureFinanceSchema(env);
-
-      const body = await request.json().catch(() => ({}));
-      const entryDate = financeDate(body?.date);
-      const type = financeText(body?.type, 20).toLowerCase();
-      const category = financeText(body?.category, 120);
-      const method = financeText(body?.method, 60);
-      const party = financeText(body?.party, 120);
-      const memo = financeText(body?.memo, 2000);
-      const fundId = financeText(body?.fundId, 80);
-      const amountCents = financeAmountToCents(body?.amount);
-
-      if (!entryDate) return json({ error: 'Date is required.' }, 400);
-      if (!(type === 'income' || type === 'expense')) return json({ error: 'Type must be income or expense.' }, 400);
-      if (!category) return json({ error: 'Category is required.' }, 400);
-      if (!fundId) return json({ error: 'Fund is required.' }, 400);
-      if (!method) return json({ error: 'Payment method is required.' }, 400);
-      if (!Number.isFinite(amountCents) || amountCents <= 0) return json({ error: 'Amount must be greater than 0.' }, 400);
-      if (type === 'expense' && !party) return json({ error: 'Enter who was paid.' }, 400);
-
-      const fundRow = await env.DB.prepare(
-        'SELECT id, fund_name FROM finance_funds WHERE id = ? AND active = 1 LIMIT 1'
-      ).bind(fundId).first().catch(() => null);
-      if (!fundRow?.id) return json({ error: 'Choose a valid active fund.' }, 400);
-
-      const now = new Date().toISOString();
-      const id = crypto.randomUUID();
-      await env.DB.prepare(
-        `INSERT INTO finance_entries (
-          id, entry_date, type, category, fund, fund_id, method, party, memo,
-          amount_cents, status, voided_by, voided_at, void_reason, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', '', '', '', ?, ?)`
-      ).bind(
-        id,
-        entryDate,
-        type,
-        category,
-        String(fundRow.fund_name || ''),
-        fundId,
-        method,
-        party,
-        memo,
-        amountCents,
-        now,
-        now
-      ).run();
-
-      return json({ ok: true, data: await readFinanceData(env), entryId: id });
-    }
-
-    if (/^\/api\/finances\/entries\/[^/]+$/.test(url.pathname) && request.method === 'PUT') {
-      const user = await requireSession(request, env, ctx);
-      if (!user) return json({ error: 'Unauthorized' }, 401);
-      if (!env.DB) return json({ error: 'D1 database is not configured.' }, 500);
-      await ensureFinanceSchema(env);
-
-      const id = decodeURIComponent(url.pathname.split('/').pop() || '');
-      if (!id) return json({ error: 'Entry id is required.' }, 400);
-
-      const existing = await env.DB.prepare('SELECT id, status FROM finance_entries WHERE id = ? LIMIT 1').bind(id).first().catch(() => null);
-      if (!existing?.id) return json({ error: 'Transaction not found.' }, 404);
-      if (String(existing.status || '').toLowerCase() === 'voided') {
-        return json({ error: 'Voided transactions cannot be edited.' }, 400);
-      }
-
-      const body = await request.json().catch(() => ({}));
-      const entryDate = financeDate(body?.date);
-      const type = financeText(body?.type, 20).toLowerCase();
-      const category = financeText(body?.category, 120);
-      const method = financeText(body?.method, 60);
-      const party = financeText(body?.party, 120);
-      const memo = financeText(body?.memo, 2000);
-      const fundId = financeText(body?.fundId, 80);
-      const amountCents = financeAmountToCents(body?.amount);
-
-      if (!entryDate) return json({ error: 'Date is required.' }, 400);
-      if (!(type === 'income' || type === 'expense')) return json({ error: 'Type must be income or expense.' }, 400);
-      if (!category) return json({ error: 'Category is required.' }, 400);
-      if (!fundId) return json({ error: 'Fund is required.' }, 400);
-      if (!method) return json({ error: 'Payment method is required.' }, 400);
-      if (!Number.isFinite(amountCents) || amountCents <= 0) return json({ error: 'Amount must be greater than 0.' }, 400);
-      if (type === 'expense' && !party) return json({ error: 'Enter who was paid.' }, 400);
-
-      const fundRow = await env.DB.prepare(
-        'SELECT id, fund_name FROM finance_funds WHERE id = ? AND active = 1 LIMIT 1'
-      ).bind(fundId).first().catch(() => null);
-      if (!fundRow?.id) return json({ error: 'Choose a valid active fund.' }, 400);
-
-      await env.DB.prepare(
-        `UPDATE finance_entries
-         SET entry_date = ?, type = ?, category = ?, fund = ?, fund_id = ?, method = ?,
-             party = ?, memo = ?, amount_cents = ?, updated_at = ?
-         WHERE id = ?`
-      ).bind(
-        entryDate,
-        type,
-        category,
-        String(fundRow.fund_name || ''),
-        fundId,
-        method,
-        party,
-        memo,
-        amountCents,
-        new Date().toISOString(),
-        id
-      ).run();
-
-      return json({ ok: true, data: await readFinanceData(env) });
-    }
-
-    if (/^\/api\/finances\/entries\/[^/]+\/void$/.test(url.pathname) && request.method === 'POST') {
-      const user = await requireSession(request, env, ctx);
-      if (!user) return json({ error: 'Unauthorized' }, 401);
-      if (!env.DB) return json({ error: 'D1 database is not configured.' }, 500);
-      await ensureFinanceSchema(env);
-
-      const id = decodeURIComponent(url.pathname.split('/')[4] || '');
-      if (!id) return json({ error: 'Entry id is required.' }, 400);
-
-      const body = await request.json().catch(() => ({}));
-      const reason = financeText(body?.reason, 500);
-      if (!reason) return json({ error: 'Void reason is required.' }, 400);
-
-      const existing = await env.DB.prepare('SELECT id, status FROM finance_entries WHERE id = ? LIMIT 1').bind(id).first().catch(() => null);
-      if (!existing?.id) return json({ error: 'Transaction not found.' }, 404);
-      if (String(existing.status || '').toLowerCase() === 'voided') {
-        return json({ ok: true, data: await readFinanceData(env) });
-      }
-
-      await env.DB.prepare(
-        `UPDATE finance_entries
-         SET status = 'voided', voided_by = ?, voided_at = ?, void_reason = ?, updated_at = ?
-         WHERE id = ?`
-      ).bind(
-        financeText(user?.email, 120),
-        new Date().toISOString(),
-        reason,
-        new Date().toISOString(),
-        id
-      ).run();
-
-      return json({ ok: true, data: await readFinanceData(env) });
-    }
-
-    if (/^\/api\/finances\/entries\/[^/]+$/.test(url.pathname) && request.method === 'DELETE') {
-      const user = await requireSession(request, env, ctx);
-      if (!user) return json({ error: 'Unauthorized' }, 401);
-      if (!env.DB) return json({ error: 'D1 database is not configured.' }, 500);
-      await ensureFinanceSchema(env);
-
-      const id = decodeURIComponent(url.pathname.split('/').pop() || '');
-      if (!id) return json({ error: 'Entry id is required.' }, 400);
-
-      const existing = await env.DB.prepare('SELECT id FROM finance_entries WHERE id = ? LIMIT 1').bind(id).first().catch(() => null);
-      if (!existing?.id) return json({ error: 'Transaction not found.' }, 404);
-
-      await env.DB.prepare('DELETE FROM finance_entries WHERE id = ?').bind(id).run();
-      return json({ ok: true, data: await readFinanceData(env) });
-    }
-
-    if (url.pathname === '/api/finances/funds' && request.method === 'GET') {
-      const user = await requireSession(request, env, ctx);
-      if (!user) return json({ error: 'Unauthorized' }, 401);
-      return json({ funds: await listFinanceFunds(env) });
-    }
-
-    if (url.pathname === '/api/finances/funds' && request.method === 'POST') {
-      const user = await requireSession(request, env, ctx);
-      if (!user) return json({ error: 'Unauthorized' }, 401);
-      if (!env.DB) return json({ error: 'D1 database is not configured.' }, 500);
-      await ensureFinanceSchema(env);
-      const body = await request.json().catch(() => ({}));
-      const fundName = financeText(body?.fundName, 120);
-      if (!fundName) return json({ error: 'Fund name is required.' }, 400);
-
-      const existing = await env.DB.prepare(
-        'SELECT id, fund_name, fund_code, active, created_at, updated_at FROM finance_funds WHERE lower(fund_name) = lower(?) LIMIT 1'
-      ).bind(fundName).first().catch(() => null);
-
-      if (existing?.id) {
-        if (Number(existing.active || 0) === 0) {
-          await env.DB.prepare(
-            'UPDATE finance_funds SET active = 1, updated_at = ? WHERE id = ?'
-          ).bind(new Date().toISOString(), String(existing.id)).run();
-        }
-        return json({
-          ok: true,
-          fund: {
-            id: String(existing.id || ''),
-            fundName: financeText(existing.fund_name, 120),
-            fundCode: financeText(existing.fund_code, 50),
-            active: true,
-            createdAt: String(existing.created_at || ''),
-            updatedAt: String(existing.updated_at || '')
-          }
-        }, 201);
-      }
-
-      const now = new Date().toISOString();
-      const id = crypto.randomUUID();
-      await env.DB.prepare(
-        `INSERT INTO finance_funds (id, fund_name, fund_code, active, created_at, updated_at)
-         VALUES (?, ?, '', 1, ?, ?)`
-      ).bind(id, fundName, now, now).run();
-
-      return json({
-        ok: true,
-        fund: {
-          id,
-          fundName,
-          fundCode: '',
-          active: true,
-          createdAt: now,
-          updatedAt: now
-        }
-      }, 201);
-    }
-
-    if (/^\/api\/finances\/funds\/[^/]+\/archive$/.test(url.pathname) && request.method === 'POST') {
-      const user = await requireSession(request, env, ctx);
-      if (!user) return json({ error: 'Unauthorized' }, 401);
-      if (!env.DB) return json({ error: 'D1 database is not configured.' }, 500);
-      await ensureFinanceSchema(env);
-
-      const id = decodeURIComponent(url.pathname.split('/')[4] || '');
-      if (!id) return json({ error: 'Fund id is required.' }, 400);
-      const row = await env.DB.prepare('SELECT id FROM finance_funds WHERE id = ? LIMIT 1').bind(id).first().catch(() => null);
-      if (!row?.id) return json({ error: 'Fund not found.' }, 404);
-
-      await env.DB.prepare('UPDATE finance_funds SET active = 0, updated_at = ? WHERE id = ?')
-        .bind(new Date().toISOString(), id).run();
-      return json({ ok: true });
-    }
-
-    if (url.pathname === '/api/finances/meta' && request.method === 'GET') {
-      const user = await requireSession(request, env, ctx);
-      if (!user) return json({ error: 'Unauthorized' }, 401);
-      return json({ meta: await readFinanceMeta(env) });
-    }
-
-    if (url.pathname === '/api/finances/meta' && request.method === 'PUT') {
-      const user = await requireSession(request, env, ctx);
-      if (!user) return json({ error: 'Unauthorized' }, 401);
-      const body = await request.json().catch(() => ({}));
-      const categories = Array.isArray(body?.categories) ? body.categories : [];
-      const funds = Array.isArray(body?.funds) ? body.funds : [];
-      const meta = await writeFinanceMeta(env, { categories, funds });
-      return json({ ok: true, data: { ...(await readFinanceData(env)), meta }, meta });
     }
 
     if (url.pathname === '/api/account' && request.method === 'PUT') {

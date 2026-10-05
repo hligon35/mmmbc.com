@@ -29,20 +29,6 @@ CREATE TABLE IF NOT EXISTS bulletins (
 -- see migrations/site/0001_init_site_db.sql. It never lived here in production data
 -- (both D1s were freshly created empty), so no data migration is required.
 
-CREATE TABLE IF NOT EXISTS finance_entries (
-  id TEXT PRIMARY KEY,
-  entry_date TEXT NOT NULL,
-  type TEXT NOT NULL,
-  category TEXT,
-  fund TEXT,
-  method TEXT,
-  party TEXT,
-  memo TEXT,
-  amount_cents INTEGER NOT NULL,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS profiles (
   id TEXT PRIMARY KEY,
   section TEXT NOT NULL,

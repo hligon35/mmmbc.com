@@ -36,5 +36,5 @@ Generated for Cloudflare Worker stack (`src/worker-admin-api-wrapper.js` -> `src
 ## Remaining known gaps
 
 - Admin UI calls to `/api/livestream`, `/api/settings`, `/api/theme/preview*`, and `/api/export` are still not implemented in production Worker routes.
-- Wrapper interception of `/api/finances` and `/api/profiles` remains a compatibility bridge and not full source-of-truth parity with the local `admin/server.js` implementation.
-- Full role/permission model parity between local `admin/server.js` and production Worker is still incomplete in finance and several advanced admin modules.
+- Wrapper interception of `/api/profiles` remains a compatibility bridge and not full source-of-truth parity with the local `admin/server.js` implementation.
+- Full role/permission model parity between local `admin/server.js` and production Worker is still incomplete in several advanced admin modules. Finance handlers and tooling have been removed.
