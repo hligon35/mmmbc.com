@@ -27,6 +27,16 @@ function expect(actual) {
 
 const staticCss = fs.readFileSync(path.join(__dirname, '..', 'static-style.css'), 'utf8');
 
+describe('Admin layout delivery', () => {
+  const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+
+  test('ships the refined layout directly instead of relying on Worker HTML injection', () => {
+    expect(indexHtml).toContain('id="mmmbc-admin-structure-js"');
+    expect(indexHtml).toContain('/admin/admin-structure-overrides.js?v=20261005a');
+    expect(indexHtml).toContain('/admin/admin.js?v=20261005a');
+  });
+});
+
 describe('Admin shell selection', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
 
@@ -392,5 +402,20 @@ describe('Profile page editor', () => {
     expect(adminCss).toContain('.ministryPageForm__fields{\n  grid-template-columns:minmax(220px,.75fr) minmax(320px,1.25fr) auto;');
     expect(adminCss).toContain('.eventsPrintMenu--inline > summary.actionIconBtn{');
     expect(adminCss).toContain('background:var(--accent);');
+  });
+});
+
+
+describe('Admin boot resilience', () => {
+  const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
+
+  test('does not require the removed loginError element during startup failures', () => {
+    expect(adminJs).not.toContain("$('loginError').textContent = err.message");
+    expect(adminJs).toContain("console.error('Admin initialization failed'");
+  });
+
+  test('keeps the dashboard available when a module API fails', () => {
+    expect(adminJs).toContain("const failures = results.filter((result) => result.status === 'rejected')");
+    expect(adminJs).not.toContain("if (r.status === 'rejected') throw r.reason");
   });
 });
