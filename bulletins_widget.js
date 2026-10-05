@@ -127,14 +127,8 @@
     });
 
     const giveLink = document.querySelector('.footer-links-section a[href="/give"]');
-    const giveIcon = giveLink?.querySelector('img.link-icon');
-    if (giveIcon) {
-      giveIcon.src = 'Icons/give.png';
-      giveIcon.onerror = () => {
-        giveIcon.onerror = null;
-        giveIcon.src = 'Icons/finances.png';
-      };
-    }
+    const giveIcon = giveLink?.querySelector('.material-icons-round.link-icon');
+    if (giveIcon) giveIcon.textContent = 'volunteer_activism';
 
     const designedBy = document.querySelector('.footer-copyright-row p:first-child');
     if (designedBy) {
