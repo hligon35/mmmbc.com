@@ -1,5 +1,5 @@
 import { imageBytesAllowed } from './launch-security.js';
-// D1-backed storage + API handlers for the visual website editor (draft/published
+// D1-backed storage + API handlers retained for profile management (draft/published
 // content per public page). Mirrors the conventions in src/worker-communications.js.
 // Route wiring + admin-permission checks live in src/worker.js (which calls
 // requireAdmin() before invoking any handler here, passing the authenticated email).
@@ -132,22 +132,6 @@ function rowToPageState(page, row) {
       updatedBy: row.published_updated_by
     }
   };
-}
-
-export async function handleSitePagesList(request, env) {
-  const pages = [];
-  for (const page of PAGE_KEYS) {
-    const row = await ensurePageRow(env, page);
-    pages.push({
-      page,
-      label: getPageSchema(page).label,
-      draftVersion: row.draft_version,
-      publishedVersion: row.published_version,
-      draftUpdatedAt: row.draft_updated_at,
-      publishedUpdatedAt: row.published_updated_at
-    });
-  }
-  return json({ pages });
 }
 
 export async function handleSitePageGet(request, env, page) {
