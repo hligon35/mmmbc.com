@@ -24,8 +24,6 @@
   var RICH_TEXT_TAGS = { B: true, STRONG: true, I: true, EM: true, BR: true, P: true, A: true };
   var RICH_TEXT_URL_PROTOCOLS = ['http:', 'https:', 'mailto:'];
 
-  var isEditorMode = false;
-
   var state = { fields: {} };
 
   function isSafeUrl(raw, allowedProtocols) {
@@ -198,17 +196,6 @@
     return String(value).replace(/["\\]/g, '\\$&');
   }
 
-  function addItemActionsHandle(root, label) {
-    if (!isEditorMode) return;
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'cms-item-actions-btn cms-editable';
-    btn.setAttribute('data-cms-item-actions', '');
-    btn.setAttribute('aria-label', 'More actions for ' + label);
-    btn.textContent = '\u22EE';
-    root.appendChild(btn);
-  }
-
   // Groups an activity's visual classes to match the hand-tuned static layout: Sunday
   // worship activities and Thursday ministry activities each have their own dedicated
   // CSS (see public-components.css), everything else uses the generic row layout.
@@ -257,12 +244,6 @@
         dayP.setAttribute('data-cms-item-field', 'day');
         dayP.setAttribute('data-cms-type', 'weekday');
         dayP.setAttribute('data-cms-item-id', firstItem.id);
-        if (isEditorMode) {
-          dayP.classList.add('cms-editable');
-          dayP.setAttribute('tabindex', '0');
-          dayP.setAttribute('role', 'button');
-          dayP.setAttribute('aria-label', 'Edit day for ' + (firstItem.title || 'this activity'));
-        }
       }
       labelDiv.appendChild(dayP);
       dayDiv.appendChild(labelDiv);
@@ -290,12 +271,6 @@
         timeH3.setAttribute('data-cms-item-field', 'time');
         timeH3.setAttribute('data-cms-type', 'time');
         timeH3.setAttribute('data-cms-item-id', firstTimeItem.id);
-        if (isEditorMode) {
-          timeH3.classList.add('cms-editable');
-          timeH3.setAttribute('tabindex', '0');
-          timeH3.setAttribute('role', 'button');
-          timeH3.setAttribute('aria-label', 'Edit time for ' + (firstTimeItem.title || 'this activity'));
-        }
         groupDiv.appendChild(timeH3);
 
         var blocksParent = groupDiv;
@@ -318,30 +293,17 @@
           titleP.setAttribute('data-cms-item-field', 'title');
           titleP.setAttribute('data-cms-type', 'text');
           titleP.textContent = item.title || '';
-          if (isEditorMode) {
-            titleP.classList.add('cms-editable');
-            titleP.setAttribute('tabindex', '0');
-            titleP.setAttribute('role', 'button');
-            titleP.setAttribute('aria-label', 'Edit activity name: ' + (item.title || ''));
-          }
           details.appendChild(titleP);
 
-          if (item.details || isEditorMode) {
+          if (item.details) {
             var detailsP = document.createElement('p');
             detailsP.setAttribute('data-cms-item-field', 'details');
             detailsP.setAttribute('data-cms-type', 'textarea');
             detailsP.textContent = item.details || '';
-            if (isEditorMode) {
-              detailsP.classList.add('cms-editable');
-              detailsP.setAttribute('tabindex', '0');
-              detailsP.setAttribute('role', 'button');
-              detailsP.setAttribute('aria-label', 'Edit details for ' + (item.title || 'this activity'));
-            }
             details.appendChild(detailsP);
           }
 
           block.appendChild(details);
-          addItemActionsHandle(block, item.title || 'this activity');
           blocksParent.appendChild(block);
         });
 
@@ -360,7 +322,7 @@
     var containers = document.querySelectorAll('[data-cms-collection="' + cssEscape(fieldKey) + '"]');
     containers.forEach(function (container) {
       if (container.hasAttribute('data-cms-schedule')) {
-        if (items.length === 0 && !isEditorMode) return; // preserve static markup for visitors
+        if (items.length === 0) return; // preserve static markup for visitors
         renderScheduleCollection(container, items, fieldKey);
         return;
       }
@@ -388,14 +350,7 @@
           var key = fieldEl.getAttribute('data-cms-item-field');
           var type = fieldEl.getAttribute('data-cms-type') || 'text';
           setElementValue(fieldEl, type, item ? item[key] : '');
-          if (isEditorMode) {
-            fieldEl.classList.add('cms-editable');
-            fieldEl.setAttribute('tabindex', '0');
-            fieldEl.setAttribute('role', 'button');
-            fieldEl.setAttribute('aria-label', 'Edit ' + key + (item && item.name ? ' for ' + item.name : ''));
-          }
         });
-        addItemActionsHandle(root, (item && item.name) || (item && item.title) || 'this item');
         container.insertBefore(root, template);
       });
     });
