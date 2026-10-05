@@ -1,5 +1,11 @@
 # Mount Moriah admin workspace
 
+> Current delivery (2026-10-05): the refined tabbed admin is the deployed entry.
+> `window.MMWorkspaceEnabled` is false and the mailbox shell is not loaded.
+> The mailbox architecture and historical browser script described below remain
+> reference material, not the current layout contract. Use `npm run test:admin:browser`
+> and the deployment fingerprint checks in `deployment.md` for current delivery.
+
 The authenticated `/admin` application opens the Mailbox. Modules and deep links
 are registered in `admin/public/workspace/modules.mjs`. Mailbox, rentals, calendar,
 directory, ministry and leadership profiles, newsletter, operational reports, Site

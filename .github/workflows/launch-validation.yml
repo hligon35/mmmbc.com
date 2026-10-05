@@ -22,7 +22,7 @@ jobs:
       - run: npm --prefix admin ci
       - run: npm run check
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:workspace:browser
+      - run: npm run test:admin:browser
       - run: npm audit --audit-level=high
       - run: npm --prefix admin audit --audit-level=high
       - name: Preserve validation logs

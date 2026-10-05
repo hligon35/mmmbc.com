@@ -15,10 +15,12 @@
     "import:admins": "node ./scripts/import_admin_roster.mjs",
     "verify:integrations": "node ./scripts/verify_local_integrations.mjs",
     "verify:integrations:target": "node ./scripts/verify_integrations.mjs",
-    "deploy": "npm run build:cf && npx wrangler deploy",
+    "deploy": "npm run build:cf && npm run verify:admin-delivery && npx wrangler deploy",
     "build": "npm run build:cf",
     "prepare": "npm run build:cf",
-    "test:workspace:browser": "npm run build:cf && node scripts/test_workspace_browser.mjs"
+    "verify:admin-delivery": "node scripts/verify_admin_delivery.mjs",
+    "test:admin:browser": "npm run build:cf && npm run verify:admin-delivery && node scripts/test_admin_browser.mjs",
+    "test:workspace:browser": "npm run test:admin:browser"
   },
   "dependencies": {
     "jose": "^6.2.12"

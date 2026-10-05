@@ -728,16 +728,27 @@ async function transformPublicHtml(response, pathname) {
   return new Response(html, { status: response.status, headers });
 }
 
-const BUILD_MARKER = 'mmmbc-youtube-feed-v3-20261004';
+const BUILD_MARKER = 'mmmbc-tabbed-admin-delivery-20261005';
 
 const applicationWorker = {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     if (url.pathname === '/api/build-info' && request.method === 'GET') {
+      let adminBuild = null;
+      try {
+        const response = await env.ASSETS.fetch(new Request(new URL('/admin/build-info.json', url.origin)));
+        if (response.ok) {
+          const manifest = await response.json();
+          if (manifest.layout === 'tabbed' && /^[a-f0-9]{64}$/.test(manifest.fingerprint)) {
+            adminBuild = { layout: manifest.layout, fingerprint: manifest.fingerprint };
+          }
+        }
+      } catch { /* Older or incomplete assets are reported, not mislabeled as current. */ }
       return json({
         ok: true,
         build: BUILD_MARKER,
+        adminBuild,
         environment: String(env.ENVIRONMENT || ''),
         youtubeApiConfigured: Boolean(String(env.YOUTUBE_API_KEY || '').trim()),
         youtubeChannelId: String(env.YOUTUBE_CHANNEL_ID || 'UCkAaHiYmUKIdKePifg1D2pg').trim()

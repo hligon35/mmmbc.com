@@ -1,14 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { createAdminDelivery } from './admin-delivery.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, '..');
 const dest = path.join(root, 'cf_site');
-const structureSource = await fs.readFile(path.join(root, 'admin/public/admin-structure-overrides.js'));
-const assetVersion = createHash('sha256').update(structureSource).digest('hex').slice(0, 14);
 
 const rootFiles = [
   'index.html', 'robots.txt', 'sitemap.xml',
@@ -22,7 +20,6 @@ const rootFiles = [
 ];
 
 const rootDirs = ['Pages', 'Icons', 'ConImg', 'bulletins', 'rental'];
-const structureScriptTag = `  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=${assetVersion}" defer></script>`;
 
 async function exists(target) {
   try {
@@ -70,14 +67,7 @@ async function copyRootDirs() {
   }
 }
 
-function stripLineById(html, idValue) {
-  return html
-    .split('\n')
-    .filter((line) => !line.includes(`id="${idValue}"`))
-    .join('\n');
-}
-
-async function mirrorAdmin() {
+async function mirrorAdmin(delivery) {
   const adminSrc = path.join(root, 'admin', 'public');
   const adminDest = path.join(dest, 'admin');
   if (!(await exists(adminSrc))) return;
@@ -92,10 +82,8 @@ async function mirrorAdmin() {
 
   const indexPath = path.join(adminDest, 'index.html');
   if (!(await exists(indexPath))) return;
-  let html = await fs.readFile(indexPath, 'utf8');
-  html = stripLineById(html, 'mmmbc-admin-structure-js');
-  html = html.replace('</body>', `${structureScriptTag}\n</body>`);
-  await fs.writeFile(indexPath, html, 'utf8');
+  await fs.writeFile(indexPath, delivery.html, 'utf8');
+  await fs.writeFile(path.join(adminDest, 'build-info.json'), JSON.stringify(delivery.manifest, null, 2) + '\n', 'utf8');
 
 
 }
@@ -104,10 +92,13 @@ async function main() {
   for (const required of ['index.html', '_headers', 'public-form-utils.js', 'facility_rental_form_shared.js', 'Pages/facility_rental_members_form.html', 'Pages/facility_rental_nonmembers_form.html', 'admin/public/index.html', 'admin/public/admin.js']) {
     if (!(await exists(path.join(root, required)))) throw new Error(`Missing required deployment source: ${required}`);
   }
+  // Validate the entry and read every required asset before replacing output.
+  const delivery = await createAdminDelivery(await fs.readFile(path.join(root, 'admin/public/index.html'), 'utf8'),
+    url => fs.readFile(path.join(root, 'admin/public', url.slice('/admin/'.length))));
   await recreateDir(dest);
   await copyRootFiles();
   await copyRootDirs();
-  await mirrorAdmin();
+  await mirrorAdmin(delivery);
   console.log(`Built cf_site at: ${dest}`);
 }
 
