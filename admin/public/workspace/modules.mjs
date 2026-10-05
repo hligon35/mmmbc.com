@@ -7,7 +7,6 @@ export const modules = Object.freeze([
   {id:'leadership',label:'Leadership & Staff',icon:'badge',permissions:['settings.manage'],panel:'tab-ministries',profile:'leadership'},
   {id:'newsletter',label:'Newsletter',icon:'campaign',permissions:['newsletter.view'],panel:'tab-newsletter'},
   {id:'reports',label:'Reports',icon:'bar_chart',permissions:['submissions.view','newsletter.view'],view:'reports'},
-  {id:'site-editor',label:'Site Editor',icon:'edit_note',permissions:['settings.manage'],view:'editor'},
   {id:'announcements',label:'Announcements & Bulletins',icon:'feed',permissions:['announcements.view'],panel:'tab-content'},
   {id:'photos',label:'Photos',icon:'photo_library',permissions:['photos.view'],panel:'tab-photos'},
   {id:'access',label:'Access Management',icon:'admin_panel_settings',permissions:['users.manage'],panel:'tab-settings'},
