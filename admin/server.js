@@ -585,7 +585,7 @@ function roleDisplayName(role) {
   if (normalized === ROLE.FINANCE_ENTRY) return 'Directory Assistant';
   if (normalized === ROLE.TREASURER) return 'Directory Manager';
   if (normalized === ROLE.AUDITOR) return 'Support Viewer';
-  return 'Site Editor';
+  return 'Website Manager';
 }
 
 function buildAdminInviteEmailTemplate({ inviteLink, expiresAt, role }) {
@@ -861,7 +861,7 @@ const SETTINGS_ROLE_DEFINITIONS = Object.freeze([
   },
   {
     "key": "website_editor",
-    "label": "Site Editor",
+    "label": "Website Manager",
     "description": "Manages website content, communications, directory records, and general settings. No administrator management.",
     "permissions": [
       "announcements.view",
