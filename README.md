@@ -7,7 +7,7 @@ Cloudflare-hosted public website and church administration platform for `mmmbc.c
 - Cloudflare Worker Static Assets serves the public and admin interfaces.
 - Workers provide public and protected APIs.
 - D1 stores administration, directory, content, and public-form data.
-- R2 stores gallery and site-editor media.
+- R2 stores gallery and profile-management media.
 - Cloudflare Access protects the admin interfaces.
 - Turnstile protects anonymous forms.
 - Resend is the only application email provider.
