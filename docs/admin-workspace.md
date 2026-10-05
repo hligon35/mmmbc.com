@@ -48,8 +48,7 @@ URLs have no shell registrations or backend handlers and return 404.
 
 The directory keeps its own account numbers and newsletter synchronization; it
 never reads or writes finance donor records. Event printing has its own header and
-print body. The Site Editor keeps the existing draft/version/publish/media APIs
-and preserves unsaved fields in the current administrator's browser session.
+print body. Ministry Profiles and Leadership & Staff retain their dedicated draft/publish/media workflow. The standalone visual Site Editor has been removed.
 
 `/give` remains the independent Zeffy redirect. The existing optional Stripe
 checkout, subscription/webhook records, and signature validation remain isolated
