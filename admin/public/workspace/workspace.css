@@ -13,3 +13,8 @@
 body.ws-active{padding:0!important;--admin-window-gutter:0px;--panel:#fff}.ws-active #dashboardCard{min-height:0!important}.ws-shell .ws-legacy-workarea .muted,.ws-shell .ws-legacy-workarea .hint{color:#6f655e}
 
 body.ws-active #app.app{padding:0!important;margin:0!important}
+
+/* Unified icon system: Material Icons Round. */
+.ws-icon.material-icons-round{width:18px;height:18px;font-size:18px;line-height:1;display:inline-flex;align-items:center;justify-content:center;flex:0 0 18px}
+.ws-message-subject .ws-icon.material-icons-round{width:15px;height:15px;font-size:15px}
+.ws-menu .ws-icon.material-icons-round{width:20px;height:20px;font-size:20px}
