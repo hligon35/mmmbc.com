@@ -178,7 +178,7 @@
       #tab-photos .photoPageContextActions { grid-column: 2; grid-row: 1 / span 3; display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
       #tab-photos .photoPageContextActions .syncProgress { flex-basis: 100%; }
       #tab-photos .photoHelpIconBtn { display: inline-grid !important; place-items: center; width: 46px; min-width: 46px; height: 46px; padding: 0 !important; }
-      #tab-photos .photoHelpIconBtn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      #tab-photos .photoHelpIconBtn .material-icons-round { font-size: 24px; line-height: 1; }
       #tab-photos > .photoWorkspaceHeader { align-items: center; justify-content: flex-end; min-height: 0; margin: 0 clamp(12px, 2vw, 30px) 14px; padding: 0; border: 0; }
       #tab-photos > .photoWorkspaceHeader[hidden] { display: none !important; }
       #tab-photos .photoWorkspaceHeader__actions { display: flex; justify-content: flex-end; width: 100%; }
