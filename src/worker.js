@@ -25,7 +25,6 @@ import {
 } from './worker-communications.js';
 import {
   handlePublicSiteContentGet,
-  handleSitePagesList,
   handleSitePageGet,
   handleSitePageDraftPut,
   handleSitePagePublishPost,
@@ -54,6 +53,8 @@ import {
   handleDirectoryListsCreate,
   handleDirectoryListsUpdate
 } from './worker-directory.js';
+
+const PROFILE_CONTENT_PAGES = new Set(["leadership","associate_ministers","deacons","deaconesses","official_team_trustees","ministries"]);
 
 const adminAuthCache = new WeakMap();
 
@@ -1949,10 +1950,10 @@ export default {
       return handlePublicFacilityRentalRequest(request, env);
     }
 
-    // Public published site-editor content (used by the public-page hydration loader).
-    // Unauthenticated by design — must only ever return PUBLISHED fields, never drafts.
+    // Published content is retained only for dedicated profile-management pages.
     if (url.pathname.startsWith('/api/site-content/') && request.method === 'GET') {
       const page = decodeURIComponent(url.pathname.slice('/api/site-content/'.length));
+      if (!PROFILE_CONTENT_PAGES.has(page)) return json({ error: 'Not found.' }, { status: 404 });
       return handlePublicSiteContentGet(request, env, page);
     }
 
@@ -2207,14 +2208,11 @@ export default {
       return handleAdminIntegrationHealth(request, env);
     }
 
-    if (url.pathname === '/api/admin/site-pages' && request.method === 'GET') {
-      return handleSitePagesList(request, env);
-    }
-
     if (url.pathname.startsWith('/api/admin/site-pages/')) {
       const parts = url.pathname.split('/').filter(Boolean);
       const page = decodeURIComponent(parts[3] || '');
       const action = parts[4] || '';
+      if (!PROFILE_CONTENT_PAGES.has(page)) return json({ error: 'API endpoint not found.' }, { status: 404 });
       if (page && !action && request.method === 'GET') return handleSitePageGet(request, env, page);
       if (page && action === 'draft' && request.method === 'PUT') {
         const auth = await requireAdmin(request, env);
