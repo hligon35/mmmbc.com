@@ -58,8 +58,8 @@ export const ROLES = Object.freeze({
   }),
   website_editor: Object.freeze({
     key: 'website_editor',
-    label: 'Site Editor',
-    description: 'Manages website content, communications, directory records, and general settings. No administrator management.',
+    label: 'Website Manager',
+    description: 'Manages website operations, communications, directory records, and general settings. No administrator management.',
     permissions: Object.freeze(WEBSITE_PERMISSIONS)
   }),
   finance_entry: Object.freeze({
