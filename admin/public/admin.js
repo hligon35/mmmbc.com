@@ -122,7 +122,7 @@ function ensureSessionWarningUi() {
         csrfReady = fetchCsrfToken({ throwOnFailure: true });
         await csrfReady;
         hideSessionWarning();
-        await refreshAuthUI();
+        await initializeSession();
       } catch (err) {
         if (message) message.textContent = err instanceof Error ? err.message : 'Session refresh failed.';
       } finally {
@@ -343,6 +343,68 @@ const SECTION_PERMISSIONS = Object.freeze({
   'tab-support': 'support.send',
   'tab-settings': USERS_MANAGE_PERMISSION
 });
+// One route table serves hash links, /admin/<module> deep links, and historical
+// aliases. Events live inside the combined Announcements & Events section.
+const ADMIN_ROUTES = Object.freeze({
+  home: { section: 'tab-home' },
+  overview: { section: 'tab-home' },
+  reports: { section: 'tab-home' },
+  photos: { section: 'tab-photos', subTab: 'panel-photos-manage' },
+  gallery: { section: 'tab-photos', subTab: 'panel-photos-manage' },
+  content: { section: 'tab-content', subTab: 'panel-content-announcements' },
+  announcements: { section: 'tab-content', subTab: 'panel-content-announcements' },
+  events: { section: 'tab-content', subTab: 'panel-content-announcements' },
+  calendar: { section: 'tab-content', subTab: 'panel-content-announcements' },
+  schedule: { section: 'tab-content', subTab: 'panel-content-announcements' },
+  'site-editor': { section: 'tab-content', subTab: 'panel-content-announcements' },
+  bulletins: { section: 'tab-content', subTab: 'panel-content-bulletins' },
+  ministries: { section: 'tab-ministries' },
+  leadership: { section: 'tab-ministries' },
+  profiles: { section: 'tab-ministries' },
+  directory: { section: 'tab-directory' },
+  contacts: { section: 'tab-directory', subTab: 'panel-directory-contacts' },
+  subscribers: { section: 'tab-directory', subTab: 'panel-directory-subscribers' },
+  groups: { section: 'tab-directory', subTab: 'panel-directory-groups' },
+  submissions: { section: 'tab-submissions' },
+  mail: { section: 'tab-submissions' },
+  mailbox: { section: 'tab-submissions' },
+  inbox: { section: 'tab-submissions' },
+  messages: { section: 'tab-submissions' },
+  rentals: { section: 'tab-submissions', typeFilter: 'facility_rental' },
+  newsletter: { section: 'tab-newsletter' },
+  support: { section: 'tab-support' },
+  help: { section: 'tab-support' },
+  settings: { section: 'tab-settings' },
+  access: { section: 'tab-settings' },
+  users: { section: 'tab-settings' }
+});
+const SECTION_ALIASES = Object.freeze({ 'tab-events': 'tab-content' });
+const SECTION_DEFAULT_SUBTABS = Object.freeze({
+  'tab-photos': 'panel-photos-manage',
+  'tab-content': 'panel-content-announcements',
+  'tab-directory': 'panel-directory-contacts'
+});
+const SECTION_REFRESH_MS = 30000;
+
+function resolveAdminRoute(pathname = window.location.pathname, hash = window.location.hash) {
+  const hashKey = String(hash || '').replace(/^#/, '').split(/[/?]/)[0].trim().toLowerCase();
+  const pathKey = (/^\/admin\/([^/]+)/.exec(String(pathname || '')) || [])[1] || '';
+  const key = hashKey || String(pathKey).replace(/\.html$/, '').toLowerCase() || 'home';
+  const route = Object.prototype.hasOwnProperty.call(ADMIN_ROUTES, key) ? ADMIN_ROUTES[key] : ADMIN_ROUTES.home;
+  return { sectionId: route.section, subTabId: route.subTab || '', typeFilter: route.typeFilter || '' };
+}
+
+function canonicalRouteHash(sectionId, subTabId = '', typeFilter = '') {
+  if (sectionId === 'tab-content') return subTabId === 'panel-content-bulletins' ? 'bulletins' : 'announcements';
+  if (sectionId === 'tab-directory') {
+    if (subTabId === 'panel-directory-subscribers') return 'subscribers';
+    if (subTabId === 'panel-directory-groups') return 'groups';
+    return 'directory';
+  }
+  if (sectionId === 'tab-submissions' && typeFilter === 'facility_rental') return 'rentals';
+  return String(sectionId || 'tab-home').replace(/^tab-/, '');
+}
+
 let currentPermissions = new Set();
 let submissionsTypeFilter = 'all';
 let submissionsSearchTimer = 0;
@@ -1293,69 +1355,135 @@ function updateActiveSectionExtensions() {
   if (extension) extension.hidden = true;
 }
 
-function activateMainSection(sectionId, { subTabId = '' } = {}) {
-  if (!sectionId) return;
+let activeRoute = { sectionId: '', subTabId: '' };
+const sectionScroll = new Map();
+const sectionLoadState = new Map();
+
+function currentSectionLoaders() {
+  const can = (permission) => currentPermissions.has(permission);
+  return {
+    'tab-photos': { run: () => (can('photos.view') ? loadGallery() : null) },
+    'tab-content': {
+      run: () => Promise.all([
+        can('announcements.view') ? loadAnnouncements() : null,
+        can('announcements.view') ? loadBulletins() : null,
+        can('events.view') ? loadEvents() : null
+      ])
+    },
+    'tab-newsletter': {
+      run: () => (can('newsletter.view') ? Promise.all([loadSubscribers(), loadNewsletterRecords()]) : null)
+    },
+    'tab-submissions': { ttl: SECTION_REFRESH_MS, run: () => loadWebsiteSubmissions() },
+    'tab-settings': { ttl: SECTION_REFRESH_MS, run: () => loadSettings() }
+  };
+}
+
+// Loads a section's data once, de-duplicates in-flight work, and refreshes only
+// when the section is stale or explicitly invalidated.
+function ensureSectionData(sectionId, { force = false } = {}) {
+  const loader = currentSectionLoaders()[sectionId];
+  if (!loader) return Promise.resolve();
+  const state = sectionLoadState.get(sectionId) || {};
+  if (state.promise) return state.promise;
+  const fresh = state.at && (loader.ttl === undefined || Date.now() - state.at < loader.ttl);
+  if (!force && fresh) return Promise.resolve();
+  const promise = Promise.resolve()
+    .then(() => loader.run())
+    .then(() => { sectionLoadState.set(sectionId, { at: Date.now() }); })
+    .catch((error) => {
+      sectionLoadState.set(sectionId, { at: 0 });
+      console.error('Admin section failed to load', sectionId, error);
+      const liveRegion = $('adminLiveRegion');
+      if (liveRegion) liveRegion.textContent = 'Some admin data could not be loaded. Other sections remain available.';
+    });
+  sectionLoadState.set(sectionId, { ...state, promise });
+  return promise;
+}
+
+function activateMainSection(sectionId, { subTabId = '', closeDrawer = false, updateHash = true, typeFilter = '' } = {}) {
+  sectionId = SECTION_ALIASES[sectionId] || sectionId;
+  if (!sectionId || !$(sectionId)) return false;
   const requiredPermission = SECTION_PERMISSIONS[sectionId];
   if (requiredPermission && !currentPermissions.has(requiredPermission)) {
     sectionId = 'tab-home';
     subTabId = '';
+    typeFilter = '';
   }
-  const currentPanel = document.querySelector('.tabPanel:not([hidden])');
-  if (currentPanel && currentPanel.id !== sectionId && !window.MMWorkspaceEnabled && !confirmUnsavedChanges()) {
-    return;
+  const sectionChanged = activeRoute.sectionId !== sectionId;
+  const nextSubTab = subTabId || (sectionChanged ? (SECTION_DEFAULT_SUBTABS[sectionId] || '') : activeRoute.subTabId);
+  const filterChanged = sectionId === 'tab-submissions' && !!typeFilter && typeFilter !== submissionsTypeFilter;
+
+  if (!sectionChanged && nextSubTab === activeRoute.subTabId && !filterChanged) {
+    if (closeDrawer) closeDrawerAfterNavigation();
+    return true;
+  }
+  if (sectionChanged && activeRoute.sectionId && !window.MMWorkspaceEnabled && !confirmUnsavedChanges()) {
+    syncRouteHash(activeRoute, { replace: true });
+    return false;
   }
 
-  setTab(sectionId);
-  closeDrawerAfterNavigation();
+  if (sectionChanged && activeRoute.sectionId) sectionScroll.set(activeRoute.sectionId, window.scrollY);
+  const previous = activeRoute;
+  activeRoute = { sectionId, subTabId: nextSubTab };
 
-  if (sectionId === 'tab-content' && subTabId) {
-    setContentSubTab(subTabId);
-  }
-  if (sectionId === 'tab-photos') {
-    setPhotosSubTab(subTabId || 'panel-photos-manage');
-  }
-  if (sectionId === 'tab-directory') {
-    setDirectorySubTab(subTabId || 'panel-directory-contacts');
-  }
-  if (sectionId === 'tab-settings') {
-    loadSettings().catch(() => {});
+  if (sectionChanged) setTab(sectionId);
+  if (closeDrawer) closeDrawerAfterNavigation();
+
+  if (sectionId === 'tab-content') setContentSubTab(nextSubTab);
+  if (sectionId === 'tab-photos') setPhotosSubTab(nextSubTab);
+  if (sectionId === 'tab-directory') setDirectorySubTab(nextSubTab);
+  if (filterChanged) {
+    submissionsTypeFilter = typeFilter;
+    sectionLoadState.delete('tab-submissions');
   }
 
-  const hashMap = {
-    'tab-home': 'home',
-    'tab-photos': 'photos',
-    'tab-events': 'events',
-    'tab-content': subTabId === 'panel-content-bulletins' ? 'bulletins' : 'announcements',
-    'tab-ministries': 'ministries',
-    'tab-directory': 'directory',
-    'tab-submissions': 'submissions',
-    'tab-newsletter': 'newsletter',
-    'tab-support': 'support',
-    'tab-settings': 'settings'
-  };
-  const nextHash = hashMap[sectionId];
-  if (nextHash && !window.MMWorkspaceEnabled) {
-    try { window.location.hash = nextHash; } catch { /* ignore */ }
-  }
+  if (updateHash) syncRouteHash(activeRoute, { typeFilter });
 
   syncHeaderBreadcrumbs();
   syncHeaderContextDescription();
   queueHeaderNavLayoutSync();
 
+  if (sectionChanged) {
+    const scrollTop = sectionScroll.get(sectionId) || 0;
+    window.requestAnimationFrame(() => window.scrollTo(0, scrollTop));
+  }
+
+  ensureSectionData(sectionId);
+
   try {
     window.dispatchEvent(new CustomEvent('admin:section-activated', {
-      detail: { sectionId, subTabId: subTabId || '' }
+      detail: { sectionId, subTabId: nextSubTab, previousSectionId: previous.sectionId }
     }));
+    if (sectionId === 'tab-home' && sectionChanged) window.dispatchEvent(new CustomEvent('admin:home-activated'));
   } catch {
     // ignore custom-event dispatch failures
   }
+  return true;
+}
 
-  if (sectionId === 'tab-home') {
-    try {
-      window.dispatchEvent(new CustomEvent('admin:home-activated'));
-    } catch {
-      // ignore dashboard refresh signaling failures
-    }
+function syncRouteHash(route, { replace = false, typeFilter = submissionsTypeFilter === 'facility_rental' ? 'facility_rental' : '' } = {}) {
+  if (window.MMWorkspaceEnabled) return;
+  const hash = '#' + canonicalRouteHash(route.sectionId, route.subTabId, typeFilter);
+  if (window.location.hash === hash) return;
+  try {
+    const url = window.location.pathname + window.location.search + hash;
+    window.history[replace ? 'replaceState' : 'pushState'](null, '', url);
+  } catch { /* ignore history failures */ }
+}
+
+// Applies the URL (hash, then /admin/<module> path) without any session or data
+// side effects beyond the lazily loaded section.
+function applyHashNavigation({ updateHash = false } = {}) {
+  if (window.MMWorkspaceEnabled) return;
+  const route = resolveAdminRoute();
+  const activated = activateMainSection(route.sectionId, {
+    subTabId: route.subTabId,
+    typeFilter: route.typeFilter,
+    updateHash
+  });
+  if (activated) {
+    const effective = activeRoute;
+    syncRouteHash(effective, { replace: true, typeFilter: route.typeFilter });
   }
 }
 
@@ -1475,6 +1603,10 @@ function applyPermissionVisibility(loggedIn) {
   }
 }
 
+let sessionInitialized = false;
+let sessionInitPromise = null;
+
+// Refreshes identity, permissions, and header state only. It never reloads data.
 async function refreshAuthUI() {
   let me = { user: null };
   try {
@@ -1485,7 +1617,7 @@ async function refreshAuthUI() {
   const loggedIn = !!me.user;
   if (!loggedIn) {
     showSessionWarning('Cloudflare Access did not provide an administrator session. Confirm that the Access policy protects /api/*, then refresh this page.');
-    return;
+    return false;
   }
   currentPermissions = new Set(Array.isArray(me.permissions) ? me.permissions.map(String) : []);
   if (loggedIn && isAdministratorRole(me?.user?.role)) currentPermissions.add(USERS_MANAGE_PERMISSION);
@@ -1532,29 +1664,36 @@ async function refreshAuthUI() {
     if (avatarText) avatarText.textContent = getInitials(me.user);
   }
 
-  if (loggedIn) {
-    csrfReady = fetchCsrfToken();
-    await csrfReady;
-    if (window.MMWorkspaceEnabled) {
-      window.MMWorkspaceSession = me;
-      window.dispatchEvent(new CustomEvent('admin:authenticated', { detail: me }));
-    } else {
-      await loadAll();
-    }
-    if (canViewDiagnostics) {
-      await loadAdminStorageHealth();
-    }
-    applyHashNavigation();
-    setAdminDrawerOpen(getStoredDrawerPreference(), { restoreFocus: false });
-    resetAllUnsavedBaselines();
-  } else {
-    setAdminDrawerOpen(false, { restoreFocus: false });
-  }
-
   syncHeaderBreadcrumbs();
   syncHeaderContextDescription();
   queueHeaderNavLayoutSync();
   updateLayoutMetrics();
+  return { me, canViewDiagnostics };
+}
+
+// One-time startup: identity, CSRF, diagnostics, and the initial route's section.
+function initializeSession() {
+  if (sessionInitPromise) return sessionInitPromise;
+  sessionInitPromise = (async () => {
+    const result = await refreshAuthUI();
+    if (!result) {
+      setAdminDrawerOpen(false, { restoreFocus: false });
+      return;
+    }
+    if (sessionInitialized) return;
+    csrfReady = fetchCsrfToken();
+    await csrfReady;
+    if (window.MMWorkspaceEnabled) {
+      window.MMWorkspaceSession = result.me;
+      window.dispatchEvent(new CustomEvent('admin:authenticated', { detail: result.me }));
+    }
+    sessionInitialized = true;
+    setAdminDrawerOpen(getStoredDrawerPreference(), { restoreFocus: false });
+    applyHashNavigation({ updateHash: false });
+    resetAllUnsavedBaselines();
+    if (result.canViewDiagnostics) loadAdminStorageHealth().catch(() => {});
+  })().finally(() => { sessionInitPromise = null; });
+  return sessionInitPromise;
 }
 
 function formatDate(iso) {
@@ -1563,36 +1702,6 @@ function formatDate(iso) {
 
 function normalizeHash() {
   return String(window.location.hash || '').replace(/^#/, '').trim().toLowerCase();
-}
-
-function applyHashNavigation() {
-  if (window.MMWorkspaceEnabled) return;
-  const h = normalizeHash();
-  if (!h) {
-    activateMainSection('tab-home');
-    return;
-  }
-
-  if (h === 'home') activateMainSection('tab-home');
-  if (h === 'photos') activateMainSection('tab-photos', { subTabId: 'panel-photos-manage' });
-  if (h === 'events') activateMainSection('tab-events');
-  if (h === 'content') {
-    activateMainSection('tab-content', { subTabId: 'panel-content-announcements' });
-  }
-  if (h === 'ministries') activateMainSection('tab-ministries');
-  if (h === 'directory') activateMainSection('tab-directory', { subTabId: 'panel-directory-contacts' });
-  if (h === 'submissions') activateMainSection('tab-submissions');
-  if (h === 'newsletter') activateMainSection('tab-newsletter');
-  if (h === 'support') activateMainSection('tab-support');
-  if (h === 'settings') activateMainSection('tab-settings');
-
-  if (h === 'announcements') {
-    activateMainSection('tab-content', { subTabId: 'panel-content-announcements' });
-  }
-
-  if (h === 'bulletins') {
-    activateMainSection('tab-content', { subTabId: 'panel-content-bulletins' });
-  }
 }
 
 function setSubTab(buttonIds, panelIds, activePanelId) {
@@ -4274,34 +4383,6 @@ async function loadSettings() {
   }
 }
 
-// -------- Load everything --------
-async function loadAll() {
-  const tasks = [];
-  if (currentPermissions.has('photos.view')) tasks.push(loadGallery());
-  if (currentPermissions.has('announcements.view')) tasks.push(loadAnnouncements(), loadBulletins());
-  if (currentPermissions.has('events.view')) tasks.push(loadEvents());
-  if (currentPermissions.has('newsletter.view')) tasks.push(loadSubscribers(), loadNewsletterRecords());
-  const results = await Promise.allSettled(tasks);
-
-  const failures = results.filter((result) => result.status === 'rejected');
-  if (failures.length) {
-    console.error('One or more admin modules failed to load', failures.map((result) => result.reason));
-    const liveRegion = $('adminLiveRegion');
-    if (liveRegion) {
-      liveRegion.textContent = 'Some admin data could not be loaded. Other sections remain available.';
-    }
-  }
-
-  if (window.AdminDashboard && typeof window.AdminDashboard.refresh === 'function') {
-    try {
-      await window.AdminDashboard.refresh();
-    } catch {
-      // Dashboard should not block admin boot if overview data is unavailable.
-    }
-  }
-  applyPermissionVisibility(true);
-}
-
 // The unified shell loads a module only when it becomes visible. Existing forms
 // keep their original event handlers, APIs, and unsaved-change guards.
 const workspaceLoadedSections = new Set();
@@ -4457,26 +4538,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       setAdminDrawerOpen(false, { restoreFocus: true });
     });
   }
-  if ($('adminSideNav')) {
-    $('adminSideNav').addEventListener('click', (e) => {
-      const trigger = e.target?.closest?.('.tab--nav,[data-section-target]');
-      if (!trigger) return;
-
-      if (trigger.classList.contains('tab--nav')) {
-        const target = String(trigger.getAttribute('aria-controls') || '').trim();
-        if (target) {
-          e.preventDefault();
-          activateMainSection(target, {
-            subTabId: target === 'tab-photos' ? 'panel-photos-manage' : (target === 'tab-content' ? 'panel-content-announcements' : '')
-          });
-          setAdminDrawerOpen(false, { restoreFocus: true });
-          return;
-        }
-      }
-
-      setAdminDrawerOpen(false, { restoreFocus: true });
-    });
-  }
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && adminDrawerOpen) {
       e.preventDefault();
@@ -4485,18 +4546,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     trapDrawerFocus(e);
   });
-
-  // Tabs
-  if ($('tabBtn-home')) $('tabBtn-home').addEventListener('click', () => activateMainSection('tab-home'));
-  if ($('tabBtn-photos')) $('tabBtn-photos').addEventListener('click', () => activateMainSection('tab-photos', { subTabId: 'panel-photos-manage' }));
-  if ($('tabBtn-events')) $('tabBtn-events').addEventListener('click', () => activateMainSection('tab-events'));
-  if ($('tabBtn-content')) $('tabBtn-content').addEventListener('click', () => activateMainSection('tab-content', { subTabId: 'panel-content-announcements' }));
-  if ($('tabBtn-ministries')) $('tabBtn-ministries').addEventListener('click', () => activateMainSection('tab-ministries'));
-  if ($('tabBtn-directory')) $('tabBtn-directory').addEventListener('click', () => activateMainSection('tab-directory', { subTabId: 'panel-directory-contacts' }));
-  if ($('tabBtn-submissions')) $('tabBtn-submissions').addEventListener('click', () => { activateMainSection('tab-submissions'); loadWebsiteSubmissions().catch(() => {}); });
-  if ($('tabBtn-newsletter')) $('tabBtn-newsletter').addEventListener('click', () => activateMainSection('tab-newsletter'));
-  if ($('tabBtn-support')) $('tabBtn-support').addEventListener('click', () => activateMainSection('tab-support'));
-  if ($('tabBtn-settings')) $('tabBtn-settings').addEventListener('click', () => activateMainSection('tab-settings'));
 
   if ($('submissionsRefreshBtn')) $('submissionsRefreshBtn').addEventListener('click', () => loadWebsiteSubmissions().catch(() => {}));
   if ($('submissionsSearch')) $('submissionsSearch').addEventListener('input', () => {
@@ -4521,15 +4570,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  for (const trigger of Array.from(document.querySelectorAll('[data-section-target]'))) {
-    trigger.addEventListener('click', (e) => {
-      const target = String(trigger.getAttribute('data-section-target') || '').trim();
-      const subTab = String(trigger.getAttribute('data-subtab-target') || '').trim();
-      if (!target) return;
-      e.preventDefault();
-      activateMainSection(target, { subTabId: subTab });
+  // The single navigation handler for tabs, dashboard shortcuts, and data-section-target links.
+  document.addEventListener('click', (event) => {
+    const trigger = event.target instanceof Element ? event.target.closest('.tab--nav,[data-section-target]') : null;
+    if (!trigger) return;
+    const target = String(trigger.getAttribute('data-section-target') || trigger.getAttribute('aria-controls') || '').trim();
+    if (!target) return;
+    event.preventDefault();
+    activateMainSection(target, {
+      subTabId: String(trigger.getAttribute('data-subtab-target') || '').trim(),
+      closeDrawer: true
     });
-  }
+  });
 
   queueHeaderNavLayoutSync();
 
@@ -5487,7 +5539,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Hash navigation (e.g. /admin/#announcements)
   window.addEventListener('hashchange', () => {
-    refreshAuthUI().catch(() => {});
+    if (sessionInitialized) applyHashNavigation();
   });
 
   // Events
@@ -5758,7 +5810,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Initial
-  refreshAuthUI().catch((err) => {
+  initializeSession().catch((err) => {
     console.error('Admin initialization failed', err);
     const authStatus = $('authStatus');
     if (authStatus) authStatus.textContent = 'Admin connection needs attention.';

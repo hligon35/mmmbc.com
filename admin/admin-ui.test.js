@@ -64,7 +64,8 @@ describe('Admin accessibility redesign guards', () => {
   test('Home is the default section after authentication', () => {
     expect(indexHtml).toContain('id="tabBtn-home"');
     expect(indexHtml).toContain('aria-controls="tab-home"');
-    expect(adminJs).toContain("activateMainSection('tab-home')");
+    expect(adminJs).toContain("home: { section: 'tab-home' }");
+    expect(adminJs).toContain("|| 'home'");
   });
 
   test('Admin HTML contains no unresolved merge-conflict markers', () => {
@@ -79,7 +80,7 @@ describe('Admin accessibility redesign guards', () => {
     expect(indexHtml).toContain('id="tabBtn-events"');
     expect(indexHtml).toContain('id="tabBtn-newsletter"');
     expect(indexHtml).toContain('id="tabBtn-photos"');
-    expect(adminJs).toContain("for (const trigger of Array.from(document.querySelectorAll('[data-section-target]'))) {");
+    expect(adminJs).toContain("closest('.tab--nav,[data-section-target]')");
   });
 
   test('Sidebar labels and groups render with plain-language naming', () => {
@@ -415,7 +416,7 @@ describe('Admin boot resilience', () => {
   });
 
   test('keeps the dashboard available when a module API fails', () => {
-    expect(adminJs).toContain("const failures = results.filter((result) => result.status === 'rejected')");
+    expect(adminJs).toContain("console.error('Admin section failed to load', sectionId, error)");
     expect(adminJs).not.toContain("if (r.status === 'rejected') throw r.reason");
   });
 });

@@ -2129,11 +2129,6 @@
   }
 
   function bindRootButtons() {
-    const toContacts = () => {
-      if (typeof window.activateMainSection === 'function') {
-        window.activateMainSection('tab-directory', { subTabId: 'panel-directory-contacts' });
-      }
-    };
     if ($('directoryContactsFiltersToggle')) {
       $('directoryContactsFiltersToggle').addEventListener('click', () => {
         setTimeout(() => {
@@ -2144,10 +2139,6 @@
       });
     }
 
-    const hash = String(window.location.hash || '').replace(/^#/, '').trim().toLowerCase();
-    if (hash === 'directory') {
-      toContacts();
-    }
   }
 
   async function boot() {

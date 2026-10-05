@@ -110,19 +110,6 @@
     }).join('');
   }
 
-  function navigateToSection(sectionTarget, subTabTarget) {
-    const section = String(sectionTarget || '').trim();
-    if (!section) return;
-
-    const navButton = document.querySelector(`#adminSideNav .tab--nav[aria-controls="${section}"]`);
-    if (navButton instanceof HTMLButtonElement) navButton.click();
-
-    const sub = String(subTabTarget || '').trim();
-    if (!sub) return;
-    const subButton = document.querySelector(`.tab--sub[aria-controls="${sub}"]`);
-    if (subButton instanceof HTMLButtonElement) subButton.click();
-  }
-
   function renderUpcomingEvents(items) {
     const root = $('dashboardUpcomingEventsList');
     if (!root) return;
@@ -261,11 +248,21 @@
     root.setAttribute('aria-busy', isBusy ? 'true' : 'false');
   }
 
-  async function refreshDashboard() {
-    if (!$('dashboardOverviewRoot')) return;
-    const dashboardCard = $('dashboardCard');
-    if (dashboardCard?.hidden) return;
+  const REFRESH_MIN_INTERVAL_MS = 30000;
+  let inFlight = null;
+  let lastLoadedAt = 0;
 
+  // Concurrent callers share one request; automatic refreshes skip recent data.
+  function refreshDashboard({ force = false } = {}) {
+    if (!$('dashboardOverviewRoot')) return Promise.resolve();
+    if ($('dashboardCard')?.hidden) return Promise.resolve();
+    if (inFlight) return inFlight;
+    if (!force && Date.now() - lastLoadedAt < REFRESH_MIN_INTERVAL_MS) return Promise.resolve();
+    inFlight = loadDashboard().finally(() => { inFlight = null; });
+    return inFlight;
+  }
+
+  async function loadDashboard() {
     setBusy(true);
     setStatus('Loading dashboard overview...');
     try {
@@ -277,6 +274,7 @@
       renderNewsletter(data.newsletter || null);
       renderWebsiteStatus(data.websiteStatus || {}, data.status || {});
       renderRecentActivity(data.recentActivity || []);
+      lastLoadedAt = Date.now();
       setStatus('Dashboard updated.');
     } catch (error) {
       renderEmpty('dashboardSummaryGrid', 'Unable to load dashboard metrics.', { isError: true });
@@ -292,27 +290,11 @@
   }
 
   function wire() {
-    const root = $('dashboardOverviewRoot');
-    if (root && !root.dataset.actionWired) {
-      root.dataset.actionWired = '1';
-      root.addEventListener('click', (event) => {
-        const target = event.target instanceof Element
-          ? event.target.closest('[data-section-target]')
-          : null;
-        if (!(target instanceof HTMLElement)) return;
-        const section = String(target.getAttribute('data-section-target') || '').trim();
-        const subTab = String(target.getAttribute('data-subtab-target') || '').trim();
-        if (!section) return;
-        event.preventDefault();
-        navigateToSection(section, subTab);
-      });
-    }
-
     const refreshBtn = $('dashboardRefreshBtn');
     if (refreshBtn && !refreshBtn.dataset.wired) {
       refreshBtn.dataset.wired = '1';
       refreshBtn.addEventListener('click', () => {
-        refreshDashboard();
+        refreshDashboard({ force: true });
       });
     }
 
@@ -323,7 +305,6 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     wire();
-    refreshDashboard();
   });
 
   window.AdminDashboard = {

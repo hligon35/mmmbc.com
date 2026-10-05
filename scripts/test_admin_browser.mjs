@@ -49,6 +49,13 @@ page.on('dialog',dialog=>dialog.accept());
 await page.route('https://fonts.googleapis.com/**',route=>route.fulfill({contentType:'text/css',body:''}));
 await page.route('https://fonts.gstatic.com/**',route=>route.abort());
 const check=async(label,action)=>{await action();console.log('PASS '+label);};
+let apiRequests=[];
+page.on('request',request=>{const url=new URL(request.url());if(url.pathname.startsWith('/api/'))apiRequests.push(url.pathname);});
+const clickTab=async id=>{
+  if(await page.locator('#adminSideNav').getAttribute('aria-hidden')!=='false'){await page.locator('#navDrawerToggle').click();await page.waitForFunction(()=>document.getElementById('adminSideNav').getAttribute('aria-hidden')==='false');}
+  await page.locator('#tabBtn-'+id).click();
+};
+const countApi=prefix=>apiRequests.filter(p=>p.startsWith(prefix)).length;
 try {
   await page.goto(origin+'/admin/');
   await page.locator('#dashboardCard:not([hidden])').waitFor();
@@ -88,8 +95,45 @@ try {
     await page.reload();await page.locator('#tab-submissions:not([hidden])').waitFor();
     assert.equal(await page.locator('.ws-shell').count(),0);
   });
+  await check('one tab click activates one section and loads only that section',async()=>{
+    await page.goto(origin+'/admin/#home');await page.reload();await page.locator('#tab-home:not([hidden])').waitFor();await page.waitForLoadState('networkidle');
+    await page.evaluate(()=>{window.__activations=[];window.addEventListener('admin:section-activated',e=>window.__activations.push(e.detail.sectionId));});
+    apiRequests=[];
+    await clickTab('submissions');
+    await page.locator('#tab-submissions:not([hidden])').waitFor();await page.waitForLoadState('networkidle');
+    assert.deepEqual(await page.evaluate(()=>window.__activations),['tab-submissions']);
+    assert.equal(countApi('/api/submissions'),1);
+    for(const unrelated of ['/api/me','/api/csrf','/api/gallery','/api/announcements','/api/bulletins','/api/events','/api/subscribers','/api/newsletter','/api/dashboard'])assert.equal(countApi(unrelated),0,unrelated+' was requested');
+    apiRequests=[];await clickTab('submissions');
+    assert.equal(apiRequests.length,0,'re-selecting the active tab must not reload');
+  });
+  await check('Back and Forward move between sections without session reloads',async()=>{
+    await clickTab('support');await page.locator('#tab-support:not([hidden])').waitFor();
+    apiRequests=[];
+    await page.goBack();await page.locator('#tab-submissions:not([hidden])').waitFor();
+    await page.goForward();await page.locator('#tab-support:not([hidden])').waitFor();
+    assert.equal(countApi('/api/me'),0);assert.equal(countApi('/api/csrf'),0);
+  });
+  await check('open drawer and unsaved form values survive background navigation',async()=>{
+    await page.setViewportSize({width:390,height:844});
+    await page.locator('#navDrawerToggle').click();
+    await page.waitForFunction(()=>document.getElementById('adminSideNav').getAttribute('aria-hidden')==='false');
+    await page.evaluate(()=>{location.hash='#newsletter';});
+    await page.locator('#tab-newsletter:not([hidden])').waitFor();
+    assert.equal(await page.locator('#adminSideNav').getAttribute('aria-hidden'),'false');
+    await page.setViewportSize({width:1440,height:960});
+  });
+  await check('historical deep links reach equivalent current sections',async()=>{
+    for(const [url,section] of [['/admin/#events','tab-content'],['/admin/mail','tab-submissions'],['/admin/rentals','tab-submissions'],['/admin/calendar','tab-content'],['/admin/reports','tab-home'],['/admin/access','tab-settings']]){
+      await page.goto(origin+url);
+      await page.locator('#'+section+':not([hidden])').waitFor();
+      assert.equal(await page.locator('.tabPanel:not([hidden])').count(),1,url);
+    }
+    await page.goto(origin+'/admin/rentals');await page.locator('#tab-submissions:not([hidden])').waitFor();
+    assert.equal(await page.locator('[data-submission-type-filter="facility_rental"]').first().getAttribute('aria-pressed'),'true');
+  });
   await check('individual API failure does not replace the admin or disconnect navigation',async()=>{
-    failList=true;await page.reload();await page.locator('#dashboardCard:not([hidden])').waitFor();
+    failList=true;await page.goto(origin+'/admin/#photos');await page.locator('#tab-photos:not([hidden])').waitFor();
     await page.locator('#adminLiveRegion').filter({hasText:'Some admin data could not be loaded'}).waitFor({state:'attached'});
     await page.waitForLoadState('networkidle');
     await openSection('content');await openSection('home');failList=false;
