@@ -179,23 +179,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="footer-links-section" id="quick-links">
                     <h4>Quick Links</h4>
                     <ul>
-                        <li><a href="${root}index.html"><img src="${root}Icons/home.png" alt="Home icon" class="link-icon"><span class="link-text">Home</span></a></li>
-                        <li><a href="${page('ministries.html')}"><img src="${root}Icons/ministries.png" alt="Ministries icon" class="link-icon"><span class="link-text">Ministries</span></a></li>
-                        <li><a href="${page('leadership.html')}"><img src="${root}Icons/leadership.png" alt="Leadership icon" class="link-icon"><span class="link-text">Leadership</span></a></li>
-                        <li><a href="${page('church_history.html')}"><img src="${root}Icons/churchhistory.png" alt="Church History icon" class="link-icon"><span class="link-text">Church History</span></a></li>
-                        <li><a href="/give"><img src="${root}Icons/give.png" alt="Give icon" class="link-icon"><span class="link-text">Give</span></a></li>
-                        <li><a href="${page('facility_rental.html')}"><img src="${root}Icons/facilityrental.png" alt="Facility Rental icon" class="link-icon"><span class="link-text">Facility Rental</span></a></li>
-                        <li><a href="${page('contact.html')}"><img src="${root}Icons/contactus.png" alt="Contact Us icon" class="link-icon"><span class="link-text">Contact Us</span></a></li>
+                        <li><a href="${root}index.html"><span class="material-icons-round link-icon" aria-hidden="true">home</span><span class="link-text">Home</span></a></li>
+                        <li><a href="${page('ministries.html')}"><span class="material-icons-round link-icon" aria-hidden="true">groups</span><span class="link-text">Ministries</span></a></li>
+                        <li><a href="${page('leadership.html')}"><span class="material-icons-round link-icon" aria-hidden="true">badge</span><span class="link-text">Leadership</span></a></li>
+                        <li><a href="${page('church_history.html')}"><span class="material-icons-round link-icon" aria-hidden="true">history_edu</span><span class="link-text">Church History</span></a></li>
+                        <li><a href="/give"><span class="material-icons-round link-icon" aria-hidden="true">volunteer_activism</span><span class="link-text">Give</span></a></li>
+                        <li><a href="${page('facility_rental.html')}"><span class="material-icons-round link-icon" aria-hidden="true">meeting_room</span><span class="link-text">Facility Rental</span></a></li>
+                        <li><a href="${page('contact.html')}"><span class="material-icons-round link-icon" aria-hidden="true">contact_mail</span><span class="link-text">Contact Us</span></a></li>
                     </ul>
                 </div>
                 <div class="footer-links-section" id="connect-us">
                     <h4>Connect With Us</h4>
                     <ul>
-                        <li><a href="https://www.google.com/maps/search/?api=1&query=1201+South+8th+Street+Paducah+KY" target="_blank" rel="noopener noreferrer"><img src="${root}Icons/address.png" alt="Address icon" class="link-icon"><span class="link-text">1201 South 8th Street, Paducah, KY</span></a></li>
-                        <li><a href="tel:2704433714"><img src="${root}Icons/phone.png" alt="Phone icon" class="link-icon"><span class="link-text">(270) 443-3714</span></a></li>
-                        <li><a href="mailto:mtmoriahmbc1201@gmail.com"><img src="${root}Icons/mailus.png" alt="Email Us icon" class="link-icon"><span class="link-text">Email Us</span></a></li>
-                        <li><a href="https://www.facebook.com/MtMoriahPaducah"><img src="${root}Icons/facebook.png" alt="Facebook icon" class="link-icon"><span class="link-text">Like us on Facebook</span></a></li>
-                        <li><a href="https://youtube.com/channel/UCkAaHiYmUKIdKePifg1D2pg"><img src="${root}Icons/youtube.png" alt="YouTube icon" class="link-icon"><span class="link-text">Subscribe on YouTube</span></a></li>
+                        <li><a href="https://www.google.com/maps/search/?api=1&query=1201+South+8th+Street+Paducah+KY" target="_blank" rel="noopener noreferrer"><span class="material-icons-round link-icon" aria-hidden="true">location_on</span><span class="link-text">1201 South 8th Street, Paducah, KY</span></a></li>
+                        <li><a href="tel:2704433714"><span class="material-icons-round link-icon" aria-hidden="true">phone</span><span class="link-text">(270) 443-3714</span></a></li>
+                        <li><a href="mailto:mtmoriahmbc1201@gmail.com"><span class="material-icons-round link-icon" aria-hidden="true">mail</span><span class="link-text">Email Us</span></a></li>
+                        <li><a href="https://www.facebook.com/MtMoriahPaducah"><span class="material-icons-round link-icon" aria-hidden="true">public</span><span class="link-text">Like us on Facebook</span></a></li>
+                        <li><a href="https://youtube.com/channel/UCkAaHiYmUKIdKePifg1D2pg"><span class="material-icons-round link-icon" aria-hidden="true">smart_display</span><span class="link-text">Subscribe on YouTube</span></a></li>
                     </ul>
                 </div>
                 <div class="footer-links-section" id="newsletter-signup">
