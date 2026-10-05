@@ -308,6 +308,8 @@ function authFailure(status, code, message) {
   return json({ error: { code, message } }, status);
 }
 
+const RETIRED_ADMIN_API_PATHS = new Set(['/api/livestream', '/api/settings', '/api/export']);
+
 function requiredOuterPermission(pathname, method) {
   if (pathname === '/api/profiles' || pathname === '/api/export') return PERMISSIONS.SETTINGS_MANAGE;
   if (pathname === '/api/livestream' || pathname === '/api/settings' || pathname.startsWith('/api/theme/')) {
@@ -1364,6 +1366,8 @@ const applicationWorker = {
       url.pathname.startsWith('/api/bulletins/') ||
       url.pathname === '/api/subscribers' ||
       url.pathname === '/api/newsletter/records' ||
+      url.pathname === '/api/newsletter/test' ||
+      url.pathname === '/api/newsletter/send' ||
       url.pathname === '/api/users' ||
       url.pathname === '/api/users/invite' ||
       url.pathname.startsWith('/api/users/') ||
@@ -1458,71 +1462,11 @@ const applicationWorker = {
       });
     }
 
-    if (url.pathname === '/api/livestream' && request.method === 'GET') {
+    // These compatibility endpoints never persisted anything and no current admin control calls them.
+    if (RETIRED_ADMIN_API_PATHS.has(url.pathname) || url.pathname.startsWith('/api/theme/')) {
       const user = await requireSession(request, env, ctx);
       if (!user) return json({ error: 'Unauthorized' }, 401);
-      const data = await readAssetJson(request, env, '/livestream.json', {
-        active: { platform: 'website', status: 'offline' },
-        embeds: { youtube: '', facebook: '', website: '' },
-        recurring: []
-      });
-      return json(data && typeof data === 'object' ? data : {
-        active: { platform: 'website', status: 'offline' },
-        embeds: { youtube: '', facebook: '', website: '' },
-        recurring: []
-      });
-    }
-
-    if (url.pathname === '/api/livestream' && request.method === 'PUT') {
-      const user = await requireSession(request, env, ctx);
-      if (!user) return json({ error: 'Unauthorized' }, 401);
-      const payload = await request.json().catch(() => ({}));
-      return json({ ok: true, livestream: payload, persisted: false, warning: 'Livestream runtime edits are not persisted in this deployment mode.' });
-    }
-
-    if (url.pathname === '/api/settings' && request.method === 'GET') {
-      const user = await requireSession(request, env, ctx);
-      if (!user) return json({ error: 'Unauthorized' }, 401);
-      const data = await readAssetJson(request, env, '/site-settings.json', {});
-      const settings = (data && typeof data === 'object') ? data : {};
-      if (!settings.theme || typeof settings.theme !== 'object') {
-        settings.theme = { accent: '#c46123', text: '#ffffff', background: '#000000' };
-      }
-      if (!settings.social || typeof settings.social !== 'object') {
-        settings.social = {
-          facebook: String(settings.facebook || ''),
-          youtube: String(settings.youtube || ''),
-          email: String(settings.email || ''),
-          phone: String(settings.phone || ''),
-          address: String(settings.address || '')
-        };
-      }
-      return json(settings);
-    }
-
-    if (url.pathname === '/api/settings' && request.method === 'PUT') {
-      const user = await requireSession(request, env, ctx);
-      if (!user) return json({ error: 'Unauthorized' }, 401);
-      const patch = await request.json().catch(() => ({}));
-      return json({ ok: true, settings: patch, persisted: false, warning: 'Settings runtime edits are not persisted in this deployment mode.' });
-    }
-
-    if (url.pathname === '/api/theme/preview' && request.method === 'POST') {
-      const user = await requireSession(request, env, ctx);
-      if (!user) return json({ error: 'Unauthorized' }, 401);
-      return json({ ok: true, preview: true });
-    }
-
-    if (url.pathname === '/api/theme/preview/clear' && request.method === 'POST') {
-      const user = await requireSession(request, env, ctx);
-      if (!user) return json({ error: 'Unauthorized' }, 401);
-      return json({ ok: true, preview: false });
-    }
-
-    if (url.pathname === '/api/export' && request.method === 'POST') {
-      const user = await requireSession(request, env, ctx);
-      if (!user) return json({ error: 'Unauthorized' }, 401);
-      return json({ ok: true, exported: false, warning: 'File export is not available in this Worker runtime.' });
+      return json({ error: 'This endpoint has been retired.' }, 410);
     }
 
     // Profile management retains its dedicated draft/publish/media storage surface.

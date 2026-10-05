@@ -275,7 +275,6 @@ describe('Users and roles settings', () => {
   });
 
   test('Settings uses all canonical user, role, audit, and lifecycle endpoints', () => {
-    expect(adminJs).toContain('async function loadSiteSettings()');
     expect(adminJs).toContain("api('/api/admin/settings/roles'");
     expect(adminJs).toContain("api('/api/admin/settings/users'");
     expect(adminJs).toContain("api('/api/admin/settings/users/audit?page=1&pageSize=10'");
@@ -283,6 +282,12 @@ describe('Users and roles settings', () => {
     expect(adminJs).toContain("pending: ['activate']");
     expect(adminJs).toContain("active: ['suspend', 'revoke']");
     expect(adminJs).toContain("suspended: ['reactivate', 'revoke']");
+  });
+
+  test('Retired livestream, theme, and export handlers are not shipped', () => {
+    expect(adminJs).not.toContain('/api/livestream');
+    expect(adminJs).not.toContain('/api/export');
+    expect(adminJs).not.toContain('Exported to website files');
   });
 
   test('Main sections and Settings are hidden from users without matching permissions', () => {
