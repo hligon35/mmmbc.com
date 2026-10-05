@@ -4283,8 +4283,13 @@ async function loadAll() {
   if (currentPermissions.has('newsletter.view')) tasks.push(loadSubscribers(), loadNewsletterRecords());
   const results = await Promise.allSettled(tasks);
 
-  for (const r of results) {
-    if (r.status === 'rejected') throw r.reason;
+  const failures = results.filter((result) => result.status === 'rejected');
+  if (failures.length) {
+    console.error('One or more admin modules failed to load', failures.map((result) => result.reason));
+    const liveRegion = $('adminLiveRegion');
+    if (liveRegion) {
+      liveRegion.textContent = 'Some admin data could not be loaded. Other sections remain available.';
+    }
   }
 
   if (window.AdminDashboard && typeof window.AdminDashboard.refresh === 'function') {
@@ -5754,8 +5759,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Initial
   refreshAuthUI().catch((err) => {
-    $('authStatus').textContent = 'Admin server not running.';
-    $('loginError').textContent = err.message;
-    $('loginError').hidden = false;
+    console.error('Admin initialization failed', err);
+    const authStatus = $('authStatus');
+    if (authStatus) authStatus.textContent = 'Admin connection needs attention.';
+    showSessionWarning(err instanceof Error ? err.message : 'The admin could not finish loading. Refresh and try again.');
   });
 });
