@@ -27,6 +27,19 @@ function expect(actual) {
 
 const staticCss = fs.readFileSync(path.join(__dirname, '..', 'static-style.css'), 'utf8');
 
+describe('Admin shell selection', () => {
+  const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+
+  test('uses the current tabbed admin instead of the legacy mailbox workspace', () => {
+    expect(indexHtml).toContain('window.MMWorkspaceEnabled = false');
+    expect(indexHtml).not.toContain('/admin/workspace/shell.mjs');
+    expect(indexHtml).not.toContain('/admin/workspace/workspace.css');
+    expect(indexHtml).toContain('id="tabBtn-content"');
+    expect(indexHtml).toContain('id="tabBtn-events"');
+    expect(indexHtml).toContain('id="tabBtn-submissions"');
+  });
+});
+
 describe('Admin accessibility redesign guards', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const cloudflareIndexHtml = fs.readFileSync(path.join(__dirname, '..', 'cf_site', 'admin', 'index.html'), 'utf8');
