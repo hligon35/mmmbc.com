@@ -8,15 +8,14 @@ financial dashboard and its tooling are removed.
 
 ## Deployment
 
-Apply the new admin and site migrations before deploying this branch:
+Apply the pending migrations to `mmdb` before deploying:
 
 ```sh
-npx wrangler d1 migrations apply admin --env production --remote
-npx wrangler d1 migrations apply site --env production --remote
+npx wrangler d1 migrations apply mmdb --remote
 npm run deploy
 ```
 
-Preview uses the same migration under `--env preview`. No new Worker, database,
+No new Worker, database,
 R2 bucket, queue, or secret is required. Keep existing Cloudflare Access coverage
 on `/admin/*` and admin APIs. The Worker verifies Access identity and active D1
 roles for shell routes and every workspace API. Resend requires the existing
@@ -25,7 +24,7 @@ Production domain cutover remains a separate manual step.
 
 ## Data and authorization
 
-`migrations/site/0005_admin_workspace.sql` adds mailbox state, private drafts,
+`migrations/0016_admin_workspace.sql` adds mailbox state, private drafts,
 outbound history, rental decisions, and an audit trail in SITE_DB. It migrates
 existing read/archive metadata without copying or changing source submissions.
 Deleted conversations remain restorable. Public forms and Turnstile are unchanged.
@@ -88,8 +87,7 @@ identity-provider configuration.
 npm ci
 npm --prefix admin ci
 npm run build:cf
-npm run migrate:local:admin
-npm run migrate:local:site
+npm run migrate:local
 npm run test:all
 npx playwright install chromium
 npm run test:workspace:browser

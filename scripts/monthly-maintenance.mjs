@@ -148,7 +148,7 @@ function auditCloudflareConfig() {
   const missing = requiredBindings.filter((binding) => !source.includes(binding));
   const placeholders = (source.match(/00000000-0000-0000-0000-00000000000[12]/g) ?? []).length;
   const findings = [...missing.map((binding) => `missing ${binding}`)];
-  if (placeholders) findings.push(`${placeholders} preview binding placeholder(s) are intentionally non-production`);
+  if (placeholders) findings.push(`${placeholders} placeholder binding ID(s) found`);
   return {
     name: 'Cloudflare Worker/D1/R2 configuration',
     command: 'wrangler.jsonc binding audit',
@@ -237,14 +237,12 @@ function versionEvidence() {
 
 export function runMaintenanceChecks() {
   return [
-    runCommand('Admin local migrations', 'npm', ['run', 'migrate:local:admin']),
-    runCommand('Site local migrations', 'npm', ['run', 'migrate:local:site']),
+    runCommand('Local migrations', 'npm', ['run', 'migrate:local']),
     runCommand('Static build', 'npm', ['run', 'build:cf']),
     runCommand('Application tests', 'npm', ['test']),
     runCommand('Admin tests', 'npm', ['run', 'test:admin']),
     runCommand('Integration test suite', 'npm', ['run', 'verify:integrations']),
     runCommand('Production Wrangler dry run', 'npm', ['run', 'worker:dry-run']),
-    runCommand('Preview Wrangler dry run', 'npm', ['run', 'preview:dry-run']),
     runCommand('Root dependency audit', 'npm', ['audit', '--audit-level=high']),
     runCommand('Admin dependency audit', 'npm', ['--prefix', 'admin', 'audit', '--audit-level=high'], { required: false }),
     runCommand('Root outdated dependency review', 'npm', ['outdated'], { required: false }),

@@ -21,12 +21,12 @@ Worker, admin UI, and development-server guard tests pass. Fresh admin and site 
 
 ## Owner setup before launch
 
-1. Revoke the exposed Turnstile secret in Cloudflare and set its replacement with `npx wrangler secret put TURNSTILE_SECRET_KEY --env production`. Removing it from current files does not remove it from Git history. Confirm the matching site key and allowed hostname.
+1. Revoke the exposed Turnstile secret in Cloudflare and set its replacement with `npx wrangler secret put TURNSTILE_SECRET_KEY`. Removing it from current files does not remove it from Git history. Confirm the matching site key and allowed hostname.
 2. Set a random `NEWSLETTER_UNSUBSCRIBE_SECRET` of at least 32 characters as a production Worker secret. Keep it stable to preserve previously sent unsubscribe links. Verify Resend sender-domain setup, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `SUPPORT_TO_EMAIL`.
 3. Back up both production D1 databases, review/apply admin and site migrations, and deploy the reviewed Worker and rebuilt assets. Fresh migrations create no finance tables; historical migration slots remain compatible and no existing database records are removed.
-4. Replace isolated preview database placeholders and configure preview storage, secrets, and Access. Confirm production Access identity/policies and that workers.dev and preview URL access are disabled for production.
+4. Confirm production Access identity/policies and that workers.dev and preview URL access remain disabled.
 5. Configure GitHub Actions and the report-email secrets `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `MAINTENANCE_TO_EMAIL`. Run launch validation and verify its result. Require its status check in branch protection through repository settings if desired.
-6. Purge previously cached gallery media after deployment; old cached public objects cannot be recalled by a source change. Test hidden media and authorized admin access, public forms/inbox, newsletter consent/scheduling, partial delivery recovery, and mobile layout in preview.
+6. Purge previously cached gallery media after deployment; old cached public objects cannot be recalled by a source change. Test hidden media and authorized admin access, public forms/inbox, newsletter consent/scheduling, partial delivery recovery, and mobile layout.
 7. The owner performs the final domain switch. Current routes, public URLs, canonical tags, robots and sitemap deliberately use `mmmbc.alphazonelabs.com`. Change those together with Cloudflare routes, Access applications, Turnstile hostnames, redirects, and DNS when ready. Existing profile images referenced from mmmbc.com/wp-content must remain available or be migrated before retiring the WordPress host.
 
 ## Cleanup completed

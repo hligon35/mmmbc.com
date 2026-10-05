@@ -23,7 +23,7 @@ If you protect `/api*` with Cloudflare Access (recommended), a CLI script needs 
 In Cloudflare Zero Trust:
 - Access → **Service Auth** → **Create Service Token**
 - Add the token to the **Allow policy** for your Access app(s) that protect:
-  - `/api*` on preview and/or prod
+  - `/api*` on production
 
 You’ll get:
 - `Client ID`
@@ -31,13 +31,13 @@ You’ll get:
 
 ## 3) Run the importer
 
-Preview example:
+Example:
 
 ```powershell
 $env:WP_BASE_URL="https://mmmbc.com"
 $env:WP_USERNAME="YOUR_WP_USERNAME"
 $env:WP_APP_PASSWORD="YOUR_WP_APPLICATION_PASSWORD"
-$env:TARGET_BASE_URL="https://mmmbc-preview.hligon.workers.dev"
+$env:TARGET_BASE_URL="https://mmmbc.alphazonelabs.com"
 
 # If /api* is protected by Access:
 $env:CF_ACCESS_CLIENT_ID="YOUR_ACCESS_SERVICE_TOKEN_CLIENT_ID"

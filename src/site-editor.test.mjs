@@ -148,8 +148,10 @@ test('public profile pages keep their corrected assignments', () => {
   assert.doesNotMatch(ministries, /Evangelist Melanie Nunn/);
 });
 
-test('live praise header uses the configured YouTube video', () => {
+test('live praise header uses the channel live embed with the configured video as CMS default', () => {
   const expectedEmbed = 'https://www.youtube.com/embed/QQXSV759Zys?rel=0';
+  const channelLiveEmbed = 'https://www.youtube.com/embed/live_stream?channel=UCkAaHiYmUKIdKePifg1D2pg&rel=0';
+  const channelLiveLink = 'id="livePraiseWatchLink" href="https://www.youtube.com/channel/UCkAaHiYmUKIdKePifg1D2pg/live"';
   assert.equal(INITIAL_PUBLISHED_CONTENT.live_praise['stream.url'], expectedEmbed);
 
   const sourcePage = fs.readFileSync(new URL('../Pages/live_praise.html', import.meta.url), 'utf8');
@@ -157,10 +159,10 @@ test('live praise header uses the configured YouTube video', () => {
   const sourceLivestream = JSON.parse(fs.readFileSync(new URL('../livestream.json', import.meta.url), 'utf8'));
   const generatedLivestream = JSON.parse(fs.readFileSync(new URL('../cf_site/livestream.json', import.meta.url), 'utf8'));
 
-  assert.ok(sourcePage.includes(`src="${expectedEmbed}"`));
-  assert.ok(generatedPage.includes(`src="${expectedEmbed}"`));
-  assert.ok(sourcePage.includes('id="livePraiseWatchLink" href="https://www.youtube.com/watch?v=QQXSV759Zys"'));
-  assert.ok(generatedPage.includes('id="livePraiseWatchLink" href="https://www.youtube.com/watch?v=QQXSV759Zys"'));
+  assert.ok(sourcePage.includes(`src="${channelLiveEmbed}"`));
+  assert.ok(generatedPage.includes(`src="${channelLiveEmbed}"`));
+  assert.ok(sourcePage.includes(channelLiveLink));
+  assert.ok(generatedPage.includes(channelLiveLink));
   assert.equal(sourceLivestream.embeds.youtube, expectedEmbed);
   assert.equal(generatedLivestream.embeds.youtube, expectedEmbed);
 });

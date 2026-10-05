@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 
 const port = '8787';
 const worker = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', [
-  'wrangler', 'dev', '--local', '--ip', '127.0.0.1', '--port', port, '--env', 'production'
+  'wrangler', 'dev', '--local', '--ip', '127.0.0.1', '--port', port
 ], { stdio: ['ignore', 'pipe', 'pipe'] });
 
 let workerOutput = '';

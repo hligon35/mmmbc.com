@@ -16,7 +16,7 @@
  *   WP_BASE_URL                 e.g. https://mmmbc.com
  *   WP_USERNAME                 e.g. admin@...
  *   WP_APP_PASSWORD             the WP Application Password (NOT your normal password)
- *   TARGET_BASE_URL             e.g. https://mmmbc-preview.hligon.workers.dev
+ *   TARGET_BASE_URL             e.g. https://mmmbc.alphazonelabs.com
  *   CF_ACCESS_CLIENT_ID         (optional) Access Service Token client id
  *   CF_ACCESS_CLIENT_SECRET     (optional) Access Service Token client secret
  *   ALBUM_MODE                  year-month | year | wordpress-month (default: year-month)

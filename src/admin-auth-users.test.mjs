@@ -17,7 +17,7 @@ function createD1() {
     id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, role TEXT NOT NULL DEFAULT 'website_editor',
     status TEXT NOT NULL DEFAULT 'invited', invited_by TEXT, invited_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
-  database.exec(readFileSync(new URL('../migrations/admin/0007_add_admin_users_and_audit_log.sql', import.meta.url), 'utf8'));
+  database.exec(readFileSync(new URL('../migrations/0007_add_admin_users_and_audit_log.sql', import.meta.url), 'utf8'));
   return {
     database,
     prepare(sql) {
@@ -102,8 +102,8 @@ test('RBAC preserves directory access and removes all financial permissions', ()
 
 test('approved administrator roster is seeded with canonical roles', () => {
   const DB = createD1();
-  DB.database.exec(readFileSync(new URL('../migrations/admin/0008_implement_admin_roster_roles.sql', import.meta.url), 'utf8'));
-  DB.database.exec(readFileSync(new URL('../migrations/admin/0009_sync_admin_roster_roles.sql', import.meta.url), 'utf8'));
+  DB.database.exec(readFileSync(new URL('../migrations/0008_implement_admin_roster_roles.sql', import.meta.url), 'utf8'));
+  DB.database.exec(readFileSync(new URL('../migrations/0009_sync_admin_roster_roles.sql', import.meta.url), 'utf8'));
 
   const rows = DB.database.prepare('SELECT email, full_name, role, status FROM admin_users ORDER BY email').all();
   assert.equal(rows.length, 9);

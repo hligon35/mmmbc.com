@@ -9,14 +9,14 @@
  *
  * Every generated id starts with demo- and every email uses example.com. The
  * remote target is blocked unless MMBC_ALLOW_REMOTE_DEMO_SEED=1 is set. Form
- * submission is intended for local or preview only.
+ * submission is intended for local only.
  *
  * Examples:
- *   node scripts/seed_demo_data.mjs --target preview --apply \
+ *   node scripts/seed_demo_data.mjs --target local --apply \
  *     --replace-page-content --submit-forms --write-static
  *   node scripts/seed_demo_data.mjs --target local --apply --submit-forms \
  *     --base-url http://127.0.0.1:8787
- *   node scripts/seed_demo_data.mjs --target preview --apply \
+ *   node scripts/seed_demo_data.mjs --target local --apply \
  *     --replace-page-content --submit-forms --upload-r2
  */
 
@@ -56,26 +56,16 @@ const PROFILE_IMAGE_POOL = [
 
 const TARGETS = {
   local: {
-    adminDb: 'admin',
-    siteDb: 'site',
-    bucket: 'mmmbc-preview',
-    wranglerEnv: null,
+    adminDb: 'mmdb',
+    siteDb: 'mmdb',
+    bucket: 'mmmbc',
     remote: false,
     baseUrl: 'http://127.0.0.1:8787'
   },
-  preview: {
-    adminDb: 'admin-preview',
-    siteDb: 'site-preview',
-    bucket: 'mmmbc-preview',
-    wranglerEnv: 'preview',
-    remote: true,
-    baseUrl: 'https://mmmbc-preview.hligon.workers.dev'
-  },
   remote: {
-    adminDb: 'admin',
-    siteDb: 'site',
+    adminDb: 'mmdb',
+    siteDb: 'mmdb',
     bucket: 'mmmbc',
-    wranglerEnv: 'production',
     remote: true,
     baseUrl: 'https://mmmbc.alphazonelabs.com'
   }
@@ -371,7 +361,7 @@ async function runWrangler(args) {
 }
 
 function targetArgs(target) {
-  return target.remote ? ['--remote', '--env', target.wranglerEnv] : ['--local'];
+  return target.remote ? ['--remote'] : ['--local'];
 }
 
 async function applyD1(target, database, sql, label) {
@@ -442,7 +432,7 @@ function parseArgs(argv) {
     else throw new Error(`Unknown argument: ${arg}`);
   }
   if (!Number.isInteger(options.count) || options.count < 10) throw new Error('--count must be an integer of at least 10.');
-  if (!TARGETS[options.target]) throw new Error('--target must be local, preview, or remote.');
+  if (!TARGETS[options.target]) throw new Error('--target must be local or remote.');
   if (!Number.isFinite(Date.parse(options.asOf))) throw new Error('--as-of must be a valid ISO date/time.');
   if (options.buildStatic) options.writeStatic = true;
   if (options.submitForms && !options.apply) throw new Error('--submit-forms requires --apply so the demo target is explicit.');
@@ -450,7 +440,7 @@ function parseArgs(argv) {
 }
 
 function helpText() {
-  return `Usage: node scripts/seed_demo_data.mjs [options]\n\n  --target local|preview|remote   D1/Worker target (default: local)\n  --count N                       entries per type; minimum 10\n  --as-of ISO                     stable timestamp for generated records\n  --apply                         apply generated SQL to both D1 databases\n  --submit-forms                  POST newsletter/contact/rental demo forms\n  --base-url URL                  public Worker URL for --submit-forms\n  --write-static                  write populated root JSON fallback assets\n  --build-static                  write JSON assets and run build:cf\n  --upload-r2                     upload pastorHarvey/gallery/bulletin demo files\n  --replace-page-content          write populated CMS draft/published fields (default)\n  --preserve-page-content         do not replace existing CMS page rows\n  --clean                         remove demo-* records from the target databases\n\nRemote production seeding additionally requires MMBC_ALLOW_REMOTE_DEMO_SEED=1.\nForm submission is blocked for the remote target.\n`;
+  return `Usage: node scripts/seed_demo_data.mjs [options]\n\n  --target local|remote   D1/Worker target (default: local)\n  --count N                       entries per type; minimum 10\n  --as-of ISO                     stable timestamp for generated records\n  --apply                         apply generated SQL to both D1 databases\n  --submit-forms                  POST newsletter/contact/rental demo forms\n  --base-url URL                  public Worker URL for --submit-forms\n  --write-static                  write populated root JSON fallback assets\n  --build-static                  write JSON assets and run build:cf\n  --upload-r2                     upload pastorHarvey/gallery/bulletin demo files\n  --replace-page-content          write populated CMS draft/published fields (default)\n  --preserve-page-content         do not replace existing CMS page rows\n  --clean                         remove demo-* records from the target databases\n\nRemote production seeding additionally requires MMBC_ALLOW_REMOTE_DEMO_SEED=1.\nForm submission is blocked for the remote target.\n`;
 }
 
 export { buildData, buildAdminSql, buildSiteSql, buildStaticAssets, parseArgs };

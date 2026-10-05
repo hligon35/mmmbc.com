@@ -13,7 +13,7 @@ export function sqliteD1(migrations) {
   return db;
 }
 export function workspaceEnv(role='administrator') {
-  const DB=sqliteD1('migrations/admin'),SITE_DB=sqliteD1('migrations/site');
+  const DB=sqliteD1('migrations'),SITE_DB=DB;
   DB.sqlite.prepare("INSERT INTO admin_users(id,email,full_name,role,status,invited_at,created_at,updated_at) VALUES('tester','tester@example.com','Test Administrator',?,'active','2026-10-01','2026-10-01','2026-10-01')").run(role);
   SITE_DB.sqlite.prepare("INSERT INTO contact_messages(id,name,email,subject,message,created_at) VALUES('one','Ada Brown','ada@example.com','Church question','Hello <img src=x onerror=alert(1)>','2026-10-03T12:00:00Z')").run();
   const insert=SITE_DB.sqlite.prepare('INSERT INTO facility_rental_requests(id,audience,person_responsible,contact_email,phone,purpose,date_of_use,time_from,time_to,form_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)');

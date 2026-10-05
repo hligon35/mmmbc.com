@@ -32,7 +32,7 @@ npm run worker:dry-run
 npm run deploy
 ```
 
-The preview configuration intentionally contains non-production placeholder D1 IDs until isolated preview resources are provisioned.
+The only deployment target is Worker `mmmbc` in Cloudflare account `e02ea8e0b7fe319f04e2505df1138d4c` (D1 `mmdb`, R2 `mmmbc`, host `mmmbc.alphazonelabs.com`). There are no preview or legacy environments.
 
 
 ## Source and generated output

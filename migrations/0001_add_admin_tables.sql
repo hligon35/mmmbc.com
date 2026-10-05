@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS bulletins (
 );
 
 -- NOTE: `subscribers` (newsletter opt-in) moved to the separate "site" D1 database;
--- see migrations/site/0001_init_site_db.sql. It never lived here in production data
+-- see migrations/0012_site_init_public_forms.sql. It never lived here in production data
 -- (both D1s were freshly created empty), so no data migration is required.
 
 CREATE TABLE IF NOT EXISTS profiles (

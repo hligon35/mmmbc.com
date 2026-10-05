@@ -8,7 +8,7 @@ import { normalizeRole } from '../src/admin-rbac.js';
 const VALID_STATUSES = new Set(['pending', 'active', 'suspended', 'revoked']);
 
 function parseArgs(argv) {
-  const args = { apply: false, local: false, remote: false, env: '', input: '', confirmProduction: false };
+  const args = { apply: false, local: false, remote: false, input: '', confirmProduction: false };
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
     if (value === '--apply') args.apply = true;
@@ -16,14 +16,11 @@ function parseArgs(argv) {
     else if (value === '--remote') args.remote = true;
     else if (value === '--confirm-production') args.confirmProduction = true;
     else if (value === '--input') args.input = argv[++index] || '';
-    else if (value === '--env') args.env = argv[++index] || '';
     else throw new Error(`Unknown argument: ${value}`);
   }
   if (!args.input) throw new Error('Provide --input admin-roster.local.json or --input admin-roster.local.csv.');
   if (args.local === args.remote) throw new Error('Choose exactly one database target: --local or --remote.');
-  if (args.local && args.env) throw new Error('--env is only valid with --remote.');
-  if (args.remote && !['preview', 'production'].includes(args.env)) throw new Error('Remote imports require --env preview or --env production.');
-  if (args.apply && args.env === 'production' && !args.confirmProduction) throw new Error('Production apply requires --confirm-production.');
+  if (args.apply && args.remote && !args.confirmProduction) throw new Error('Production apply requires --confirm-production.');
   return args;
 }
 
@@ -103,7 +100,7 @@ function sqlText(value) {
 }
 
 function wranglerArgs(args, extra) {
-  const target = args.local ? ['--local'] : ['--remote', '--env', args.env];
+  const target = args.local ? ['--local'] : ['--remote'];
   return ['wrangler', 'd1', 'execute', 'DB', ...target, ...extra];
 }
 
