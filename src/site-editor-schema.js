@@ -1,9 +1,9 @@
-// Centralized field registry ("page schema") for the visual website editor.
+// Centralized field registry used by the retained profile-content management workflow.
 // Every editable public-site field must be declared here — the API rejects any
 // page key or field key that isn't listed in this file. This is the single
 // source of truth consumed by:
 //   - src/worker-site-editor.js (server-side validation + the schema API response)
-//   - admin/public/site-editor.js (renders the correct control per field.type)
+//   - admin/public/admin-ministry-profiles.js (renders profile controls)
 //
 // To add a new field: add an entry under the page's `fields` map, then add a
 // matching `data-cms-field="<page>.<fieldKey>" data-cms-type="<type>"` element to
