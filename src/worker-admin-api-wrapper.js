@@ -12,6 +12,8 @@ import { handleWorkspaceRequest } from './worker-workspace.js';
 import { resolveRoute, legacyRoutes } from '../admin/public/workspace/modules.mjs';
 import { authenticateAdminRequest, authErrorResponse } from './admin-auth.js';
 
+const PROFILE_CONTENT_PAGES = new Set(["leadership","associate_ministers","deacons","deaconesses","official_team_trustees","ministries"]);
+
 const authStateCache = new WeakMap();
 
 // The demo seeder submits through the same public endpoints that the browser
@@ -1209,6 +1211,7 @@ const applicationWorker = {
 
     if (url.pathname.startsWith('/api/site-content/') && request.method === 'GET') {
       const page = decodeURIComponent(url.pathname.slice('/api/site-content/'.length));
+      if (!PROFILE_CONTENT_PAGES.has(page)) return json({ error: 'Not found.' }, 404);
       return handlePublicSiteContentGet(request, env, page);
     }
 
@@ -1412,11 +1415,11 @@ const applicationWorker = {
       return json({ ok: true, exported: false, warning: 'File export is not available in this Worker runtime.' });
     }
 
-    // The visual site editor is implemented by the primary Worker. Forward its
-    // authenticated draft/publish/media routes before the wrapper's unknown-API
-    // guard so Cloudflare production uses the same D1-backed editor surface.
-    if (url.pathname === '/api/admin/site-pages' || url.pathname.startsWith('/api/admin/site-pages/')) {
-      return worker.fetch(request, env, ctx);
+    // Profile management retains its dedicated draft/publish/media storage surface.
+    if (url.pathname.startsWith('/api/admin/site-pages/')) {
+      const parts = url.pathname.split('/').filter(Boolean);
+      const page = decodeURIComponent(parts[3] || '');
+      if (PROFILE_CONTENT_PAGES.has(page)) return worker.fetch(request, env, ctx);
     }
 
     // Ensure unknown API paths never fall through to static-asset handling.
