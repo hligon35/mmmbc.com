@@ -113,21 +113,11 @@ try {
     const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export CSV',exact:true}).click();assert.match((await download).suggestedFilename(),/church-operations/);
     assert.equal(await page.locator('[data-module=finances],[data-module=giving]').count(),0);
   });
-  await check('site editor preserves page edits, saves, publishes, and restores',async()=>{
-    await page.goto(origin+'/admin/site-editor');
-    await page.getByRole('combobox',{name:'Website page'}).selectOption('home');
-    const cta=()=>page.locator('.ws-editor-field').filter({hasText:'Hero button text'}).locator('input');
-    await cta().fill('Browser Draft CTA');
-    await page.getByRole('combobox',{name:'Website page'}).selectOption('contact');
-    await page.getByRole('combobox',{name:'Website page'}).selectOption('home');
-    assert.equal(await cta().inputValue(),'Browser Draft CTA');
-    await page.locator('[data-module=mail]').click();await page.locator('.ws-message').first().waitFor();
-    await page.locator('[data-module=site-editor]').click();assert.equal(await cta().inputValue(),'Browser Draft CTA');
-    await page.getByRole('button',{name:'Save Draft',exact:true}).click();await page.locator('.ws-status').filter({hasText:'Draft saved.'}).waitFor();
-    await page.getByRole('button',{name:'Publish',exact:true}).click();await page.locator('.ws-status').filter({hasText:'Published version'}).waitFor();
-    assert.equal(JSON.parse(env.DB.sqlite.prepare("SELECT published_fields FROM site_page_content WHERE page='home'").get().published_fields)['hero.cta.text'],'Browser Draft CTA');
-    await page.getByRole('button',{name:'Restore Previous',exact:true}).click();await page.locator('.ws-status').filter({hasText:'Previous published version restored.'}).waitFor();
-    assert.notEqual(JSON.parse(env.DB.sqlite.prepare("SELECT published_fields FROM site_page_content WHERE page='home'").get().published_fields)['hero.cta.text'],'Browser Draft CTA');
+  await check('standalone site editor is removed from the workspace',async()=>{
+    await page.goto(origin+'/admin');
+    assert.equal(await page.locator('[data-module=site-editor]').count(),0);
+    const status=await page.evaluate(async()=>{const response=await fetch('/api/admin/site-pages',{credentials:'same-origin'});return response.status;});
+    assert.equal(status,404);
   });
   await check('existing church modules load inside the same application',async()=>{
     const failures=[];
