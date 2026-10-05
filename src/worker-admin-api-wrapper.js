@@ -694,7 +694,7 @@ async function transformPublicHtml(response, pathname) {
   let html = await response.text();
   const pageHref = '/give';
 
-  if (!html.includes('data-mmmbc-give-link')) {
+  if (!html.includes('data-mmmbc-give-link') && !/<a\s+href=["']\/give["']\s*>\s*Give\s*<\/a>/i.test(html)) {
     const giveLink = `<a href="${pageHref}" class="nav-give-link" data-mmmbc-give-link>Give</a>`;
     html = html.replace(
       /(<a\s+href=["'][^"']*contact\.html[^"']*["'][^>]*>Contact Us<\/a>)/i,
