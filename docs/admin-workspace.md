@@ -103,3 +103,28 @@ API tests use in-memory SQLite stores and mocked email providers. Browser tests
 exercise the actual Worker handlers against those local stores. They never send
 live email or change Cloudflare resources. CI installs Chromium and runs the
 browser checks along with the repository's existing launch validation.
+
+## Navigation, routing, and data loading
+
+- One route table in `admin/public/admin.js` (`ADMIN_ROUTES`) maps hashes and historical paths to sections. `#events`, `/admin/calendar` and the legacy site-editor links open Announcements & Events; `/admin/mail` and `/admin/inbox` open Messages; `/admin/rentals` opens Messages filtered to rentals; `/admin/reports` opens Home; `/admin/access` and `/admin/users` open Settings.
+- Session start-up (`initializeSession`) runs once. Navigation never repeats authentication, CSRF, or diagnostics requests; each section loads lazily on first visit and refreshes after 30 seconds at most.
+- `GET /api/submissions` accepts `q`, `type`, `limit` (default 25, max 100) and `offset`, returns bodyless rows with true totals/counts, and `GET /api/submissions/:id?type=` returns one full message.
+- `GET /api/gallery?limit&offset&sort&album&tag&arrangeAlbum` filters, sorts, and pages on the server (default 48, max 200) and returns `total` and `albums`. Without `limit` the legacy full list is still returned for the public site.
+- `GET /api/dashboard/overview` uses SQL aggregates, returns only metrics the caller may view, and reports `null` plus an `unavailable` list when a query fails.
+- `/api/livestream`, `/api/settings`, `/api/theme/*` and `/api/export` were non-persisting compatibility stubs with no UI; they now return `410`.
+- Migration `0017_dashboard_query_indexes.sql` adds indexes confirmed with `EXPLAIN QUERY PLAN`; apply it with the normal D1 migration process.
+
+### Measured baseline (isolated data: 354 messages, 1,200 photos, local server, uncompressed)
+
+`node scripts/measure_admin_performance.mjs <repo>` produced:
+
+| Step | Before (39a4d05) | After |
+| --- | --- | --- |
+| Cold boot to usable dashboard | 2,080 ms, 49 requests (22 API), 1,134 KB | 1,185 ms, 12 requests (3 API), 579 KB |
+| Warm reload | 957 ms, 20 requests, 862 KB | 1,026 ms, 12 requests, 579 KB |
+| Messages | 530 ms, 216 KB | 543 ms, 5 KB |
+| Photos | 973 ms, 10 API, 271 KB | 977 ms, 2 API, 8 KB |
+| Announcements & Events | 1,277 ms, 17 API, 539 KB | 637 ms, 3 API, 0 KB |
+| Back to Home | 777 ms, 12 API | 384 ms, 0 API |
+
+The static bundle (about 560 KB uncompressed) is unchanged; Cloudflare compresses it in transit. Decide on bundle splitting from these numbers before changing it.

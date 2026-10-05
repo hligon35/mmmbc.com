@@ -41,3 +41,9 @@ the live assets are older or incomplete. Confirm the successful Cloudflare build
 uses the intended master commit; disable any other branch/repository connection
 that can overwrite Worker `mmmbc`. Dashboard settings and live deployment must be
 verified in Cloudflare; a repository commit alone does not establish either.
+
+## Release status checks
+
+- GitHub Actions: every run since 2026-09-28 (including scheduled runs of all three workflows) ends in `startup_failure` with zero jobs and zero check runs, while the workflow files parse without errors. The pattern points to an account or repository setting (Actions billing/spending limit or policy) rather than workflow content or application tests. The run page's Annotations banner carries the exact message; the API does not expose it.
+- Workers Builds: the check run `Workers Builds: mmmbc` completed successfully for commit `39a4d05` on `master` (Script `mmmbc`), and there is exactly one such check. D1 `mmdb` and R2 `mmmbc` bindings match `wrangler.jsonc`.
+- The live admin is behind Cloudflare Access, so `/api/build-info` cannot be read without an authenticated session. Run `npm run verify:admin-delivery` locally, then compare the signed-in `/api/build-info` `adminBuild.fingerprint` with the `mmmbc-admin-build` meta tag after deploy.
