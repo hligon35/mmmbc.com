@@ -79,8 +79,8 @@ function roleDisplayName(role) {
   if (normalized === 'finance_entry') return 'Directory Assistant';
   if (normalized === 'treasurer') return 'Directory Manager';
   if (normalized === 'auditor') return 'Support Viewer';
-  if (normalized === 'site_editor') return 'Site Editor';
-  return 'Site Editor';
+  if (normalized === 'site_editor') return 'Website Manager';
+  return 'Website Manager';
 }
 
 function buildAdminInviteEmailTemplate({ inviteUrl, role }) {
