@@ -997,7 +997,9 @@ function safeResetForm(e) {
   }
 }
 
-function showToast(message, { variant = 'success', timeoutMs = 3500 } = {}) {
+const TOAST_DEFAULT_MS = 5000;
+
+function showToast(message, { variant = 'success', timeoutMs = TOAST_DEFAULT_MS } = {}) {
   const text = String(message || '').trim();
   if (!text) return;
 
@@ -1013,8 +1015,16 @@ function showToast(message, { variant = 'success', timeoutMs = 3500 } = {}) {
 
   const toast = document.createElement('div');
   toast.className = `toast toast--${variant}`;
-  toast.setAttribute('role', 'status');
-  toast.textContent = text;
+  toast.setAttribute('role', variant === 'danger' ? 'alert' : 'status');
+  const label = document.createElement('span');
+  label.className = 'toast__text';
+  label.textContent = text;
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.className = 'toast__dismiss';
+  dismiss.setAttribute('aria-label', 'Dismiss notification');
+  dismiss.textContent = '\u00d7';
+  toast.append(label, dismiss);
   container.appendChild(toast);
 
   // Animate in
@@ -1030,8 +1040,16 @@ function showToast(message, { variant = 'success', timeoutMs = 3500 } = {}) {
     }, 220);
   };
 
-  setTimeout(remove, Math.max(500, Number(timeoutMs) || 0));
-  toast.addEventListener('click', remove);
+  let timer = setTimeout(remove, Math.max(500, Number(timeoutMs) || 0));
+  // Hovering or focusing a toast keeps it open so it can be read or dismissed.
+  const hold = () => clearTimeout(timer);
+  const resume = () => { timer = setTimeout(remove, 2000); };
+  toast.addEventListener('mouseenter', hold);
+  toast.addEventListener('mouseleave', resume);
+  toast.addEventListener('focusin', hold);
+  toast.addEventListener('focusout', resume);
+  dismiss.addEventListener('click', remove);
+  toast.addEventListener('click', (event) => { if (event.target === toast || event.target === label) remove(); });
 }
 
 function announceLive(message) {
@@ -1543,7 +1561,7 @@ async function loadWebsiteSubmissions({ resetPage = false } = {}) {
     updateSubmissionTypeFilters(data?.counts);
     updateSubmissionsPager(total, rows.length);
     body.innerHTML = rows.length ? rows.map(submissionRowHtml).join('') : `<tr><td colspan="6" class="muted">No ${escapeHtml(submissionsTypeFilter === 'all' ? 'website submissions' : submissionTypeLabel(submissionsTypeFilter).toLowerCase() + ' messages')} found.</td></tr>`;
-    body.querySelectorAll('[data-submission-open]').forEach((button) => button.addEventListener('click', () => openWebsiteSubmission(button.dataset.submissionOpen, button.dataset.submissionType, button).catch((error) => window.alert(error.message))));
+    body.querySelectorAll('[data-submission-open]').forEach((button) => button.addEventListener('click', () => openWebsiteSubmission(button.dataset.submissionOpen, button.dataset.submissionType, button).catch((error) => showToast(error.message || 'Unable to open this message.', { variant: 'danger' }))));
     body.querySelectorAll('[data-submission-delete]').forEach((button) => button.addEventListener('click', async () => {
       const row = rows.find((item) => item.id === button.dataset.submissionDelete && item.type === button.dataset.submissionType);
       if (!row || !confirmWrite(`Permanently delete the ${submissionTypeLabel(row.type).toLowerCase()} message from ${row.sender_name || row.sender_email || 'this sender'}? This cannot be undone.`)) return;
@@ -1554,7 +1572,7 @@ async function loadWebsiteSubmissions({ resetPage = false } = {}) {
         else await loadWebsiteSubmissions();
       } catch (error) {
         button.disabled = false;
-        window.alert(error.message || 'Unable to delete this message.');
+        showToast(error.message || 'Unable to delete this message.', { variant: 'danger' });
       }
     }));
   } catch (error) {

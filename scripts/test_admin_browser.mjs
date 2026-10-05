@@ -132,6 +132,59 @@ try {
     await page.goto(origin+'/admin/rentals');await page.locator('#tab-submissions:not([hidden])').waitFor();
     assert.equal(await page.locator('[data-submission-type-filter="facility_rental"]').first().getAttribute('aria-pressed'),'true');
   });
+  await check('more than 300 submissions page on the server and rapid searches never show stale results',async()=>{
+    const sql=env.SITE_DB.sqlite,insert=sql.prepare('INSERT INTO contact_messages(id,name,email,subject,message,created_at) VALUES(?,?,?,?,?,?)');
+    sql.exec('BEGIN');
+    for(let i=0;i<354;i++)insert.run('bulk-'+i,'Sender '+i,'sender'+i+'@example.com',i===5?'L'+'ong subject '.repeat(40):'Subject '+i,'Body '+i,new Date(Date.UTC(2026,0,1,0,0,i)).toISOString());
+    sql.exec('COMMIT');
+    await openSection('submissions');
+    const info=page.locator('#submissionsPageInfo');
+    await info.filter({hasText:'1\u201325 of 358'}).waitFor();
+    assert.equal(await page.locator('#submissionsTableBody tr').count(),25);
+    assert.ok(await page.locator('#submissionsNextBtn').isEnabled());
+    await page.locator('#submissionsNextBtn').click();
+    await info.filter({hasText:'26\u201350 of 358'}).waitFor();
+    const search=page.locator('#submissionsSearch');
+    await search.fill('');
+    await search.pressSequentially('Sender 353',{delay:5});
+    await page.locator('#submissionsTableBody tr').filter({hasText:'Sender 353'}).first().waitFor();
+    await page.waitForLoadState('networkidle');
+    assert.equal(await page.locator('#submissionsTableBody tr').count(),1);
+    await search.fill('');await page.waitForLoadState('networkidle');
+  });
+  await check('large galleries load one bounded page at a time',async()=>{
+    const sql=env.DB.sqlite,insert=sql.prepare('INSERT INTO gallery_items(id,album,label,tags_json,file_key,thumb_key,original_name,created_at,position) VALUES(?,?,?,?,?,?,?,?,?)');
+    sql.exec('BEGIN');
+    for(let i=0;i<1200;i++)insert.run('bg'+i,i%2?'Easter':'Choir','Label '+i,'[]','k'+i+'.jpg',null,'img'+i+'.jpg',new Date(Date.UTC(2026,0,1,0,0,i)).toISOString(),i);
+    sql.exec('COMMIT');
+    const sizes=[];
+    const onResponse=async response=>{const url=new URL(response.url());if(url.pathname==='/api/gallery'&&response.request().method()==='GET')sizes.push((await response.json()).items.length);};
+    page.on('response',onResponse);
+    await openSection('photos');
+    await page.locator('#photoPageInfo').filter({hasText:'1200 photo'}).waitFor();
+    page.off('response',onResponse);
+    assert.ok(sizes.length>0&&sizes.every(n=>n<=200),'gallery list must be bounded: '+sizes);
+    assert.ok(await page.locator('#photoGrid > *').count()<=200);
+  });
+  await check('long content does not overflow desktop, tablet, or phone layouts',async()=>{
+    for(const [width,height] of [[1440,960],[820,1180],[390,844]]){
+      await page.setViewportSize({width,height});
+      for(const id of ['submissions','content','photos']){
+        await openSection(id);
+        const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
+        assert.ok(overflow<=1,id+' overflows by '+overflow+'px at '+width);
+      }
+    }
+    await page.setViewportSize({width:1440,height:960});
+  });
+  await check('toasts are dismissible and last about five seconds',async()=>{
+    await page.evaluate(()=>showToast('Saved for testing'));
+    const toast=page.locator('.toast').filter({hasText:'Saved for testing'});
+    await toast.waitFor();
+    await toast.locator('.toast__dismiss').click();
+    await toast.waitFor({state:'detached'});
+    assert.equal(await page.evaluate(()=>TOAST_DEFAULT_MS),5000);
+  });
   await check('individual API failure does not replace the admin or disconnect navigation',async()=>{
     failList=true;await page.goto(origin+'/admin/#photos');await page.locator('#tab-photos:not([hidden])').waitFor();
     await page.locator('#adminLiveRegion').filter({hasText:'Some admin data could not be loaded'}).waitFor({state:'attached'});

@@ -5439,3 +5439,9 @@ body {
 #tab-submissions .submissionsPager{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:12px;}
 #tab-submissions .submissionsPager .muted{min-width:110px;text-align:center;}
 #submissionsTableBody[aria-busy='true']{opacity:.6;}
+
+.toast{display:flex;align-items:flex-start;gap:10px;}
+.toast__text{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;}
+.toast__dismiss{flex:0 0 auto;min-width:28px;min-height:28px;border:0;border-radius:6px;background:transparent;color:inherit;font-size:20px;line-height:1;cursor:pointer;}
+.toast__dismiss:hover{background:rgba(255,255,255,.14);}
+.toast__dismiss:focus-visible{outline:2px solid currentColor;outline-offset:1px;}
