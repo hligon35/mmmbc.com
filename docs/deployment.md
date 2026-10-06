@@ -2,11 +2,13 @@
 
 ## Production
 
+Online giving: follow [Zeffy setup](zeffy-setup.md) to confirm the campaign and embed URLs before release. The public /give route serves MMMBC's branded page with Zeffy's checkout.
+
 1. Confirm Cloudflare account `e02ea8e0b7fe319f04e2505df1138d4c` (set in `wrangler.jsonc`), the `alphazonelabs.com` zone, and the `mmmbc.alphazonelabs.com` Worker custom domain.
 2. Export D1 database `mmdb` and back up R2 bucket `mmmbc`.
 3. Run `npm ci`, `npm --prefix admin ci`, and `npm run check`.
 4. Verify Access and Resend.
-5. Apply reviewed D1 migrations remotely: `npx wrangler d1 migrations apply mmdb --remote`. This includes `0018_restore_simple_finance_recorder.sql`, which restores only the lightweight money-recording ledger. All migrations live in one ordered sequence under `migrations/`; the `DB` and `SITE_DB` bindings both point at `mmdb`.
+5. Apply reviewed D1 migrations remotely: `npx wrangler d1 migrations apply mmdb --remote`. This includes `0018_restore_simple_finance_recorder.sql` and `0019_restore_finance_workflow.sql`; together they restore only the lightweight money-recording workflow, void metadata, and category/fund lists. They do not recreate the retired advanced finance dashboard. All migrations live in one ordered sequence under `migrations/`; the `DB` and `SITE_DB` bindings both point at `mmdb`.
 6. Run `npm run deploy`.
 7. Purge any previously cached gallery media. Verify public pages, security headers, unauthenticated rejection, authenticated reads, forms with test data, and a Resend test recipient.
 

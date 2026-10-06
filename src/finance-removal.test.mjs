@@ -8,14 +8,14 @@ import {publicRoleDefinitions} from './admin-rbac.js';
 import {ZEFFY_DONATION_URL} from './worker-giving-pages.js';
 import {buildData,buildAdminSql} from '../scripts/seed_demo_data.mjs';
 
-test('fresh migrations and demo data require no financial dashboard tables',()=>{
+test('fresh migrations contain only the lightweight finance workflow tables',()=>{
   const env=workspaceEnv();
-  assert.deepEqual(env.DB.sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'finance_%' ORDER BY name").all(),[{name:'finance_entries'}]);
+  assert.deepEqual(env.DB.sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'finance_%' ORDER BY name").all(),[{name:'finance_entries'},{name:'finance_entry_state'},{name:'finance_meta'}]);
   const sql=buildAdminSql(buildData({count:10,asOf:'2026-10-04T12:00:00Z'}));
   assert.doesNotMatch(sql,/finance_(?:funds|donors|collection|scan|housing|board|operations)/);
   assert.match(sql,/directory_contacts/);
 });
-test('removed finance URLs and assets have no handlers or shell aliases',async()=>{
+test('retired advanced finance URLs and assets stay removed',async()=>{
   const env=workspaceEnv();env.ASSETS={fetch:async()=>new Response('Missing',{status:404})};
   for(const path of ['/admin/finances/funds','/admin/finances/controls','/admin/finances/clergy-housing','/admin/finances/envelopes','/admin/finances/reports/board','/admin/finances_funds.html','/admin/finances_donors.html','/admin/finance_modern.js','/admin/finance_envelope_designer.js','/admin/giving']) {
     assert.equal(resolveRoute(path),null,path);
@@ -30,6 +30,9 @@ test('removed finance URLs and assets have no handlers or shell aliases',async()
   assert.equal(modules.some(m=>m.id==='giving'),false);
   const roles=publicRoleDefinitions();
   assert.equal(roles.find(r=>r.key==='finance_entry').permissions.includes('finance.record'),true);
+  assert.equal(roles.find(r=>r.key==='finance_entry').permissions.includes('finance.edit_void'),false);
+  assert.equal(roles.find(r=>r.key==='treasurer').permissions.includes('finance.edit_void'),true);
+  assert.equal(roles.find(r=>r.key==='treasurer').permissions.includes('finance.export'),true);
   assert.equal(roles.find(r=>r.key==='auditor').permissions.some(p=>p.startsWith('finance.')),false);
   assert.doesNotMatch(fs.readFileSync('admin/public/index.html','utf8'),/tab-finances|\/admin\/finance_.*\.js/);
 });
@@ -56,7 +59,7 @@ test('directory saves, updates, and lists contacts without financial donor table
   assert.equal((await call('/api/directory/contacts/'+id,'PUT',{...body,firstName:'Adaline'})).status,200);
   const list=await call('/api/directory/contacts','GET');assert.equal(list.status,200);
   assert.match(JSON.stringify(await list.json()),/Adaline/);
-  assert.deepEqual(env.DB.sqlite.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'finance_%' ORDER BY name").all(),[{name:'finance_entries'}]);
+  assert.deepEqual(env.DB.sqlite.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'finance_%' ORDER BY name").all(),[{name:'finance_entries'},{name:'finance_entry_state'},{name:'finance_meta'}]);
 });
 
 test('optional Stripe checkout and signed webhook work without a finance ledger',async()=>{
@@ -80,5 +83,5 @@ test('optional Stripe checkout and signed webhook work without a finance ledger'
   assert.equal((await worker.fetch(webhook(),env,{})).status,200);
   assert.equal((await(await worker.fetch(webhook(),env,{})).json()).duplicate,true);
   assert.equal(env.DB.sqlite.prepare("SELECT payment_status FROM giving_donations WHERE stripe_checkout_session_id='cs_mock'").get().payment_status,'paid');
-  assert.deepEqual(env.DB.sqlite.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'finance_%' ORDER BY name").all(),[{name:'finance_entries'}]);
+  assert.deepEqual(env.DB.sqlite.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'finance_%' ORDER BY name").all(),[{name:'finance_entries'},{name:'finance_entry_state'},{name:'finance_meta'}]);
 });

@@ -135,19 +135,34 @@ try {
     assert.deepEqual(errors,[]);
   });
 
-  await check('simple finance recorder saves and reloads an entry',async()=>{
+  await check('modular finance workflow records, reviews, and reports inside the mailbox shell',async()=>{
     await page.goto(origin+'/admin/finances');
     await page.locator('.ws-finance-recorder').waitFor();
-    await page.getByLabel('Category').fill('Offering');
-    await page.getByLabel('Fund').fill('General Fund');
+    await page.getByRole('button',{name:'Record Money',exact:true}).waitFor();
+    await page.locator('.ws-finance-visual').filter({hasText:'Income vs Expenses'}).waitFor();
+
+    await page.getByRole('button',{name:'Continue',exact:true}).click();
+    await page.getByLabel('Category').selectOption('Offering');
+    await page.getByLabel('Fund').selectOption('General Fund');
     await page.getByLabel('Amount').fill('42.50');
+    await page.getByRole('button',{name:'Continue',exact:true}).click();
+    await page.getByRole('button',{name:'Review Entry',exact:true}).click();
     await page.getByRole('button',{name:'Save Entry',exact:true}).click();
-    await page.locator('.ws-finance-history').filter({hasText:'$42.50'}).waitFor();
-    const visual=page.locator('.ws-finance-visual');
-    await visual.filter({hasText:'Income vs Expenses'}).waitFor();
-    await visual.filter({hasText:'$42.50'}).waitFor();
-    assert.match(await page.locator('.ws-finance-donut').getAttribute('aria-label'),/Income \$42\.50 .* expenses \$0\.00 .* net \$42\.50/i);
+    await page.locator('.ws-finance-saved').filter({hasText:'$42.50'}).waitFor();
     assert.equal(env.DB.sqlite.prepare("SELECT amount_cents FROM finance_entries ORDER BY created_at DESC LIMIT 1").get().amount_cents,4250);
+
+    await page.getByRole('button',{name:'Review Transactions',exact:true}).click();
+    await page.locator('.ws-finance-review-view').waitFor();
+    await page.locator('.ws-finance-table').filter({hasText:'Offering'}).waitFor();
+    await page.getByLabel('Search transactions').fill('Offering');
+    await page.getByLabel('Search transactions').press('Enter');
+    await page.locator('.ws-finance-table tbody tr').first().waitFor();
+
+    await page.getByRole('button',{name:'Reports & Printing',exact:true}).click();
+    await page.locator('.ws-finance-reports').waitFor();
+    await page.locator('.ws-finance-chart-card').filter({hasText:'Money Flow'}).waitFor();
+    await page.locator('.ws-finance-chart-card').filter({hasText:'Giving Breakdown'}).waitFor();
+    assert.equal(await page.locator('.ws-shell').count(),1);
     assert.deepEqual(errors,[]);
   });
 

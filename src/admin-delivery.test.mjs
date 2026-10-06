@@ -22,7 +22,8 @@ const assets = {
   '/admin/workspace/modules.mjs': 'export const modules=[];',
   '/admin/workspace/shared.mjs': 'export const el=()=>{};',
   '/admin/workspace/mailbox.mjs': 'export class Mailbox{}',
-  '/admin/workspace/views.mjs': 'export const calendar=()=>{};'
+  '/admin/workspace/views.mjs': 'export const calendar=()=>{};',
+  '/admin/workspace/finance.mjs': 'export const financeRecorder=()=>{};'
 };
 const source = async url => assets[url];
 
@@ -31,12 +32,12 @@ test('admin build fingerprints the mailbox workspace and all nested shell assets
   assert.equal(first.manifest.layout, 'mailbox-workspace');
   assert.ok(first.html.indexOf('admin-structure-overrides.js') < first.html.indexOf('/admin/admin.js'));
   assert.doesNotMatch(first.html, /v=old/);
-  for (const url of ['/admin/workspace/shell.mjs','/admin/workspace/workspace.css','/admin/workspace/modules.mjs','/admin/workspace/shared.mjs','/admin/workspace/mailbox.mjs','/admin/workspace/views.mjs']) {
+  for (const url of ['/admin/workspace/shell.mjs','/admin/workspace/workspace.css','/admin/workspace/modules.mjs','/admin/workspace/shared.mjs','/admin/workspace/mailbox.mjs','/admin/workspace/views.mjs','/admin/workspace/finance.mjs']) {
     assert.ok(first.manifest.files[url], url);
   }
-  const second = await createAdminDelivery(html, async url => url.endsWith('/mailbox.mjs') ? 'export class Mailbox{changed=true}' : source(url));
+  const second = await createAdminDelivery(html, async url => url.endsWith('/finance.mjs') ? 'export const financeRecorder=()=>{return 1};' : source(url));
   assert.notEqual(second.manifest.fingerprint, first.manifest.fingerprint);
-  assert.notEqual(second.manifest.files['/admin/workspace/mailbox.mjs'], first.manifest.files['/admin/workspace/mailbox.mjs']);
+  assert.notEqual(second.manifest.files['/admin/workspace/finance.mjs'], first.manifest.files['/admin/workspace/finance.mjs']);
 });
 
 test('deployment refuses the old tabbed entry or an incomplete mailbox shell', async () => {
