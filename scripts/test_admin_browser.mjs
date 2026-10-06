@@ -61,16 +61,16 @@ try {
   await page.locator('#dashboardCard:not([hidden])').waitFor();
   await page.locator('#tab-home:not([hidden])').waitFor();
   await page.waitForLoadState('networkidle');
-  await check('current tabbed admin boots without mailbox or runtime errors',async()=>{
-    assert.equal(await page.evaluate(()=>window.MMWorkspaceEnabled),false);
-    assert.equal(await page.locator('.ws-shell').count(),0);
-    assert.equal(await page.locator('script[src*="workspace/shell.mjs"]').count(),0);
+  await check('mailbox workspace boots as the primary admin without runtime errors',async()=>{
+    assert.equal(await page.evaluate(()=>window.MMWorkspaceEnabled),true);
+    assert.equal(await page.locator('.ws-shell').count(),1);
+    assert.equal(await page.locator('script[src*="workspace/shell.mjs"]').count(),1);
     assert.equal(await page.locator('#adminLayoutRefinementStyles').count(),1);
     assert.deepEqual(errors,[]);
   });
   await check('served assets match the deployment fingerprint',async()=>{
     const info=await page.evaluate(async()=> (await fetch('/api/build-info')).json());
-    assert.equal(info.adminBuild.layout,'tabbed');
+    assert.equal(info.adminBuild.layout,'mailbox-workspace');
     assert.equal(info.adminBuild.fingerprint,await page.locator('meta[name="mmmbc-admin-build"]').getAttribute('content'));
     const entryAssets=await page.locator('script[src^="/admin/"],link[rel=stylesheet][href^="/admin/"]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('src')||n.getAttribute('href')));
     assert.ok(entryAssets.length>=6);
@@ -93,7 +93,7 @@ try {
     await page.goto(origin+'/admin/#submissions');
     await page.locator('#tab-submissions:not([hidden])').waitFor();
     await page.reload();await page.locator('#tab-submissions:not([hidden])').waitFor();
-    assert.equal(await page.locator('.ws-shell').count(),0);
+    assert.equal(await page.locator('.ws-shell').count(),1);
   });
   await check('one tab click activates one section and loads only that section',async()=>{
     await page.goto(origin+'/admin/#home');await page.reload();await page.locator('#tab-home:not([hidden])').waitFor();await page.waitForLoadState('networkidle');
@@ -199,11 +199,11 @@ try {
     await page.locator('#tabBtn-content').click();
     await page.locator('#tab-content:not([hidden])').waitFor();
     assert.equal(await page.locator('#adminLayoutRefinementStyles').count(),1);
-    assert.equal(await page.locator('.ws-shell').count(),0);
+    assert.equal(await page.locator('.ws-shell').count(),1);
     assert.deepEqual(errors,[]);
   });
   assert.equal(acceptedEmails,0,'No email sent during deployment verification');
-  console.log('Current admin browser verification passed.');
+  console.log('Mailbox workspace browser verification passed.');
 }finally{
   await browser.close();await new Promise(resolve=>server.close(resolve));globalThis.fetch=originalFetch;
 }
