@@ -2,6 +2,8 @@
 
 ## Production
 
+Online giving: follow [Zeffy setup](zeffy-setup.md) to confirm the campaign and embed URLs before release. The public /give route serves MMMBC's branded page with Zeffy's checkout.
+
 1. Confirm Cloudflare account `e02ea8e0b7fe319f04e2505df1138d4c` (set in `wrangler.jsonc`), the `alphazonelabs.com` zone, and the `mmmbc.alphazonelabs.com` Worker custom domain.
 2. Export D1 database `mmdb` and back up R2 bucket `mmmbc`.
 3. Run `npm ci`, `npm --prefix admin ci`, and `npm run check`.
