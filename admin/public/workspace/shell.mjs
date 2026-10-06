@@ -1,13 +1,16 @@
 import {modules,canOpen,resolveRoute,routeUrl,legacyRoutes} from './modules.mjs';
 import {el,icon,button,api,showError} from './shared.mjs';
 import {Mailbox} from './mailbox.mjs';
-import {calendar,reports,editor} from './views.mjs';
+import {calendar,reports} from './views.mjs';
 
 let started=false;
 async function start(session) {
   if(started||!session?.user)return;started=true;
   const permissions=session.permissions||[],allowed=modules.filter(m=>canOpen(m,permissions)),instances=new Map();let active=null,routing=false,navSequence=0;
-  const dashboard=document.getElementById('dashboardCard'),oldLayout=dashboard.querySelector('.adminLayout'),oldHeader=document.getElementById('adminHeader');
+  const dashboard=document.getElementById('dashboardCard');
+  const oldLayout=dashboard?.querySelector('.adminLayout');
+  const oldHeader=document.getElementById('adminHeader');
+  if(!dashboard||!oldLayout||!oldHeader)throw new Error('Admin workspace host is unavailable.');
   oldHeader.classList.add('ws-legacy-header');document.body.classList.add('ws-active');
   const shell=el('div',{class:'ws-shell'}),drawer=el('aside',{class:'ws-drawer',id:'workspaceDrawer','aria-label':'Workspace navigation'}),canvas=el('div',{class:'ws-canvas',id:'workspaceCanvas',tabindex:'-1'}),toast=el('div',{class:'ws-toast',role:'status',hidden:''});
   const back=button('Close menu',()=>setDrawer(false),{class:'ws-backdrop','aria-label':'Close workspace menu',hidden:''});
@@ -74,7 +77,10 @@ async function start(session) {
       } else {
         let instance=instances.get(module.id);
         if(!instance) {
-          instance=module.view==='mail'?{root:mailbox.root,open:r=>mailbox.open(r)}:module.view==='calendar'?calendar(ctx):module.view==='reports'?reports(ctx):editor(ctx);
+          if(module.view==='mail') instance={root:mailbox.root,open:r=>mailbox.open(r)};
+          else if(module.view==='calendar') instance=calendar(ctx);
+          else if(module.view==='reports') instance=reports(ctx);
+          else throw new Error('Unsupported workspace view: '+String(module.view||module.id));
           instances.set(module.id,instance);canvas.append(instance.root);
         }
         if(seq!==navSequence)return;
