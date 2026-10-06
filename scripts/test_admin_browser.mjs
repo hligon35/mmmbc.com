@@ -123,6 +123,18 @@ try {
     assert.equal(await page.locator('#adminSideNav').getAttribute('aria-hidden'),'false');
     await page.setViewportSize({width:1440,height:960});
   });
+  await check('Manage church events opens the legacy event editor without runtime errors',async()=>{
+    await page.goto(origin+'/admin/calendar');
+    await page.locator('.ws-module').filter({hasText:'Calendar / Schedule'}).waitFor();
+    await page.getByRole('button',{name:'Manage church events',exact:true}).click();
+    await page.locator('#tab-events:not([hidden])').waitFor();
+    await page.waitForLoadState('networkidle');
+    assert.equal(await page.locator('#eventsPrintMenu').count(),1);
+    assert.equal(await page.locator('#printEventsGroupTitle option').count()>0,true);
+    assert.equal(await page.locator('#printEventId option').count()>0,true);
+    assert.deepEqual(errors,[]);
+  });
+
   await check('historical deep links reach equivalent current sections',async()=>{
     for(const [url,section] of [['/admin/#events','tab-content'],['/admin/mail','tab-submissions'],['/admin/rentals','tab-submissions'],['/admin/calendar','tab-content'],['/admin/reports','tab-home'],['/admin/access','tab-settings']]){
       await page.goto(origin+url);
