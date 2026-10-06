@@ -6,7 +6,7 @@ export const modules = Object.freeze([
   {id:'ministries',label:'Ministry Profiles',icon:'groups',permissions:['settings.manage'],panel:'tab-ministries',profile:'ministries'},
   {id:'leadership',label:'Leadership & Staff',icon:'badge',permissions:['settings.manage'],panel:'tab-ministries',profile:'leadership'},
   {id:'newsletter',label:'Newsletter',icon:'campaign',permissions:['newsletter.view'],panel:'tab-newsletter'},
-  {id:'reports',label:'Reports',icon:'bar_chart',permissions:['submissions.view','newsletter.view'],view:'reports'},
+  {id:'reports',label:'Reports',icon:'bar_chart',permissions:['submissions.view','newsletter.view','finance.view'],view:'reports'},
   {id:'finances',label:'Church Finances',icon:'payments',permissions:['finance.view'],view:'finance'},
   {id:'announcements',label:'Announcements & Bulletins',icon:'feed',permissions:['announcements.view'],panel:'tab-content'},
   {id:'photos',label:'Photos',icon:'photo_library',permissions:['photos.view'],panel:'tab-photos'},
