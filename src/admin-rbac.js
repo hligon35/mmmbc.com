@@ -13,7 +13,9 @@ export const PERMISSIONS = Object.freeze({
   SUBMISSIONS_VIEW: 'submissions.view',
   SUBMISSIONS_MANAGE: 'submissions.manage',
   USERS_MANAGE: 'users.manage',
-  SETTINGS_MANAGE: 'settings.manage'
+  SETTINGS_MANAGE: 'settings.manage',
+  FINANCE_VIEW: 'finance.view',
+  FINANCE_RECORD: 'finance.record'
 });
 
 const WEBSITE_PERMISSIONS = [
@@ -33,13 +35,17 @@ const WEBSITE_PERMISSIONS = [
   PERMISSIONS.SETTINGS_MANAGE
 ];
 
-const DIRECTORY_ASSISTANT_PERMISSIONS = [
+const FINANCE_ENTRY_PERMISSIONS = [
+  PERMISSIONS.FINANCE_VIEW,
+  PERMISSIONS.FINANCE_RECORD,
   PERMISSIONS.DIRECTORY_VIEW,
   PERMISSIONS.DIRECTORY_MANAGE,
   PERMISSIONS.SUPPORT_SEND
 ];
 
 const TREASURER_PERMISSIONS = [
+  PERMISSIONS.FINANCE_VIEW,
+  PERMISSIONS.FINANCE_RECORD,
   PERMISSIONS.DIRECTORY_VIEW,
   PERMISSIONS.DIRECTORY_MANAGE,
   PERMISSIONS.SUPPORT_SEND
@@ -64,14 +70,14 @@ export const ROLES = Object.freeze({
   }),
   finance_entry: Object.freeze({
     key: 'finance_entry',
-    label: 'Directory Assistant',
-    description: 'Maintains directory contacts and uses support.',
-    permissions: Object.freeze(DIRECTORY_ASSISTANT_PERMISSIONS)
+    label: 'Finance Entry',
+    description: 'Records and reviews simple church money entries, maintains directory contacts, and uses support.',
+    permissions: Object.freeze(FINANCE_ENTRY_PERMISSIONS)
   }),
   treasurer: Object.freeze({
     key: 'treasurer',
-    label: 'Directory Manager',
-    description: 'Manages directory contacts and uses support. No website or administrator management.',
+    label: 'Finance Officer',
+    description: 'Records and reviews simple church money entries and manages directory contacts. No advanced finance dashboard or administrator management.',
     permissions: Object.freeze(TREASURER_PERMISSIONS)
   }),
   auditor: Object.freeze({
