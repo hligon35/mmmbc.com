@@ -18,3 +18,19 @@ body.ws-active #app.app{padding:0!important;margin:0!important}
 .ws-icon.material-icons-round{width:18px;height:18px;font-size:18px;line-height:1;display:inline-flex;align-items:center;justify-content:center;flex:0 0 18px}
 .ws-message-subject .ws-icon.material-icons-round{width:15px;height:15px;font-size:15px}
 .ws-menu .ws-icon.material-icons-round{width:20px;height:20px;font-size:20px}
+
+/* Lightweight church money recorder. Advanced finance dashboard stays retired. */
+.ws-finance-body{display:grid;gap:28px}
+.ws-finance-form{display:grid;gap:18px;max-width:980px;padding:20px;border:1px solid var(--border);border-radius:8px;background:#fbfaf8}
+.ws-finance-direction{display:flex;gap:8px;flex-wrap:wrap}
+.ws-finance-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.ws-finance-field{display:grid;gap:6px;font-size:12px;color:var(--muted)}
+.ws-finance-field input,.ws-finance-field select{width:100%;color:var(--text)}
+.ws-finance-field:last-child{grid-column:span 2}
+.ws-finance-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:20px}
+.ws-finance-summary-card{display:grid;gap:5px;padding:16px;border:1px solid var(--border);border-radius:6px;background:#fbfaf8}
+.ws-finance-summary-card span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.ws-finance-summary-card strong{font-size:20px}
+.ws-finance-history h2{margin:0 0 12px}
+@media(max-width:900px){.ws-finance-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ws-finance-field:last-child{grid-column:1/-1}}
+@media(max-width:600px){.ws-finance-grid,.ws-finance-summary{grid-template-columns:1fr}.ws-finance-field:last-child{grid-column:auto}.ws-finance-form{padding:14px}}
