@@ -314,8 +314,13 @@ export function financeRecorder(ctx) {
     if(!can('finance.export')){notice('You do not have permission to export finance entries.');return;}
     const rows=[['Date','Type','Status','Category','Fund','Payment Method','From / To','Memo','Amount'],...state.rows.map(e=>[e.date,e.type,e.status,e.category,e.fund,e.method,e.party,e.memo,(e.amountCents/100).toFixed(2)])];
     const tsv=rows.map(row=>row.map(v=>text(v).replaceAll('\t',' ')).join('\t')).join('\n');
-    try{await navigator.clipboard.writeText(tsv);window.open('https://sheets.new','_blank','noopener,noreferrer');notice('Transactions copied. Paste them into the new Google Sheet.');}
-    catch{exportCsv();notice('CSV downloaded. Import it into Google Sheets.');}
+    const sheet=window.open('https://sheets.new','_blank','noopener,noreferrer');
+    try{
+      await navigator.clipboard.writeText(tsv);
+      notice(sheet?'Transactions copied. Paste them into the new Google Sheet.':'Transactions copied. Open Google Sheets and paste them into a new sheet.');
+    }catch{
+      exportCsv();notice('CSV downloaded. Import it into Google Sheets.');
+    }
   }
   function render(){
     if(state.tab==='record'){renderRecord();return;}
