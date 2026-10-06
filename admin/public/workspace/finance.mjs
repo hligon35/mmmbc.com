@@ -306,7 +306,21 @@ export function financeRecorder(ctx) {
   async function loadReports(){
     const range=dateRange(state.reportRange);
     try{
-      const data=await fetchFinance({from:range.from,to:range.to},500);renderReports(data,range);
+      // Money Flow is the same all-time ledger summary shown on Record Money.
+      // Giving Breakdown is intentionally scoped to the selected week/month.
+      const [allData,periodData]=await Promise.all([
+        fetchFinance({},500),
+        fetchFinance({from:range.from,to:range.to},500)
+      ]);
+      state.allRows=allData.entries||[];
+      state.meta=allData.meta||state.meta;
+      state.summary=allData.summary||state.summary;
+      state.giving=periodData.giving||state.giving;
+      renderReports({
+        entries:periodData.entries||[],
+        moneyFlow:allData.summary||{incomeCents:0,expenseCents:0,netCents:0},
+        giving:periodData.giving||{tithesCents:0,offeringsCents:0}
+      },range);
     }catch(error){showError(content,error,loadReports);}
   }
   function chartCard(title,a,b,labels,period){
@@ -319,12 +333,16 @@ export function financeRecorder(ctx) {
   }
   function renderReports(data,range){
     state.rows=data.entries||[];
-    const reportSummary=data.summary||{incomeCents:0,expenseCents:0,netCents:0};
+    const moneyFlow=data.moneyFlow||{incomeCents:0,expenseCents:0,netCents:0};
     const reportGiving=data.giving||{tithesCents:0,offeringsCents:0};
     const rangeButtons=el('div',{class:'ws-actions'},button('This Week',()=>{state.reportRange='week';loadReports();},{primary:state.reportRange==='week'}),button('This Month',()=>{state.reportRange='month';loadReports();},{primary:state.reportRange==='month'}));
     const exportControls=el('div',{class:'ws-actions'},button('CSV',exportCsv,{symbol:'download'}),button('Google Sheets',googleSheetsHandoff,{symbol:'table_view'}));
     const actions=el('div',{class:'ws-finance-report-actions'},reportAction('Print Transaction History','Prints the transaction list using your current report range.',button('Print Transaction History',()=>printHistory(state.rows),{symbol:'print',primary:true})),reportAction('Print Selected Receipts','Search and select one, multiple, or all transactions to print as receipts.',button('Print Selected Receipts',openReceiptSelector,{symbol:'receipt_long',primary:true})),reportAction('Export Transactions','Export the current transaction list as CSV or into a new Google Sheet.',exportControls));
-    const charts=el('div',{class:'ws-finance-report-charts'},chartCard('Money Flow',reportSummary.incomeCents||0,reportSummary.expenseCents||0,{a:'Money Received',b:'Money Spent'},range.from+' through '+range.to),chartCard('Giving Breakdown',reportGiving.tithesCents||0,reportGiving.offeringsCents||0,{a:'Tithes',b:'Offerings',total:true},state.reportRange==='week'?'This Week':'This Month'));
+    const moneyFlowCard=chartCard('Money Flow',moneyFlow.incomeCents||0,moneyFlow.expenseCents||0,{a:'Money Received',b:'Money Spent'},'All Recorded Transactions');
+    moneyFlowCard.dataset.financeChart='money-flow';
+    const givingCard=chartCard('Giving Breakdown',reportGiving.tithesCents||0,reportGiving.offeringsCents||0,{a:'Tithes',b:'Offerings',total:true},state.reportRange==='week'?'This Week':'This Month');
+    givingCard.dataset.financeChart='giving-breakdown';
+    const charts=el('div',{class:'ws-finance-report-charts'},moneyFlowCard,givingCard);
     content.replaceChildren(el('div',{class:'ws-finance-reports'},el('div',{class:'ws-finance-section-title'},el('div',{},el('h2',{text:'Reports & Printing'}),el('p',{class:'ws-muted',text:'Lightweight operational reports only.'})),rangeButtons),el('div',{class:'ws-finance-report-layout'},actions,charts)));
   }
   function exportCsv(){
