@@ -53,3 +53,86 @@ export function reports(ctx) {
   return {root,open:load};
 }
 
+
+
+export function financeRecorder(ctx) {
+  const root=el('section',{class:'ws-module ws-finance-recorder'});
+  const body=el('div',{class:'ws-finance-body'});
+  const form=el('form',{class:'ws-finance-form','aria-label':'Record church money'});
+  const direction=el('div',{class:'ws-finance-direction',role:'group','aria-label':'Transaction type'});
+  const income=button('Money Received',()=>setType('income'),{symbol:'south_west',primary:true,'aria-pressed':'true'});
+  const expense=button('Money Spent',()=>setType('expense'),{symbol:'north_east','aria-pressed':'false'});
+  direction.append(income,expense);
+  const type=el('input',{type:'hidden',name:'type',value:'income'});
+  const date=el('input',{type:'date',name:'date',required:'',value:new Date().toISOString().slice(0,10)});
+  const category=el('input',{type:'text',name:'category',maxlength:'120',placeholder:'Tithes, Offering, Utilities…',required:''});
+  const fund=el('input',{type:'text',name:'fund',maxlength:'120',placeholder:'General Fund'});
+  const method=el('select',{name:'method'},
+    ...['','Cash','Check','Card','ACH / Bank','Online','Other'].map(v=>el('option',{value:v,text:v||'Payment method (optional)'})));
+  const party=el('input',{type:'text',name:'party',maxlength:'120',placeholder:'Received from / Paid to'});
+  const amount=el('input',{type:'number',name:'amount',min:'0.01',step:'0.01',inputmode:'decimal',placeholder:'0.00',required:''});
+  const memo=el('input',{type:'text',name:'memo',maxlength:'500',placeholder:'Memo / notes'});
+  const status=el('div',{class:'ws-status',role:'status','aria-live':'polite'});
+  const save=el('button',{type:'submit',class:'ws-button ws-primary'},el('span',{class:'material-icons-round ws-icon','aria-hidden':'true',text:'save'}),el('span',{text:'Save Entry'}));
+  const field=(label,input)=>el('label',{class:'ws-finance-field'},el('span',{text:label}),input);
+  form.append(
+    type,direction,
+    el('div',{class:'ws-finance-grid'},
+      field('Date',date),field('Category',category),field('Fund',fund),field('Payment method',method),
+      field('From / To',party),field('Amount',amount),field('Memo',memo)
+    ),
+    el('div',{class:'ws-actions'},save,button('Clear',reset,{symbol:'restart_alt'})),
+    status
+  );
+  const history=el('div',{class:'ws-finance-history'});
+  function setType(value){
+    type.value=value;
+    income.setAttribute('aria-pressed',String(value==='income'));
+    expense.setAttribute('aria-pressed',String(value==='expense'));
+    income.classList.toggle('ws-primary',value==='income');
+    expense.classList.toggle('ws-primary',value==='expense');
+  }
+  function reset(){
+    form.reset();type.value='income';date.value=new Date().toISOString().slice(0,10);setType('income');status.textContent='';
+  }
+  const money=cents=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(cents||0)/100);
+  async function load(){
+    body.setAttribute('aria-busy','true');
+    try{
+      const data=await api('/api/admin/workspace/finance?limit=100');
+      const rows=Array.isArray(data.entries)?data.entries:[];
+      const totals=rows.reduce((out,row)=>{out[row.type]=(out[row.type]||0)+Number(row.amountCents||0);return out;},{income:0,expense:0});
+      const summary=el('div',{class:'ws-finance-summary'},
+        el('div',{class:'ws-finance-summary-card'},el('span',{text:'Money Received'}),el('strong',{text:money(totals.income)})),
+        el('div',{class:'ws-finance-summary-card'},el('span',{text:'Money Spent'}),el('strong',{text:money(totals.expense)})),
+        el('div',{class:'ws-finance-summary-card'},el('span',{text:'Net'}),el('strong',{text:money(totals.income-totals.expense)}))
+      );
+      const table=el('table',{class:'ws-table'},el('thead',{},el('tr',{},...['Date','Type','Category','Fund','From / To','Amount','Memo'].map(v=>el('th',{text:v})))));
+      const tbody=el('tbody');
+      for(const row of rows)tbody.append(el('tr',{},
+        el('td',{text:row.date}),el('td',{text:row.type==='expense'?'Money Spent':'Money Received'}),
+        el('td',{text:row.category||'—'}),el('td',{text:row.fund||'—'}),el('td',{text:row.party||'—'}),
+        el('td',{text:(row.type==='expense'?'-':'')+money(row.amountCents)}),el('td',{text:row.memo||'—'})
+      ));
+      table.append(tbody);
+      history.replaceChildren(summary,el('h2',{text:'Recent Transactions'}),rows.length?el('div',{class:'ws-table-wrap'},table):el('p',{class:'ws-empty',text:'No money entries have been recorded yet.'}));
+    }catch(error){showError(history,error,load);}finally{body.setAttribute('aria-busy','false');}
+  }
+  form.addEventListener('submit',async event=>{
+    event.preventDefault();status.textContent='Saving…';save.disabled=true;
+    try{
+      const fd=new FormData(form);
+      await api('/api/admin/workspace/finance',{method:'POST',body:JSON.stringify({
+        type:type.value,date:String(fd.get('date')||''),category:String(fd.get('category')||''),
+        fund:String(fd.get('fund')||''),method:String(fd.get('method')||''),party:String(fd.get('party')||''),
+        amount:String(fd.get('amount')||''),memo:String(fd.get('memo')||'')
+      })});
+      ctx.notice('Money entry saved.');
+      reset();await load();
+    }catch(error){status.textContent=error.message||String(error);}
+    finally{save.disabled=false;}
+  });
+  body.append(form,history);
+  root.append(heading('Church Finances','Simple money recording only. Advanced finance dashboards and accounting tools remain retired.',button('Refresh',load,{symbol:'refresh'})),body);
+  return {root,open:load};
+}
