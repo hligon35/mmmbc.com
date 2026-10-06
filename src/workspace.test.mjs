@@ -96,12 +96,27 @@ test('reports use bounded operational data and enforce role access',async()=>{
   assert.equal((await call(env,'/api/admin/workspace/reports?from=2020-01-01&to=2026-10-31')).status,400);
   assert.equal(csvCell('=HYPERLINK("evil")'),'"\'=HYPERLINK(""evil"")"');assert.equal(escapeHtml('<img>'),'&lt;img&gt;');
 });
+test('simple finance recorder persists only lightweight money entries with role checks',async()=>{
+  const env=workspaceEnv();
+  let response=await call(env,'/api/admin/workspace/finance','POST',{type:'income',date:'2026-10-05',category:'Offering',fund:'General Fund',method:'Cash',party:'Sunday service',amount:'125.50',memo:'Morning offering'});
+  assert.equal(response.status,201);
+  let data=await(await call(env,'/api/admin/workspace/finance')).json();
+  assert.equal(data.entries.length,1);assert.equal(data.entries[0].amountCents,12550);assert.equal(data.entries[0].type,'income');
+  assert.equal(env.DB.sqlite.prepare("SELECT count(*) AS n FROM finance_entries").get().n,1);
+  const auditor=workspaceEnv('auditor');
+  assert.equal((await call(auditor,'/api/admin/workspace/finance')).status,403);
+  const assistant=workspaceEnv('finance_entry');
+  assert.equal((await call(assistant,'/api/admin/workspace/finance','POST',{type:'expense',date:'2026-10-05',category:'Supplies',amount:'20.00'})).status,201);
+});
 test('deep links resolve modules and legacy routes without resurrecting retired dashboard',()=>{
   assert.deepEqual(resolveRoute(routeUrl('mail','contact:one')),{module:'mail',key:'contact:one'});
   assert.equal(resolveRoute('/admin/finances_funds.html'),null);
+  assert.equal(resolveRoute('/admin/finances').module,'finances');
+  assert.equal(resolveRoute('/admin/finance').module,'finances');
   assert.equal(resolveRoute('/admin/finances/dashboard'),null);
   assert.equal(resolveRoute('/admin/finances_dashboard.html'),null);
-  assert.equal(modules.some(m=>m.id==='finances'||m.id==='giving'),false);
+  assert.equal(modules.some(m=>m.id==='finances'),true);
+  assert.equal(modules.some(m=>m.id==='giving'),false);
   assert.equal(resolveRoute('/admin','#submissions').module,'mail');
 });
 test('unauthenticated shell deep links redirect to Access and never return admin HTML',async()=>{
