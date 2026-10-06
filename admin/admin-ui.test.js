@@ -40,10 +40,10 @@ describe('Admin layout delivery', () => {
 describe('Admin shell selection', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
 
-  test('uses the current tabbed admin instead of the legacy mailbox workspace', () => {
-    expect(indexHtml).toContain('window.MMWorkspaceEnabled = false');
-    expect(indexHtml).not.toContain('/admin/workspace/shell.mjs');
-    expect(indexHtml).not.toContain('/admin/workspace/workspace.css');
+  test('uses the mailbox workspace as the primary shell while retaining legacy module panels', () => {
+    expect(indexHtml).toContain('window.MMWorkspaceEnabled = true');
+    expect(indexHtml).toContain('/admin/workspace/shell.mjs');
+    expect(indexHtml).toContain('/admin/workspace/workspace.css');
     expect(indexHtml).toContain('id="tabBtn-content"');
     expect(indexHtml).toContain('id="tabBtn-events"');
     expect(indexHtml).toContain('id="tabBtn-submissions"');
