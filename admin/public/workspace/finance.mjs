@@ -209,7 +209,12 @@ export function financeRecorder(ctx) {
     const cat=selectControl('Category',state.meta.categories||[],state.filters.category,false);cat.firstChild.textContent='All categories';
     const fund=selectControl('Fund',state.meta.funds||[],state.filters.fund,false);fund.firstChild.textContent='All funds';
     const method=selectControl('Payment method',['Cash','Check','Card','ACH / Bank','Online','Other'],state.filters.method,false);method.firstChild.textContent='All payment methods';
-    filters.append(el('div',{class:'ws-finance-filter-grid'},field('From',from),field('Through',to),field('Category',cat),field('Fund',fund),field('Payment method',method)),
+    const preset=(days)=>{
+      const end=new Date(),start=new Date(end);start.setDate(end.getDate()-(days-1));
+      from.value=start.toISOString().slice(0,10);to.value=end.toISOString().slice(0,10);
+    };
+    filters.append(el('div',{class:'ws-finance-filter-presets'},button('Last 7 Days',()=>preset(7),{symbol:'date_range'}),button('Last 30 Days',()=>preset(30),{symbol:'date_range'}),button('Last 90 Days',()=>preset(90),{symbol:'date_range'}),button('All Dates',()=>{from.value='';to.value='';},{symbol:'all_inclusive'})),
+      el('div',{class:'ws-finance-filter-grid'},field('From',from),field('Through',to),field('Category',cat),field('Fund',fund),field('Payment method',method)),
       el('div',{class:'ws-actions'},button('Apply Filters',()=>{Object.assign(state.filters,{from:from.value,to:to.value,category:cat.value,fund:fund.value,method:method.value});loadReview();},{symbol:'filter_alt',primary:true}),button('Reset',()=>{state.filters={q:'',type:'all',from:'',to:'',category:'',fund:'',method:''};loadReview();},{symbol:'restart_alt'})));
     const tools=el('div',{class:'ws-finance-review-toolbar'},quick,el('div',{class:'ws-finance-search'},search,button('',()=>{state.filters.q=search.value;loadReview();},{symbol:'search','aria-label':'Search',title:'Search'})),filters);
     const table=el('table',{class:'ws-table ws-finance-table'},el('thead',{},el('tr',{},...['Date','Description','Money In','Money Out','Actions'].map(v=>el('th',{text:v})))));
@@ -223,7 +228,19 @@ export function financeRecorder(ctx) {
       tbody.append(el('tr',{class:entry.status==='voided'?'ws-finance-row-voided':''},el('td',{text:entry.date}),el('td',{},entryDescription(entry)),el('td',{text:entry.type==='income'&&entry.status!=='voided'?money(entry.amountCents):''}),el('td',{text:entry.type==='expense'&&entry.status!=='voided'?money(entry.amountCents):''}),el('td',{},el('div',{class:'ws-actions ws-actions--compact'},view,edit,receipt,voidBtn))),detail);
     }
     table.append(tbody);
-    wrap.append(el('div',{class:'ws-finance-section-title'},el('div',{},el('h2',{text:'Transaction History'}),el('p',{class:'ws-muted',text:state.rows.length+' matching transaction'+(state.rows.length===1?'':'s')+'.'}))),tools,state.rows.length?el('div',{class:'ws-table-wrap'},table):el('p',{class:'ws-empty',text:'No transactions match the current filters.'}));
+    const cards=el('div',{class:'ws-finance-mobile-cards'});
+    for(const entry of state.rows){
+      const details=entryDetails(entry);details.hidden=true;
+      const view=button('View',()=>{details.hidden=!details.hidden;},{symbol:'visibility'});
+      const edit=button('Edit',()=>startEdit(entry),{symbol:'edit'});edit.disabled=entry.status==='voided'||!can('finance.edit_void');
+      const receipt=button('Receipt',()=>printReceipts([entry]),{symbol:'print'});
+      const voidBtn=button('Void',()=>voidEntry(entry),{symbol:'block'});voidBtn.disabled=entry.status==='voided'||!can('finance.edit_void');if(!voidBtn.disabled)voidBtn.classList.add('ws-danger');
+      cards.append(el('article',{class:'ws-finance-mobile-card '+(entry.status==='voided'?'ws-finance-row-voided':'')},
+        el('div',{class:'ws-finance-mobile-card-head'},el('strong',{text:entry.category}),el('strong',{text:money(entry.amountCents)})),
+        el('p',{class:'ws-muted',text:entry.date+' · '+[entry.fund,entry.method,entry.party].filter(Boolean).join(' · ')}),
+        el('div',{class:'ws-actions'},view,edit,receipt,voidBtn),details));
+    }
+    wrap.append(el('div',{class:'ws-finance-section-title'},el('div',{},el('h2',{text:'Transaction History'}),el('p',{class:'ws-muted',text:state.rows.length+' matching transaction'+(state.rows.length===1?'':'s')+'.'}))),tools,state.rows.length?el('div',{class:'ws-finance-review-results'},el('div',{class:'ws-table-wrap'},table),cards):el('p',{class:'ws-empty',text:'No transactions match the current filters.'}));
     content.replaceChildren(wrap);
   }
   function entryDescription(entry){
@@ -299,11 +316,13 @@ export function financeRecorder(ctx) {
     return el('section',{class:'ws-finance-report-action'},el('div',{},el('h3',{text:title}),el('p',{class:'ws-muted',text:description})),control);
   }
   function renderReports(data,range){
-    state.rows=data.entries||[];state.summary=data.summary||state.summary;state.giving=data.giving||state.giving;
+    state.rows=data.entries||[];
+    const reportSummary=data.summary||{incomeCents:0,expenseCents:0,netCents:0};
+    const reportGiving=data.giving||{tithesCents:0,offeringsCents:0};
     const rangeButtons=el('div',{class:'ws-actions'},button('This Week',()=>{state.reportRange='week';loadReports();},{primary:state.reportRange==='week'}),button('This Month',()=>{state.reportRange='month';loadReports();},{primary:state.reportRange==='month'}));
     const exportControls=el('div',{class:'ws-actions'},button('CSV',exportCsv,{symbol:'download'}),button('Google Sheets',googleSheetsHandoff,{symbol:'table_view'}));
     const actions=el('div',{class:'ws-finance-report-actions'},reportAction('Print Transaction History','Prints the transaction list using your current report range.',button('Print Transaction History',()=>printHistory(state.rows),{symbol:'print',primary:true})),reportAction('Print Selected Receipts','Search and select one, multiple, or all transactions to print as receipts.',button('Print Selected Receipts',openReceiptSelector,{symbol:'receipt_long',primary:true})),reportAction('Export Transactions','Export the current transaction list as CSV or into a new Google Sheet.',exportControls));
-    const charts=el('div',{class:'ws-finance-report-charts'},chartCard('Money Flow',state.summary.incomeCents||0,state.summary.expenseCents||0,{a:'Money Received',b:'Money Spent'},range.from+' through '+range.to),chartCard('Giving Breakdown',state.giving.tithesCents||0,state.giving.offeringsCents||0,{a:'Tithes',b:'Offerings',total:true},state.reportRange==='week'?'This Week':'This Month'));
+    const charts=el('div',{class:'ws-finance-report-charts'},chartCard('Money Flow',reportSummary.incomeCents||0,reportSummary.expenseCents||0,{a:'Money Received',b:'Money Spent'},range.from+' through '+range.to),chartCard('Giving Breakdown',reportGiving.tithesCents||0,reportGiving.offeringsCents||0,{a:'Tithes',b:'Offerings',total:true},state.reportRange==='week'?'This Week':'This Month'));
     content.replaceChildren(el('div',{class:'ws-finance-reports'},el('div',{class:'ws-finance-section-title'},el('div',{},el('h2',{text:'Reports & Printing'}),el('p',{class:'ws-muted',text:'Lightweight operational reports only.'})),rangeButtons),el('div',{class:'ws-finance-report-layout'},actions,charts)));
   }
   function exportCsv(){
