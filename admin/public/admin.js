@@ -3047,6 +3047,57 @@ function renderEventsPrintReport(rows, reportTitle) {
   root.appendChild(table);
 }
 
+function refreshEventsPrintOptions() {
+  const groupSel = $('printEventsGroupTitle');
+  const eventSel = $('printEventId');
+  if (!groupSel || !eventSel) return;
+
+  const previousGroup = String(groupSel.value || '');
+  const previousEvent = String(eventSel.value || '');
+
+  const sorted = [...events].sort((a, b) => {
+    const ad = String(a?.date || '');
+    const bd = String(b?.date || '');
+    if (ad !== bd) return ad.localeCompare(bd);
+    const at = String(a?.time || '');
+    const bt = String(b?.time || '');
+    if (at !== bt) return at.localeCompare(bt);
+    return String(a?.title || '').localeCompare(String(b?.title || ''));
+  });
+
+  const titles = Array.from(new Set(sorted.map((e) => normalizeTitle(e?.title)).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b));
+
+  groupSel.replaceChildren();
+  const groupPrompt = document.createElement('option');
+  groupPrompt.value = '';
+  groupPrompt.textContent = 'Choose a title…';
+  groupSel.appendChild(groupPrompt);
+  for (const title of titles) {
+    const option = document.createElement('option');
+    option.value = title;
+    option.textContent = title;
+    groupSel.appendChild(option);
+  }
+  if (titles.includes(previousGroup)) groupSel.value = previousGroup;
+
+  eventSel.replaceChildren();
+  const eventPrompt = document.createElement('option');
+  eventPrompt.value = '';
+  eventPrompt.textContent = 'Choose an event…';
+  eventSel.appendChild(eventPrompt);
+  for (const event of sorted) {
+    const option = document.createElement('option');
+    option.value = String(event?.id || '');
+    const date = String(event?.date || '').trim();
+    const time = formatEventTime12h(event?.time);
+    const title = normalizeTitle(event?.title) || 'Event';
+    option.textContent = [date, time, title].filter(Boolean).join(' • ');
+    eventSel.appendChild(option);
+  }
+  if (sorted.some((event) => String(event?.id || '') === previousEvent)) eventSel.value = previousEvent;
+}
+
 function normalizeTimeValue(value) {
   const t = String(value || '').trim();
   if (!t) return '';
