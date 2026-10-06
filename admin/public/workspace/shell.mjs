@@ -1,7 +1,7 @@
 import {modules,canOpen,resolveRoute,routeUrl,legacyRoutes} from './modules.mjs';
 import {el,icon,button,api,showError} from './shared.mjs';
 import {Mailbox} from './mailbox.mjs';
-import {calendar,reports} from './views.mjs';
+import {calendar,reports,financeRecorder} from './views.mjs';
 
 let started=false;
 async function start(session) {
@@ -80,6 +80,7 @@ async function start(session) {
           if(module.view==='mail') instance={root:mailbox.root,open:r=>mailbox.open(r)};
           else if(module.view==='calendar') instance=calendar(ctx);
           else if(module.view==='reports') instance=reports(ctx);
+          else if(module.view==='finance') instance=financeRecorder(ctx);
           else throw new Error('Unsupported workspace view: '+String(module.view||module.id));
           instances.set(module.id,instance);canvas.append(instance.root);
         }
