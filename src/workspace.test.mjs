@@ -102,7 +102,12 @@ test('simple finance recorder persists only lightweight money entries with role 
   assert.equal(response.status,201);
   let data=await(await call(env,'/api/admin/workspace/finance')).json();
   assert.equal(data.entries.length,1);assert.equal(data.entries[0].amountCents,12550);assert.equal(data.entries[0].type,'income');
-  assert.equal(env.DB.sqlite.prepare("SELECT count(*) AS n FROM finance_entries").get().n,1);
+  assert.deepEqual(data.summary,{incomeCents:12550,expenseCents:0,netCents:12550});
+  await call(env,'/api/admin/workspace/finance','POST',{type:'expense',date:'2026-10-05',category:'Utilities',fund:'General Fund',method:'Check',party:'Electric company',amount:'25.50',memo:'Power'});
+  data=await(await call(env,'/api/admin/workspace/finance?limit=1')).json();
+  assert.equal(data.entries.length,1);
+  assert.deepEqual(data.summary,{incomeCents:12550,expenseCents:2550,netCents:10000});
+  assert.equal(env.DB.sqlite.prepare("SELECT count(*) AS n FROM finance_entries").get().n,2);
   const auditor=workspaceEnv('auditor');
   assert.equal((await call(auditor,'/api/admin/workspace/finance')).status,403);
   const assistant=workspaceEnv('finance_entry');
