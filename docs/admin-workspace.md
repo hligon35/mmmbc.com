@@ -1,9 +1,9 @@
 # Mount Moriah admin workspace
 
-> Current delivery (2026-10-05): the refined tabbed admin is the deployed entry.
-> `window.MMWorkspaceEnabled` is false and the mailbox shell is not loaded.
-> The mailbox architecture and historical browser script described below remain
-> reference material, not the current layout contract. Use `npm run test:admin:browser`
+> Current delivery (2026-10-06): the mailbox workspace is the deployed admin entry.
+> `window.MMWorkspaceEnabled` is true and `workspace/shell.mjs` owns the application
+> shell. The older tabbed admin remains embedded only as module work areas where the
+> workspace routes into existing operational screens. Use `npm run test:admin:browser`
 > and the deployment fingerprint checks in `deployment.md` for current delivery.
 
 The authenticated `/admin` application opens the Mailbox. Modules and deep links
