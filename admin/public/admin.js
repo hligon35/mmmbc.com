@@ -1242,8 +1242,8 @@ function formatUserRoleLabel(roleValue) {
   const role = String(roleValue || '').trim().toLowerCase().replace(/\s+/g, '_');
   if (role === 'master_admin' || role === 'master') return 'Master Admin';
   if (role === 'administrator' || role === 'admin') return 'Administrator';
-  if (role === 'finance_officer') return 'Directory Manager';
-  if (role === 'finance_entry' || role === 'financeentry' || role === 'finance') return 'Directory Assistant';
+  if (role === 'finance_officer') return 'Finance Officer';
+  if (role === 'finance_entry' || role === 'financeentry' || role === 'finance') return 'Finance Entry';
   if (role === 'treasurer') return 'Directory Manager';
   if (role === 'auditor') return 'Support Viewer';
   if (role === 'site_editor') return 'Website Manager';
