@@ -218,12 +218,19 @@ async function financeRecorder(env,url,request,actor,permissions) {
   if(!permissions.includes('finance.view'))invalid('You do not have permission to view finance entries.',403);
   if(request.method==='GET') {
     const limit=Math.max(1,Math.min(250,Number.parseInt(url.searchParams.get('limit')||'100',10)||100));
-    const rows=await env.DB.prepare(`SELECT id,entry_date,type,category,fund,method,party,memo,amount_cents,created_at,updated_at
-      FROM finance_entries ORDER BY entry_date DESC,created_at DESC LIMIT ?`).bind(limit).all();
+    const [rows,totals]=await Promise.all([
+      env.DB.prepare(`SELECT id,entry_date,type,category,fund,method,party,memo,amount_cents,created_at,updated_at
+        FROM finance_entries ORDER BY entry_date DESC,created_at DESC LIMIT ?`).bind(limit).all(),
+      env.DB.prepare(`SELECT
+        COALESCE(SUM(CASE WHEN type='income' THEN amount_cents ELSE 0 END),0) AS income_cents,
+        COALESCE(SUM(CASE WHEN type='expense' THEN amount_cents ELSE 0 END),0) AS expense_cents
+        FROM finance_entries`).first()
+    ]);
+    const incomeCents=Number(totals?.income_cents||0),expenseCents=Number(totals?.expense_cents||0);
     return json({entries:(rows.results||[]).map(r=>({
       id:r.id,date:r.entry_date,type:r.type,category:r.category||'',fund:r.fund||'',method:r.method||'',
       party:r.party||'',memo:r.memo||'',amountCents:Number(r.amount_cents||0),createdAt:r.created_at,updatedAt:r.updated_at
-    })),limit});
+    })),summary:{incomeCents,expenseCents,netCents:incomeCents-expenseCents},limit});
   }
   if(request.method!=='POST')return json({error:'Method not allowed.'},405);
   if(!permissions.includes('finance.record'))invalid('You do not have permission to record finance entries.',403);
