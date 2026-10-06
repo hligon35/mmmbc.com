@@ -213,41 +213,169 @@ async function schedule(env,url,permissions) {
     LEFT JOIN rental_workflow w ON w.rental_id=r.id WHERE date_of_use>=? AND date_of_use<=? ORDER BY date_of_use,time_from LIMIT 500`).bind(from,to).all()).results.map(rental) : [];
   return json({events:events || [],rentals:rentals || [],from,to,limit:500});
 }
-async function financeRecorder(env,url,request,actor,permissions) {
-  if(!env.DB)invalid('Finance database is unavailable.',503);
-  if(!permissions.includes('finance.view'))invalid('You do not have permission to view finance entries.',403);
-  if(request.method==='GET') {
-    const limit=Math.max(1,Math.min(250,Number.parseInt(url.searchParams.get('limit')||'100',10)||100));
-    const [rows,totals]=await Promise.all([
-      env.DB.prepare(`SELECT id,entry_date,type,category,fund,method,party,memo,amount_cents,created_at,updated_at
-        FROM finance_entries ORDER BY entry_date DESC,created_at DESC LIMIT ?`).bind(limit).all(),
-      env.DB.prepare(`SELECT
-        COALESCE(SUM(CASE WHEN type='income' THEN amount_cents ELSE 0 END),0) AS income_cents,
-        COALESCE(SUM(CASE WHEN type='expense' THEN amount_cents ELSE 0 END),0) AS expense_cents
-        FROM finance_entries`).first()
-    ]);
-    const incomeCents=Number(totals?.income_cents||0),expenseCents=Number(totals?.expense_cents||0);
-    return json({entries:(rows.results||[]).map(r=>({
-      id:r.id,date:r.entry_date,type:r.type,category:r.category||'',fund:r.fund||'',method:r.method||'',
-      party:r.party||'',memo:r.memo||'',amountCents:Number(r.amount_cents||0),createdAt:r.created_at,updatedAt:r.updated_at
-    })),summary:{incomeCents,expenseCents,netCents:incomeCents-expenseCents},limit});
-  }
-  if(request.method!=='POST')return json({error:'Method not allowed.'},405);
-  if(!permissions.includes('finance.record'))invalid('You do not have permission to record finance entries.',403);
-  const body=await request.json();
+const FINANCE_DEFAULT_META = Object.freeze({
+  categories:['Tithe','Offering','Donation','Utilities','Building Maintenance','Outreach','Supplies','Other'],
+  funds:['General Fund','Building Fund','Missions Fund','Benevolence Fund']
+});
+function financeAmountCents(value) {
+  const amount=Number(value),cents=Math.round(amount*100);
+  if(!Number.isFinite(amount)||amount<=0||!Number.isSafeInteger(cents)||cents<=0)invalid('Enter an amount greater than zero.');
+  return cents;
+}
+function financeEntryBody(body={}) {
   const type=clean(body.type,20),date=clean(body.date,10),category=clean(body.category,120),fund=clean(body.fund,120),
     method=clean(body.method,60),party=clean(body.party,120),memo=clean(body.memo,500);
   if(!['income','expense'].includes(type))invalid('Choose Money Received or Money Spent.');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date)))invalid('Enter a valid date.');
   if(!category)invalid('Enter a category.');
-  const amount=Number(body.amount);
-  const amountCents=Math.round(amount*100);
-  if(!Number.isFinite(amount)||amount<=0||!Number.isSafeInteger(amountCents)||amountCents<=0)invalid('Enter an amount greater than zero.');
-  const id=crypto.randomUUID(),stamp=now();
+  if(!fund)invalid('Enter a fund.');
+  return {type,date,category,fund,method,party,memo,amountCents:financeAmountCents(body.amount)};
+}
+async function financeMeta(env) {
+  const row=await env.DB.prepare("SELECT value_json FROM finance_meta WHERE key='simple-recorder'").first().catch(()=>null);
+  let parsed={};
+  try{parsed=JSON.parse(String(row?.value_json||'{}'));}catch{}
+  const uniq=values=>Array.from(new Set((Array.isArray(values)?values:[]).map(v=>clean(v,120)).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+  return {
+    categories:uniq(parsed.categories?.length?parsed.categories:FINANCE_DEFAULT_META.categories),
+    funds:uniq(parsed.funds?.length?parsed.funds:FINANCE_DEFAULT_META.funds)
+  };
+}
+async function saveFinanceMeta(env,body) {
+  const uniq=values=>Array.from(new Set((Array.isArray(values)?values:[]).map(v=>clean(v,120)).filter(Boolean))).slice(0,100).sort((a,b)=>a.localeCompare(b));
+  const next={categories:uniq(body?.categories),funds:uniq(body?.funds)};
+  if(!next.categories.length)invalid('Keep at least one finance category.');
+  if(!next.funds.length)invalid('Keep at least one church fund.');
+  const stamp=now();
+  await env.DB.prepare(`INSERT INTO finance_meta(key,value_json,updated_at) VALUES('simple-recorder',?,?)
+    ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at`).bind(JSON.stringify(next),stamp).run();
+  return next;
+}
+function financeFilters(url) {
+  const where=[],args=[];
+  const type=clean(url.searchParams.get('type')||'',20);
+  if(type && type!=='all') {
+    if(!['income','expense'].includes(type))invalid('Invalid finance type filter.');
+    where.push('e.type=?');args.push(type);
+  }
+  const from=clean(url.searchParams.get('from')||'',10),to=clean(url.searchParams.get('to')||'',10);
+  if(from){if(!/^\d{4}-\d{2}-\d{2}$/.test(from))invalid('Invalid finance start date.');where.push('e.entry_date>=?');args.push(from);}
+  if(to){if(!/^\d{4}-\d{2}-\d{2}$/.test(to))invalid('Invalid finance end date.');where.push('e.entry_date<=?');args.push(to);}
+  if(from&&to&&from>to)invalid('Finance start date must be before the end date.');
+  for(const [param,column,max] of [['category','e.category',120],['fund','e.fund',120],['method','e.method',60]]) {
+    const value=clean(url.searchParams.get(param)||'',max);
+    if(value){where.push(column+'=?');args.push(value);}
+  }
+  const q=clean(url.searchParams.get('q')||'',120);
+  if(q){where.push("(e.category LIKE ? OR e.fund LIKE ? OR e.method LIKE ? OR e.party LIKE ? OR e.memo LIKE ?)");args.push(...Array(5).fill('%'+q+'%'));}
+  return {where:where.length?'WHERE '+where.join(' AND '):'',args};
+}
+function mapFinanceEntry(r) {
+  return {id:String(r.id||''),date:String(r.entry_date||''),type:String(r.type||''),category:r.category||'',fund:r.fund||'',
+    method:r.method||'',party:r.party||'',memo:r.memo||'',amountCents:Number(r.amount_cents||0),
+    status:r.status||'posted',voidedBy:r.voided_by||'',voidedAt:r.voided_at||'',voidReason:r.void_reason||'',
+    createdAt:r.created_at||'',updatedAt:r.updated_at||''};
+}
+async function financeList(env,url) {
+  const {where,args}=financeFilters(url);
+  const limit=Math.max(1,Math.min(500,Number.parseInt(url.searchParams.get('limit')||'100',10)||100));
+  const offset=Math.max(0,Number.parseInt(url.searchParams.get('offset')||'0',10)||0);
+  const base=`FROM finance_entries e LEFT JOIN finance_entry_state s ON s.entry_id=e.id ${where}`;
+  const active=`${where}${where?' AND':' WHERE'} COALESCE(s.status,'posted')<>'voided'`;
+  const [rows,count,totals,breakdown,meta]=await Promise.all([
+    env.DB.prepare(`SELECT e.id,e.entry_date,e.type,e.category,e.fund,e.method,e.party,e.memo,e.amount_cents,
+      COALESCE(s.status,'posted') AS status,s.voided_by,s.voided_at,s.void_reason,e.created_at,e.updated_at
+      ${base} ORDER BY e.entry_date DESC,e.created_at DESC LIMIT ? OFFSET ?`).bind(...args,limit,offset).all(),
+    env.DB.prepare(`SELECT COUNT(*) AS total ${base}`).bind(...args).first(),
+    env.DB.prepare(`SELECT
+      COALESCE(SUM(CASE WHEN e.type='income' THEN e.amount_cents ELSE 0 END),0) AS income_cents,
+      COALESCE(SUM(CASE WHEN e.type='expense' THEN e.amount_cents ELSE 0 END),0) AS expense_cents
+      FROM finance_entries e LEFT JOIN finance_entry_state s ON s.entry_id=e.id ${active}`).bind(...args).first(),
+    env.DB.prepare(`SELECT
+      COALESCE(SUM(CASE WHEN lower(e.category)='tithe' OR lower(e.category)='tithes' THEN e.amount_cents ELSE 0 END),0) AS tithes_cents,
+      COALESCE(SUM(CASE WHEN lower(e.category)='offering' OR lower(e.category)='offerings' THEN e.amount_cents ELSE 0 END),0) AS offerings_cents
+      FROM finance_entries e LEFT JOIN finance_entry_state s ON s.entry_id=e.id ${active} AND e.type='income'`).bind(...args).first(),
+    financeMeta(env)
+  ]);
+  const incomeCents=Number(totals?.income_cents||0),expenseCents=Number(totals?.expense_cents||0);
+  return {entries:(rows.results||[]).map(mapFinanceEntry),summary:{incomeCents,expenseCents,netCents:incomeCents-expenseCents},
+    giving:{tithesCents:Number(breakdown?.tithes_cents||0),offeringsCents:Number(breakdown?.offerings_cents||0)},
+    meta,total:Number(count?.total||0),limit,offset};
+}
+async function financeCsv(env,url) {
+  const params=new URLSearchParams(url.searchParams);params.set('limit','500');params.set('offset','0');
+  const data=await financeList(env,new URL(url.origin+url.pathname+'?'+params));
+  const lines=[['Date','Type','Status','Category','Fund','Payment Method','From / To','Memo','Amount'].map(csvCell).join(',')];
+  for(const e of data.entries)lines.push([e.date,e.type,e.status,e.category,e.fund,e.method,e.party,e.memo,(e.amountCents/100).toFixed(2)].map(csvCell).join(','));
+  return new Response(lines.join('\r\n'),{headers:{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="church-finances.csv"','Cache-Control':'no-store'}});
+}
+async function financeCreate(env,body,actor) {
+  const entry=financeEntryBody(body),id=crypto.randomUUID(),stamp=now();
   await env.DB.prepare(`INSERT INTO finance_entries(id,entry_date,type,category,fund,method,party,memo,amount_cents,created_at,updated_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?)`).bind(id,date,type,category,fund,method,party,memo,amountCents,stamp,stamp).run();
-  await audit(env.SITE_DB||env.DB,actor,'finance:'+id,'finance.record',{type,date,category,fund,method,party,amountCents});
-  return json({ok:true,id},201);
+    VALUES(?,?,?,?,?,?,?,?,?,?,?)`).bind(id,entry.date,entry.type,entry.category,entry.fund,entry.method,entry.party,entry.memo,entry.amountCents,stamp,stamp).run();
+  await env.DB.prepare("INSERT OR IGNORE INTO finance_entry_state(entry_id,status,updated_at) VALUES(?,'posted',?)").bind(id,stamp).run();
+  await audit(env.SITE_DB||env.DB,actor,'finance:'+id,'finance.record',entry);
+  return id;
+}
+async function financeUpdate(env,id,body,actor) {
+  if(!/^[a-zA-Z0-9_-]{1,100}$/.test(id))invalid('Invalid finance entry.');
+  const current=await env.DB.prepare(`SELECT e.id,COALESCE(s.status,'posted') AS status FROM finance_entries e
+    LEFT JOIN finance_entry_state s ON s.entry_id=e.id WHERE e.id=?`).bind(id).first();
+  if(!current)invalid('Transaction not found.',404);
+  if(current.status==='voided')invalid('Voided transactions cannot be edited.',409);
+  const entry=financeEntryBody(body),stamp=now();
+  await env.DB.prepare(`UPDATE finance_entries SET entry_date=?,type=?,category=?,fund=?,method=?,party=?,memo=?,amount_cents=?,updated_at=? WHERE id=?`)
+    .bind(entry.date,entry.type,entry.category,entry.fund,entry.method,entry.party,entry.memo,entry.amountCents,stamp,id).run();
+  await audit(env.SITE_DB||env.DB,actor,'finance:'+id,'finance.edit',entry);
+}
+async function financeVoid(env,id,body,actor) {
+  if(!/^[a-zA-Z0-9_-]{1,100}$/.test(id))invalid('Invalid finance entry.');
+  const reason=clean(body?.reason,500);if(!reason)invalid('Enter a reason for voiding this transaction.');
+  const current=await env.DB.prepare('SELECT id FROM finance_entries WHERE id=?').bind(id).first();
+  if(!current)invalid('Transaction not found.',404);
+  const stamp=now();
+  await env.DB.prepare(`INSERT INTO finance_entry_state(entry_id,status,voided_by,voided_at,void_reason,updated_at)
+    VALUES(?,'voided',?,?,?,?) ON CONFLICT(entry_id) DO UPDATE SET status='voided',voided_by=excluded.voided_by,
+    voided_at=excluded.voided_at,void_reason=excluded.void_reason,updated_at=excluded.updated_at`)
+    .bind(id,actor,stamp,reason,stamp).run();
+  await audit(env.SITE_DB||env.DB,actor,'finance:'+id,'finance.void',{reason});
+}
+async function financeRequest(request,env,url,actor,permissions) {
+  if(!env.DB)invalid('Finance database is unavailable.',503);
+  if(!permissions.includes('finance.view'))invalid('You do not have permission to view finance entries.',403);
+  const path=url.pathname;
+  if(path==='/api/admin/workspace/finance/export.csv') {
+    if(request.method!=='GET')return json({error:'Method not allowed.'},405);
+    if(!permissions.includes('finance.export'))invalid('You do not have permission to export finance entries.',403);
+    return financeCsv(env,url);
+  }
+  if(path==='/api/admin/workspace/finance/meta') {
+    if(request.method==='GET')return json({meta:await financeMeta(env)});
+    if(request.method!=='PUT')return json({error:'Method not allowed.'},405);
+    if(!permissions.includes('finance.manage_lists'))invalid('You do not have permission to manage finance lists.',403);
+    const meta=await saveFinanceMeta(env,await request.json());
+    await audit(env.SITE_DB||env.DB,actor,'finance:meta','finance.lists.update',meta);
+    return json({meta});
+  }
+  const voidMatch=/^\/api\/admin\/workspace\/finance\/([^/]+)\/void$/.exec(path);
+  if(voidMatch) {
+    if(request.method!=='POST')return json({error:'Method not allowed.'},405);
+    if(!permissions.includes('finance.edit_void'))invalid('You do not have permission to void finance entries.',403);
+    await financeVoid(env,decodeURIComponent(voidMatch[1]),await request.json(),actor);
+    return json({ok:true});
+  }
+  const entryMatch=/^\/api\/admin\/workspace\/finance\/([^/]+)$/.exec(path);
+  if(entryMatch) {
+    if(request.method!=='PUT')return json({error:'Method not allowed.'},405);
+    if(!permissions.includes('finance.edit_void'))invalid('You do not have permission to edit finance entries.',403);
+    await financeUpdate(env,decodeURIComponent(entryMatch[1]),await request.json(),actor);
+    return json({ok:true});
+  }
+  if(path!=='/api/admin/workspace/finance')return json({error:'Finance endpoint not found.'},404);
+  if(request.method==='GET')return json(await financeList(env,url));
+  if(request.method!=='POST')return json({error:'Method not allowed.'},405);
+  if(!permissions.includes('finance.record'))invalid('You do not have permission to record finance entries.',403);
+  return json({ok:true,id:await financeCreate(env,await request.json(),actor)},201);
 }
 
 async function reports(env,url,permissions) {
@@ -272,7 +400,7 @@ async function reports(env,url,permissions) {
 
 export async function handleWorkspaceRequest(request,env) {
   const url=new URL(request.url),path=url.pathname;
-  if(!path.startsWith('/api/admin/mail/') && !['/api/admin/workspace/reports','/api/admin/workspace/schedule','/api/admin/workspace/finance'].includes(path) && !path.startsWith('/api/admin/workspace/rentals/'))return null;
+  if(!path.startsWith('/api/admin/mail/') && !['/api/admin/workspace/reports','/api/admin/workspace/schedule'].includes(path) && !path.startsWith('/api/admin/workspace/finance') && !path.startsWith('/api/admin/workspace/rentals/'))return null;
   try {
     const session=await authenticateAdminRequest(request,env,env.__ACCESS_JWKS?{jwks:env.__ACCESS_JWKS}:{});
     const {user,permissions}=session,actor=user.email;
@@ -286,9 +414,9 @@ export async function handleWorkspaceRequest(request,env) {
       if(request.method!=='GET')return json({error:'Method not allowed.'},405);
       return await schedule(env,url,permissions);
     }
-    if(path==='/api/admin/workspace/finance') {
-      requireAnyPermission(user,['finance.view','finance.record']);
-      return await financeRecorder(env,url,request,actor,permissions);
+    if(path.startsWith('/api/admin/workspace/finance')) {
+      requireAnyPermission(user,['finance.view','finance.record','finance.edit_void','finance.export','finance.manage_lists']);
+      return await financeRequest(request,env,url,actor,permissions);
     }
     requirePermission(user,'submissions.view');
     if(request.method!=='GET')requirePermission(user,'submissions.manage');
