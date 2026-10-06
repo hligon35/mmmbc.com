@@ -254,6 +254,7 @@ async function reports(env,url,permissions) {
       WHERE r.created_at>=? AND r.created_at<? GROUP BY COALESCE(w.status,'pending')`).bind(from,end).all()).results;
   }
   if(permissions.includes('newsletter.view'))data.sections.newsletter=(await env.DB.prepare('SELECT status,COUNT(*) AS count,SUM(sent_count) AS acceptedCount FROM newsletter_records WHERE created_at>=? AND created_at<? GROUP BY status').bind(from,end).all()).results;
+  if(permissions.includes('finance.view'))data.sections.finance=(await env.DB.prepare("SELECT type,'recorded' AS status,COUNT(*) AS count FROM finance_entries WHERE created_at>=? AND created_at<? GROUP BY type").bind(from,end).all()).results;
   if(url.searchParams.get('format')==='csv') {
     const lines=[['Module','Type','Status','Count','Accepted by provider'].map(csvCell).join(',')];
     for(const [section,rows] of Object.entries(data.sections))for(const row of rows)lines.push([section,row.type,row.status,row.count,row.acceptedCount].map(csvCell).join(','));
@@ -269,7 +270,7 @@ export async function handleWorkspaceRequest(request,env) {
     const session=await authenticateAdminRequest(request,env,env.__ACCESS_JWKS?{jwks:env.__ACCESS_JWKS}:{});
     const {user,permissions}=session,actor=user.email;
     if(path.includes('/workspace/reports')) {
-      requireAnyPermission(user,['submissions.view','newsletter.view']);
+      requireAnyPermission(user,['submissions.view','newsletter.view','finance.view']);
       if(request.method!=='GET')return json({error:'Method not allowed.'},405);
       return await reports(env,url,permissions);
     }
