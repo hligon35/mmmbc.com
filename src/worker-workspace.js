@@ -231,14 +231,31 @@ function financeEntryBody(body={}) {
   if(!fund)invalid('Enter a fund.');
   return {type,date,category,fund,method,party,memo,amountCents:financeAmountCents(body.amount)};
 }
+async function ensureFinanceCompatibility(env) {
+  const info=await env.DB.prepare('PRAGMA table_info(finance_entries)').all().catch(()=>({results:[]}));
+  const columns=new Set((info.results||[]).map(row=>String(row.name||'').toLowerCase()));
+  if(!columns.has('status'))return;
+  const voidedBy=columns.has('voided_by')?'voided_by':"''";
+  const voidedAt=columns.has('voided_at')?'voided_at':"''";
+  const voidReason=columns.has('void_reason')?'void_reason':"''";
+  const updated=columns.has('updated_at')?'updated_at':'CURRENT_TIMESTAMP';
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO finance_entry_state(entry_id,status,voided_by,voided_at,void_reason,updated_at) "+
+    "SELECT id,'voided',"+voidedBy+","+voidedAt+","+voidReason+","+updated+" FROM finance_entries WHERE lower(COALESCE(status,''))='voided'"
+  ).run().catch(()=>null);
+}
 async function financeMeta(env) {
-  const row=await env.DB.prepare("SELECT value_json FROM finance_meta WHERE key='simple-recorder'").first().catch(()=>null);
+  const row=await env.DB.prepare("SELECT value_json FROM finance_meta WHERE key IN ('simple-recorder','default') ORDER BY CASE key WHEN 'simple-recorder' THEN 0 ELSE 1 END LIMIT 1").first().catch(()=>null);
   let parsed={};
   try{parsed=JSON.parse(String(row?.value_json||'{}'));}catch{}
+  const [catRows,fundRows]=await Promise.all([
+    env.DB.prepare("SELECT DISTINCT category FROM finance_entries WHERE category IS NOT NULL AND trim(category)<>''").all().catch(()=>({results:[]})),
+    env.DB.prepare("SELECT DISTINCT fund FROM finance_entries WHERE fund IS NOT NULL AND trim(fund)<>''").all().catch(()=>({results:[]}))
+  ]);
   const uniq=values=>Array.from(new Set((Array.isArray(values)?values:[]).map(v=>clean(v,120)).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
   return {
-    categories:uniq(parsed.categories?.length?parsed.categories:FINANCE_DEFAULT_META.categories),
-    funds:uniq(parsed.funds?.length?parsed.funds:FINANCE_DEFAULT_META.funds)
+    categories:uniq([...(parsed.categories?.length?parsed.categories:FINANCE_DEFAULT_META.categories),...(catRows.results||[]).map(r=>r.category)]),
+    funds:uniq([...(parsed.funds?.length?parsed.funds:FINANCE_DEFAULT_META.funds),...(fundRows.results||[]).map(r=>r.fund)])
   };
 }
 async function saveFinanceMeta(env,body) {
@@ -343,6 +360,7 @@ async function financeVoid(env,id,body,actor) {
 async function financeRequest(request,env,url,actor,permissions) {
   if(!env.DB)invalid('Finance database is unavailable.',503);
   if(!permissions.includes('finance.view'))invalid('You do not have permission to view finance entries.',403);
+  await ensureFinanceCompatibility(env);
   const path=url.pathname;
   if(path==='/api/admin/workspace/finance/export.csv') {
     if(request.method!=='GET')return json({error:'Method not allowed.'},405);
