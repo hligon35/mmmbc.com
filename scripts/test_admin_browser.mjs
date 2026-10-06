@@ -135,6 +135,18 @@ try {
     assert.deepEqual(errors,[]);
   });
 
+  await check('simple finance recorder saves and reloads an entry',async()=>{
+    await page.goto(origin+'/admin/finances');
+    await page.locator('.ws-finance-recorder').waitFor();
+    await page.getByLabel('Category').fill('Offering');
+    await page.getByLabel('Fund').fill('General Fund');
+    await page.getByLabel('Amount').fill('42.50');
+    await page.getByRole('button',{name:'Save Entry',exact:true}).click();
+    await page.locator('.ws-finance-history').filter({hasText:'$42.50'}).waitFor();
+    assert.equal(env.DB.sqlite.prepare("SELECT amount_cents FROM finance_entries ORDER BY created_at DESC LIMIT 1").get().amount_cents,4250);
+    assert.deepEqual(errors,[]);
+  });
+
   await check('historical deep links reach equivalent current sections',async()=>{
     for(const [url,section] of [['/admin/#events','tab-content'],['/admin/mail','tab-submissions'],['/admin/rentals','tab-submissions'],['/admin/calendar','tab-content'],['/admin/reports','tab-home'],['/admin/access','tab-settings']]){
       await page.goto(origin+url);
