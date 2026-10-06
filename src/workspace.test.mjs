@@ -96,22 +96,52 @@ test('reports use bounded operational data and enforce role access',async()=>{
   assert.equal((await call(env,'/api/admin/workspace/reports?from=2020-01-01&to=2026-10-31')).status,400);
   assert.equal(csvCell('=HYPERLINK("evil")'),'"\'=HYPERLINK(""evil"")"');assert.equal(escapeHtml('<img>'),'&lt;img&gt;');
 });
-test('simple finance recorder persists only lightweight money entries with role checks',async()=>{
+test('modular finance workflow records, filters, edits, voids, exports, and enforces roles',async()=>{
   const env=workspaceEnv();
   let response=await call(env,'/api/admin/workspace/finance','POST',{type:'income',date:'2026-10-05',category:'Offering',fund:'General Fund',method:'Cash',party:'Sunday service',amount:'125.50',memo:'Morning offering'});
-  assert.equal(response.status,201);
+  assert.equal(response.status,201);const incomeId=(await response.json()).id;
+  response=await call(env,'/api/admin/workspace/finance','POST',{type:'expense',date:'2026-10-05',category:'Utilities',fund:'General Fund',method:'Check',party:'Electric company',amount:'25.50',memo:'Power'});
+  assert.equal(response.status,201);const expenseId=(await response.json()).id;
+
   let data=await(await call(env,'/api/admin/workspace/finance')).json();
-  assert.equal(data.entries.length,1);assert.equal(data.entries[0].amountCents,12550);assert.equal(data.entries[0].type,'income');
-  assert.deepEqual(data.summary,{incomeCents:12550,expenseCents:0,netCents:12550});
-  await call(env,'/api/admin/workspace/finance','POST',{type:'expense',date:'2026-10-05',category:'Utilities',fund:'General Fund',method:'Check',party:'Electric company',amount:'25.50',memo:'Power'});
-  data=await(await call(env,'/api/admin/workspace/finance?limit=1')).json();
-  assert.equal(data.entries.length,1);
+  assert.equal(data.entries.length,2);
   assert.deepEqual(data.summary,{incomeCents:12550,expenseCents:2550,netCents:10000});
+  assert.ok(data.meta.categories.includes('Offering'));assert.ok(data.meta.funds.includes('General Fund'));
+
+  data=await(await call(env,'/api/admin/workspace/finance?type=income&q=Sunday')).json();
+  assert.equal(data.entries.length,1);assert.equal(data.entries[0].id,incomeId);
+  data=await(await call(env,'/api/admin/workspace/finance?from=2026-10-05&to=2026-10-05&method=Check')).json();
+  assert.equal(data.entries.length,1);assert.equal(data.entries[0].id,expenseId);
+
+  response=await call(env,'/api/admin/workspace/finance/'+expenseId,'PUT',{type:'expense',date:'2026-10-05',category:'Utilities',fund:'General Fund',method:'ACH / Bank',party:'Electric company',amount:'30.00',memo:'Updated power'});
+  assert.equal(response.status,200);
+  data=await(await call(env,'/api/admin/workspace/finance?q=Updated')).json();assert.equal(data.entries[0].amountCents,3000);
+
+  response=await call(env,'/api/admin/workspace/finance/'+expenseId+'/void','POST',{reason:'Duplicate charge'});
+  assert.equal(response.status,200);
+  data=await(await call(env,'/api/admin/workspace/finance')).json();
+  assert.equal(data.entries.find(e=>e.id===expenseId).status,'voided');
+  assert.deepEqual(data.summary,{incomeCents:12550,expenseCents:0,netCents:12550});
+
+  response=await call(env,'/api/admin/workspace/finance/meta','PUT',{categories:['Offering','Utilities','Other'],funds:['General Fund','Building Fund']});
+  assert.equal(response.status,200);assert.deepEqual((await response.json()).meta.funds,['Building Fund','General Fund']);
+
+  response=await call(env,'/api/admin/workspace/finance/export.csv');
+  assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/text\/csv/);assert.match(await response.text(),/Morning offering/);
+
   assert.equal(env.DB.sqlite.prepare("SELECT count(*) AS n FROM finance_entries").get().n,2);
+  assert.equal(env.DB.sqlite.prepare("SELECT status FROM finance_entry_state WHERE entry_id=?").get(expenseId).status,'voided');
+
   const auditor=workspaceEnv('auditor');
   assert.equal((await call(auditor,'/api/admin/workspace/finance')).status,403);
+
   const assistant=workspaceEnv('finance_entry');
-  assert.equal((await call(assistant,'/api/admin/workspace/finance','POST',{type:'expense',date:'2026-10-05',category:'Supplies',amount:'20.00'})).status,201);
+  assert.equal((await call(assistant,'/api/admin/workspace/finance','POST',{type:'expense',date:'2026-10-05',category:'Supplies',fund:'General Fund',amount:'20.00'})).status,201);
+  assert.equal((await call(assistant,'/api/admin/workspace/finance/'+incomeId,'PUT',{type:'income',date:'2026-10-05',category:'Offering',fund:'General Fund',amount:'100'})).status,403);
+  assert.equal((await call(assistant,'/api/admin/workspace/finance/export.csv')).status,403);
+
+  const treasurer=workspaceEnv('treasurer');
+  assert.equal((await call(treasurer,'/api/admin/workspace/finance/meta','PUT',{categories:['Offering'],funds:['General Fund']})).status,200);
 });
 test('deep links resolve modules and legacy routes without resurrecting retired dashboard',()=>{
   assert.deepEqual(resolveRoute(routeUrl('mail','contact:one')),{module:'mail',key:'contact:one'});
