@@ -342,6 +342,14 @@ describe('Event printing and responsive layout', () => {
     expect(eventsSectionMatch[0]).toContain('printEventsAllBtn');
   });
 
+  test('refreshEventsPrintOptions repopulates both event print selectors', () => {
+    expect(adminJs).toContain('function refreshEventsPrintOptions() {');
+    expect(adminJs).toContain("const groupSel = $('printEventsGroupTitle');");
+    expect(adminJs).toContain("const eventSel = $('printEventId');");
+    expect(adminJs).toContain('groupSel.replaceChildren();');
+    expect(adminJs).toContain('eventSel.replaceChildren();');
+  });
+
   test('Responsive layout guards cover tablet and phone overflow points', () => {
     expect(staticCss).toContain('Final responsive layout pass');
     expect(staticCss).toContain('body:not(.admin-page) .nav-links a {');
