@@ -1,4 +1,5 @@
 import {el,button,api,heading,showError,download,icon} from './shared.mjs';
+import {zeffyDonations} from './zeffy.mjs';
 
 const currency=new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'});
 const money=cents=>currency.format(Number(cents||0)/100);
@@ -12,6 +13,7 @@ export function financeRecorder(ctx) {
   const body=el('div',{class:'ws-finance-body'});
   const tabs=el('div',{class:'ws-finance-tabs',role:'tablist','aria-label':'Church Finances sections'});
   const content=el('div',{class:'ws-finance-content'});
+  const donations=zeffyDonations(ctx);
   const state={
     tab:'record',step:0,draft:emptyDraft(),dirty:false,editingId:'',saved:null,
     allRows:[],rows:[],meta:{categories:[],funds:[]},summary:{incomeCents:0,expenseCents:0,netCents:0},
@@ -20,7 +22,7 @@ export function financeRecorder(ctx) {
   };
   const tabButtons=new Map();
 
-  for(const def of [['record','edit_note','Record Money'],['review','receipt_long','Review Transactions'],['reports','print','Reports & Printing']]){
+  for(const def of [['record','edit_note','Record Money'],['review','receipt_long','Review Transactions'],['reports','print','Reports & Printing'],['zeffy','volunteer_activism','Zeffy Donations']]){
     const btn=button(def[2],()=>requestTab(def[0]),{symbol:def[1]});
     btn.setAttribute('role','tab');btn.dataset.financeTab=def[0];tabs.append(btn);tabButtons.set(def[0],btn);
   }
@@ -342,6 +344,7 @@ export function financeRecorder(ctx) {
     }
   }
   function render(){
+    if(state.tab==='zeffy'){content.replaceChildren(donations.root);donations.open();return;}
     if(state.tab==='record'){renderRecord();return;}
     if(state.tab==='review'){loadReview();return;}
     if(state.tab==='reports'){loadReports();return;}
@@ -359,7 +362,7 @@ export function financeRecorder(ctx) {
   window.addEventListener('beforeunload',event=>{if(state.dirty&&!state.saved){event.preventDefault();event.returnValue='';}});
 
   setTab('record');body.append(tabs,content);
-  root.append(heading('Church Finances','Record gifts and expenses, review transactions, and print lightweight reports.',button('Refresh',()=>{if(state.tab==='review')loadReview();else if(state.tab==='reports')loadReports();else loadBase();},{symbol:'refresh'})),body);
+  root.append(heading('Church Finances','Record gifts and expenses, review transactions, and print lightweight reports.',button('Refresh',()=>{if(state.tab==='zeffy')donations.open();else if(state.tab==='review')loadReview();else if(state.tab==='reports')loadReports();else loadBase();},{symbol:'refresh'})),body);
   loadBase();
-  return {root,open:async route=>{const requested=route?.params?.view||route?.key||'';if(['record','review','reports'].includes(requested))setTab(requested);await loadBase();render();}};
+  return {root,open:async route=>{const requested=route?.params?.view||route?.key||'';if(['record','review','reports','zeffy'].includes(requested))setTab(requested);if(state.tab==='zeffy'){render();return;}await loadBase();render();}};
 }

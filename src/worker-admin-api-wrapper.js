@@ -9,6 +9,7 @@ import { PERMISSIONS } from './admin-rbac.js';
 import { honeypotTripped, verifyTurnstile, checkRateLimit, clientIp } from './public-forms-security.js';
 import { sendResendEmail } from './email-resend.js';
 import { handleWorkspaceRequest } from './worker-workspace.js';
+import { syncZeffyDonations } from './worker-zeffy-sync.js';
 import { resolveRoute, legacyRoutes } from '../admin/public/workspace/modules.mjs';
 import { authenticateAdminRequest, authErrorResponse } from './admin-auth.js';
 
@@ -1490,6 +1491,8 @@ const applicationWorker = {
 
   async scheduled(event, env, ctx) {
     try { await retrySubmissionEmails(env); } catch (error) { console.error('Submission email retry failed', { name: error?.name || 'Error' }); }
+    const donationSync = syncZeffyDonations(env).catch(() => console.error('Zeffy sync failed; check Church Finances for sync status.'));
+    if (ctx?.waitUntil) ctx.waitUntil(donationSync); else await donationSync;
     if (typeof worker.scheduled === 'function') {
       return worker.scheduled(event, env, ctx);
     }

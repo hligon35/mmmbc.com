@@ -90,7 +90,7 @@ test('rental decisions retain source delivery status, guard versions and reject 
 });
 test('reports use bounded operational data and enforce role access',async()=>{
   const env=workspaceEnv();let response=await call(env,'/api/admin/workspace/reports?from=2026-10-01&to=2026-10-31');
-  const data=await response.json();assert.equal(data.sections.submissions.reduce((n,r)=>n+r.count,0),4);assert.equal(data.sections.finance,undefined);
+  const data=await response.json();assert.equal(data.sections.submissions.reduce((n,r)=>n+r.count,0),4);assert.deepEqual(data.sections.finance,[]);
   response=await call(env,'/api/admin/workspace/reports?from=2026-10-01&to=2026-10-31&format=csv');assert.match(await response.text(),/"facility_rental"/);
   const auditor=workspaceEnv('auditor');assert.equal((await call(auditor,'/api/admin/workspace/reports?format=csv')).status,403);
   assert.equal((await call(env,'/api/admin/workspace/reports?from=2020-01-01&to=2026-10-31')).status,400);
@@ -147,7 +147,7 @@ test('deep links resolve modules and legacy routes without resurrecting retired 
   assert.deepEqual(resolveRoute(routeUrl('mail','contact:one')),{module:'mail',key:'contact:one'});
   assert.equal(resolveRoute('/admin/finances_funds.html'),null);
   assert.equal(resolveRoute('/admin/finances').module,'finances');
-  assert.equal(resolveRoute('/admin/finance').module,'finances');
+  assert.equal(resolveRoute('/admin/finance'),null);
   assert.equal(resolveRoute('/admin/finances/dashboard'),null);
   assert.equal(resolveRoute('/admin/finances_dashboard.html'),null);
   assert.equal(modules.some(m=>m.id==='finances'),true);

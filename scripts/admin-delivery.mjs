@@ -8,7 +8,8 @@ const WORKSPACE_ASSETS = [
   '/admin/workspace/shared.mjs',
   '/admin/workspace/mailbox.mjs',
   '/admin/workspace/views.mjs',
-  '/admin/workspace/finance.mjs'
+  '/admin/workspace/finance.mjs',
+  '/admin/workspace/zeffy.mjs'
 ];
 
 // The checked-in entry is authoritative. The mailbox workspace is the current
