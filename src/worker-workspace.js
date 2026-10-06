@@ -213,6 +213,36 @@ async function schedule(env,url,permissions) {
     LEFT JOIN rental_workflow w ON w.rental_id=r.id WHERE date_of_use>=? AND date_of_use<=? ORDER BY date_of_use,time_from LIMIT 500`).bind(from,to).all()).results.map(rental) : [];
   return json({events:events || [],rentals:rentals || [],from,to,limit:500});
 }
+async function financeRecorder(env,url,request,actor,permissions) {
+  if(!env.DB)invalid('Finance database is unavailable.',503);
+  if(!permissions.includes('finance.view'))invalid('You do not have permission to view finance entries.',403);
+  if(request.method==='GET') {
+    const limit=Math.max(1,Math.min(250,Number.parseInt(url.searchParams.get('limit')||'100',10)||100));
+    const rows=await env.DB.prepare(`SELECT id,entry_date,type,category,fund,method,party,memo,amount_cents,created_at,updated_at
+      FROM finance_entries ORDER BY entry_date DESC,created_at DESC LIMIT ?`).bind(limit).all();
+    return json({entries:(rows.results||[]).map(r=>({
+      id:r.id,date:r.entry_date,type:r.type,category:r.category||'',fund:r.fund||'',method:r.method||'',
+      party:r.party||'',memo:r.memo||'',amountCents:Number(r.amount_cents||0),createdAt:r.created_at,updatedAt:r.updated_at
+    })),limit});
+  }
+  if(request.method!=='POST')return json({error:'Method not allowed.'},405);
+  if(!permissions.includes('finance.record'))invalid('You do not have permission to record finance entries.',403);
+  const body=await request.json();
+  const type=clean(body.type,20),date=clean(body.date,10),category=clean(body.category,120),fund=clean(body.fund,120),
+    method=clean(body.method,60),party=clean(body.party,120),memo=clean(body.memo,500);
+  if(!['income','expense'].includes(type))invalid('Choose Money Received or Money Spent.');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date)))invalid('Enter a valid date.');
+  if(!category)invalid('Enter a category.');
+  const amount=Number(body.amount);
+  const amountCents=Math.round(amount*100);
+  if(!Number.isFinite(amount)||amount<=0||!Number.isSafeInteger(amountCents)||amountCents<=0)invalid('Enter an amount greater than zero.');
+  const id=crypto.randomUUID(),stamp=now();
+  await env.DB.prepare(`INSERT INTO finance_entries(id,entry_date,type,category,fund,method,party,memo,amount_cents,created_at,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?)`).bind(id,date,type,category,fund,method,party,memo,amountCents,stamp,stamp).run();
+  await audit(env.SITE_DB||env.DB,actor,'finance:'+id,'finance.record',{type,date,category,fund,method,party,amountCents});
+  return json({ok:true,id},201);
+}
+
 async function reports(env,url,permissions) {
   const {from,to,end}=dateRange(url),data={from,to,sections:{}};
   if(permissions.includes('submissions.view')) {
@@ -234,7 +264,7 @@ async function reports(env,url,permissions) {
 
 export async function handleWorkspaceRequest(request,env) {
   const url=new URL(request.url),path=url.pathname;
-  if(!path.startsWith('/api/admin/mail/') && !['/api/admin/workspace/reports','/api/admin/workspace/schedule'].includes(path) && !path.startsWith('/api/admin/workspace/rentals/'))return null;
+  if(!path.startsWith('/api/admin/mail/') && !['/api/admin/workspace/reports','/api/admin/workspace/schedule','/api/admin/workspace/finance'].includes(path) && !path.startsWith('/api/admin/workspace/rentals/'))return null;
   try {
     const session=await authenticateAdminRequest(request,env,env.__ACCESS_JWKS?{jwks:env.__ACCESS_JWKS}:{});
     const {user,permissions}=session,actor=user.email;
@@ -247,6 +277,10 @@ export async function handleWorkspaceRequest(request,env) {
       requireAnyPermission(user,['events.view','submissions.view']);
       if(request.method!=='GET')return json({error:'Method not allowed.'},405);
       return await schedule(env,url,permissions);
+    }
+    if(path==='/api/admin/workspace/finance') {
+      requireAnyPermission(user,['finance.view','finance.record']);
+      return await financeRecorder(env,url,request,actor,permissions);
     }
     requirePermission(user,'submissions.view');
     if(request.method!=='GET')requirePermission(user,'submissions.manage');
