@@ -8,9 +8,10 @@
 
 The authenticated `/admin` application opens the Mailbox. Modules and deep links
 are registered in `admin/public/workspace/modules.mjs`. Mailbox, rentals, calendar,
-directory, ministry and leadership profiles, newsletter, operational reports, Site
-Editor, access management, and support run inside the same shell. The entire
-financial dashboard and its tooling are removed.
+directory, ministry and leadership profiles, newsletter, operational reports,
+Church Finances, access management, and support run inside the same shell. The
+standalone Site Editor remains removed. Church Finances is a lightweight module;
+the retired advanced financial dashboard is not restored.
 
 ## Deployment
 
@@ -46,11 +47,17 @@ Accepted means accepted by the provider, not confirmed delivered. Failed and
 uncertain sends remain visible with Retry. Ambiguous sends outside the provider
 idempotency window require checking Resend before composing a new message.
 
-Reports use date-bounded submissions, rental, outbound-message, and newsletter
-records with role checks. CSV export escapes spreadsheet formulas. Finance
-entries, funds and transfers, reconciliation, controls, clergy housing, envelopes,
-contribution statements, board reports, and their API routes are removed. Removed
-URLs have no shell registrations or backend handlers and return 404.
+Reports use date-bounded submissions, rental, outbound-message, newsletter, and
+authorized finance records with role checks. CSV export escapes spreadsheet formulas.
+The Church Finances module restores the lightweight money workflow: a four-step
+Money Received / Money Spent wizard, review-before-save, saved-entry actions,
+transaction search and filters, detail/edit/void-with-reason, receipt printing,
+bulk receipt selection, CSV export, a Google Sheets handoff, managed categories
+and funds, Income vs Expenses, Money Flow, Giving Breakdown, and week/month
+report views. Advanced finance tooling remains removed: fund transfers, bank
+reconciliation, finance controls, clergy housing, envelope processing, donor
+accounting, contribution statements, and board-report generation. Historical
+advanced URLs stay unregistered and return 404.
 
 The directory keeps its own account numbers and newsletter synchronization; it
 never reads or writes finance donor records. Event printing has its own header and
@@ -62,19 +69,19 @@ in `worker-giving.js`, disabled unless `GIVING_PROVIDER=stripe`. Giving does not
 require ledger, donor, fund, collection, or reconciliation tables. The former
 admin Giving / Donors screen is removed because it depended on those tables.
 
-No `finance.*` permissions are advertised or granted. Stored `finance_entry` and
-`treasurer` role keys remain compatible with existing D1 users but now grant only
-their existing directory and support permissions, labeled Directory Assistant and
-Directory Manager. `auditor` retains support access only, labeled Support Viewer.
-No existing user receives broader website, mailbox, or administrator access.
-Administrators still manage users and roles through Access Management.
+`finance_entry` retains the narrow `finance.view` + `finance.record` capability
+set. `treasurer` additionally receives edit/void, export, and category/fund-list
+management capabilities. Administrators inherit all registered capabilities.
+`auditor` retains no finance permissions. Server handlers enforce the same
+capabilities used by the shell; hiding a button is not the authorization boundary.
 
-Fresh schemas and migrations create no finance tables. Historical slots 0005 and
-0011 are no-ops; 0006 retains only directory account-number setup. Filenames remain
-stable for existing migration journals. Already-applied finance tables and real
-historical records are left untouched and unused; this change does not run DROP or
-DELETE against production data. Site migration 0005 remains required for mailbox
-and rental state. Apply the remaining migrations through the normal process.
+Migration 0018 restores the simple `finance_entries` ledger. Migration 0019 adds
+only lightweight workflow support: `finance_entry_state` for void metadata and
+`finance_meta` for category/fund lists. Existing historical finance records are
+preserved; no DROP or DELETE runs. The runtime also imports compatible historical
+void metadata when an older `finance_entries` schema is present. Historical slots
+0005 and 0011 remain no-ops, and the retired advanced finance tables are not
+recreated. Apply migrations through the normal process.
 
 ## App support
 
