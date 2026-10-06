@@ -84,7 +84,11 @@ export function financeRecorder(ctx) {
     el('div',{class:'ws-actions'},save,button('Clear',reset,{symbol:'restart_alt'})),
     status
   );
+
+  const visual=el('section',{class:'ws-finance-visual','aria-labelledby':'wsFinanceVisualTitle'});
   const history=el('div',{class:'ws-finance-history'});
+  const money=cents=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(cents||0)/100);
+
   function setType(value){
     type.value=value;
     income.setAttribute('aria-pressed',String(value==='income'));
@@ -92,21 +96,60 @@ export function financeRecorder(ctx) {
     income.classList.toggle('ws-primary',value==='income');
     expense.classList.toggle('ws-primary',value==='expense');
   }
+
   function reset(){
     form.reset();type.value='income';date.value=new Date().toISOString().slice(0,10);setType('income');status.textContent='';
   }
-  const money=cents=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(cents||0)/100);
+
+  function renderIncomeExpenseVisual(summary={}) {
+    const incomeCents=Math.max(0,Number(summary.incomeCents||0));
+    const expenseCents=Math.max(0,Number(summary.expenseCents||0));
+    const total=incomeCents+expenseCents;
+    const net=incomeCents-expenseCents;
+    const incomePercent=total?Math.round((incomeCents/total)*100):0;
+    const expensePercent=total?100-incomePercent:0;
+    const angle=total?(incomeCents/total)*360:0;
+
+    const donut=el('div',{
+      class:'ws-finance-donut'+(total?'':' ws-finance-donut--empty'),
+      role:'img',
+      'aria-label':`Income ${money(incomeCents)} (${incomePercent} percent), expenses ${money(expenseCents)} (${expensePercent} percent), net ${money(net)}`
+    });
+    donut.style.setProperty('--income-angle',angle+'deg');
+
+    const netValue=el('strong',{class:'ws-finance-net-value '+(net<0?'ws-finance-net-value--negative':'ws-finance-net-value--positive'),text:money(net)});
+    donut.append(el('div',{class:'ws-finance-donut-center'},el('span',{text:'Net'}),netValue,
+      el('small',{text:net===0?'Income equals expenses':net>0?'More Income than Expenses':'More Expenses than Income'})));
+
+    const legend=el('div',{class:'ws-finance-legend'},
+      el('div',{class:'ws-finance-legend-row'},
+        el('span',{class:'ws-finance-legend-dot ws-finance-legend-dot--income','aria-hidden':'true'}),
+        el('span',{class:'ws-finance-legend-label',text:'Income'}),
+        el('strong',{text:money(incomeCents)}),
+        el('span',{class:'ws-finance-legend-percent',text:`(${incomePercent}%)`})
+      ),
+      el('div',{class:'ws-finance-legend-row'},
+        el('span',{class:'ws-finance-legend-dot ws-finance-legend-dot--expense','aria-hidden':'true'}),
+        el('span',{class:'ws-finance-legend-label',text:'Expenses'}),
+        el('strong',{text:money(expenseCents)}),
+        el('span',{class:'ws-finance-legend-percent',text:`(${expensePercent}%)`})
+      )
+    );
+
+    visual.replaceChildren(
+      el('h2',{id:'wsFinanceVisualTitle',text:'Income vs Expenses'}),
+      el('p',{class:'ws-muted ws-finance-visual-period',text:'All recorded entries'}),
+      el('div',{class:'ws-finance-chart'},donut,legend)
+    );
+  }
+
   async function load(){
     body.setAttribute('aria-busy','true');
     try{
       const data=await api('/api/admin/workspace/finance?limit=100');
       const rows=Array.isArray(data.entries)?data.entries:[];
-      const totals=rows.reduce((out,row)=>{out[row.type]=(out[row.type]||0)+Number(row.amountCents||0);return out;},{income:0,expense:0});
-      const summary=el('div',{class:'ws-finance-summary'},
-        el('div',{class:'ws-finance-summary-card'},el('span',{text:'Money Received'}),el('strong',{text:money(totals.income)})),
-        el('div',{class:'ws-finance-summary-card'},el('span',{text:'Money Spent'}),el('strong',{text:money(totals.expense)})),
-        el('div',{class:'ws-finance-summary-card'},el('span',{text:'Net'}),el('strong',{text:money(totals.income-totals.expense)}))
-      );
+      renderIncomeExpenseVisual(data.summary||{});
+
       const table=el('table',{class:'ws-table'},el('thead',{},el('tr',{},...['Date','Type','Category','Fund','From / To','Amount','Memo'].map(v=>el('th',{text:v})))));
       const tbody=el('tbody');
       for(const row of rows)tbody.append(el('tr',{},
@@ -115,9 +158,13 @@ export function financeRecorder(ctx) {
         el('td',{text:(row.type==='expense'?'-':'')+money(row.amountCents)}),el('td',{text:row.memo||'—'})
       ));
       table.append(tbody);
-      history.replaceChildren(summary,el('h2',{text:'Recent Transactions'}),rows.length?el('div',{class:'ws-table-wrap'},table):el('p',{class:'ws-empty',text:'No money entries have been recorded yet.'}));
-    }catch(error){showError(history,error,load);}finally{body.setAttribute('aria-busy','false');}
+      history.replaceChildren(el('h2',{text:'Recent Transactions'}),rows.length?el('div',{class:'ws-table-wrap'},table):el('p',{class:'ws-empty',text:'No money entries have been recorded yet.'}));
+    }catch(error){
+      showError(history,error,load);
+      visual.replaceChildren(el('h2',{id:'wsFinanceVisualTitle',text:'Income vs Expenses'}),el('p',{class:'ws-empty',text:'Financial totals are temporarily unavailable.'}));
+    }finally{body.setAttribute('aria-busy','false');}
   }
+
   form.addEventListener('submit',async event=>{
     event.preventDefault();status.textContent='Saving…';save.disabled=true;
     try{
@@ -132,7 +179,9 @@ export function financeRecorder(ctx) {
     }catch(error){status.textContent=error.message||String(error);}
     finally{save.disabled=false;}
   });
-  body.append(form,history);
+
+  renderIncomeExpenseVisual();
+  body.append(el('div',{class:'ws-finance-top'},form,visual),history);
   root.append(heading('Church Finances','Simple money recording only. Advanced finance dashboards and accounting tools remain retired.',button('Refresh',load,{symbol:'refresh'})),body);
   return {root,open:load};
 }
