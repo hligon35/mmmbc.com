@@ -21,17 +21,17 @@ Configure exactly one Workers Builds Git connection (repository `hligon35/mmmbc.
 
 ## Admin delivery safeguards
 
-The current entry is the refined **tabbed admin**, selected by `admin/public/index.html`.
-The mailbox shell is not loaded. Do not change that selection through a deployment
-override. The static build now preserves the source script order, fingerprints all
+The current entry is the **mailbox workspace shell**, selected by `admin/public/index.html`.
+The older tabbed admin remains mounted only as module work areas for sections such as
+Announcements, Photos, Directory, Newsletter, Access, and Support. Do not disable or
+strip the workspace shell during deployment. The static build now preserves the source script order, fingerprints all
 admin entry scripts and styles from their contents, and writes
 `cf_site/admin/build-info.json`. `npm run deploy` rebuilds and verifies that the
 HTML and each referenced asset match the current source before invoking Wrangler.
-Missing assets, a revived mailbox entry, stale HTML, or mixed assets fail validation.
+Missing workspace assets, a reverted tabbed-only entry, stale HTML, or mixed assets fail validation.
 
-Run `npm run test:admin:browser` for the current admin. The older
-`test:workspace:browser` command is a compatibility alias; CI no longer tests a
-mailbox layout that the entry intentionally disables. Worker/API permission tests
+Run `npm run test:admin:browser` for the current mailbox workspace. The
+`test:workspace:browser` command remains a compatibility alias for the same current shell. Worker/API permission tests
 remain in place.
 
 After a build, compare `cf_site/admin/build-info.json` with the `adminBuild`
