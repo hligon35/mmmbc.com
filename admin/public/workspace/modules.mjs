@@ -7,6 +7,7 @@ export const modules = Object.freeze([
   {id:'leadership',label:'Leadership & Staff',icon:'badge',permissions:['settings.manage'],panel:'tab-ministries',profile:'leadership'},
   {id:'newsletter',label:'Newsletter',icon:'campaign',permissions:['newsletter.view'],panel:'tab-newsletter'},
   {id:'reports',label:'Reports',icon:'bar_chart',permissions:['submissions.view','newsletter.view'],view:'reports'},
+  {id:'finances',label:'Church Finances',icon:'payments',permissions:['finance.view'],view:'finance'},
   {id:'announcements',label:'Announcements & Bulletins',icon:'feed',permissions:['announcements.view'],panel:'tab-content'},
   {id:'photos',label:'Photos',icon:'photo_library',permissions:['photos.view'],panel:'tab-photos'},
   {id:'access',label:'Access Management',icon:'admin_panel_settings',permissions:['users.manage'],panel:'tab-settings'},
@@ -25,7 +26,7 @@ export function resolveRoute(path,hash='') {
   const id=normalized.replace(/^\/admin\/?/,'');
   if(modules.some(m=>m.id===id))return {module:id,key:''};
   if(['','index.html'].includes(id)) {
-    const aliases={home:'mail',submissions:'mail',events:'calendar',content:'announcements',settings:'access',support:'settings'};
+    const aliases={home:'mail',submissions:'mail',events:'calendar',content:'announcements',finance:'finances',finances:'finances',settings:'access',support:'settings'};
     const old=hash.replace(/^#/,'');
     return {module:aliases[old] || (modules.some(m=>m.id===old)?old:'mail'),key:''};
   }
