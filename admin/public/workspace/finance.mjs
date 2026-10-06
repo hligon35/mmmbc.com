@@ -251,7 +251,7 @@ export function financeRecorder(ctx) {
     return text(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   }
   function printWindow(title,html){
-    const win=window.open('','_blank','noopener,noreferrer,width=900,height=700');if(!win){notice('Allow pop-ups to print.');return;}
+    const win=window.open('','_blank','width=900,height=700');if(!win){notice('Allow pop-ups to print.');return;}try{win.opener=null;}catch{}
     const css='body{font-family:Arial,sans-serif;color:#29231f;padding:28px}h1{font-size:22px}.receipt{border:1px solid #bbb;padding:22px;margin:0 0 24px;break-inside:avoid}.meta{display:grid;grid-template-columns:140px 1fr;gap:7px 14px}.meta strong{font-size:12px}.signature{margin-top:38px;border-top:1px solid #777;padding-top:8px;width:45%}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left}th{text-transform:uppercase;font-size:11px}@media print{button{display:none}}';
     win.document.write('<!doctype html><html><head><title>'+safeHtml(title)+'</title><style>'+css+'</style></head><body>'+html+'<script>setTimeout(function(){window.print()},150)<\/script></body></html>');win.document.close();
   }
@@ -322,6 +322,17 @@ export function financeRecorder(ctx) {
     if(state.tab==='review'){loadReview();return;}
     if(state.tab==='reports'){loadReports();return;}
   }
+
+  const guardNavigation=event=>{
+    const link=event.target?.closest?.('a.ws-nav-link');
+    if(!link||!state.dirty||state.saved||state.tab!=='record')return;
+    event.preventDefault();event.stopImmediatePropagation();
+    confirmDialog('Discard unsaved entry?','Your unsaved finance entry will be cleared before leaving Church Finances.',()=>{
+      resetWizard();link.click();
+    },{confirmText:'Discard',danger:true});
+  };
+  document.addEventListener('click',guardNavigation,true);
+  window.addEventListener('beforeunload',event=>{if(state.dirty&&!state.saved){event.preventDefault();event.returnValue='';}});
 
   setTab('record');body.append(tabs,content);
   root.append(heading('Church Finances','Record gifts and expenses, review transactions, and print lightweight reports.',button('Refresh',()=>{if(state.tab==='review')loadReview();else if(state.tab==='reports')loadReports();else loadBase();},{symbol:'refresh'})),body);
