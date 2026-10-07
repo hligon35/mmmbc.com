@@ -433,3 +433,20 @@ describe('Admin boot resilience', () => {
     expect(adminJs).not.toContain("if (r.status === 'rejected') throw r.reason");
   });
 });
+
+
+describe('Contact and profile editor overlay sizing', () => {
+  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-style.css'), 'utf8');
+
+  test('widens contact and profile editor overlays without breaking mobile layouts', () => {
+    expect(adminCss).toContain('#directoryContactDialog{');
+    expect(adminCss).toContain('width:min(1180px,calc(100vw - 32px));');
+    expect(adminCss).toContain('#directoryContactDialog #directoryContactForm .formRow{');
+    expect(adminCss).toContain('grid-template-columns:repeat(3,minmax(0,1fr));');
+    expect(adminCss).toContain('#ministryProfileDialog{');
+    expect(adminCss).toContain('width:min(1100px,calc(100vw - 32px));');
+    expect(adminCss).toContain('#ministryProfileDialog #ministryProfileForm > .formRow{');
+    expect(adminCss).toContain('#ministryProfileDialog .ministryProfileImageEditor{');
+    expect(adminCss).toContain('#directoryContactDialog,\n  #ministryProfileDialog{');
+  });
+});
