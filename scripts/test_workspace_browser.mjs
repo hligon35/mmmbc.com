@@ -123,15 +123,15 @@ try {
     const failures=[];
     const watch=response=>{if(new URL(response.url()).pathname.startsWith('/api/')&&response.status()>=500)failures.push(response.url());};
     page.on('response',watch);
-    for(const [route,title]of [['directory','Church Directory'],['ministries','Ministry Profiles'],['leadership','Leadership & Staff'],['newsletter','Newsletter'],['access','Access Management'],['settings','Settings & Support'],['announcements','Announcements & Bulletins'],['photos','Photos']]){
+    for(const [route,title]of [['directory','Church Directory'],['profiles','Profile Manager'],['newsletter','Newsletter'],['access','Access Management'],['settings','Settings & Support'],['announcements','Announcements & Bulletins'],['photos','Photos']]){
       await page.locator('[data-module="'+route+'"]').click();
       await page.waitForFunction(title=>document.title===title+' · Mount Moriah',title);
       assert.equal(await page.locator('.ws-shell').count(),1);
-      if(route==='ministries'){
+      if(route==='profiles'){
         await page.waitForFunction(()=>document.getElementById('ministriesVersionSummary')?.textContent.startsWith('Draft v') && document.querySelector('[data-profile-page=ministries]')?.getAttribute('aria-selected')==='true');
         await page.locator('#ministriesPageTitle').fill('Browser cached ministry heading');
         await page.locator('[data-module=mail]').click();await page.locator('.ws-message').first().waitFor();
-        await page.locator('[data-module=ministries]').click();
+        await page.locator('[data-module=profiles]').click();
         assert.equal(await page.locator('#ministriesPageTitle').inputValue(),'Browser cached ministry heading');
       }
     }
