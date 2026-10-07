@@ -8,7 +8,7 @@
 
 The authenticated `/admin` application opens the Mailbox. Modules and deep links
 are registered in `admin/public/workspace/modules.mjs`. Mailbox, rentals, calendar,
-directory, ministry and leadership profiles, newsletter, operational reports,
+directory, Profile Manager, newsletter, operational reports,
 Church Finances, access management, and support run inside the same shell. The
 standalone Site Editor remains removed. Church Finances is a lightweight module;
 the retired advanced financial dashboard is not restored.
@@ -61,7 +61,7 @@ advanced URLs stay unregistered and return 404.
 
 The directory keeps its own account numbers and newsletter synchronization; it
 never reads or writes finance donor records. Event printing has its own header and
-print body. Ministry Profiles and Leadership & Staff retain their dedicated draft/publish/media workflow. The standalone visual Site Editor has been removed.
+print body. Profile Manager retains the shared draft/publish/media workflow for Leadership & Staff, Associate Ministers, Deacons, Deaconesses, Official Team & Trustees, and Ministries. The standalone visual Site Editor has been removed.
 
 `/give` remains the independent Zeffy redirect. The existing optional Stripe
 checkout, subscription/webhook records, and signature validation remain isolated
