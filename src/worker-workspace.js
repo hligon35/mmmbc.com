@@ -1,5 +1,6 @@
 import { authenticateAdminRequest, authErrorResponse, requirePermission, requireAnyPermission, isValidEmail } from './admin-auth.js';
 import { sendResendEmail } from './email-resend.js';
+import { zeffyAdminRequest } from './worker-zeffy-sync.js';
 
 const json = (data, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
 const now = () => new Date().toISOString();
@@ -434,6 +435,7 @@ export async function handleWorkspaceRequest(request,env) {
     }
     if(path.startsWith('/api/admin/workspace/finance')) {
       requireAnyPermission(user,['finance.view','finance.record','finance.edit_void','finance.export','finance.manage_lists']);
+      if(path.startsWith('/api/admin/workspace/finance/zeffy'))return await zeffyAdminRequest(request,env,url,actor,permissions);
       return await financeRequest(request,env,url,actor,permissions);
     }
     requirePermission(user,'submissions.view');

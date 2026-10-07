@@ -15,6 +15,7 @@ export const PERMISSIONS = Object.freeze({
   USERS_MANAGE: 'users.manage',
   SETTINGS_MANAGE: 'settings.manage',
   FINANCE_VIEW: 'finance.view',
+  GIVING_SYNC: 'giving.sync',
   FINANCE_RECORD: 'finance.record',
   FINANCE_EDIT_VOID: 'finance.edit_void',
   FINANCE_EXPORT: 'finance.export',
@@ -48,6 +49,7 @@ const FINANCE_ENTRY_PERMISSIONS = [
 
 const TREASURER_PERMISSIONS = [
   PERMISSIONS.FINANCE_VIEW,
+  PERMISSIONS.GIVING_SYNC,
   PERMISSIONS.FINANCE_RECORD,
   PERMISSIONS.FINANCE_EDIT_VOID,
   PERMISSIONS.FINANCE_EXPORT,

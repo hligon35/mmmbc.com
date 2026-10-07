@@ -160,8 +160,13 @@ try {
 
     await page.getByRole('button',{name:'Reports & Printing',exact:true}).click();
     await page.locator('.ws-finance-reports').waitFor();
-    await page.locator('.ws-finance-chart-card').filter({hasText:'Money Flow'}).waitFor();
-    await page.locator('.ws-finance-chart-card').filter({hasText:'Giving Breakdown'}).waitFor();
+    const moneyFlow=page.locator('[data-finance-chart="money-flow"]');
+    const givingBreakdown=page.locator('[data-finance-chart="giving-breakdown"]');
+    await moneyFlow.filter({hasText:'Money Flow'}).waitFor();
+    await givingBreakdown.filter({hasText:'Giving Breakdown'}).waitFor();
+    await moneyFlow.filter({hasText:'$42.50'}).waitFor();
+    assert.match(await moneyFlow.locator('.ws-finance-donut').getAttribute('aria-label'),/Money Flow.*\$42\.50.*\$0\.00/i);
+    assert.equal(await givingBreakdown.getByText('This Week',{exact:true}).count(),1);
     assert.equal(await page.locator('.ws-shell').count(),1);
     assert.deepEqual(errors,[]);
   });
