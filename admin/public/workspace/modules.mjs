@@ -3,8 +3,7 @@ export const modules = Object.freeze([
   {id:'rentals',label:'Facility Rentals',icon:'meeting_room',permissions:['submissions.view'],view:'mail'},
   {id:'calendar',label:'Calendar / Schedule',icon:'calendar_month',permissions:['events.view','submissions.view'],view:'calendar'},
   {id:'directory',label:'Church Directory',icon:'contacts',permissions:['directory.view'],panel:'tab-directory'},
-  {id:'ministries',label:'Ministry Profiles',icon:'groups',permissions:['settings.manage'],panel:'tab-ministries',profile:'ministries'},
-  {id:'leadership',label:'Leadership & Staff',icon:'badge',permissions:['settings.manage'],panel:'tab-ministries',profile:'leadership'},
+  {id:'profiles',label:'Profile Manager',icon:'manage_accounts',permissions:['settings.manage'],panel:'tab-ministries',profile:'leadership'},
   {id:'newsletter',label:'Newsletter',icon:'campaign',permissions:['newsletter.view'],panel:'tab-newsletter'},
   {id:'reports',label:'Reports',icon:'bar_chart',permissions:['submissions.view','newsletter.view','finance.view'],view:'reports'},
   {id:'finances',label:'Church Finances',icon:'payments',permissions:['finance.view'],view:'finance'},
@@ -14,7 +13,10 @@ export const modules = Object.freeze([
   {id:'settings',label:'Settings & Support',icon:'settings',permissions:['support.send'],panel:'tab-support'},
 ]);
 export const canOpen = (module,permissions) => module.permissions.some(p=>permissions.includes(p));
-export const legacyRoutes = Object.freeze({});
+export const legacyRoutes = Object.freeze({
+  '/admin/ministries':'profiles',
+  '/admin/leadership':'profiles'
+});
 export function resolveRoute(path,hash='') {
   const normalized=path.replace(/\/$/,'');
   if(legacyRoutes[normalized])return {module:legacyRoutes[normalized],key:''};
@@ -26,7 +28,7 @@ export function resolveRoute(path,hash='') {
   const id=normalized.replace(/^\/admin\/?/,'');
   if(modules.some(m=>m.id===id))return {module:id,key:''};
   if(['','index.html'].includes(id)) {
-    const aliases={home:'mail',submissions:'mail',events:'calendar',content:'announcements',finance:'finances',finances:'finances',settings:'access',support:'settings'};
+    const aliases={home:'mail',submissions:'mail',events:'calendar',content:'announcements',finance:'finances',finances:'finances',ministries:'profiles',leadership:'profiles',profiles:'profiles',settings:'access',support:'settings'};
     const old=hash.replace(/^#/,'');
     return {module:aliases[old] || (modules.some(m=>m.id===old)?old:'mail'),key:''};
   }
