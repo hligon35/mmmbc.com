@@ -3596,10 +3596,25 @@ body.navDrawerCollapsed .sideNav{display:flex;}
   margin: 0;
 }
 
-.directoryFormDialog__inner {
-  max-width: min(980px, calc(100vw - 24px));
-  max-height: calc(100dvh - 24px);
-  overflow: auto;
+#directoryContactDialog{
+  width:min(1180px,calc(100vw - 32px));
+  max-width:min(1180px,calc(100vw - 32px));
+}
+
+#directoryContactDialog[open] .directoryFormDialog__inner{
+  width:100%;
+  max-width:none;
+  max-height:calc(100dvh - 32px);
+  overflow:auto;
+}
+
+#directoryContactDialog #directoryContactForm .formRow{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:16px 18px;
+}
+
+#directoryContactDialog #directoryContactForm{
+  gap:18px;
 }
 
 .directoryDuplicateBox {
@@ -5002,10 +5017,40 @@ body.theme-system.theme-effective-dark #adminStorageHealthCard .diagnosticStatus
   min-height:38px;
 }
 
-.ministryProfileDialog__inner{
-  width:min(860px,calc(100vw - 28px));
-  max-height:min(90vh,900px);
+#ministryProfileDialog{
+  width:min(1100px,calc(100vw - 32px));
+  max-width:min(1100px,calc(100vw - 32px));
+}
+
+#ministryProfileDialog[open] .ministryProfileDialog__inner{
+  width:100%;
+  max-width:none;
+  max-height:min(92dvh,960px);
   overflow:auto;
+}
+
+#ministryProfileDialog #ministryProfileForm > .formRow{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:16px 20px;
+}
+
+#ministryProfileDialog #ministryProfileBio{
+  min-height:220px;
+}
+
+#ministryProfileDialog .ministryProfileImageEditor{
+  grid-template-columns:160px minmax(0,1fr);
+  gap:20px;
+}
+
+#ministryProfileDialog .ministryProfileImagePreviewWrap{
+  min-height:160px;
+}
+
+#ministryProfileDialog .ministryProfileImagePreview,
+#ministryProfileDialog .ministryProfileImageEmpty{
+  width:160px;
+  height:160px;
 }
 
 .ministryProfileImageEditor{
@@ -5040,9 +5085,22 @@ body.theme-system.theme-effective-dark #adminStorageHealthCard .diagnosticStatus
 }
 
 @media (max-width:760px){
+  #directoryContactDialog,
+  #ministryProfileDialog{
+    width:calc(100vw - 16px);
+    max-width:calc(100vw - 16px);
+  }
+
+  #directoryContactDialog #directoryContactForm .formRow,
+  #ministryProfileDialog #ministryProfileForm > .formRow,
   .ministryPageForm__fields,
-  .ministryProfileImageEditor{
+  .ministryProfileImageEditor,
+  #ministryProfileDialog .ministryProfileImageEditor{
     grid-template-columns:1fr;
+  }
+
+  #ministryProfileDialog .ministryProfileImagePreviewWrap{
+    justify-items:start;
   }
 
   .ministryPageForm__actions{
