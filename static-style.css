@@ -2065,6 +2065,57 @@ footer {
    Contact: YouTube showcase
    ===================================================================== */
 
+/* Keep the featured player flush with the dashed frame on Live Praise. */
+.live-praise-page .youtube-live-placeholder {
+    padding: 0;
+    overflow: hidden;
+}
+
+.live-praise-page .youtube-live-placeholder__inner {
+    max-width: none;
+}
+
+.live-praise-page .live-player-actions {
+    margin: 0;
+    padding: 14px;
+}
+
+.live-praise-live-banner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0 24px;
+    color: #fff;
+    font-weight: 800;
+    text-align: center;
+}
+
+.live-praise-live-banner[hidden] {
+    display: none;
+}
+
+.live-praise-live-dot {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #ff2424;
+    box-shadow: 0 0 10px #ff2424, 0 0 24px rgba(255, 36, 36, 0.7);
+    animation: live-praise-glow 1.8s ease-in-out infinite;
+}
+
+@keyframes live-praise-glow {
+    50% {
+        box-shadow: 0 0 16px #ff2424, 0 0 36px rgba(255, 36, 36, 0.85);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .live-praise-live-dot {
+        animation: none;
+    }
+}
+
 .youtube-live-placeholder {
     margin: 10px 0 16px;
     padding: 14px;
