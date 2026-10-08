@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="../Icons/favicon.png">
     <link rel="apple-touch-icon" href="../Icons/favicon.png">
     <title>Live Praise - Mt. Moriah Missionary Baptist Church</title>
-  <link rel="stylesheet" href="../static-style.css?v=20260927h" />
+  <link rel="stylesheet" href="../static-style.css?v=20261008-live-praise" />
 <link rel="canonical" href="https://mmmbc.alphazonelabs.com/Pages/live_praise.html">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Live Praise - Mt. Moriah Missionary Baptist Church">
@@ -17,7 +17,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta property="og:description" content="Watch live services and recent videos from Mt. Moriah Missionary Baptist Church in Paducah, KY.">
 </head>
-<body>
+<body class="live-praise-page">
 <a class="skip-link" href="#main-content">Skip to content</a>
     <nav class="top-nav">
         <div class="nav-left">
@@ -46,7 +46,10 @@
     <main id="main-content">
         <section class="content-section">
             <h1>Live Praise</h1>
-            <p class="live-praise-live-banner" id="livePraiseLiveBanner" hidden>We are currently LIVE — join us now!</p>
+            <div class="live-praise-live-banner" id="livePraiseLiveBanner" role="status" hidden>
+                <span>We're Live</span>
+                <span class="live-praise-live-dot" aria-hidden="true"></span>
+            </div>
             <div>
             <p>When our services are being broadcast LIVE, the current service will be shown at the top of the page. </p>
             <p>Otherwise, the most recent service will appear at the top.</p>
@@ -59,22 +62,10 @@
                         <iframe id="livePraiseTopPlayer" title="Mt. Moriah Missionary Baptist Church - Live Stream" loading="lazy" src="https://www.youtube.com/embed/live_stream?channel=UCkAaHiYmUKIdKePifg1D2pg&rel=0" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
                     </div>
                     <div class="live-player-actions live-player-actions--spaced">
-                        <a class="youtube-live-placeholder__button" id="livePraiseWatchLink" href="https://www.youtube.com/channel/UCkAaHiYmUKIdKePifg1D2pg/live" rel="noopener noreferrer" target="_blank" aria-label="Watch on YouTube">
-                            <span class="platform-link-content">
-                                <span>Watch on</span>
-                                <span class="material-icons-round platform-icon" aria-hidden="true">smart_display</span>
-                            </span>
-                        </a>
                         <a class="youtube-subscribe-button" href="https://www.youtube.com/channel/UCkAaHiYmUKIdKePifg1D2pg?sub_confirmation=1" rel="noopener noreferrer" target="_blank" aria-label="Subscribe to Mt. Moriah Missionary Baptist Church on YouTube">
                             <span class="platform-link-content">
                                 <span>Subscribe</span>
                                 <span class="material-icons-round platform-icon" aria-hidden="true">smart_display</span>
-                            </span>
-                        </a>
-                        <a class="youtube-live-placeholder__button secondary" id="livePraiseFacebookLink" href="https://www.facebook.com/MtMoriahPaducah/live" rel="noopener noreferrer" target="_blank" aria-label="Watch on Facebook">
-                            <span class="platform-link-content">
-                                <span>Watch on</span>
-                                <span class="material-icons-round platform-icon" aria-hidden="true">public</span>
                             </span>
                         </a>
                     </div>
@@ -83,7 +74,7 @@
                         <div class="youtube-embed">
                             <iframe id="livePraiseFacebookPlayer" title="Mt. Moriah Missionary Baptist Church - Facebook Live" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowfullscreen></iframe>
                         </div>
-                        <p class="youtube-live-placeholder__text live-player-note">If YouTube shows an error, use the Facebook player or the links above.</p>
+                        <p class="youtube-live-placeholder__text live-player-note">If YouTube shows an error, use the Facebook player.</p>
                     </div>
                     <!-- <p class="youtube-live-placeholder__text">Paste the YouTube Live embed URL into the iframe <strong>src</strong> to enable the live player.</p> -->
                 </div>
@@ -179,10 +170,8 @@
                 var CHANNEL_ID = 'UCkAaHiYmUKIdKePifg1D2pg';
                 var FB_PAGE_URL = 'https://www.facebook.com/MtMoriahPaducah';
                 var topPlayer = document.getElementById('livePraiseTopPlayer');
-                var topWatchLink = document.getElementById('livePraiseWatchLink');
                 var fbWrap = document.getElementById('livePraiseFacebookWrap');
                 var fbPlayer = document.getElementById('livePraiseFacebookPlayer');
-                var fbWatchLink = document.getElementById('livePraiseFacebookLink');
                 var grid = document.getElementById('recentVideosGrid');
                 var statusEl = document.getElementById('youtubeFeedStatus');
                 var liveBanner = document.getElementById('livePraiseLiveBanner');
@@ -219,13 +208,9 @@
                     if (!fbWrap || !fbPlayer) return;
                     var liveUrl = buildFacebookLiveUrl();
                     var embedUrl = buildFacebookEmbedUrl(liveUrl);
-                    if (fbWatchLink && liveUrl) fbWatchLink.href = liveUrl;
                     if (embedUrl && !fbPlayer.src) fbPlayer.src = embedUrl;
                     fbWrap.classList.remove('hidden');
                 }
-
-                setPlatformLinkContent(topWatchLink, 'youtube');
-                setPlatformLinkContent(fbWatchLink, 'facebook');
 
                 // Optional auto-fallback: add ?platform=facebook (or ?fallback=facebook)
                 try {
@@ -290,9 +275,6 @@
                 function setTop(videoId) {
                     if (!videoId) return;
                     topPlayer.src = embedUrl(videoId);
-                    if (topWatchLink) {
-                        topWatchLink.href = 'https://www.youtube.com/watch?v=' + encodeURIComponent(videoId);
-                    }
                 }
 
                 // Default behavior:
@@ -333,13 +315,13 @@
                             renderRecent(data.videos, topVideoId);
 
                             if (statusEl) {
-                                statusEl.textContent = isLive
-                                    ? 'LIVE now'
-                                    : 'Updated: ' + (data.fetchedAt || 'just now');
+                                statusEl.hidden = isLive;
+                                statusEl.textContent = isLive ? '' : 'Updated: ' + (data.fetchedAt || 'just now');
                             }
                         })
                         .catch(function () {
                             if (statusEl) {
+                                statusEl.hidden = false;
                                 statusEl.textContent = 'Live channel connection active. Recent-video feed is temporarily unavailable.';
                             }
                             if (liveBanner) liveBanner.hidden = true;
