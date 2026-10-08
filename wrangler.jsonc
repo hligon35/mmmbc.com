@@ -4,9 +4,13 @@
 	"account_id": "e02ea8e0b7fe319f04e2505df1138d4c",
 	"main": "./src/worker-admin-api-wrapper.js",
 	"compatibility_date": "2026-01-21",
-	"workers_dev": false,
+	"workers_dev": true,
 	"preview_urls": false,
 	"routes": [
+		{
+			"pattern": "mmmbc.com",
+			"custom_domain": true
+		},
 		{
 			"pattern": "mmmbc.alphazonelabs.com",
 			"custom_domain": true
@@ -64,7 +68,7 @@
 		"CF_ACCESS_AUD": "c54638d506e1d93d7c7a744bb74481441df23e6e0db17df247679fff0e36d271",
 		"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
 		"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-		"CANONICAL_HOST": "mmmbc.alphazonelabs.com",
+		"CANONICAL_HOST": "mmmbc.com",
 		"ALLOW_SERVICE_TOKEN_ADMIN": "false",
 		"DEV_BYPASS_AUTH": "false",
 		"SUPPORT_TO_EMAIL": "hligon@getsparqd.com",
@@ -72,7 +76,8 @@
 		"SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church",
 		"RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
 		"RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church",
-		"PUBLIC_SITE_URL": "https://mmmbc.alphazonelabs.com",
+		"PUBLIC_SITE_URL": "https://mmmbc.com",
+		"TURNSTILE_ALLOWED_HOSTNAMES": "mmmbc.com,www.mmmbc.com,mmmbc.hligon.workers.dev,mmmbc.alphazonelabs.com",
 		"TURNSTILE_SITE_KEY": "0x4AAAAAAEzITVJnJAQvjUET",
 		"GIVING_PROVIDER": "zeffy",
 		"ZEFFY_DONATION_URL": "https://www.zeffy.com/en-US/donation-form/tithes-and-offering-59",

@@ -48,7 +48,7 @@ export async function handleGivingPageRequest(request, env = {}) {
     '<p role="status">The online giving form is temporarily unavailable. ' + (donationUrl ? 'Please use the secure checkout link below.' : 'Please contact the church for help giving.') + '</p>';
   let html = await asset.text();
   html = html.replace('<!-- ZEFFY_CHECKOUT -->', form + checkout)
-    .replace('<!-- GIVING_CANONICAL -->', '<link rel="canonical" href="' + escapeHtml(new URL('/give', url.origin).href) + '" />');
+    .replace('<!-- GIVING_CANONICAL -->', '<link rel="canonical" href="' + escapeHtml(new URL('/give', env.PUBLIC_SITE_URL || url.origin).href) + '" />');
   const headers = new Headers(asset.headers);
   for (const name of ['Content-Length', 'Content-Encoding', 'ETag', 'Last-Modified', 'Location']) headers.delete(name);
   headers.set('Content-Type', 'text/html; charset=utf-8');
