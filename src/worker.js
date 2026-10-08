@@ -102,12 +102,6 @@ function text(body, { status = 200, headers = {} } = {}) {
   });
 }
 
-function canonicalHost(env) {
-  // Optional: set this when you move from *.workers.dev to your real domain.
-  // Example: CANONICAL_HOST=mmmbc.com
-  return String(env.CANONICAL_HOST || '').trim().toLowerCase();
-}
-
 function sanitizeSegment(input) {
   return String(input || '')
     .trim()
@@ -1914,27 +1908,6 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const isHttps = url.protocol === 'https:';
-
-    // Production hardening: once you have a real domain, force admin/api to it.
-    // This also avoids confusion where Cloudflare Access is configured only on the real hostname.
-    const canon = canonicalHost(env);
-    if (
-      canon
-      && url.hostname.endsWith('.workers.dev')
-      && (url.pathname.startsWith('/admin') || url.pathname.startsWith('/api'))
-      && (request.method === 'GET' || request.method === 'HEAD')
-    ) {
-      const dest = new URL(request.url);
-      dest.hostname = canon;
-      dest.protocol = 'https:';
-      return new Response(null, {
-        status: 302,
-        headers: {
-          Location: dest.toString(),
-          'Cache-Control': 'no-store'
-        }
-      });
-    }
 
     // Browsers commonly request /favicon.ico even when the site uses a PNG favicon.
     // Ensure this never 500s by redirecting to the existing asset.

@@ -55,7 +55,10 @@ export async function verifyTurnstile(env, token, remoteIp) {
     if (production && env.PUBLIC_SITE_URL) {
       const hostname = new URL(env.PUBLIC_SITE_URL).hostname.toLowerCase();
       const tokenHostname = String(data.hostname || '').toLowerCase();
-      if (tokenHostname !== hostname && tokenHostname !== `www.${hostname}`) {
+      // The same Worker serves several explicitly configured origins. Never allow arbitrary hosts.
+      const allowedHosts = new Set([hostname, `www.${hostname}`,
+        ...String(env.TURNSTILE_ALLOWED_HOSTNAMES || '').split(',').map(host => host.trim().toLowerCase()).filter(Boolean)]);
+      if (!allowedHosts.has(tokenHostname)) {
         console.warn('Turnstile hostname mismatch');
         return { ok: false, error: 'Verification failed. Please try again.', status: 403 };
       }

@@ -1,3 +1,4 @@
+import { canonicalAdminRedirect } from './worker-host-routing.js';
 import { securityHeaders, mutationDenied, checkBodySize } from './launch-security.js';
 import { handleNewsletterPreferences } from './newsletter-preferences.js';
 import { deliverSubmissionEmail, retrySubmissionEmails } from './submission-delivery.js';
@@ -834,6 +835,8 @@ const BUILD_MARKER = 'mmmbc-tabbed-admin-delivery-20261005';
 
 const applicationWorker = {
   async fetch(request, env, ctx) {
+    const canonicalRedirect = canonicalAdminRedirect(request, env);
+    if (canonicalRedirect) return canonicalRedirect;
     const url = new URL(request.url);
 
     if (url.pathname === '/api/build-info' && request.method === 'GET') {
