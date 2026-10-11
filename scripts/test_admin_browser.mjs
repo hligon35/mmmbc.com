@@ -215,7 +215,7 @@ try {
     assert.ok(await page.locator('#photoGrid > *').count()<=200);
   });
   await check('long content does not overflow desktop, tablet, or phone layouts',async()=>{
-    for(const [width,height] of [[1440,960],[820,1180],[390,844]]){
+    for(const [width,height] of [[1440,960],[1024,768],[820,1180],[768,1024],[430,932],[390,844],[360,800],[320,568]]){
       await page.setViewportSize({width,height});
       for(const id of ['submissions','content','photos']){
         await openSection(id);
