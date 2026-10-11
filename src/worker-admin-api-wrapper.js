@@ -1043,6 +1043,26 @@ const applicationWorker = {
            name = CASE WHEN excluded.name <> '' THEN excluded.name ELSE subscribers.name END,
            status = 'active'`
         ).bind(crypto.randomUUID(), email, name, now).run();
+
+        // Keep the Directory subscriber model in sync with public website signups.
+        // Production currently binds DB and SITE_DB to the same D1 database, but
+        // these remain separate logical tables used by different admin views.
+        if (env.DB) {
+          await env.DB.prepare(
+            `INSERT INTO newsletter_subscribers (
+               id, contact_id, email, status, consent_source, consent_date,
+               confirmed_at, unsubscribed_at, suppression_reason, created_at, updated_at
+             ) VALUES (?, NULL, ?, 'active', 'website_signup', ?, ?, NULL, NULL, ?, ?)
+             ON CONFLICT(email) DO UPDATE SET
+               status = 'active',
+               consent_source = CASE
+                 WHEN newsletter_subscribers.consent_source IS NULL OR newsletter_subscribers.consent_source = ''
+                 THEN 'website_signup' ELSE newsletter_subscribers.consent_source END,
+               consent_date = COALESCE(newsletter_subscribers.consent_date, excluded.consent_date),
+               confirmed_at = COALESCE(newsletter_subscribers.confirmed_at, excluded.confirmed_at),
+               updated_at = excluded.updated_at`
+          ).bind(crypto.randomUUID(), email, now.slice(0, 10), now, now, now).run();
+        }
       } catch (error) {
         console.error('Newsletter subscriber could not be saved', error);
         return json({ error: 'The newsletter list is temporarily unavailable. Please try again later.' }, 503);
