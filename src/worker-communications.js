@@ -265,7 +265,18 @@ async function handleSubscribersPut(request, env) {
     .filter((s) => isValidEmail(s.email));
 
   for (const sub of normalized) {
-    await env.SITE_DB.prepare(`INSERT INTO subscribers (id,email,name,status,created_at) VALUES (?,?,?,'active',?) ON CONFLICT(email) DO UPDATE SET name=excluded.name`).bind(crypto.randomUUID(),sub.email,sub.name,now).run();
+    await env.SITE_DB.prepare(`INSERT INTO subscribers (id,email,name,status,created_at) VALUES (?,?,?,'active',?) ON CONFLICT(email) DO UPDATE SET name=excluded.name,status='active'`).bind(crypto.randomUUID(),sub.email,sub.name,now).run();
+    if (env.DB) {
+      try {
+        await env.DB.prepare(
+          `INSERT INTO newsletter_subscribers (
+             id, contact_id, email, status, consent_source, consent_date,
+             confirmed_at, unsubscribed_at, suppression_reason, created_at, updated_at
+           ) VALUES (?, NULL, ?, 'active', 'admin_import', ?, ?, NULL, NULL, ?, ?)
+           ON CONFLICT(email) DO UPDATE SET status='active', updated_at=excluded.updated_at`
+        ).bind(crypto.randomUUID(), sub.email, now.slice(0, 10), now, now, now).run();
+      } catch {}
+    }
   }
 
   return handleSubscribersGet(request, env);
