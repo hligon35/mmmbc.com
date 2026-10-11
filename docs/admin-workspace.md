@@ -135,3 +135,7 @@ browser checks along with the repository's existing launch validation.
 | Back to Home | 777 ms, 12 API | 384 ms, 0 API |
 
 The static bundle (about 560 KB uncompressed) is unchanged; Cloudflare compresses it in transit. Decide on bundle splitting from these numbers before changing it.
+
+## Temporarily hidden modules
+
+Profile Manager is currently hidden from the admin navigation and its legacy panel is inert. The underlying profile editor code and stored profile data remain in place so the module can be restored later without rebuilding the feature.
