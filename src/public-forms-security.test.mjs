@@ -91,7 +91,7 @@ function mockSiteDb({ oldSchema = false } = {}) {
 
 test('contact and rental forms save on the original site schema', async () => {
   const db = mockSiteDb({ oldSchema: true });
-  const env = { ENVIRONMENT: 'preview', DEMO_MODE: 'true', SITE_DB: db };
+  const env = { ENVIRONMENT: 'preview', DEMO_MODE: 'true', SITE_DB: db, DB: db };
   const contact = await worker.fetch(new Request('https://preview.example/api/public/contact-message', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ firstName: 'Ada', lastName: 'Church', email: 'ada@example.com', message: 'Please call me.' })
@@ -170,6 +170,8 @@ test('newsletter signup stores first and last name with its email', async () => 
   }), env, {});
   assert.equal(response.status, 200);
   assert.equal(db.binds.find(({ sql }) => /INSERT INTO subscribers/.test(sql)).args[2], 'Ada Church');
+  const directorySubscriber = db.binds.find(({ sql }) => /INSERT INTO newsletter_subscribers/.test(sql));
+  assert.equal(directorySubscriber.args[1], 'ada@example.com');
   const missingName = await worker.fetch(new Request('https://preview.example/api/public/newsletter/subscribe', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ firstName: 'Ada', email: 'ada@example.com' })
