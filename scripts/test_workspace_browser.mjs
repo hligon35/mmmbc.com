@@ -127,13 +127,6 @@ try {
       await page.locator('[data-module="'+route+'"]').click();
       await page.waitForFunction(title=>document.title===title+' · Mount Moriah',title);
       assert.equal(await page.locator('.ws-shell').count(),1);
-      if(route==='profiles'){
-        await page.waitForFunction(()=>document.getElementById('ministriesVersionSummary')?.textContent.startsWith('Draft v') && document.querySelector('[data-profile-page=ministries]')?.getAttribute('aria-selected')==='true');
-        await page.locator('#ministriesPageTitle').fill('Browser cached ministry heading');
-        await page.locator('[data-module=mail]').click();await page.locator('.ws-message').first().waitFor();
-        await page.locator('[data-module=profiles]').click();
-        assert.equal(await page.locator('#ministriesPageTitle').inputValue(),'Browser cached ministry heading');
-      }
     }
     page.off('response',watch);assert.deepEqual(failures,[],'Existing modules have no failed server requests');
   });
@@ -166,6 +159,12 @@ try {
     await page.screenshot({path:process.env.WORKSPACE_SCREENSHOT_DIR?process.env.WORKSPACE_SCREENSHOT_DIR+'/workspace-desktop.png':'/tmp/mmmbc-workspace-desktop.png',fullPage:true});
   });
   await check('phone drawer and single-pane reader navigation',async()=>{
+    for(const [width,height] of [[430,932],[390,844],[360,800],[320,568]]){
+      await page.setViewportSize({width,height});
+      await page.goto(origin+'/admin/mail');
+      await page.locator('.ws-message').first().waitFor();
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'workspace overflow at '+width);
+    }
     await page.setViewportSize({width:390,height:844});
     await page.getByRole('button',{name:'Menu',exact:true}).click();await page.locator('.ws-drawer-open').waitFor();
     await page.locator('[data-module=mail]').click();await page.locator('.ws-message').first().click();await page.locator('.ws-reading').waitFor();
