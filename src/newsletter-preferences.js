@@ -8,7 +8,8 @@ async function signingKey(env) {
   return crypto.subtle.importKey('raw', encoder.encode(secret(env)), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign','verify']);
 }
 export async function unsubscribeToken(env, email) {
-  const payload = btoa(JSON.stringify({ email: email.toLowerCase().trim(), purpose: 'unsubscribe' }));
+  const bytes = encoder.encode(JSON.stringify({ email: email.toLowerCase().trim(), purpose: 'unsubscribe' }));
+  const payload = btoa(Array.from(bytes, byte => String.fromCharCode(byte)).join(''));
   const signature = await crypto.subtle.sign('HMAC', await signingKey(env), encoder.encode(payload));
   return `${payload}.${Array.from(new Uint8Array(signature), b=>b.toString(16).padStart(2,'0')).join('')}`;
 }
@@ -18,7 +19,14 @@ export async function tokenEmail(env, token) {
     if (extra || !/^[a-f0-9]{64}$/.test(signature)) return '';
     const bytes = Uint8Array.from(signature.match(/../g), x=>parseInt(x,16));
     if (!await crypto.subtle.verify('HMAC', await signingKey(env), bytes, encoder.encode(payload))) return '';
-    const data = JSON.parse(atob(payload));
+    const binary = atob(payload);
+    let data;
+    try {
+      data = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(binary, char => char.charCodeAt(0))));
+    } catch {
+      // Existing links encoded Latin-1 directly; keep their signed payloads valid.
+      data = JSON.parse(binary);
+    }
     return data.purpose === 'unsubscribe' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email) ? data.email : '';
   } catch { return ''; }
 }

@@ -79,6 +79,17 @@ test('a new newsletter signup gets a branded welcome and signed unsubscribe link
   assert.equal(env.DB.sqlite.prepare('SELECT COUNT(*) AS count FROM newsletter_subscribers').get().count, 1);
 });
 
+test('Unicode newsletter addresses receive a welcome with a working preference link', async t => {
+  const env = environment();
+  const emails = captureEmails(t);
+  const address = '用户@example.com';
+  const response = await submit('newsletter/subscribe', { firstName: 'Ada', lastName: 'Church', email: address }, env);
+  assert.equal(response.status, 200);
+  assert.equal(emails.length, 1);
+  const link = emails[0].text.match(/Unsubscribe: (\S+)/)[1];
+  assert.equal(await tokenEmail(env, new URL(link).searchParams.get('token')), address);
+});
+
 test('failed receipt queues independently of staff mail and retries the same branded payload', async t => {
   const env = environment();
   let unavailable = true;
