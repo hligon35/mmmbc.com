@@ -153,7 +153,7 @@ test('contact form reports a failed auto-reply while keeping the saved submissio
     assert.match((await response.json()).warning, /confirmation email could not be sent/i);
     assert.deepEqual(recipients, ['visitor@example.com', 'team@example.com']);
     const recordedFailure = db.binds.find(({ sql }) => /UPDATE contact_messages SET auto_reply_status/.test(sql));
-    assert.equal(recordedFailure.args[0], 'failed');
+    assert.equal(recordedFailure.args[0], 'retrying');
     assert.match(recordedFailure.args[2], /not verified/);
     assert.ok(db.calls.some((sql) => /INSERT INTO contact_messages/.test(sql)));
   } finally {
@@ -163,7 +163,7 @@ test('contact form reports a failed auto-reply while keeping the saved submissio
 
 test('newsletter signup stores first and last name with its email', async () => {
   const db = mockSiteDb();
-  const env = { ENVIRONMENT: 'preview', DEMO_MODE: 'true', SITE_DB: db };
+  const env = { ENVIRONMENT: 'preview', DEMO_MODE: 'true', SITE_DB: db, DB: db };
   const response = await worker.fetch(new Request('https://preview.example/api/public/newsletter/subscribe', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ firstName: 'Ada', lastName: 'Church', email: 'ada@example.com' })
@@ -269,4 +269,3 @@ test('public settings disclose unavailable verification without exposing its sec
   assert.equal(readySettings.turnstileSiteKey, 'public-widget-key');
   assert.equal(JSON.stringify(readySettings).includes('private-widget-secret'), false);
 });
-

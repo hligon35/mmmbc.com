@@ -1,6 +1,7 @@
 import { canonicalAdminRedirect } from './worker-host-routing.js';
 import { securityHeaders, mutationDenied, checkBodySize } from './launch-security.js';
-import { handleNewsletterPreferences } from './newsletter-preferences.js';
+import { handleNewsletterPreferences, unsubscribeToken } from './newsletter-preferences.js';
+import { websiteAutoReply } from './website-email-templates.js';
 import { deliverSubmissionEmail, retrySubmissionEmails } from './submission-delivery.js';
 import worker from './worker-auth-wrapper.js';
 import { handleGivingRequest } from './worker-giving.js';
@@ -179,17 +180,9 @@ async function handleWebsiteSubmissions(request, env, ctx) {
   return json({ ok: true });
 }
 
-async function sendWebsiteAutoReply(env, { to, kind = 'contact', submissionId }) {
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(to || ''))) return { ok: true, skipped: true };
-  const facility = kind === 'facility_rental';
-  const subject = facility ? 'We received your facility rental request' : 'We received your message';
-  const text = facility
-    ? 'Thank you for submitting your facility rental request to Mt. Moriah Missionary Baptist Church. We received your request and will contact you after reviewing the details.'
-    : 'Thank you for contacting Mt. Moriah Missionary Baptist Church. We received your message and will respond as soon as possible.';
-  const html = facility
-    ? '<p>Thank you for submitting your facility rental request to Mt. Moriah Missionary Baptist Church.</p><p>We received your request and will contact you after reviewing the details.</p>'
-    : '<p>Thank you for contacting Mt. Moriah Missionary Baptist Church.</p><p>We received your message and will respond as soon as possible.</p>';
-  return deliverSubmissionEmail(env, { to, subject, text, html, submissionId, submissionType:kind,kind:'confirmation' });
+async function sendWebsiteAutoReply(env, { to, kind = 'contact', submissionId, name = '', rental = {}, unsubscribeUrl = '' }) {
+  const payload = websiteAutoReply(env, { kind, name, submissionId, rental, unsubscribeUrl });
+  return deliverSubmissionEmail(env, { ...payload, to, submissionId, submissionType: kind, kind: 'confirmation' });
 }
 
 const FORM_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -423,7 +416,9 @@ async function sendSupportEmailMessage(env, {
     fromName
   });
   if (!out.ok) {
-    throw new Error(out.error || 'Email send failed via Resend.');
+    const error = new Error(out.error || 'Email send failed via Resend.');
+    error.queued = Boolean(out.queued);
+    throw error;
   }
 }
 
@@ -1032,7 +1027,7 @@ const applicationWorker = {
         if (!turnstile.ok) return json({ error: turnstile.error }, turnstile.status || 403);
       }
       if (!env.SITE_DB) return json({ error: 'Subscriptions are temporarily unavailable.' }, 503);
-      const prior = await env.SITE_DB.prepare('SELECT status FROM subscribers WHERE lower(email)=? LIMIT 1').bind(email).first();
+      const prior = await env.SITE_DB.prepare('SELECT id, status FROM subscribers WHERE lower(email)=? LIMIT 1').bind(email).first();
       if (prior && ['unsubscribed','suppressed','bounced','complained'].includes(prior.status)) return json({error:'This address has opted out. Please contact the church to renew your consent.'},409);
       const now = new Date().toISOString();
       try {
@@ -1070,6 +1065,21 @@ const applicationWorker = {
       } catch (error) {
         console.error('Newsletter subscriber could not be saved', error);
         return json({ error: 'The newsletter list is temporarily unavailable. Please try again later.' }, 503);
+      }
+      // Only a new, persisted signup receives a welcome. Repeated signups do not send again.
+      if (!prior && !demoMode) {
+        let unsubscribeUrl = '';
+        if (String(env.NEWSLETTER_UNSUBSCRIBE_SECRET || '').length >= 32) {
+          const token = await unsubscribeToken(env, email);
+          unsubscribeUrl = new URL('/newsletter/unsubscribe?token=' + encodeURIComponent(token), env.PUBLIC_SITE_URL || 'https://mmmbc.com').href;
+        }
+        // A stable, non-PII key protects concurrent signup confirmations at the provider.
+        const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email));
+        const submissionId = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+        const autoReply = await sendWebsiteAutoReply(env, { to: email, kind: 'newsletter', submissionId, name, unsubscribeUrl });
+        if (!autoReply.ok) return json({ ok: true, email, warning: autoReply.queued
+          ? 'You are subscribed. Your welcome email is delayed and will be retried.'
+          : 'You are subscribed, but the welcome email could not be sent.' });
       }
       return json({ ok: true, email });
     }
@@ -1155,8 +1165,8 @@ const applicationWorker = {
       ].join('\n');
 
       try {
-        const autoReply = await sendWebsiteAutoReply(env, { to: email, kind: 'contact', submissionId:id });
-        if (env.SITE_DB) await updateSubmissionIfSupported(env.SITE_DB, `UPDATE contact_messages SET auto_reply_status = ?, auto_reply_at = ?, auto_reply_error = ? WHERE id = ?`, [autoReply.ok ? 'sent' : 'failed', autoReply.ok ? new Date().toISOString() : null, autoReply.error || '', id]);
+        const autoReply = await sendWebsiteAutoReply(env, { to: email, kind: 'contact', submissionId: id, name });
+        if (env.SITE_DB) await updateSubmissionIfSupported(env.SITE_DB, `UPDATE contact_messages SET auto_reply_status = ?, auto_reply_at = ?, auto_reply_error = ? WHERE id = ?`, [autoReply.ok ? 'sent' : autoReply.queued ? 'retrying' : 'failed', autoReply.ok ? new Date().toISOString() : null, autoReply.error || '', id]);
         await sendSupportEmailMessage(env, {
           subject: '[MMMBC Contact] New Website Message',
           textBody,
@@ -1171,7 +1181,7 @@ const applicationWorker = {
         const errMsg = String(e?.message || e).slice(0, 500);
         if (env.SITE_DB) {
           await updateSubmissionIfSupported(env.SITE_DB,
-            `UPDATE contact_messages SET status = 'email_failed', email_error = ? WHERE id = ?`, [errMsg, id]);
+            `UPDATE contact_messages SET status = ?, email_error = ? WHERE id = ?`, [e.queued ? 'email_retrying' : 'email_failed', errMsg, id]);
         }
         // The message was still saved (if SITE_DB is configured); tell the visitor it was received.
         return json(env.SITE_DB
@@ -1307,8 +1317,8 @@ const applicationWorker = {
       ].join('\n');
 
       try {
-        const autoReply = await sendWebsiteAutoReply(env, { to: contactEmail, kind: 'facility_rental', submissionId:id });
-        await updateSubmissionIfSupported(env.SITE_DB, `UPDATE facility_rental_requests SET auto_reply_status = ?, auto_reply_at = ?, auto_reply_error = ? WHERE id = ?`, [autoReply.ok ? 'sent' : 'failed', autoReply.ok ? new Date().toISOString() : null, autoReply.error || '', id]);
+        const autoReply = await sendWebsiteAutoReply(env, { to: contactEmail, kind: 'facility_rental', submissionId: id, name: person.name, rental: { ...normalizedForm, audience } });
+        await updateSubmissionIfSupported(env.SITE_DB, `UPDATE facility_rental_requests SET auto_reply_status = ?, auto_reply_at = ?, auto_reply_error = ? WHERE id = ?`, [autoReply.ok ? 'sent' : autoReply.queued ? 'retrying' : 'failed', autoReply.ok ? new Date().toISOString() : null, autoReply.error || '', id]);
         await sendSupportEmailMessage(env, {
           subject: `[MMMBC Facility Rental] ${audience === 'non_member' ? 'Non-member' : 'Member'} Request`,
           textBody,
@@ -1323,7 +1333,7 @@ const applicationWorker = {
         const errMsg = String(e?.message || e).slice(0, 500);
         if (env.SITE_DB) {
           await updateSubmissionIfSupported(env.SITE_DB,
-            `UPDATE facility_rental_requests SET status = 'email_failed', email_error = ? WHERE id = ?`, [errMsg, id]);
+            `UPDATE facility_rental_requests SET status = ?, email_error = ? WHERE id = ?`, [e.queued ? 'email_retrying' : 'email_failed', errMsg, id]);
         }
         return json(env.SITE_DB
           ? { ok: true, warning: 'Request received; email notification is delayed.' }

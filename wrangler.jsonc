@@ -76,6 +76,7 @@
 		"SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church",
 		"RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
 		"RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church",
+		"WEBSITE_REPLY_TO_EMAIL": "mtmoriahmbc1201@gmail.com",
 		"PUBLIC_SITE_URL": "https://mmmbc.com",
 		"TURNSTILE_ALLOWED_HOSTNAMES": "mmmbc.com,www.mmmbc.com,mmmbc.hligon.workers.dev,mmmbc.alphazonelabs.com",
 		"TURNSTILE_SITE_KEY": "0x4AAAAAAEzITVJnJAQvjUET",
