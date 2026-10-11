@@ -53,7 +53,9 @@
 
             <p class="sideNav__groupLabel" aria-hidden="true">Website Updates</p>
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-content" id="tabBtn-content">Announcements</button>
+            <!-- Profile Manager navigation intentionally hidden for now.
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-ministries" id="tabBtn-ministries">Ministry Profiles</button>
+            -->
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-events" id="tabBtn-events">Events</button>
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-photos" id="tabBtn-photos">Photos</button>
 
@@ -918,7 +920,7 @@
       </section>
 
       <!-- Ministry Profiles -->
-      <section class="tabPanel ministryProfilesPanel" role="tabpanel" id="tab-ministries" aria-labelledby="tabBtn-ministries" hidden data-header-crumb="Ministry Profiles" data-header-description="Add, edit, reorder, and publish profiles across the leadership and ministry pages.">
+      <section class="tabPanel ministryProfilesPanel" role="tabpanel" id="tab-ministries" aria-labelledby="tabBtn-ministries" hidden inert aria-hidden="true" data-feature-disabled="true" data-header-crumb="Ministry Profiles" data-header-description="Add, edit, reorder, and publish profiles across the leadership and ministry pages.">
         <form class="card form ministryPageForm" id="ministriesPageForm">
           <input type="hidden" name="profilesState" id="ministriesProfilesState" value="[]" />
           <div class="ministryPageForm__top">
