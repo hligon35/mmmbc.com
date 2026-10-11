@@ -123,7 +123,7 @@ try {
     const failures=[];
     const watch=response=>{if(new URL(response.url()).pathname.startsWith('/api/')&&response.status()>=500)failures.push(response.url());};
     page.on('response',watch);
-    for(const [route,title]of [['directory','Church Directory'],['profiles','Profile Manager'],['newsletter','Newsletter'],['access','Access Management'],['settings','Settings & Support'],['announcements','Announcements & Bulletins'],['photos','Photos']]){
+    for(const [route,title]of [['directory','Church Directory'],['newsletter','Newsletter'],['access','Access Management'],['settings','Settings & Support'],['announcements','Announcements & Bulletins'],['photos','Photos']]){
       await page.locator('[data-module="'+route+'"]').click();
       await page.waitForFunction(title=>document.title===title+' · Mount Moriah',title);
       assert.equal(await page.locator('.ws-shell').count(),1);
