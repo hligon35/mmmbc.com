@@ -360,6 +360,23 @@ async function handlePublicNewsletterSubscribe(request, env) {
        status = 'active'`
   ).bind(safeId(), email, name, now).run();
 
+  if (env.DB) {
+    await env.DB.prepare(
+      `INSERT INTO newsletter_subscribers (
+         id, contact_id, email, status, consent_source, consent_date,
+         confirmed_at, unsubscribed_at, suppression_reason, created_at, updated_at
+       ) VALUES (?, NULL, ?, 'active', 'website_signup', ?, ?, NULL, NULL, ?, ?)
+       ON CONFLICT(email) DO UPDATE SET
+         status = 'active',
+         consent_source = CASE
+           WHEN newsletter_subscribers.consent_source IS NULL OR newsletter_subscribers.consent_source = ''
+           THEN 'website_signup' ELSE newsletter_subscribers.consent_source END,
+         consent_date = COALESCE(newsletter_subscribers.consent_date, excluded.consent_date),
+         confirmed_at = COALESCE(newsletter_subscribers.confirmed_at, excluded.confirmed_at),
+         updated_at = excluded.updated_at`
+    ).bind(safeId(), email, now.slice(0, 10), now, now, now).run();
+  }
+
   return json({ ok: true, email });
 }
 
