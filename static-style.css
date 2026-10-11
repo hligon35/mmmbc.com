@@ -3828,3 +3828,107 @@ body:not(.admin-page) svg {
 .rental-form-menu[open] > summary { margin-bottom:8px; }
 .rental-form-menu__links { width:max-content; max-width:100%; box-sizing:border-box; }
 .rental-form-menu__links a { overflow-wrap:anywhere; }
+
+/* ============================================================
+   Mobile viewport resilience
+   Keeps public pages readable and touch-friendly from 320px up.
+   ============================================================ */
+body:not(.admin-page){
+  min-width:0;
+  overflow-x:hidden;
+}
+
+body:not(.admin-page) :where(main,section,article,aside,header,footer,nav,form,fieldset,div){
+  min-width:0;
+}
+
+body:not(.admin-page) :where(img,video,canvas,svg,iframe){
+  max-width:100%;
+}
+
+body:not(.admin-page) :where(h1,h2,h3,h4,h5,h6,p,li,a,button,label,legend,summary,td,th){
+  overflow-wrap:anywhere;
+}
+
+@media (max-width:768px){
+  body:not(.admin-page){
+    font-size:clamp(15px,3.8vw,17px);
+  }
+
+  body:not(.admin-page) :where(input,select,textarea,button){
+    max-width:100%;
+  }
+
+  body:not(.admin-page) :where(input:not([type="checkbox"]):not([type="radio"]),select,textarea){
+    font-size:16px;
+  }
+
+  body:not(.admin-page) :where(button,.button,.btn,.submit-btn,.devicon-btn,.nav-links a){
+    min-height:44px;
+  }
+
+  body:not(.admin-page) :where(.form-row,.formRow,.field-row,.contact-form .form-row){
+    grid-template-columns:minmax(0,1fr);
+  }
+
+  body:not(.admin-page) :where(table){
+    max-width:100%;
+  }
+
+  body:not(.admin-page) :where(.table-wrap,.table-container){
+    max-width:100%;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  body:not(.admin-page) :where(.hero-content,.content-section,.content-section--wide,.contact-form,.footer-content){
+    min-width:0;
+    max-width:100%;
+  }
+}
+
+@media (max-width:480px){
+  body:not(.admin-page) main{
+    width:calc(100% - 16px);
+  }
+
+  body:not(.admin-page) section{
+    padding:clamp(12px,4vw,16px);
+  }
+
+  body:not(.admin-page) :where(h1,.hero-content h1){
+    text-wrap:balance;
+  }
+
+  body:not(.admin-page) :where(h2,h3){
+    text-wrap:pretty;
+  }
+
+  body:not(.admin-page) .nav-links{
+    right:8px;
+    width:calc(100vw - 16px);
+  }
+
+  body:not(.admin-page) .form-actions{
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    width:100%;
+  }
+
+  body:not(.admin-page) .form-actions > *{
+    width:100%;
+    min-width:0;
+  }
+}
+
+@media (max-width:900px) and (orientation:landscape){
+  body:not(.admin-page) .nav-links{
+    max-height:calc(100dvh - 68px);
+    overflow-y:auto;
+  }
+
+  body:not(.admin-page) .hero-section{
+    min-height:auto;
+    padding-block:28px;
+  }
+}
