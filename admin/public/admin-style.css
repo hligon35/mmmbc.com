@@ -5503,3 +5503,88 @@ body {
 .toast__dismiss{flex:0 0 auto;min-width:28px;min-height:28px;border:0;border-radius:6px;background:transparent;color:inherit;font-size:20px;line-height:1;cursor:pointer;}
 .toast__dismiss:hover{background:rgba(255,255,255,.14);}
 .toast__dismiss:focus-visible{outline:2px solid currentColor;outline-offset:1px;}
+
+
+/* ============================================================
+   Admin mobile viewport resilience
+   Final guard against narrow-screen clipping in legacy panels.
+   ============================================================ */
+@media (max-width:900px){
+  html,
+  body{
+    max-width:100%;
+    overflow-x:hidden;
+  }
+
+  #app.app,
+  #app.app :where(.tabPanel,.subTabPanel,.card,.sectionHeader,.toolbar,.form,.formRow,.row,.inlineRow){
+    min-width:0;
+    max-width:100%;
+  }
+
+  #app.app :where(img,video,canvas,svg,iframe){
+    max-width:100%;
+  }
+
+  #app.app :where(h1,h2,h3,h4,p,li,label,legend,summary,a,button,td,th){
+    overflow-wrap:anywhere;
+  }
+
+  #app.app :where(input:not([type="checkbox"]):not([type="radio"]),select,textarea){
+    min-width:0;
+    width:100%;
+    max-width:100%;
+    font-size:16px;
+  }
+
+  #app.app :where(.btn,.tab,button,input,select,textarea){
+    min-height:44px;
+  }
+
+  #app.app :where(.tableWrap,.directoryTableWrap){
+    width:100%;
+    max-width:100%;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  #app.app .dialog[open]{
+    padding:8px;
+  }
+
+  #app.app .dialog[open] .dialog__inner{
+    width:100%;
+    max-width:calc(100vw - 16px);
+    max-height:calc(100dvh - 16px);
+  }
+}
+
+@media (max-width:480px){
+  #app.app{
+    padding-inline:8px!important;
+  }
+
+  #app.app .card{
+    border-radius:12px;
+    padding:12px;
+  }
+
+  #app.app :where(.toolbar:not(.toolbar--nowrap),.sectionHeader,.row__actions,.directoryActionGroup,.settingsHeaderActions){
+    gap:8px;
+  }
+
+  #app.app :where(.toolbar:not(.toolbar--nowrap) > .btn,.sectionHeader .btn,.row__actions .btn,.directoryActionGroup .btn){
+    flex:1 1 100%;
+    width:100%;
+  }
+
+  #app.app .subTabs .tab--sub{
+    min-width:132px;
+  }
+}
+
+@media (max-width:900px) and (orientation:landscape){
+  #app.app .dialog[open] .dialog__inner{
+    max-height:calc(100dvh - 12px);
+  }
+}
