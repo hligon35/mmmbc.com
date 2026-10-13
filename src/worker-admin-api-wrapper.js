@@ -1359,8 +1359,9 @@ const applicationWorker = {
       return worker.fetch(request, env, ctx);
     }
 
-    if (url.pathname.startsWith('/api/site-content/') && request.method === 'GET') {
-      const page = decodeURIComponent(url.pathname.slice('/api/site-content/'.length));
+    const publicContentPrefix = ['/api/site-content/', '/public/site-content/'].find(prefix => url.pathname.startsWith(prefix));
+    if (publicContentPrefix && request.method === 'GET') {
+      const page = decodeURIComponent(url.pathname.slice(publicContentPrefix.length));
       if (!PROFILE_CONTENT_PAGES.has(page)) return json({ error: 'Not found.' }, 404);
       return handlePublicSiteContentGet(request, env, page);
     }

@@ -1,3 +1,4 @@
+import { normalizeMinistryImages } from './ministry-images.js';
 import { imageBytesAllowed } from './launch-security.js';
 // D1-backed storage + API handlers retained for profile management (draft/published
 // content per public page). Mirrors the conventions in src/worker-communications.js.
@@ -342,6 +343,8 @@ export async function handlePublicSiteContentGet(request, env, page) {
       // Fall back to static seed on any D1 error — public page still renders.
     }
   }
+
+  if (key === 'ministries') fields = normalizeMinistryImages(fields);
 
   // Short, self-invalidating cache so publishes propagate within ~60s without any
   // explicit purge step; the admin editor also cache-busts its own iframe reload.

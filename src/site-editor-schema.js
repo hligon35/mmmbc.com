@@ -1,3 +1,5 @@
+import { normalizeMinistryImages } from './ministry-images.js';
+
 // Centralized field registry used by the retained profile-content management workflow.
 // Every editable public-site field must be declared here — the API rejects any
 // page key or field key that isn't listed in this file. This is the single
@@ -513,27 +515,27 @@ INITIAL_PUBLISHED_CONTENT.official_team_trustees = {
     {
       id: 'official-team-trustees-2', name: 'Derek Strong', title: '',
       bio: 'Member for over 10 years, member of Official Team, lawn keeper, and Audio or Video Ministry.',
-      image: { url: '../ConImg/webPages/official_team_image2.png', alt: 'Derek Strong' }
+      image: { url: '../ConImg/webPages/Derek%20Strong.png', alt: 'Derek Strong' }
     },
     {
       id: 'official-team-trustees-3', name: 'Richard Washington', title: '',
       bio: 'President of Usher Ministry, member of the Official Team, and driver for the Transportation Ministry.',
-      image: { url: '../ConImg/webPages/official_team_image3.png', alt: 'Richard Washington' }
+      image: { url: '../ConImg/webPages/Richard%20Washington.png', alt: 'Richard Washington' }
     },
     {
       id: 'official-team-trustees-4', name: 'Brenda Stokes', title: '',
       bio: 'Member for over 40 years, member of Usher Ministry and Women\'s Ministry, head of Culinary Ministry, and member of the Official Team.',
-      image: { url: '../ConImg/webPages/official_team_image4.png', alt: 'Brenda Stokes' }
+      image: { url: '../ConImg/webPages/Brenda%20Stokes.png', alt: 'Brenda Stokes' }
     },
     {
       id: 'official-team-trustees-5', name: 'Tonya Gill', title: '',
       bio: 'Head of the Youth Department.',
-      image: { url: '../ConImg/webPages/official_team_image5.png', alt: 'Tonya Gill' }
+      image: { url: '../ConImg/webPages/Tonya%20Gill.png', alt: 'Tonya Gill' }
     },
     {
       id: 'official-team-trustees-6', name: 'Elbert Speers', title: '',
       bio: 'Audio or Video technician, photographer, and member of the Official Board.',
-      image: { url: '../ConImg/webPages/official_team_image6.png', alt: 'Elbert Speers' }
+      image: { url: '../ConImg/webPages/Elbert%20Speers.png', alt: 'Elbert Speers' }
     },
     {
       id: 'official-team-trustees-7', name: 'Marsha Roundtree', title: '',
@@ -547,6 +549,9 @@ INITIAL_PUBLISHED_CONTENT.official_team_trustees = {
     }
   ]
 };
+
+// Resolve the legacy seed as well as stored published images through the same mapping.
+INITIAL_PUBLISHED_CONTENT.ministries = normalizeMinistryImages(INITIAL_PUBLISHED_CONTENT.ministries);
 
 export function getPageSchema(page) {
   return PAGE_SCHEMAS[String(page || '').trim().toLowerCase()] || null;

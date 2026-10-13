@@ -1,3 +1,4 @@
+import { servePublishedMinistryImage } from './ministry-images.js';
 import { imageUploadAllowed, imageBytesAllowed } from './launch-security.js';
 // Cloudflare Worker (Option B scaffold)
 // - Serves static site assets from ./cf_site via env.ASSETS
@@ -1800,6 +1801,7 @@ async function handleCdn(request, env) {
   const url = new URL(request.url);
   const key = decodeURI(url.pathname.slice(prefix.length));
   if (!key) return new Response('Not found', { status: 404 });
+  if (key.startsWith('site/ministry/')) return servePublishedMinistryImage(request, env, key);
 
   if (key.startsWith('gallery/')) {
     const visibility=await env.DB.prepare('SELECT is_hidden FROM gallery_items WHERE file_key=? OR thumb_key=? LIMIT 1').bind(key,key).first();

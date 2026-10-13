@@ -6,7 +6,7 @@
  * fallback whenever no published profile payload is available.
  *
  * Public mode:
- *   - Fetches GET /api/site-content/{page} (published fields only, unauthenticated).
+ *   - Fetches GET /public/site-content/{page} (published fields only, unauthenticated).
  *   - Hydrates every [data-cms-field] element found on the page.
  *   - On any failure, silently keeps the static HTML already baked into the page
  *     (graceful fallback — the page must never break or show blank/error content).
@@ -372,7 +372,7 @@
   // Normal (public) mode
   // ---------------------------------------------------------------------
   function loadPublished() {
-    fetch('/api/site-content/' + encodeURIComponent(PAGE), { credentials: 'omit', cache: 'default' })
+    fetch('/public/site-content/' + encodeURIComponent(PAGE), { credentials: 'omit', cache: 'default' })
       .then(function (res) { return res.ok ? res.json() : null; })
       .then(function (data) {
         if (data && data.fields) applyFields(data.fields);
