@@ -1,3 +1,4 @@
+import { handleMediaImport } from './worker-media-import.js';
 import { canonicalAdminRedirect } from './worker-host-routing.js';
 import { securityHeaders, mutationDenied, checkBodySize } from './launch-security.js';
 import { handleNewsletterPreferences, unsubscribeToken } from './newsletter-preferences.js';
@@ -833,6 +834,8 @@ const applicationWorker = {
     const canonicalRedirect = canonicalAdminRedirect(request, env);
     if (canonicalRedirect) return canonicalRedirect;
     const url = new URL(request.url);
+
+    if (url.pathname === '/api/gallery/import') return handleMediaImport(request, env);
 
     if (url.pathname === '/api/build-info' && request.method === 'GET') {
       let adminBuild = null;

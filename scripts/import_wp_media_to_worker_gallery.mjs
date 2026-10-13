@@ -1,349 +1,124 @@
 #!/usr/bin/env node
-/**
- * Import WordPress Media Library images into the MMMBC Worker gallery.
- *
- * Best-quality / most efficient approach:
- * - Use WordPress REST API (authenticated) to list attachments + find the largest/original image URL.
- * - Download the image bytes.
- * - Upload into the Worker gallery endpoint (/api/gallery/upload), which writes to R2 + D1.
- *
- * Requirements:
- * - Node.js 18+ (global fetch/FormData)
- * - A WordPress Application Password (WP admin user -> Profile -> Application Passwords)
- * - Cloudflare Access Service Token if /api* is protected by Access.
- *
- * Env vars:
- *   WP_BASE_URL                 e.g. https://mmmbc.com
- *   WP_USERNAME                 e.g. admin@...
- *   WP_APP_PASSWORD             the WP Application Password (NOT your normal password)
- *   TARGET_BASE_URL             e.g. https://mmmbc.alphazonelabs.com
- *   CF_ACCESS_CLIENT_ID         (optional) Access Service Token client id
- *   CF_ACCESS_CLIENT_SECRET     (optional) Access Service Token client secret
- *   ALBUM_MODE                  year-month | year | wordpress-month (default: year-month)
- *   PER_PAGE                    (default: 100)
- *   START_PAGE                  (default: 1)
- *   MAX_PAGES                   (default: 1000)
- *   MAX_ITEMS                   (default: 0 = no limit)
- *   DRY_RUN                     true/false (default: false)
- *   SLEEP_MS                    delay between uploads (default: 250)
- */
+// Resumable exact-content import into the existing Worker gallery/R2/D1 workflow.
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { setTimeout as pause } from 'node:timers/promises';
+import { migrateMedia } from './lib/media-migration.mjs';
 
-import { setTimeout as sleep } from 'node:timers/promises';
-
-function requireEnv(name) {
-  const val = process.env[name];
-  if (!val) {
-    throw new Error(`Missing required env var: ${name}`);
-  }
-  return val;
+const required = name => { if (!process.env[name]) throw new Error(`Missing ${name}.`); return process.env[name]; };
+const flag = (name, fallback) => process.env[name] == null ? fallback : /^(true|1|yes)$/i.test(process.env[name]);
+function origin(value) {
+  const url = new URL(value);
+  if (url.username || url.password || (url.protocol !== 'https:' && !['localhost','127.0.0.1'].includes(url.hostname))) throw new Error('Use an HTTPS origin without embedded credentials.');
+  return url.origin;
 }
-
-function boolEnv(name, def = false) {
-  const raw = String(process.env[name] ?? '').trim().toLowerCase();
-  if (!raw) return def;
-  return ['1', 'true', 'yes', 'y', 'on'].includes(raw);
+export function originalMediaUrl(media) {
+  const source = media.source_url || '';
+  return media.media_details?.original_image && source ? new URL(media.media_details.original_image, source).href : source;
 }
-
-function numEnv(name, def) {
-  const raw = String(process.env[name] ?? '').trim();
-  if (!raw) return def;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : def;
+async function readResponse(response, json = false) {
+  if (!response.ok) throw new Error(`Request failed (${response.status}); check source, storage, and authentication.`);
+  if (json && !response.headers.get('content-type')?.includes('application/json')) throw new Error('Expected JSON; the request may be blocked by Cloudflare Access.');
+  return json ? response.json() : Buffer.from(await response.arrayBuffer());
 }
-
-function sanitizeAlbum(input) {
-  return String(input || '')
-    .trim()
-    .replace(/[^a-zA-Z0-9\- _]/g, '')
-    .replace(/\s+/g, ' ')
-    .slice(0, 80) || 'Imported';
-}
-
-function stripHtml(input) {
-  return String(input || '').replace(/<[^>]*>/g, '').trim();
-}
-
-function base64Basic(user, pass) {
-  // WP App Passwords are used via basic auth.
-  const raw = `${user}:${pass}`;
-  return Buffer.from(raw, 'utf8').toString('base64');
-}
-
-function bestImageUrl(media) {
-  // Always prefer the original media source when available.
-  // WP resized variants often include "-WIDTHxHEIGHT" suffixes (e.g. -2880x1800)
-  // which can be cropped/derived assets rather than the true original.
-  const source = media?.source_url ? String(media.source_url).trim() : '';
-  if (source) return source;
-
-  // Fallback: choose the largest available derivative.
-  const md = media?.media_details;
-  const sizes = md?.sizes && typeof md.sizes === 'object' ? md.sizes : null;
-  let best = '';
-  let bestArea = 0;
-
-  if (sizes) {
-    for (const key of Object.keys(sizes)) {
-      const s = sizes[key];
-      const url = s?.source_url ? String(s.source_url) : '';
-      const w = Number(s?.width || 0);
-      const h = Number(s?.height || 0);
-      const area = Number.isFinite(w) && Number.isFinite(h) ? w * h : 0;
-      if (url && area >= bestArea) {
-        bestArea = area;
-        best = url;
+async function localFiles(root) {
+  const files = [];
+  async function visit(dir) {
+    for (const item of await fs.readdir(dir, { withFileTypes: true })) {
+      const full = path.join(dir,item.name);
+      if (item.isDirectory()) await visit(full);
+      else if (item.isFile() && /\.(jpe?g|png|webp|gif|svg|avif|heic)$/i.test(item.name)) {
+        const relative = path.relative(root,full).split(path.sep).join('/');
+        files.push({ source: full, file: full, name: item.name, label: item.name,
+          album: relative.match(/^\d{4}\/\d{2}\//)?.[0].slice(0,-1).replace('/','-') || 'WordPress',
+          oldUrls: [new URL('/wp-content/uploads/' + relative.split('/').map(encodeURIComponent).join('/'), process.env.WP_ORIGINAL_URL || 'https://mmmbc.com').href] });
       }
     }
   }
-
-  return best;
+  await visit(root);
+  return files.sort((a,b) => a.source.localeCompare(b.source));
 }
-
-function inferFileName(url, fallback = 'image.jpg') {
-  try {
-    const u = new URL(url);
-    const base = decodeURIComponent(u.pathname.split('/').pop() || '').trim();
-    return base || fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function albumForMedia(media, albumMode) {
-  const date = String(media?.date_gmt || media?.date || '').trim();
-  const yyyy = date.slice(0, 4);
-  const mm = date.slice(5, 7);
-
-  if (albumMode === 'year') {
-    return sanitizeAlbum(yyyy || 'Imported');
-  }
-
-  if (albumMode === 'wordpress-month') {
-    // Common WP structure: uploads/YYYY/MM
-    if (yyyy && mm) return sanitizeAlbum(`${yyyy}/${mm}`);
-    return 'Imported';
-  }
-
-  // default: year-month
-  if (yyyy && mm) return sanitizeAlbum(`${yyyy}-${mm}`);
-  return 'Imported';
-}
-
-async function wpFetchJson(url, { authHeader }) {
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: {
-      Authorization: authHeader,
-      'User-Agent': 'mmmbc-importer/1.0'
+async function wordpressFiles() {
+  const base = required('WP_BASE_URL').replace(/\/+$/, '') + '/';
+  origin(base);
+  const authorization = 'Basic ' + Buffer.from(required('WP_USERNAME') + ':' + required('WP_APP_PASSWORD')).toString('base64');
+  const files = [];
+  const maximum = Number(process.env.MAX_PAGES || 1000);
+  for (let page = 1; page <= maximum; page++) {
+    const url = new URL('wp-json/wp/v2/media', base);
+    url.search = new URLSearchParams({ media_type:'image', context:'edit', per_page:'100', page:String(page) });
+    const response = await fetch(url, { headers: { authorization }, redirect:'error', signal:AbortSignal.timeout(30000) });
+    if (response.status === 400) {
+      const body = await response.json().catch(() => ({}));
+      if (body.code === 'rest_post_invalid_page_number') return files;
+      throw new Error('WordPress rejected the media listing.');
     }
-  });
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => '');
-    throw new Error(`WP request failed ${res.status} ${res.statusText} for ${url}\n${txt.slice(0, 500)}`);
-  }
-
-  return res.json();
-}
-
-async function downloadFile(url) {
-  const res = await fetch(url, {
-    method: 'GET',
-    redirect: 'follow',
-    headers: {
-      'User-Agent': 'mmmbc-importer/1.0'
+    const media = await readResponse(response,true);
+    if (!Array.isArray(media)) throw new Error('Invalid WordPress media response.');
+    for (const item of media) {
+      const source = originalMediaUrl(item);
+      if (!source) throw new Error(`WordPress attachment ${item.id} has no image URL.`);
+      files.push({ source, name: decodeURIComponent(new URL(source).pathname.split('/').pop()),
+        label: String(item.title?.rendered || item.alt_text || '').replace(/<[^>]*>/g,''), album:String(item.date || '').slice(0,7) || 'WordPress',
+        oldUrls: [...new Set([item.source_url, source, ...Object.values(item.media_details?.sizes || {}).map(size => size.source_url)].filter(Boolean))] });
     }
-  });
-
-  if (!res.ok) {
-    throw new Error(`Download failed ${res.status} ${res.statusText} for ${url}`);
+    if (media.length < 100) return files;
   }
-
-  const ct = res.headers.get('content-type') || 'application/octet-stream';
-  const ab = await res.arrayBuffer();
-  return { contentType: ct, arrayBuffer: ab };
+  throw new Error('MAX_PAGES reached before completing the WordPress inventory; increase it.');
 }
 
-async function uploadToWorker({ targetBaseUrl, album, label, tags, fileName, contentType, arrayBuffer, accessHeaders, dryRun }) {
-  const uploadUrl = new URL('/api/gallery/upload', targetBaseUrl).toString();
-
-  if (dryRun) {
-    return { ok: true, dryRun: true, uploadUrl, album, label, tags, fileName };
-  }
-
-  const form = new FormData();
-  form.set('album', album);
-  form.set('label', label);
-  form.set('tags', tags);
-
-  const blob = new Blob([arrayBuffer], { type: contentType || 'application/octet-stream' });
-  form.append('images', blob, fileName);
-
-  const res = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: {
-      ...accessHeaders
-    },
-    body: form
-  });
-
-  const respCt = res.headers.get('content-type') || '';
-  const txt = await res.text().catch(() => '');
-
-  // Cloudflare Access may return an HTML login page with 200.
-  // In that case, the request never reached the Worker, so treat it as a hard failure.
-  if (
-    res.ok
-    && respCt.toLowerCase().includes('text/html')
-    && /cloudflare\s+access/i.test(txt)
-  ) {
-    throw new Error(
-      `Upload blocked by Cloudflare Access (received HTML login page) for ${fileName}.`
-      + `\nFix: allow your Access Service Token for this app/path, or temporarily disable Access on /api/gallery/* during migration.`
-    );
-  }
-
-  if (!res.ok) {
-    throw new Error(
-      `Upload failed ${res.status} ${res.statusText} for ${fileName}`
-      + `\nContent-Type: ${respCt || '(none)'}`
-      + `\n${txt.slice(0, 800)}`
-    );
-  }
-
-  // Some intermediaries return HTML (e.g. Access/login) even with 200.
-  // Always try to parse JSON, but keep a snippet for debugging when parsing fails.
+export async function main() {
+  const target = origin(required('TARGET_BASE_URL'));
+  const token = required('CF_ACCESS_JWT');
+  const headers = { 'Cf-Access-Jwt-Assertion': token, Cookie:'CF_Authorization=' + token };
+  const endpoint = new URL('/api/gallery/import', target);
+  const manifestPath = path.resolve(process.env.MIGRATION_MANIFEST || '.migration/wordpress-media.json');
+  await fs.mkdir(path.dirname(manifestPath), { recursive:true });
+  // Prevent competing local writers. Server-side deterministic keys also protect uploads.
+  const lockPath = manifestPath + '.lock';
+  const lock = await fs.open(lockPath,'wx');
   try {
-    return JSON.parse(txt);
-  } catch {
-    return {
-      ok: true,
-      nonJson: true,
-      status: res.status,
-      contentType: respCt,
-      bodySnippet: txt.slice(0, 300)
+    let manifest;
+    try { manifest = JSON.parse(await fs.readFile(manifestPath,'utf8')); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; manifest = { version:1, target }; }
+    if (manifest.target !== target) throw new Error('Manifest belongs to a different target. Use a separate manifest.');
+    const save = async data => {
+      await fs.writeFile(manifestPath + '.tmp',JSON.stringify(data,null,2) + '\n', { mode:0o600 });
+      await fs.rename(manifestPath + '.tmp',manifestPath);
     };
-  }
+    const inventory = [];
+    let cursor = '';
+    do {
+      const url = new URL(endpoint);
+      if (cursor) url.searchParams.set('cursor',cursor);
+      const result = await readResponse(await fetch(url,{ headers, redirect:'error', signal:AbortSignal.timeout(30000) }),true);
+      inventory.push(...result.objects);
+      const next = result.nextCursor || '';
+      if (next && next === cursor) throw new Error('Inventory cursor did not advance.');
+      cursor = next;
+    } while (cursor);
+    let candidates = process.env.WP_UPLOADS_DIR ? await localFiles(path.resolve(process.env.WP_UPLOADS_DIR)) : await wordpressFiles();
+    const maximum = Number(process.env.MAX_ITEMS || 0);
+    manifest.sourceCount = candidates.length;
+    if (maximum > 0) candidates = candidates.slice(0,maximum);
+    const summary = await migrateMedia({ candidates, inventory, manifest, save, dryRun:flag('DRY_RUN',true),
+      readExisting: async key => { const url = new URL(endpoint); url.searchParams.set('key',key);
+        return readResponse(await fetch(url,{ headers, redirect:'error', signal:AbortSignal.timeout(60000) })); },
+      readSource: async candidate => candidate.file ? fs.readFile(candidate.file) :
+        readResponse(await fetch(candidate.source,{ signal:AbortSignal.timeout(60000) })),
+      upload: async ({ candidate, bytes, type, reuseKey }) => {
+        const form = new FormData();
+        form.append('image',new Blob([bytes],{ type }),candidate.name);
+        form.set('album',candidate.album); form.set('label',candidate.label); form.set('reuseKey',reuseKey);
+        const result = await readResponse(await fetch(endpoint,{ method:'POST',headers,body:form,redirect:'error',signal:AbortSignal.timeout(60000) }),true);
+        await pause(Math.max(0,Number(process.env.SLEEP_MS || 250)));
+        return result;
+      } });
+    console.log(JSON.stringify({ ...summary, limited: candidates.length < manifest.sourceCount, manifest:manifestPath },null,2));
+    if (summary.failed) process.exitCode = 1;
+  } finally { await lock.close(); await fs.unlink(lockPath); }
 }
-
-async function main() {
-  const wpBase = requireEnv('WP_BASE_URL').replace(/\/$/, '');
-  const wpUser = requireEnv('WP_USERNAME');
-  const wpAppPass = requireEnv('WP_APP_PASSWORD');
-  const targetBaseUrl = requireEnv('TARGET_BASE_URL').replace(/\/$/, '');
-
-  const dryRun = boolEnv('DRY_RUN', false);
-  const albumMode = String(process.env.ALBUM_MODE || 'year-month').trim();
-  const perPage = numEnv('PER_PAGE', 100);
-  const startPage = numEnv('START_PAGE', 1);
-  const maxPages = numEnv('MAX_PAGES', 1000);
-  const maxItems = numEnv('MAX_ITEMS', 0);
-  const sleepMs = numEnv('SLEEP_MS', 250);
-
-  const accessHeaders = {};
-  if (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET) {
-    accessHeaders['CF-Access-Client-Id'] = String(process.env.CF_ACCESS_CLIENT_ID);
-    accessHeaders['CF-Access-Client-Secret'] = String(process.env.CF_ACCESS_CLIENT_SECRET);
-  }
-
-  const authHeader = `Basic ${base64Basic(wpUser, wpAppPass)}`;
-
-  let imported = 0;
-  for (let page = startPage; page < startPage + maxPages; page += 1) {
-    const url = new URL('/wp-json/wp/v2/media', wpBase);
-    url.searchParams.set('per_page', String(perPage));
-    url.searchParams.set('page', String(page));
-    url.searchParams.set('orderby', 'date');
-    url.searchParams.set('order', 'asc');
-    url.searchParams.set('media_type', 'image');
-    // context=edit often returns richer metadata; requires auth.
-    url.searchParams.set('context', 'edit');
-
-    let items;
-    try {
-      items = await wpFetchJson(url.toString(), { authHeader });
-    } catch (err) {
-      // WP returns 400 when page is out of range.
-      const msg = String(err?.message || err);
-      if (msg.includes('rest_post_invalid_page_number') || msg.includes('400')) {
-        break;
-      }
-      throw err;
-    }
-
-    if (!Array.isArray(items) || items.length === 0) break;
-
-    for (const media of items) {
-      if (maxItems > 0 && imported >= maxItems) break;
-
-      const mime = String(media?.mime_type || '');
-      if (!mime.startsWith('image/')) continue;
-
-      const urlBest = bestImageUrl(media);
-      if (!urlBest) continue;
-
-      const album = albumForMedia(media, albumMode);
-      const label = stripHtml(media?.title?.rendered || media?.alt_text || media?.slug || '') || album;
-      const tags = '';
-      const fileName = inferFileName(urlBest, `wp_${media?.id || 'image'}.jpg`);
-
-      process.stdout.write(`Importing [${album}] ${fileName} ... `);
-
-      const dl = await downloadFile(urlBest);
-      const result = await uploadToWorker({
-        targetBaseUrl,
-        album,
-        label,
-        tags,
-        fileName,
-        contentType: dl.contentType,
-        arrayBuffer: dl.arrayBuffer,
-        accessHeaders,
-        dryRun
-      });
-
-      imported += 1;
-      if (dryRun) {
-        process.stdout.write('DRY RUN\n');
-      } else {
-        if (result?.nonJson) {
-          process.stdout.write(
-            `OK (non-JSON response; status ${result.status}; ct ${result.contentType || 'n/a'})\n`
-          );
-          process.stdout.write(
-            `  HINT: This often means Cloudflare Access returned HTML (login/forbidden) or you hit a non-Worker endpoint.\n`
-          );
-          if (result.bodySnippet) {
-            process.stdout.write(`  BODY: ${String(result.bodySnippet).replace(/\s+/g, ' ').slice(0, 160)}\n`);
-          }
-          if (sleepMs > 0) await sleep(sleepMs);
-          continue;
-        }
-
-        const added = Array.isArray(result?.added) ? result.added : [];
-        const location = added[0]?.file || '';
-        if (location) {
-          process.stdout.write(`OK -> ${location}\n`);
-          if (!String(location).startsWith('/cdn/gallery/')) {
-            process.stdout.write(
-              `  WARNING: Response does not look like Worker R2 CDN path. Check TARGET_BASE_URL (may be pointing at the Node admin server).\n`
-            );
-          }
-        } else {
-          process.stdout.write('OK\n');
-        }
-      }
-
-      if (sleepMs > 0) await sleep(sleepMs);
-    }
-
-    if (maxItems > 0 && imported >= maxItems) break;
-  }
-
-  console.log(`\nDone. Imported ${imported} images into ${targetBaseUrl}`);
-}
-
-main().catch((err) => {
-  console.error(err);
-  process.exitCode = 1;
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch(error => {
+  console.error(error.message); process.exitCode = 1;
 });

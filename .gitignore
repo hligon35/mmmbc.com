@@ -34,3 +34,6 @@ cf_site/
 *.bak
 r2-test*.txt
 scripts/gallery_variant_audit_latest.json
+
+# Private/resumable WordPress migration manifests and local locks
+.migration/
