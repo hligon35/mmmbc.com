@@ -1,6 +1,6 @@
 // Explicitly published ministry media. Gallery privacy remains authoritative when a record exists.
 export const MINISTRY_R2_IMAGES = Object.freeze({
-  "site/ministry/elaine-fletcher.jpg": "gallery/2024-11/2026-01-22_Elaine-FLetcher_c8d8be27-0a45-4e65-a167-153f011f7318.jpg",
+  "site/ministry/elaine-fletcher.jpg": "gallery/2025-05/2026-01-22_Elaine_04b3f20e-3d51-4982-abfa-019e2ae5fe9f.jpeg",
   "site/ministry/jesse-shields.jpg": "gallery/2024-11/2026-01-22_Jesse-Shields_2560a920-a6b7-433c-931e-39e2e9fc34d0.jpg",
   "site/ministry/janice-jones.jpg": "gallery/2024-11/2026-01-22_Janice-Jones_ad8e386d-e8f1-43c5-a1d8-d8942783a3f3.jpg",
   "site/ministry/custodial.png": "gallery/2024-11/2026-01-22_Custodial_1a3c0a89-db2e-4949-ab13-8b6997d54e7f.png",
@@ -51,9 +51,15 @@ export async function servePublishedMinistryImage(request, env, key) {
   try {
     const row = await env.DB.prepare('SELECT is_hidden FROM gallery_items WHERE file_key=? OR thumb_key=? LIMIT 1').bind(source, source).first();
     // Missing gallery indexes are allowed only for these explicitly published source keys.
-    if (row && Number(row.is_hidden)) return new Response('Not found', { status: 404 });
+    if (row && Number(row.is_hidden)) {
+      console.warn('Ministry image unavailable', { alias: key, reason: 'gallery_hidden' });
+      return new Response('Not found', { status: 404 });
+    }
     const object = await env.GALLERY_BUCKET.get(source);
-    if (!object) return new Response('Not found', { status: 404 });
+    if (!object) {
+      console.warn('Ministry image unavailable', { alias: key, source, reason: 'r2_object_missing' });
+      return new Response('Not found', { status: 404 });
+    }
     const headers = new Headers();
     object.writeHttpMetadata(headers);
     headers.set('Content-Type', key.endsWith('.png') ? 'image/png' : 'image/jpeg');
@@ -62,6 +68,7 @@ export async function servePublishedMinistryImage(request, env, key) {
     headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
     return new Response(request.method === 'HEAD' ? null : object.body, { headers });
   } catch {
+    console.error('Ministry image unavailable', { alias: key, reason: 'storage_or_visibility_error' });
     // Do not serve media when gallery visibility cannot be checked.
     return new Response('Image temporarily unavailable', { status: 503 });
   }

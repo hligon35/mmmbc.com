@@ -13,3 +13,6 @@ The content loader uses `/public/site-content/<page>`, with the same published-o
 The renamed Official Team photo references were updated in its static page and initial seed because those five old filenames were removed from ConImg.
 
 First Aid currently has no supplied photo and displays `ConImg/profile-photo-pending.svg`. Replace it with a verified image when one is available.
+
+
+Live follow-up: the ministry page and published-content endpoint were confirmed on the new deployment. Five named local photos, the placeholder, Earlie, and Mary loaded. Six R2 aliases returned 404. Elaine's alias now uses the verified public May 2025 `Elaine.jpeg` object. Jesse, Janice, Custodial, Discipleship Training, and Video still require live storage/visibility verification. Worker logs now distinguish `gallery_hidden`, `r2_object_missing`, and `storage_or_visibility_error`; HTTP responses remain generic. Restore missing objects in the bound bucket or deliberately update gallery visibility through the authorized admin workflow.

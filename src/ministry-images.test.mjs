@@ -62,6 +62,21 @@ test('explicitly hidden photos and visibility lookup failures are never served',
   assert.deepEqual(env.reads, []);
 });
 
+test('missing R2 objects produce an actionable server log without exposing diagnostics publicly', async t => {
+  const warn = console.warn;
+  const messages = [];
+  console.warn = (...args) => messages.push(args);
+  t.after(() => { console.warn = warn; });
+  const env = imageEnv();
+  env.GALLERY_BUCKET.get = async () => null;
+  const key = 'site/ministry/jesse-shields.jpg';
+  const response = await servePublishedMinistryImage(new Request('https://mmmbc.com'), env, key);
+  assert.equal(response.status, 404);
+  assert.equal(await response.text(), 'Not found');
+  assert.equal(messages[0][1].reason, 'r2_object_missing');
+  assert.equal(messages[0][1].source, MINISTRY_R2_IMAGES[key]);
+});
+
 test('published profile endpoint works outside the protected API prefix and excludes drafts', async () => {
   const env = { DB: { prepare: sql => {
     assert.match(sql, /SELECT published_fields/);
