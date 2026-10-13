@@ -5,7 +5,7 @@ import { handleMediaImport } from './worker-media-import.js';
 import worker from './worker-admin-api-wrapper.js';
 import { migrateMedia, sha256 } from '../scripts/lib/media-migration.mjs';
 import { originalMediaUrl } from '../scripts/import_wp_media_to_worker_gallery.mjs';
-import { main } from '../scripts/import_wp_media_to_worker_gallery.mjs';
+import { main, validateLocalSource } from '../scripts/import_wp_media_to_worker_gallery.mjs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -134,4 +134,13 @@ test('local-backup CLI dry run, real import, and resume share one canonical imag
   const manifest = JSON.parse(await fs.readFile(process.env.MIGRATION_MANIFEST,'utf8'));
   assert.equal(manifest.summary.reused,2);
   assert.doesNotMatch(JSON.stringify(manifest),/test-only/);
+});
+
+test('backup preflight rejects WordPress XML exports with an actionable error', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(),'wp-export-'));
+  t.after(() => fs.rm(dir,{ recursive:true,force:true }));
+  const xml = path.join(dir,'wordpress.xml');
+  await fs.writeFile(xml,'<rss/>');
+  await assert.rejects(validateLocalSource(xml), /references, not the image files/);
+  assert.equal(await validateLocalSource(dir),dir);
 });

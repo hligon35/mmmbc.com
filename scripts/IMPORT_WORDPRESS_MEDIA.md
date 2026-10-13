@@ -70,3 +70,8 @@ Rerun the same command after interruptions or failed source downloads. Do not ch
 Inspect the manifest's `sources` entries. Confirm each complete image exists, opens at its new URL when its visibility permits, and has a D1 gallery record. Hidden matches deliberately remain hidden. Review and apply the oldUrls-to-url mapping to static pages/profile data and published CMS records after the actual destinations have been verified. This is a separate controlled step so a dry run or partial import cannot replace working website references.
 
 No real WordPress source, uploads backup, or Cloudflare credentials were available during implementation. Automated tests used temporary local fixtures and mocked authenticated Worker/R2 storage; they are not a live migration.
+
+
+## WordPress XML exports are not uploads backups
+
+The XML produced by WordPress Tools → Export contains attachment metadata and URLs, not the image binaries. Do not set WP_UPLOADS_DIR to an .xml file. Obtain a ZIP/copy of wp-content/uploads from the old hosting file manager, SFTP, or a full-site backup, extract it, and set WP_UPLOADS_DIR to that directory. The directory preflight runs before authentication/inventory requests. An inventory 404 now explicitly points to deploying the updated Worker successfully; 401/403 identifies the Access session/permissions instead.

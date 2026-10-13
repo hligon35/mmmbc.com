@@ -17,8 +17,16 @@ export function originalMediaUrl(media) {
   const source = media.source_url || '';
   return media.media_details?.original_image && source ? new URL(media.media_details.original_image, source).href : source;
 }
-async function readResponse(response, json = false) {
-  if (!response.ok) throw new Error(`Request failed (${response.status}); check source, storage, and authentication.`);
+async function readResponse(response, json = false, context = '') {
+  if (!response.ok) {
+    if (response.status === 404 && context === 'inventory') {
+      throw new Error('The Worker media-import endpoint returned 404. Deploy the latest master successfully before migrating; check the Cloudflare build logs.');
+    }
+    if ([401,403].includes(response.status) && context === 'inventory') {
+      throw new Error('The import endpoint rejected authentication. Use a fresh Cloudflare Access session with photo-management permission.');
+    }
+    throw new Error(`Request failed (${response.status}); check source, storage, and authentication.`);
+  }
   if (json && !response.headers.get('content-type')?.includes('application/json')) throw new Error('Expected JSON; the request may be blocked by Cloudflare Access.');
   return json ? response.json() : Buffer.from(await response.arrayBuffer());
 }
@@ -68,7 +76,20 @@ async function wordpressFiles() {
   throw new Error('MAX_PAGES reached before completing the WordPress inventory; increase it.');
 }
 
+export async function validateLocalSource(value) {
+  const dir = path.resolve(value);
+  let stat;
+  try { stat = await fs.stat(dir); } catch { throw new Error('WP_UPLOADS_DIR does not exist. Set it to the extracted wp-content/uploads folder.'); }
+  if (!stat.isDirectory()) throw new Error('WP_UPLOADS_DIR must be a folder of actual image files. A WordPress .xml export contains references, not the image files; obtain an uploads-folder backup.');
+  return dir;
+}
+
 export async function main() {
+  // Validate the source before network requests so exports cannot masquerade as image backups.
+  const localSource = process.env.WP_UPLOADS_DIR ? await validateLocalSource(process.env.WP_UPLOADS_DIR) : null;
+  if (!localSource) {
+    required('WP_BASE_URL'); required('WP_USERNAME'); required('WP_APP_PASSWORD');
+  }
   const target = origin(required('TARGET_BASE_URL'));
   const token = required('CF_ACCESS_JWT');
   const headers = { 'Cf-Access-Jwt-Assertion': token, Cookie:'CF_Authorization=' + token };
@@ -92,13 +113,13 @@ export async function main() {
     do {
       const url = new URL(endpoint);
       if (cursor) url.searchParams.set('cursor',cursor);
-      const result = await readResponse(await fetch(url,{ headers, redirect:'error', signal:AbortSignal.timeout(30000) }),true);
+      const result = await readResponse(await fetch(url,{ headers, redirect:'error', signal:AbortSignal.timeout(30000) }),true,'inventory');
       inventory.push(...result.objects);
       const next = result.nextCursor || '';
       if (next && next === cursor) throw new Error('Inventory cursor did not advance.');
       cursor = next;
     } while (cursor);
-    let candidates = process.env.WP_UPLOADS_DIR ? await localFiles(path.resolve(process.env.WP_UPLOADS_DIR)) : await wordpressFiles();
+    let candidates = localSource ? await localFiles(localSource) : await wordpressFiles();
     const maximum = Number(process.env.MAX_ITEMS || 0);
     manifest.sourceCount = candidates.length;
     if (maximum > 0) candidates = candidates.slice(0,maximum);
