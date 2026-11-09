@@ -6,7 +6,7 @@ import { generateKeyPair, SignJWT } from 'jose';
 
 import { authenticateAccessRequest, handleMeRequest } from './admin-auth.js';
 import { handleAdminUserSettingsRequest } from './admin-user-settings.js';
-import { PERMISSIONS, permissionsForRole, roleHasPermission } from './admin-rbac.js';
+import { normalizeRole, PERMISSIONS, permissionsForRole, roleHasPermission } from './admin-rbac.js';
 
 const ISSUER = 'https://mmmbc-test.cloudflareaccess.com';
 const AUDIENCE = 'test-access-audience';
@@ -17,7 +17,7 @@ function createD1() {
     id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, role TEXT NOT NULL DEFAULT 'website_editor',
     status TEXT NOT NULL DEFAULT 'invited', invited_by TEXT, invited_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
-  database.exec(readFileSync(new URL('../migrations/admin/0007_add_admin_users_and_audit_log.sql', import.meta.url), 'utf8'));
+  database.exec(readFileSync(new URL('../migrations/0007_add_admin_users_and_audit_log.sql', import.meta.url), 'utf8'));
   return {
     database,
     prepare(sql) {
@@ -87,14 +87,37 @@ async function json(response) {
   return response.json();
 }
 
-test('RBAC matrix grants only the intended finance and user permissions', () => {
+test('RBAC preserves directory access and removes all financial permissions', () => {
   assert.equal(roleHasPermission('administrator', PERMISSIONS.USERS_MANAGE), true);
   assert.equal(roleHasPermission('website_editor', PERMISSIONS.USERS_MANAGE), false);
-  assert.equal(roleHasPermission('treasurer', PERMISSIONS.FINANCE_EDIT_VOID), true);
-  assert.equal(roleHasPermission('finance_entry', PERMISSIONS.FINANCE_EDIT_VOID), false);
-  assert.equal(roleHasPermission('auditor', PERMISSIONS.FINANCE_VIEW), true);
-  assert.equal(roleHasPermission('auditor', PERMISSIONS.FINANCE_RECORD), false);
+  for(const role of ['administrator','website_editor','treasurer','finance_entry','auditor']) assert.equal(permissionsForRole(role).some(p=>p.startsWith('finance.')),false);
+  assert.equal(roleHasPermission('treasurer',PERMISSIONS.DIRECTORY_MANAGE),true);
+  assert.equal(roleHasPermission('finance_entry',PERMISSIONS.DIRECTORY_MANAGE),true);
+  assert.equal(roleHasPermission('auditor',PERMISSIONS.DIRECTORY_MANAGE),false);
   assert.deepEqual(new Set(permissionsForRole('admin')), new Set(permissionsForRole('administrator')));
+  assert.equal(normalizeRole('Master Admin'), 'administrator');
+  assert.equal(normalizeRole('Finance Officer'), 'treasurer');
+  assert.equal(normalizeRole('Site Editor'), 'website_editor');
+});
+
+test('approved administrator roster is seeded with canonical roles', () => {
+  const DB = createD1();
+  DB.database.exec(readFileSync(new URL('../migrations/0008_implement_admin_roster_roles.sql', import.meta.url), 'utf8'));
+  DB.database.exec(readFileSync(new URL('../migrations/0009_sync_admin_roster_roles.sql', import.meta.url), 'utf8'));
+
+  const rows = DB.database.prepare('SELECT email, full_name, role, status FROM admin_users ORDER BY email').all();
+  assert.equal(rows.length, 9);
+  assert.deepEqual(rows.map((row) => [row.email, row.full_name, row.role, row.status]), [
+    ['calvin.cole@att.net', 'Calvin Cole, Jr.', 'website_editor', 'pending'],
+    ['ddstrong40@bellsouth.net', 'Derek Strong', 'website_editor', 'pending'],
+    ['hligon@getsparqd.com', 'Harold Ligon', 'administrator', 'pending'],
+    ['johnburnett313@icloud.com', 'John Burnett', 'administrator', 'pending'],
+    ['lifeisgood35@msn.com', 'Elbert Spears', 'website_editor', 'pending'],
+    ['mrstree1961@gmail.com', 'Marsha Roundtree', 'administrator', 'pending'],
+    ['sfhcrown@yahoo.com', 'Rev. Steve Harvey', 'administrator', 'pending'],
+    ['sheronacrim@yahoo.com', 'Sherona Waldon', 'website_editor', 'pending'],
+    ['stokes9119@bellsouth.net', 'Weldon Stokes', 'treasurer', 'pending']
+  ]);
 });
 
 test('Access authentication verifies JWT crypto and never trusts the email header', async () => {
@@ -126,7 +149,7 @@ test('/api/me returns stored fields, permissions and capabilities and throttles 
   assert.equal(state.user.status, 'active');
   assert.equal(state.user.developer, true);
   assert.equal(state.permissions.includes(PERMISSIONS.USERS_MANAGE), true);
-  assert.equal(state.capabilities.permissions[PERMISSIONS.FINANCE_VIEW], true);
+  assert.equal(state.capabilities.permissions['finance.view'], undefined);
 
   const firstLogin = DB.database.prepare('SELECT last_login_at FROM admin_users WHERE id = ?').get('admin-1').last_login_at;
   assert.ok(firstLogin);

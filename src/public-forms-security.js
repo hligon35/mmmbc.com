@@ -18,10 +18,11 @@ export function honeypotTripped(body, fieldName = 'website') {
 
 export async function verifyTurnstile(env, token, remoteIp) {
   const secret = String(env.TURNSTILE_SECRET_KEY || '').trim();
+  const production = String(env.ENVIRONMENT || '').toLowerCase() === 'production';
+  if (production && (!secret || !String(env.TURNSTILE_SITE_KEY || '').trim())) {
+    return { ok: false, error: 'Form verification is temporarily unavailable.', status: 503 };
+  }
   if (!secret) {
-    if (String(env.ENVIRONMENT || '').toLowerCase() === 'production') {
-      return { ok: false, error: 'Form verification is temporarily unavailable.' };
-    }
     return { ok: true, skipped: true };
   }
   if (!token) return { ok: false, error: 'Please complete the verification challenge.' };
@@ -37,7 +38,31 @@ export async function verifyTurnstile(env, token, remoteIp) {
       body: form
     });
     const data = await res.json().catch(() => ({}));
-    if (!data?.success) return { ok: false, error: 'Verification failed. Please try again.' };
+    if (!data?.success) {
+      const codes = Array.isArray(data?.['error-codes'])
+        ? data['error-codes'].filter((code) => typeof code === 'string').slice(0, 5)
+        : [];
+      // Cloudflare error codes are safe to log; never log the token, secret, or visitor IP.
+      console.warn('Turnstile siteverify failed', { status: res.status, codes });
+      if (codes.includes('invalid-input-secret') || codes.includes('missing-input-secret')) {
+        return { ok: false, error: 'Form verification is temporarily unavailable.', status: 503 };
+      }
+      if (codes.includes('timeout-or-duplicate')) {
+        return { ok: false, error: 'Verification expired or was already used. Please complete it again.', status: 403 };
+      }
+      return { ok: false, error: 'Verification failed. Please try again.', status: 403 };
+    }
+    if (production && env.PUBLIC_SITE_URL) {
+      const hostname = new URL(env.PUBLIC_SITE_URL).hostname.toLowerCase();
+      const tokenHostname = String(data.hostname || '').toLowerCase();
+      // The same Worker serves several explicitly configured origins. Never allow arbitrary hosts.
+      const allowedHosts = new Set([hostname, `www.${hostname}`,
+        ...String(env.TURNSTILE_ALLOWED_HOSTNAMES || '').split(',').map(host => host.trim().toLowerCase()).filter(Boolean)]);
+      if (!allowedHosts.has(tokenHostname)) {
+        console.warn('Turnstile hostname mismatch');
+        return { ok: false, error: 'Verification failed. Please try again.', status: 403 };
+      }
+    }
     return { ok: true };
   } catch {
     // Fail closed on network errors so a Turnstile outage cannot be used to bypass it,

@@ -5,30 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Official website for Mt. Moriah Missionary Baptist Church in Paducah, KY. Worship times, events, ministries, and contact information.">
     <link rel="icon" type="image/png" href="Icons/favicon.png">
-    <link rel="apple-touch-icon" href="Icons/favicon.png">
-    <link rel="stylesheet" href="public-base.css?v=20260730e">
-    <link rel="stylesheet" href="public-components.css?v=20260730d">
-    <link rel="stylesheet" href="schedule_app.css"> <!-- Corrected path -->
-    <link rel="stylesheet" href="public-responsive.css?v=20260730d">
-    <link rel="stylesheet" href="home-layout-updates.css">
+    <link rel="apple-touch-icon" href="Icons/favicon.png"> <!-- Corrected path -->
     <title>Mt. Moriah Missionary Baptist Church</title>
+  <link rel="stylesheet" href="static-style.css?v=20260927h" />
+<link rel="canonical" href="https://mmmbc.com/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Mt. Moriah Missionary Baptist Church">
+<meta property="og:url" content="https://mmmbc.com/">
+<meta property="og:image" content="https://mmmbc.com/ConImg/MtMoriahLogo-1.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta property="og:description" content="Official website for Mt. Moriah Missionary Baptist Church in Paducah, KY. Worship times, events, ministries, and contact information.">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Church", "name": "Mt. Moriah Missionary Baptist Church", "url": "https://mmmbc.com/", "telephone": "+1-270-443-3714", "address": {"@type": "PostalAddress", "streetAddress": "1201 South 8th Street", "addressLocality": "Paducah", "addressRegion": "KY", "postalCode": "42003", "addressCountry": "US"}}</script>
 </head>
 <body class="home">
     <nav class="top-nav">
         <div class="nav-left">
             <img src="ConImg/MtMoriahLogo-1.png" alt="Mt. Moriah Logo" class="nav-logo"> <!-- Corrected path -->
-            <a class="devicon-btn" href="admin/" aria-label="Admin" title="Admin"><span class="devicon-btn__text">&lt;/&gt;</span></a>
+            <a class="devicon-btn" href="admin/" aria-label="Admin" title="Admin"><span class="material-icons-round devicon-btn__text" aria-hidden="true">admin_panel_settings</span></a>
         </div>
         <div class="nav-links" id="navLinks">
             <a href="index.html">Home</a> <!-- Corrected path -->
             <a href="Pages/ministries.html">Ministries</a> <!-- Corrected path -->
-            <a href="Pages/associate_ministers.html">Leadership & Staff</a> <!-- Corrected path -->
+            <a href="Pages/leadership.html">Leadership & Staff</a> <!-- Corrected path -->
             <a href="Pages/church_history.html">Church History</a> <!-- Corrected path -->
             <a href="Pages/facility_rental.html">Facility Rental</a> <!-- Corrected path -->
             <a href="Pages/photo_gallery.html">Photo Gallery</a> <!-- Corrected path -->
             <a href="Pages/live_praise.html">Live Praise</a> <!-- Corrected path -->
             <a href="Pages/contact.html">Contact Us</a> <!-- Corrected path -->
-            <a href="Pages/giving.html">Give</a>
+            <a href="/give">Give</a>
         </div>
         <button aria-label="Toggle navigation menu" aria-controls="navLinks" aria-expanded="false" class="menu-button" id="menuButton" title="Menu" type="button">
             <span></span>
@@ -42,10 +46,9 @@
             <h1>
                 <span class="hero-line">Welcome to</span>
                 <span class="hero-line">Mount Moriah</span>
-                <span class="hero-line">Missionary Baptist</span>
-                <span class="hero-line">Church</span>
+                <span class="hero-line">Missionary Baptist Church</span>
             </h1>
-            <a href="Pages/contact.html#contact-form-section" class="btn-contact" data-cms-field="hero.cta.url" data-cms-type="url" data-cms-attr="href"><span data-cms-field="hero.cta.text" data-cms-type="text">Contact Us</span></a> <!-- Corrected path -->
+            <a href="Pages/contact.html#contact-form-section" class="btn-contact"><span>Contact Us</span></a> <!-- Corrected path -->
 
             <!-- Announcement ticker (links to Admin → Content → Announcements) -->
             <div class="announcement-ticker-wrap" id="announcementTickerWrap" hidden>
@@ -74,11 +77,11 @@
         </div>
     </header>
 
-    <main>
+    <main id="main-content">
         <section id="times">
             <div id="worship-times" class="times-column">
-                <h2 data-cms-field="sections.worship.heading" data-cms-type="text">Worship Times</h2>
-                <div class="days-container" data-cms-collection="worship.schedule" data-cms-schedule> <!-- New wrapper for all day blocks -->
+                <h2>Worship Times</h2>
+                <div class="days-container"> <!-- New wrapper for all day blocks -->
                     <div class="day sunday-schedule"> <!-- MODIFIED: Added sunday-schedule class -->
                         <div class="day-label">
                             <p class="worship-day">Sunday</p>
@@ -138,8 +141,8 @@
             </div>
 
             <div id="ministries" class="times-column">
-                <h2 data-cms-field="sections.ministries.heading" data-cms-type="text">Weekly Ministry Times</h2>
-                <div class="days-container" data-cms-collection="ministries.weeklySchedule" data-cms-schedule>
+                <h2>Weekly Ministry Times</h2>
+                <div class="days-container">
 
                 <!-- Tuesday -->
                 <div class="day">
@@ -328,47 +331,49 @@
             <div class="footer-links-section" id="quick-links">
                 <h4>Quick Links</h4>
                 <ul>
-                    <li><a href="index.html"><img src="Icons/home.png" alt="Home icon" class="link-icon"><span class="link-text">Home</span></a></li>
-                    <li><a href="Pages/ministries.html"><img src="Icons/ministries.png" alt="Ministries icon" class="link-icon"><span class="link-text">Ministries</span></a></li>
-                    <li><a href="Pages/associate_ministers.html"><img src="Icons/leadership.png" alt="Leadership icon" class="link-icon"><span class="link-text">Leadership</span></a></li>
-                    <li><a href="Pages/church_history.html"><img src="Icons/churchhistory.png" alt="Church History icon" class="link-icon"><span class="link-text">Church History</span></a></li>
-                    <li><a href="Pages/giving.html"><img src="Icons/finances.png" alt="Give icon" class="link-icon"><span class="link-text">Give</span></a></li>
-                    <li><a href="Pages/facility_rental.html"><img src="Icons/facilityrental.png" alt="Facility Rental icon" class="link-icon"><span class="link-text">Facility Rental</span></a></li>
-                    <li><a href="Pages/contact.html"><img src="Icons/contactus.png" alt="Contact Us icon" class="link-icon"><span class="link-text">Contact Us</span></a></li>
+                    <li><a href="index.html"><span class="material-icons-round link-icon" aria-hidden="true">home</span><span class="link-text">Home</span></a></li>
+                    <li><a href="Pages/ministries.html"><span class="material-icons-round link-icon" aria-hidden="true">groups</span><span class="link-text">Ministries</span></a></li>
+                    <li><a href="Pages/leadership.html"><span class="material-icons-round link-icon" aria-hidden="true">badge</span><span class="link-text">Leadership</span></a></li>
+                    <li><a href="Pages/church_history.html"><span class="material-icons-round link-icon" aria-hidden="true">history_edu</span><span class="link-text">Church History</span></a></li>
+                    <li><a href="/give"><span class="material-icons-round link-icon" aria-hidden="true">volunteer_activism</span><span class="link-text">Give</span></a></li>
+                    <li><a href="Pages/facility_rental.html"><span class="material-icons-round link-icon" aria-hidden="true">meeting_room</span><span class="link-text">Facility Rental</span></a></li>
+                    <li><a href="Pages/contact.html"><span class="material-icons-round link-icon" aria-hidden="true">contact_mail</span><span class="link-text">Contact Us</span></a></li>
                 </ul>
             </div>
             <div class="footer-links-section" id="connect-us">
                 <h4>Connect With Us</h4>
                 <ul>
-                    <li><a href="https://www.google.com/maps/search/?api=1&query=1201+South+8th+Street+Paducah+KY" target="_blank" rel="noopener noreferrer"><img src="Icons/address.png" alt="Address icon" class="link-icon"><span class="link-text">1201 South 8th Street, Paducah, KY</span></a></li> <!-- Corrected path for icon -->
-                    <li><a href="tel:2704433714"><img src="Icons/phone.png" alt="Phone icon" class="link-icon"><span class="link-text">(270) 443-3714</span></a></li> <!-- Corrected path for icon -->
-                    <li><a href="mailto:mtmoriahmbc1201@gmail.com"><img src="Icons/mailus.png" alt="Email Us icon" class="link-icon"><span class="link-text">Email Us</span></a></li> <!-- Corrected path for icon -->
-                    <li><a href="https://www.facebook.com/MtMoriahPaducah"><img src="Icons/facebook.png" alt="Facebook icon" class="link-icon"><span class="link-text">Like us on Facebook</span></a></li>
-                    <li><a href="https://youtube.com/channel/UCkAaHiYmUKIdKePifg1D2pg"><img src="Icons/youtube.png" alt="YouTube icon" class="link-icon"><span class="link-text">Subscribe on YouTube</span></a></li>
+                    <li><a href="https://www.google.com/maps/search/?api=1&query=1201+South+8th+Street+Paducah+KY" target="_blank" rel="noopener noreferrer"><span class="material-icons-round link-icon" aria-hidden="true">location_on</span><span class="link-text">1201 South 8th Street, Paducah, KY</span></a></li> <!-- Corrected path for icon -->
+                    <li><a href="tel:2704433714"><span class="material-icons-round link-icon" aria-hidden="true">phone</span><span class="link-text">(270) 443-3714</span></a></li> <!-- Corrected path for icon -->
+                    <li><a href="mailto:mtmoriahmbc1201@gmail.com"><span class="material-icons-round link-icon" aria-hidden="true">mail</span><span class="link-text">Email Us</span></a></li> <!-- Corrected path for icon -->
+                    <li><a href="https://www.facebook.com/MtMoriahPaducah"><span class="material-icons-round link-icon" aria-hidden="true">public</span><span class="link-text">Like us on Facebook</span></a></li>
+                    <li><a href="https://youtube.com/channel/UCkAaHiYmUKIdKePifg1D2pg"><span class="material-icons-round link-icon" aria-hidden="true">smart_display</span><span class="link-text">Subscribe on YouTube</span></a></li>
                 </ul>
             </div>
             <div class="footer-links-section" id="newsletter-signup">
                 <h4>Newsletter</h4>
-                <form class="footer-subscribe-form" data-subscriber-form>
-                    <label for="footerSubscriberEmail">Subscriber email</label>
-                    <input class="input" id="footerSubscriberEmail" type="email" list="siteSubscriberOptions" placeholder="you@example.com" required>
+                <form class="footer-subscribe-form" data-subscriber-form data-cloudflare-form>
+                    <div class="subscriber-name-fields">
+                        <label>First name<input type="text" name="firstName" autocomplete="given-name" maxlength="60" required></label>
+                        <label>Last name<input type="text" name="lastName" autocomplete="family-name" maxlength="80" required></label>
+                    </div>
+                    <label class="subscriber-email-field">Email address<input type="email" name="email" autocomplete="email" placeholder="you@example.com" maxlength="254" required></label>
+                    <div class="form-turnstile" data-turnstile-container hidden></div>
                     <button class="btn-contact btn-contact--spaced" type="submit">Join List</button>
-                    <p class="muted" data-subscriber-help>We will open your email app with a pre-filled request.</p>
+                    <p class="muted" data-subscriber-help role="status" aria-live="polite"></p>
                 </form>
             </div>
         </div>
         <div class="footer-copyright-row">
-            <p>Designed by &copy; 2025 Iconiq Dreamscapes</p>
-            <p>&copy; 2025 Mt. Moriah Missionary Baptist Church. All rights reserved.</p>
+            <p>Designed by &copy; 2026 Alpha Zone Labs</p>
+            <p>&copy; 2026 Mt. Moriah Missionary Baptist Church. All rights reserved.</p>
         </div>
     </footer>
 
-    <script src="script.js?v=20260730d"></script> <!-- Corrected path -->
+    <script src="script.js?v=20260928j"></script> <!-- Corrected path -->
     <script src="announcements_ticker.js"></script>
     <script src="bulletins_widget.js"></script>
     <script src="schedule_app.js"></script> <!-- Corrected path -->
-    <script src="site-content-loader.js" defer data-cms-page="home"></script>
 </body>
 </html>
-
 

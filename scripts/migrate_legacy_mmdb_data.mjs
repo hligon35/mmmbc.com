@@ -101,6 +101,4 @@ for (const table of [
   'gallery_items',
   'gallery_preferences',
   'directory_contacts',
-  'finance_donors',
-  'finance_entries'
 ]) copyTable(table);

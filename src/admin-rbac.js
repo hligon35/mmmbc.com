@@ -7,20 +7,19 @@ export const PERMISSIONS = Object.freeze({
   PHOTOS_MANAGE: 'photos.manage',
   NEWSLETTER_VIEW: 'newsletter.view',
   NEWSLETTER_MANAGE: 'newsletter.manage',
-  FINANCE_VIEW: 'finance.view',
-  FINANCE_RECORD: 'finance.record',
-  FINANCE_EDIT_VOID: 'finance.edit_void',
-  FINANCE_REPORTS_RECEIPTS: 'finance.reports_receipts',
-  FINANCE_FUNDS_CATEGORIES: 'finance.funds_categories',
-  FINANCE_EXPORT: 'finance.export',
-  FINANCE_STATEMENTS_CONTROLS: 'finance.statements_controls',
   DIRECTORY_VIEW: 'directory.view',
   DIRECTORY_MANAGE: 'directory.manage',
   SUPPORT_SEND: 'support.send',
   SUBMISSIONS_VIEW: 'submissions.view',
   SUBMISSIONS_MANAGE: 'submissions.manage',
   USERS_MANAGE: 'users.manage',
-  SETTINGS_MANAGE: 'settings.manage'
+  SETTINGS_MANAGE: 'settings.manage',
+  FINANCE_VIEW: 'finance.view',
+  GIVING_SYNC: 'giving.sync',
+  FINANCE_RECORD: 'finance.record',
+  FINANCE_EDIT_VOID: 'finance.edit_void',
+  FINANCE_EXPORT: 'finance.export',
+  FINANCE_MANAGE_LISTS: 'finance.manage_lists'
 });
 
 const WEBSITE_PERMISSIONS = [
@@ -50,20 +49,17 @@ const FINANCE_ENTRY_PERMISSIONS = [
 
 const TREASURER_PERMISSIONS = [
   PERMISSIONS.FINANCE_VIEW,
+  PERMISSIONS.GIVING_SYNC,
   PERMISSIONS.FINANCE_RECORD,
   PERMISSIONS.FINANCE_EDIT_VOID,
-  PERMISSIONS.FINANCE_REPORTS_RECEIPTS,
-  PERMISSIONS.FINANCE_FUNDS_CATEGORIES,
   PERMISSIONS.FINANCE_EXPORT,
-  PERMISSIONS.FINANCE_STATEMENTS_CONTROLS,
+  PERMISSIONS.FINANCE_MANAGE_LISTS,
   PERMISSIONS.DIRECTORY_VIEW,
   PERMISSIONS.DIRECTORY_MANAGE,
   PERMISSIONS.SUPPORT_SEND
 ];
 
 const AUDITOR_PERMISSIONS = [
-  PERMISSIONS.FINANCE_VIEW,
-  PERMISSIONS.FINANCE_REPORTS_RECEIPTS,
   PERMISSIONS.SUPPORT_SEND
 ];
 
@@ -71,31 +67,31 @@ export const ROLES = Object.freeze({
   administrator: Object.freeze({
     key: 'administrator',
     label: 'Administrator',
-    description: 'Full access to website, finance, directory, settings, and administrator management.',
+    description: 'Full access to website, directory, settings, and administrator management.',
     permissions: Object.freeze(Object.values(PERMISSIONS))
   }),
   website_editor: Object.freeze({
     key: 'website_editor',
     label: 'Website Manager',
-    description: 'Manages website content, communications, directory records, and general settings. No finance or administrator management.',
+    description: 'Manages website operations, communications, directory records, and general settings. No administrator management.',
     permissions: Object.freeze(WEBSITE_PERMISSIONS)
   }),
   finance_entry: Object.freeze({
     key: 'finance_entry',
     label: 'Finance Entry',
-    description: 'Views finance, records transactions, maintains donor and contact information, and uses support.',
+    description: 'Records and reviews simple church money entries, maintains directory contacts, and uses support.',
     permissions: Object.freeze(FINANCE_ENTRY_PERMISSIONS)
   }),
   treasurer: Object.freeze({
     key: 'treasurer',
-    label: 'Treasurer',
-    description: 'Broad finance, fund, donor, statement, report, export, and control access. No website or administrator management.',
+    label: 'Finance Officer',
+    description: 'Records and reviews simple church money entries and manages directory contacts. No advanced finance dashboard or administrator management.',
     permissions: Object.freeze(TREASURER_PERMISSIONS)
   }),
   auditor: Object.freeze({
     key: 'auditor',
-    label: 'Auditor',
-    description: 'Read-only finance and report access, plus Help & Support. No create, edit, void, export, approval, or administrator management.',
+    label: 'Support Viewer',
+    description: 'Help and Support access only.',
     permissions: Object.freeze(AUDITOR_PERMISSIONS)
   })
 });
@@ -104,8 +100,9 @@ export const ROLE_KEYS = Object.freeze(Object.keys(ROLES));
 
 export function normalizeRole(value) {
   const role = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
-  if (role === 'admin') return 'administrator';
+  if (role === 'master' || role === 'master_admin' || role === 'master_administrator' || role === 'admin') return 'administrator';
   if (role === 'site_editor' || role === 'editor' || role === 'website_manager') return 'website_editor';
+  if (role === 'finance_officer' || role === 'finance') return 'treasurer';
   return Object.hasOwn(ROLES, role) ? role : '';
 }
 

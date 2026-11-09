@@ -66,7 +66,7 @@ async function parseApiErrorResponse(res) {
 
   const detail = jsonPayload && typeof jsonPayload === 'object'
     ? String(jsonPayload.error || jsonPayload.message || '')
-    : trimmed;
+    : /<\s*(?:!doctype|html|head|body|title)\b/i.test(trimmed) ? '' : trimmed.slice(0, 500);
   const effectiveRequestId = requestId || String(jsonPayload?.requestId || '').trim();
   const message = buildApiErrorMessage(
     res.status,
@@ -101,7 +101,7 @@ function ensureSessionWarningUi() {
       <p class="sessionWarning__message" id="sessionWarningMessage">Your session needs attention.</p>
     </div>
     <div class="sessionWarning__actions">
-      <button class="btn" id="sessionWarningRefreshBtn" type="button">Refresh session</button>
+      <button class="btn actionIconBtn" id="sessionWarningRefreshBtn" type="button" aria-label="Refresh session" title="Refresh session"><span class="material-icons-round" aria-hidden="true">refresh</span></button>
       <button class="btn btn--primary" id="sessionWarningSignInBtn" type="button">Sign in again</button>
     </div>
   `;
@@ -122,7 +122,7 @@ function ensureSessionWarningUi() {
         csrfReady = fetchCsrfToken({ throwOnFailure: true });
         await csrfReady;
         hideSessionWarning();
-        await refreshAuthUI();
+        await initializeSession();
       } catch (err) {
         if (message) message.textContent = err instanceof Error ? err.message : 'Session refresh failed.';
       } finally {
@@ -334,16 +334,80 @@ const APPEARANCE_PREF_KEY = 'mmmbc_admin_appearance_v1';
 const USERS_MANAGE_PERMISSION = 'users.manage';
 const SECTION_PERMISSIONS = Object.freeze({
   'tab-content': 'announcements.view',
+  'tab-ministries': 'settings.manage',
   'tab-events': 'events.view',
   'tab-photos': 'photos.view',
   'tab-newsletter': 'newsletter.view',
   'tab-submissions': 'submissions.view',
-  'tab-finances': 'finance.view',
   'tab-directory': 'directory.view',
   'tab-support': 'support.send',
   'tab-settings': USERS_MANAGE_PERMISSION
 });
+// One route table serves hash links, /admin/<module> deep links, and historical
+// aliases. Events live inside the combined Announcements & Events section.
+const ADMIN_ROUTES = Object.freeze({
+  home: { section: 'tab-home' },
+  overview: { section: 'tab-home' },
+  reports: { section: 'tab-home' },
+  photos: { section: 'tab-photos', subTab: 'panel-photos-manage' },
+  gallery: { section: 'tab-photos', subTab: 'panel-photos-manage' },
+  content: { section: 'tab-content', subTab: 'panel-content-announcements' },
+  announcements: { section: 'tab-content', subTab: 'panel-content-announcements' },
+  events: { section: 'tab-content', subTab: 'panel-content-announcements' },
+  calendar: { section: 'tab-content', subTab: 'panel-content-announcements' },
+  schedule: { section: 'tab-content', subTab: 'panel-content-announcements' },
+  'site-editor': { section: 'tab-content', subTab: 'panel-content-announcements' },
+  bulletins: { section: 'tab-content', subTab: 'panel-content-bulletins' },
+  ministries: { section: 'tab-ministries' },
+  leadership: { section: 'tab-ministries' },
+  profiles: { section: 'tab-ministries' },
+  directory: { section: 'tab-directory' },
+  contacts: { section: 'tab-directory', subTab: 'panel-directory-contacts' },
+  subscribers: { section: 'tab-directory', subTab: 'panel-directory-subscribers' },
+  groups: { section: 'tab-directory', subTab: 'panel-directory-groups' },
+  submissions: { section: 'tab-submissions' },
+  mail: { section: 'tab-submissions' },
+  mailbox: { section: 'tab-submissions' },
+  inbox: { section: 'tab-submissions' },
+  messages: { section: 'tab-submissions' },
+  rentals: { section: 'tab-submissions', typeFilter: 'facility_rental' },
+  newsletter: { section: 'tab-newsletter' },
+  support: { section: 'tab-support' },
+  help: { section: 'tab-support' },
+  settings: { section: 'tab-settings' },
+  access: { section: 'tab-settings' },
+  users: { section: 'tab-settings' }
+});
+const SECTION_ALIASES = Object.freeze({ 'tab-events': 'tab-content' });
+const SECTION_DEFAULT_SUBTABS = Object.freeze({
+  'tab-photos': 'panel-photos-manage',
+  'tab-content': 'panel-content-announcements',
+  'tab-directory': 'panel-directory-contacts'
+});
+const SECTION_REFRESH_MS = 30000;
+
+function resolveAdminRoute(pathname = window.location.pathname, hash = window.location.hash) {
+  const hashKey = String(hash || '').replace(/^#/, '').split(/[/?]/)[0].trim().toLowerCase();
+  const pathKey = (/^\/admin\/([^/]+)/.exec(String(pathname || '')) || [])[1] || '';
+  const key = hashKey || String(pathKey).replace(/\.html$/, '').toLowerCase() || 'home';
+  const route = Object.prototype.hasOwnProperty.call(ADMIN_ROUTES, key) ? ADMIN_ROUTES[key] : ADMIN_ROUTES.home;
+  return { sectionId: route.section, subTabId: route.subTab || '', typeFilter: route.typeFilter || '' };
+}
+
+function canonicalRouteHash(sectionId, subTabId = '', typeFilter = '') {
+  if (sectionId === 'tab-content') return subTabId === 'panel-content-bulletins' ? 'bulletins' : 'announcements';
+  if (sectionId === 'tab-directory') {
+    if (subTabId === 'panel-directory-subscribers') return 'subscribers';
+    if (subTabId === 'panel-directory-groups') return 'groups';
+    return 'directory';
+  }
+  if (sectionId === 'tab-submissions' && typeFilter === 'facility_rental') return 'rentals';
+  return String(sectionId || 'tab-home').replace(/^tab-/, '');
+}
+
 let currentPermissions = new Set();
+let submissionsTypeFilter = 'all';
+let submissionsSearchTimer = 0;
 const UNSAVED_WARNING_TEXT = 'You have unsaved changes. Leave this page without saving them?';
 const NEWSLETTER_BODY_TEMPLATE = [
   'Week of date',
@@ -718,14 +782,29 @@ function applyAppearancePreference(pref) {
       const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
       document.body.classList.toggle('theme-effective-dark', !!prefersDark);
       document.body.classList.toggle('theme-effective-light', !prefersDark);
+      document.documentElement.style.colorScheme = prefersDark ? 'dark' : 'light';
     } catch {
       document.body.classList.remove('theme-effective-dark');
       document.body.classList.add('theme-effective-light');
+      document.documentElement.style.colorScheme = 'light';
     }
   } else {
     document.body.classList.toggle('theme-effective-dark', selected === 'dark');
     document.body.classList.toggle('theme-effective-light', selected === 'light');
+    document.documentElement.style.colorScheme = selected === 'dark' ? 'dark' : 'light';
   }
+
+  syncAppearanceControls(selected);
+}
+
+function syncAppearanceControls(selected) {
+  const mode = (selected === 'dark' || selected === 'system') ? selected : 'light';
+  const select = $('appearanceSelect');
+  if (select) select.value = mode;
+  document.querySelectorAll('[data-appearance-mode]').forEach((button) => {
+    const buttonMode = String(button.getAttribute('data-appearance-mode') || '').toLowerCase();
+    button.setAttribute('aria-pressed', buttonMode === mode ? 'true' : 'false');
+  });
 }
 
 function fileSignature(file) {
@@ -918,7 +997,9 @@ function safeResetForm(e) {
   }
 }
 
-function showToast(message, { variant = 'success', timeoutMs = 3500 } = {}) {
+const TOAST_DEFAULT_MS = 5000;
+
+function showToast(message, { variant = 'success', timeoutMs = TOAST_DEFAULT_MS } = {}) {
   const text = String(message || '').trim();
   if (!text) return;
 
@@ -934,8 +1015,16 @@ function showToast(message, { variant = 'success', timeoutMs = 3500 } = {}) {
 
   const toast = document.createElement('div');
   toast.className = `toast toast--${variant}`;
-  toast.setAttribute('role', 'status');
-  toast.textContent = text;
+  toast.setAttribute('role', variant === 'danger' ? 'alert' : 'status');
+  const label = document.createElement('span');
+  label.className = 'toast__text';
+  label.textContent = text;
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.className = 'toast__dismiss';
+  dismiss.setAttribute('aria-label', 'Dismiss notification');
+  dismiss.textContent = '\u00d7';
+  toast.append(label, dismiss);
   container.appendChild(toast);
 
   // Animate in
@@ -951,8 +1040,16 @@ function showToast(message, { variant = 'success', timeoutMs = 3500 } = {}) {
     }, 220);
   };
 
-  setTimeout(remove, Math.max(500, Number(timeoutMs) || 0));
-  toast.addEventListener('click', remove);
+  let timer = setTimeout(remove, Math.max(500, Number(timeoutMs) || 0));
+  // Hovering or focusing a toast keeps it open so it can be read or dismissed.
+  const hold = () => clearTimeout(timer);
+  const resume = () => { timer = setTimeout(remove, 2000); };
+  toast.addEventListener('mouseenter', hold);
+  toast.addEventListener('mouseleave', resume);
+  toast.addEventListener('focusin', hold);
+  toast.addEventListener('focusout', resume);
+  dismiss.addEventListener('click', remove);
+  toast.addEventListener('click', (event) => { if (event.target === toast || event.target === label) remove(); });
 }
 
 function announceLive(message) {
@@ -1143,17 +1240,20 @@ function getInitials(user) {
 
 function formatUserRoleLabel(roleValue) {
   const role = String(roleValue || '').trim().toLowerCase().replace(/\s+/g, '_');
+  if (role === 'master_admin' || role === 'master') return 'Master Admin';
   if (role === 'administrator' || role === 'admin') return 'Administrator';
+  if (role === 'finance_officer') return 'Finance Officer';
   if (role === 'finance_entry' || role === 'financeentry' || role === 'finance') return 'Finance Entry';
-  if (role === 'treasurer') return 'Treasurer';
-  if (role === 'auditor') return 'Auditor';
+  if (role === 'treasurer') return 'Directory Manager';
+  if (role === 'auditor') return 'Support Viewer';
+  if (role === 'site_editor') return 'Website Manager';
   if (role === 'website_editor' || role === 'editor' || role === 'website') return 'Website Manager';
   return role ? role.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase()) : 'Member';
 }
 
 function isAdministratorRole(roleValue) {
   const role = String(roleValue || '').trim().toLowerCase().replace(/\s+/g, '_');
-  return role === 'administrator' || role === 'admin';
+  return role === 'master_admin' || role === 'administrator' || role === 'admin';
 }
 
 function syncHeaderBreadcrumbs() {
@@ -1220,7 +1320,7 @@ function setTab(activeId) {
     $('tabBtn-photos'),
     $('tabBtn-events'),
     $('tabBtn-content'),
-    $('tabBtn-finances'),
+    $('tabBtn-ministries'),
     $('tabBtn-directory'),
     $('tabBtn-submissions'),
     $('tabBtn-newsletter'),
@@ -1232,7 +1332,7 @@ function setTab(activeId) {
     $('tab-photos'),
     $('tab-events'),
     $('tab-content'),
-    $('tab-finances'),
+    $('tab-ministries'),
     $('tab-directory'),
     $('tab-submissions'),
     $('tab-newsletter'),
@@ -1269,112 +1369,277 @@ function setTab(activeId) {
 
 function updateActiveSectionExtensions() {
   const extension = $('adminSectionExtension');
-  const financeTopBar = $('financeTopBar');
 
-  // Legacy section extension is no longer used for finance header layout.
-  if (financeTopBar) financeTopBar.hidden = true;
   if (extension) extension.hidden = true;
 }
 
-function activateMainSection(sectionId, { subTabId = '' } = {}) {
-  if (!sectionId) return;
+let activeRoute = { sectionId: '', subTabId: '' };
+const sectionScroll = new Map();
+const sectionLoadState = new Map();
+
+function currentSectionLoaders() {
+  const can = (permission) => currentPermissions.has(permission);
+  return {
+    'tab-photos': { run: () => (can('photos.view') ? loadGallery() : null) },
+    'tab-content': {
+      run: () => Promise.all([
+        can('announcements.view') ? loadAnnouncements() : null,
+        can('announcements.view') ? loadBulletins() : null,
+        can('events.view') ? loadEvents() : null
+      ])
+    },
+    'tab-newsletter': {
+      run: () => (can('newsletter.view') ? Promise.all([loadSubscribers(), loadNewsletterRecords()]) : null)
+    },
+    'tab-submissions': { ttl: SECTION_REFRESH_MS, run: () => loadWebsiteSubmissions() },
+    'tab-settings': { ttl: SECTION_REFRESH_MS, run: () => loadSettings() }
+  };
+}
+
+// Loads a section's data once, de-duplicates in-flight work, and refreshes only
+// when the section is stale or explicitly invalidated.
+function ensureSectionData(sectionId, { force = false } = {}) {
+  const loader = currentSectionLoaders()[sectionId];
+  if (!loader) return Promise.resolve();
+  const state = sectionLoadState.get(sectionId) || {};
+  if (state.promise) return state.promise;
+  const fresh = state.at && (loader.ttl === undefined || Date.now() - state.at < loader.ttl);
+  if (!force && fresh) return Promise.resolve();
+  const promise = Promise.resolve()
+    .then(() => loader.run())
+    .then(() => { sectionLoadState.set(sectionId, { at: Date.now() }); })
+    .catch((error) => {
+      sectionLoadState.set(sectionId, { at: 0 });
+      console.error('Admin section failed to load', sectionId, error);
+      const liveRegion = $('adminLiveRegion');
+      if (liveRegion) liveRegion.textContent = 'Some admin data could not be loaded. Other sections remain available.';
+    });
+  sectionLoadState.set(sectionId, { ...state, promise });
+  return promise;
+}
+
+function activateMainSection(sectionId, { subTabId = '', closeDrawer = false, updateHash = true, typeFilter = '' } = {}) {
+  sectionId = SECTION_ALIASES[sectionId] || sectionId;
+  if (!sectionId || !$(sectionId)) return false;
   const requiredPermission = SECTION_PERMISSIONS[sectionId];
   if (requiredPermission && !currentPermissions.has(requiredPermission)) {
     sectionId = 'tab-home';
     subTabId = '';
+    typeFilter = '';
   }
-  const currentPanel = document.querySelector('.tabPanel:not([hidden])');
-  if (currentPanel && currentPanel.id !== sectionId && !confirmUnsavedChanges()) {
-    return;
+  const sectionChanged = activeRoute.sectionId !== sectionId;
+  const nextSubTab = subTabId || (sectionChanged ? (SECTION_DEFAULT_SUBTABS[sectionId] || '') : activeRoute.subTabId);
+  const filterChanged = sectionId === 'tab-submissions' && !!typeFilter && typeFilter !== submissionsTypeFilter;
+
+  if (!sectionChanged && nextSubTab === activeRoute.subTabId && !filterChanged) {
+    if (closeDrawer) closeDrawerAfterNavigation();
+    return true;
+  }
+  if (sectionChanged && activeRoute.sectionId && !window.MMWorkspaceEnabled && !confirmUnsavedChanges()) {
+    syncRouteHash(activeRoute, { replace: true });
+    return false;
   }
 
-  setTab(sectionId);
-  closeDrawerAfterNavigation();
+  if (sectionChanged && activeRoute.sectionId) sectionScroll.set(activeRoute.sectionId, window.scrollY);
+  const previous = activeRoute;
+  activeRoute = { sectionId, subTabId: nextSubTab };
 
-  if (sectionId === 'tab-content' && subTabId) {
-    setContentSubTab(subTabId);
-  }
-  if (sectionId === 'tab-photos') {
-    setPhotosSubTab(subTabId || 'panel-photos-manage');
-  }
-  if (sectionId === 'tab-finances') {
-    setFinanceSubTab(subTabId || 'panel-finances-record');
-  }
-  if (sectionId === 'tab-directory') {
-    setDirectorySubTab(subTabId || 'panel-directory-contacts');
-  }
-  if (sectionId === 'tab-settings') {
-    loadSettings().catch(() => {});
+  if (sectionChanged) setTab(sectionId);
+  if (closeDrawer) closeDrawerAfterNavigation();
+
+  if (sectionId === 'tab-content') setContentSubTab(nextSubTab);
+  if (sectionId === 'tab-photos') setPhotosSubTab(nextSubTab);
+  if (sectionId === 'tab-directory') setDirectorySubTab(nextSubTab);
+  if (filterChanged) {
+    submissionsTypeFilter = typeFilter;
+    sectionLoadState.delete('tab-submissions');
   }
 
-  const hashMap = {
-    'tab-home': 'home',
-    'tab-photos': 'photos',
-    'tab-events': 'events',
-    'tab-content': subTabId === 'panel-content-bulletins' ? 'bulletins' : 'announcements',
-    'tab-finances': 'finances',
-    'tab-directory': 'directory',
-    'tab-submissions': 'submissions',
-    'tab-newsletter': 'newsletter',
-    'tab-support': 'support',
-    'tab-settings': 'settings'
-  };
-  const nextHash = hashMap[sectionId];
-  if (nextHash) {
-    try { window.location.hash = nextHash; } catch { /* ignore */ }
-  }
+  if (updateHash) syncRouteHash(activeRoute, { typeFilter });
 
   syncHeaderBreadcrumbs();
   syncHeaderContextDescription();
   queueHeaderNavLayoutSync();
 
+  if (sectionChanged) {
+    const scrollTop = sectionScroll.get(sectionId) || 0;
+    window.requestAnimationFrame(() => window.scrollTo(0, scrollTop));
+  }
+
+  ensureSectionData(sectionId);
+
   try {
     window.dispatchEvent(new CustomEvent('admin:section-activated', {
-      detail: { sectionId, subTabId: subTabId || '' }
+      detail: { sectionId, subTabId: nextSubTab, previousSectionId: previous.sectionId }
     }));
+    if (sectionId === 'tab-home' && sectionChanged) window.dispatchEvent(new CustomEvent('admin:home-activated'));
   } catch {
     // ignore custom-event dispatch failures
   }
+  return true;
+}
 
-  if (sectionId === 'tab-home') {
-    try {
-      window.dispatchEvent(new CustomEvent('admin:home-activated'));
-    } catch {
-      // ignore dashboard refresh signaling failures
-    }
+function syncRouteHash(route, { replace = false, typeFilter = submissionsTypeFilter === 'facility_rental' ? 'facility_rental' : '' } = {}) {
+  if (window.MMWorkspaceEnabled) return;
+  const hash = '#' + canonicalRouteHash(route.sectionId, route.subTabId, typeFilter);
+  if (window.location.hash === hash) return;
+  try {
+    const url = window.location.pathname + window.location.search + hash;
+    window.history[replace ? 'replaceState' : 'pushState'](null, '', url);
+  } catch { /* ignore history failures */ }
+}
+
+// Applies the URL (hash, then /admin/<module> path) without any session or data
+// side effects beyond the lazily loaded section.
+function applyHashNavigation({ updateHash = false } = {}) {
+  if (window.MMWorkspaceEnabled) return;
+  const route = resolveAdminRoute();
+  const activated = activateMainSection(route.sectionId, {
+    subTabId: route.subTabId,
+    typeFilter: route.typeFilter,
+    updateHash
+  });
+  if (activated) {
+    const effective = activeRoute;
+    syncRouteHash(effective, { replace: true, typeFilter: route.typeFilter });
   }
 }
 
-async function loadWebsiteSubmissions() {
-  const body = $('submissionsTableBody');
-  if (!body) return;
-  body.innerHTML = '<tr><td colspan="6" class="muted">Loading…</td></tr>';
-  const q = String($('submissionsSearch')?.value || '').trim();
-  const archived = $('submissionsShowArchived')?.checked ? '&archived=true' : '';
-  try {
-    const data = await api(`/api/submissions?q=${encodeURIComponent(q)}${archived}`);
-    const rows = data?.submissions || [];
-    body.innerHTML = rows.length ? rows.map((row) => {
-      const unread = !row.read_at;
-      const type = row.type === 'facility_rental' ? 'Facility rental' : 'Contact';
-      return `<tr class="${unread ? 'isUnread' : ''}"><td>${unread ? '<strong>Unread</strong>' : 'Read'}</td><td>${escapeHtml(type)}</td><td>${escapeHtml(row.sender_name || '')}<br><span class="muted">${escapeHtml(row.sender_email || '')}</span></td><td>${escapeHtml(row.subject || '')}</td><td>${escapeHtml(new Date(row.created_at).toLocaleString())}</td><td><button class="btn btn--small" data-submission-open="${escapeHtml(row.id)}" data-submission-type="${escapeHtml(row.type)}">Open</button> <button class="btn btn--small" data-submission-archive="${escapeHtml(row.id)}" data-submission-type="${escapeHtml(row.type)}">${row.archived_at ? 'Restore' : 'Archive'}</button></td></tr>`;
-    }).join('') : '<tr><td colspan="6" class="muted">No website submissions found.</td></tr>';
-    body.querySelectorAll('[data-submission-open]').forEach((button) => button.addEventListener('click', () => openWebsiteSubmission(button.dataset.submissionOpen, button.dataset.submissionType, rows)));
-    body.querySelectorAll('[data-submission-archive]').forEach((button) => button.addEventListener('click', async () => { await api(`/api/submissions/${encodeURIComponent(button.dataset.submissionArchive)}`, { method: 'PATCH', body: JSON.stringify({ type: button.dataset.submissionType, action: button.textContent.trim() === 'Restore' ? 'restore' : 'archive' }) }); await loadWebsiteSubmissions(); }));
-  } catch (error) { body.innerHTML = `<tr><td colspan="6" class="errorText">${escapeHtml(error.message || 'Unable to load submissions.')}</td></tr>`; }
+const SUBMISSIONS_PAGE_SIZE = 25;
+let submissionsOffset = 0;
+let submissionsRequestSeq = 0;
+let submissionsAbort = null;
+
+function submissionRowHtml(row) {
+  const unread = !row.read_at;
+  const type = submissionTypeLabel(row.type);
+  const sender = escapeHtml(row.sender_name || 'sender');
+  const deleteButton = currentPermissions.has('submissions.manage')
+    ? `<button class="btn btn--danger actionIconBtn" type="button" data-submission-delete="${escapeHtml(row.id)}" data-submission-type="${escapeHtml(row.type)}" aria-label="Delete message from ${sender}" title="Delete message permanently"><span class="material-icons-round" aria-hidden="true">delete</span></button>` : '';
+  return `<tr class="${unread ? 'isUnread' : ''}"><td>${unread ? '<strong>Unread</strong>' : 'Read'}</td><td>${escapeHtml(type)}</td><td>${escapeHtml(row.sender_name || '')}<br><span class="muted">${escapeHtml(row.sender_email || '')}</span></td><td>${escapeHtml(row.subject || '')}</td><td>${escapeHtml(new Date(row.created_at).toLocaleString())}</td><td><div class="submissionActions"><button class="btn actionIconBtn" type="button" data-submission-open="${escapeHtml(row.id)}" data-submission-type="${escapeHtml(row.type)}" aria-label="Open message from ${sender}" title="Open message"><span class="material-icons-round" aria-hidden="true">visibility</span></button>${deleteButton}</div></td></tr>`;
 }
 
-async function openWebsiteSubmission(id, type, rows) {
-  const row = rows.find((item) => item.id === id && item.type === type);
+function updateSubmissionsPager(total, shown) {
+  const info = $('submissionsPageInfo');
+  const prev = $('submissionsPrevBtn');
+  const next = $('submissionsNextBtn');
+  if (info) {
+    info.textContent = total
+      ? `${submissionsOffset + 1}\u2013${submissionsOffset + shown} of ${total}`
+      : '0 messages';
+  }
+  if (prev) prev.disabled = submissionsOffset <= 0;
+  if (next) next.disabled = submissionsOffset + shown >= total;
+}
+
+// Server-side filtering and paging. A newer request cancels and supersedes older ones.
+async function loadWebsiteSubmissions({ resetPage = false } = {}) {
+  const body = $('submissionsTableBody');
+  if (!body) return;
+  if (resetPage) submissionsOffset = 0;
+  if (submissionsAbort) submissionsAbort.abort();
+  const controller = new AbortController();
+  submissionsAbort = controller;
+  const sequence = ++submissionsRequestSeq;
+  body.setAttribute('aria-busy', 'true');
+  if (!body.querySelector('[data-submission-open]')) body.innerHTML = '<tr><td colspan="6" class="muted">Loading…</td></tr>';
+  const params = new URLSearchParams({
+    q: String($('submissionsSearch')?.value || '').trim(),
+    type: submissionsTypeFilter,
+    limit: String(SUBMISSIONS_PAGE_SIZE),
+    offset: String(submissionsOffset)
+  });
+  try {
+    const data = await api(`/api/submissions?${params}`, { signal: controller.signal });
+    if (sequence !== submissionsRequestSeq) return;
+    const rows = data?.submissions || [];
+    const total = Number(data?.total) || 0;
+    if (!rows.length && submissionsOffset > 0 && total > 0) {
+      submissionsOffset = Math.floor((total - 1) / SUBMISSIONS_PAGE_SIZE) * SUBMISSIONS_PAGE_SIZE;
+      return loadWebsiteSubmissions();
+    }
+    updateSubmissionTypeFilters(data?.counts);
+    updateSubmissionsPager(total, rows.length);
+    body.innerHTML = rows.length ? rows.map(submissionRowHtml).join('') : `<tr><td colspan="6" class="muted">No ${escapeHtml(submissionsTypeFilter === 'all' ? 'website submissions' : submissionTypeLabel(submissionsTypeFilter).toLowerCase() + ' messages')} found.</td></tr>`;
+    body.querySelectorAll('[data-submission-open]').forEach((button) => button.addEventListener('click', () => openWebsiteSubmission(button.dataset.submissionOpen, button.dataset.submissionType, button).catch((error) => showToast(error.message || 'Unable to open this message.', { variant: 'danger' }))));
+    body.querySelectorAll('[data-submission-delete]').forEach((button) => button.addEventListener('click', async () => {
+      const row = rows.find((item) => item.id === button.dataset.submissionDelete && item.type === button.dataset.submissionType);
+      if (!row || !confirmWrite(`Permanently delete the ${submissionTypeLabel(row.type).toLowerCase()} message from ${row.sender_name || row.sender_email || 'this sender'}? This cannot be undone.`)) return;
+      button.disabled = true;
+      try {
+        await api(`/api/submissions/${encodeURIComponent(row.id)}?type=${encodeURIComponent(row.type)}`, { method: 'DELETE' });
+        if ($('submissionDialog')?.dataset.submissionId === row.id) closeSubmissionDialog();
+        else await loadWebsiteSubmissions();
+      } catch (error) {
+        button.disabled = false;
+        showToast(error.message || 'Unable to delete this message.', { variant: 'danger' });
+      }
+    }));
+  } catch (error) {
+    if (error?.name === 'AbortError' || sequence !== submissionsRequestSeq) return;
+    updateSubmissionsPager(0, 0);
+    body.innerHTML = `<tr><td colspan="6" class="errorText">${escapeHtml(error.message || 'Unable to load submissions.')}</td></tr>`;
+  } finally {
+    if (sequence === submissionsRequestSeq) body.removeAttribute('aria-busy');
+  }
+}
+
+function submissionTypeLabel(type) {
+  return String(type || '').toLowerCase() === 'facility_rental' ? 'Facility Rental' : 'Contact';
+}
+
+function updateSubmissionTypeFilters(counts) {
+  const badgeMap = {
+    all: $('submissionsTypeCountAll'),
+    contact: $('submissionsTypeCountContact'),
+    facility_rental: $('submissionsTypeCountFacility')
+  };
+  if (counts) {
+    Object.entries(badgeMap).forEach(([type, badge]) => {
+      if (badge) badge.textContent = String(Number(counts[type]) || 0);
+    });
+  }
+
+  document.querySelectorAll('[data-submission-type-filter]').forEach((chip) => {
+    const type = String(chip.getAttribute('data-submission-type-filter') || 'all').toLowerCase();
+    chip.setAttribute('aria-pressed', type === submissionsTypeFilter ? 'true' : 'false');
+  });
+}
+
+function closeSubmissionDialog() {
+  const dialog = $('submissionDialog');
+  if (!dialog?.open) return;
+  if (typeof dialog.close === 'function' && dialog.open) dialog.close();
+  else { dialog.removeAttribute('open'); dialog.dispatchEvent(new Event('close')); }
+  dialog.dataset.submissionId = '';
+}
+
+async function openWebsiteSubmission(id, type, trigger) {
+  const row = (await api(`/api/submissions/${encodeURIComponent(id)}?type=${encodeURIComponent(type)}`))?.submission;
   if (!row) return;
-  await api(`/api/submissions/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ type, action: 'read' }) });
+  if (currentPermissions.has('submissions.manage') && !row.read_at) {
+    await api(`/api/submissions/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ type, action: 'read' }) });
+  }
+  const dialog = $('submissionDialog');
   const detail = $('submissionDetail');
-  if (!detail) return;
+  if (!detail || !dialog) return;
   let content = row.body || '';
   if (type === 'facility_rental') { try { content = JSON.stringify(JSON.parse(content), null, 2); } catch { /* retain raw */ } }
-  detail.hidden = false;
-  detail.innerHTML = `<h3>${escapeHtml(row.subject || 'Website submission')}</h3><p><strong>From:</strong> ${escapeHtml(row.sender_name || '')} &lt;${escapeHtml(row.sender_email || '')}&gt;</p><pre class="submissionBody">${escapeHtml(content)}</pre>`;
-  await loadWebsiteSubmissions();
+  dialog.dataset.submissionId = id;
+  dialog._returnFocus = trigger;
+  const contactDetails = [
+    row.sender_phone ? `<strong>Phone:</strong> ${escapeHtml(row.sender_phone)}` : '',
+    row.sender_address ? `<strong>Address:</strong> ${escapeHtml(row.sender_address)}` : ''
+  ].filter(Boolean).join('<br>');
+  const replyStatus = String(row.auto_reply_status || 'unknown').toLowerCase();
+  const replyLabel = { sent: 'Accepted by email provider', failed: 'Failed', pending: 'Pending', skipped_demo: 'Skipped for demo' }[replyStatus] || 'Unknown';
+  const replyClass = replyStatus === 'sent' ? 'submissionDelivery--ok' : replyStatus === 'failed' ? 'submissionDelivery--error' : 'submissionDelivery--pending';
+  const replyError = replyStatus === 'failed' && row.auto_reply_error
+    ? `<p class="submissionDelivery submissionDelivery--error"><strong>Email error:</strong> ${escapeHtml(row.auto_reply_error)}</p>` : '';
+  $('submissionDialogTitle').textContent = row.subject || 'Website message';
+  detail.innerHTML = `<p><strong>From:</strong> ${escapeHtml(row.sender_name || '')} &lt;${escapeHtml(row.sender_email || '')}&gt;</p>${contactDetails ? `<p>${contactDetails}</p>` : ''}<p><strong>Auto-reply:</strong> <span class="submissionDelivery ${replyClass}">${escapeHtml(replyLabel)}</span></p>${replyError}<pre class="submissionBody">${escapeHtml(content)}</pre>`;
+  if (typeof dialog.showModal === 'function') dialog.showModal();
+  else dialog.setAttribute('open', '');
 }
 
 function applyPermissionVisibility(loggedIn) {
@@ -1392,6 +1657,10 @@ function applyPermissionVisibility(loggedIn) {
   }
 }
 
+let sessionInitialized = false;
+let sessionInitPromise = null;
+
+// Refreshes identity, permissions, and header state only. It never reloads data.
 async function refreshAuthUI() {
   let me = { user: null };
   try {
@@ -1402,7 +1671,7 @@ async function refreshAuthUI() {
   const loggedIn = !!me.user;
   if (!loggedIn) {
     showSessionWarning('Cloudflare Access did not provide an administrator session. Confirm that the Access policy protects /api/*, then refresh this page.');
-    return;
+    return false;
   }
   currentPermissions = new Set(Array.isArray(me.permissions) ? me.permissions.map(String) : []);
   if (loggedIn && isAdministratorRole(me?.user?.role)) currentPermissions.add(USERS_MANAGE_PERMISSION);
@@ -1425,9 +1694,19 @@ async function refreshAuthUI() {
 
   const nameOrEmail = String(me?.user?.name || me?.user?.email || '').trim();
   const roleLabel = formatUserRoleLabel(me?.user?.role);
-  $('authStatus').textContent = loggedIn
-    ? `Signed in as ${nameOrEmail || String(me.user.email || '').trim()}`
-    : '';
+  const authStatus = $('authStatus');
+  if (authStatus) {
+    authStatus.replaceChildren();
+    if (loggedIn) {
+      const label = document.createElement('span');
+      label.className = 'headerSignedIn__label';
+      label.textContent = 'Signed in as';
+      const name = document.createElement('span');
+      name.className = 'headerSignedIn__name';
+      name.textContent = nameOrEmail || String(me.user.email || '').trim();
+      authStatus.append(label, name);
+    }
+  }
 
   if (loggedIn) {
     const nowHour = new Date().getHours();
@@ -1439,24 +1718,36 @@ async function refreshAuthUI() {
     if (avatarText) avatarText.textContent = getInitials(me.user);
   }
 
-  if (loggedIn) {
-    csrfReady = fetchCsrfToken();
-    await csrfReady;
-    await loadAll();
-    if (canViewDiagnostics) {
-      await loadAdminStorageHealth();
-    }
-    applyHashNavigation();
-    setAdminDrawerOpen(getStoredDrawerPreference(), { restoreFocus: false });
-    resetAllUnsavedBaselines();
-  } else {
-    setAdminDrawerOpen(false, { restoreFocus: false });
-  }
-
   syncHeaderBreadcrumbs();
   syncHeaderContextDescription();
   queueHeaderNavLayoutSync();
   updateLayoutMetrics();
+  return { me, canViewDiagnostics };
+}
+
+// One-time startup: identity, CSRF, diagnostics, and the initial route's section.
+function initializeSession() {
+  if (sessionInitPromise) return sessionInitPromise;
+  sessionInitPromise = (async () => {
+    const result = await refreshAuthUI();
+    if (!result) {
+      setAdminDrawerOpen(false, { restoreFocus: false });
+      return;
+    }
+    if (sessionInitialized) return;
+    csrfReady = fetchCsrfToken();
+    await csrfReady;
+    if (window.MMWorkspaceEnabled) {
+      window.MMWorkspaceSession = result.me;
+      window.dispatchEvent(new CustomEvent('admin:authenticated', { detail: result.me }));
+    }
+    sessionInitialized = true;
+    setAdminDrawerOpen(getStoredDrawerPreference(), { restoreFocus: false });
+    applyHashNavigation({ updateHash: false });
+    resetAllUnsavedBaselines();
+    if (result.canViewDiagnostics) loadAdminStorageHealth().catch(() => {});
+  })().finally(() => { sessionInitPromise = null; });
+  return sessionInitPromise;
 }
 
 function formatDate(iso) {
@@ -1465,1555 +1756,6 @@ function formatDate(iso) {
 
 function normalizeHash() {
   return String(window.location.hash || '').replace(/^#/, '').trim().toLowerCase();
-}
-
-function applyHashNavigation() {
-  const h = normalizeHash();
-  if (!h) {
-    activateMainSection('tab-home');
-    return;
-  }
-
-  if (h === 'home') activateMainSection('tab-home');
-  if (h === 'photos') activateMainSection('tab-photos', { subTabId: 'panel-photos-manage' });
-  if (h === 'events') activateMainSection('tab-events');
-  if (h === 'content') {
-    activateMainSection('tab-content', { subTabId: 'panel-content-announcements' });
-  }
-  if (h === 'finances' || h === 'finance') activateMainSection('tab-finances');
-  if (h === 'directory') activateMainSection('tab-directory', { subTabId: 'panel-directory-contacts' });
-  if (h === 'submissions') activateMainSection('tab-submissions');
-  if (h === 'newsletter') activateMainSection('tab-newsletter');
-  if (h === 'support') activateMainSection('tab-support');
-  if (h === 'settings') activateMainSection('tab-settings');
-
-  if (h === 'announcements') {
-    activateMainSection('tab-content', { subTabId: 'panel-content-announcements' });
-  }
-
-  if (h === 'bulletins') {
-    activateMainSection('tab-content', { subTabId: 'panel-content-bulletins' });
-  }
-}
-
-// -------- Finances --------
-let finances = { entries: [], meta: { categories: [], funds: [] } };
-// Real, registered church funds (from /api/finances/funds) — the source of truth the
-// server validates against when saving an entry. Distinct from the legacy free-text
-// `finances.meta.funds` name list used only for filter-dropdown history.
-let financeFundsRegistry = [];
-let financeQuickKind = '';
-let financeGivingPeriod = 'week';
-
-async function loadFinanceFundsRegistry() {
-  try {
-    const res = await api('/api/finances/funds', { method: 'GET' });
-    financeFundsRegistry = Array.isArray(res?.funds) ? res.funds : [];
-  } catch {
-    financeFundsRegistry = [];
-  }
-}
-
-function financeActiveFunds() {
-  return (Array.isArray(financeFundsRegistry) ? financeFundsRegistry : [])
-    .filter((f) => f?.active !== false)
-    .slice()
-    .sort((a, b) => String(a?.fundName || '').localeCompare(String(b?.fundName || '')));
-}
-
-function financeFundNameById(id) {
-  const key = String(id || '').trim();
-  if (!key) return '';
-  const match = (Array.isArray(financeFundsRegistry) ? financeFundsRegistry : []).find((f) => String(f?.id || '') === key);
-  return match ? String(match.fundName || '') : '';
-}
-
-function formatMoneyCents(cents) {
-  const n = Number(cents || 0) / 100;
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
-}
-
-function setFinanceHint(text) {
-  const el = $('financeHint');
-  if (!el) return;
-  el.textContent = String(text || '');
-}
-
-function setFinanceExportHint(text) {
-  const el = $('financeExportHint');
-  if (!el) return;
-  el.textContent = String(text || '');
-}
-
-function financeSelectedTypes() {
-  const incomeEl = $('financeTypeIncome');
-  const expenseEl = $('financeTypeExpense');
-
-  // Backward compatible: fall back to the legacy single-select if the new checkboxes aren't present.
-  if (!incomeEl && !expenseEl) {
-    const legacy = $('financeTypeFilter');
-    const t = String(legacy?.value || '').trim();
-    return t ? [t] : [];
-  }
-
-  const types = [];
-  if (incomeEl?.checked) types.push('income');
-  if (expenseEl?.checked) types.push('expense');
-
-  // If none or both are selected, treat it as "All".
-  if (types.length === 0 || types.length === 2) return [];
-  return types;
-}
-
-function financeNormalizeKey(value) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function financeDetectKindFromEntry(entry) {
-  const t = financeNormalizeKey(entry?.type);
-  if (t === 'expense') return 'expense';
-  if (t === 'income') {
-    const cat = financeNormalizeKey(entry?.category);
-    if (cat.includes('tithe')) return 'tithes';
-    if (cat.includes('offering')) return 'offerings';
-    return 'income';
-  }
-  return 'income';
-}
-
-function financeApplyKindToForm(kind) {
-  const typeEl = $('financeType');
-  if (typeEl) typeEl.value = (kind === 'expense') ? 'expense' : 'income';
-
-  const dateLabel = $('financeDateLabelText');
-  if (dateLabel) dateLabel.textContent = (kind === 'expense') ? 'Date paid' : 'Date received';
-
-  const catLabel = $('financeCategoryLabelText');
-  if (catLabel) catLabel.textContent = (kind === 'expense') ? 'What was the expense for?' : 'What kind of giving?';
-
-  const catHint = $('financeCategoryHint');
-  if (catHint) {
-    catHint.textContent = (kind === 'expense')
-      ? 'Choose what the payment was for.'
-      : 'Choose what the money was received for.';
-  }
-
-  const fundLabel = $('financeFundLabelText');
-  if (fundLabel) fundLabel.textContent = 'Which church fund?';
-
-  const partyLabel = $('financePartyLabel');
-  const partyInput = $('financeParty');
-  if (partyLabel) partyLabel.textContent = (kind === 'expense') ? 'Paid To' : 'Received From (optional)';
-  if (partyInput instanceof HTMLInputElement) {
-    partyInput.required = false; // Validated explicitly in the wizard step logic instead of native required.
-  }
-
-  const question = $('financeDirectionQuestion');
-  if (question) question.textContent = 'What are you recording?';
-
-  const incomeBtn = $('financeChoiceIncomeBtn');
-  const expenseBtn = $('financeChoiceExpenseBtn');
-  if (incomeBtn) incomeBtn.setAttribute('aria-pressed', kind === 'expense' ? 'false' : 'true');
-  if (expenseBtn) expenseBtn.setAttribute('aria-pressed', kind === 'expense' ? 'true' : 'false');
-}
-
-function financeSetQuickKind(kind, { render = true, toggle = false } = {}) {
-  const requested = financeNormalizeKey(kind);
-  if (!requested) return;
-  // Clicking the already-active filter turns it off (shows all again).
-  financeQuickKind = (toggle && financeQuickKind === requested) ? '' : requested;
-
-  // Sync the Money Received / Money Spent filter buttons in Review Transactions.
-  const tabs = $('financeQuickTabs');
-  if (tabs) {
-    const btns = Array.from(tabs.querySelectorAll('[data-fin-kind]'));
-    for (const b of btns) {
-      const v = String(b.getAttribute('data-fin-kind') || '');
-      b.setAttribute('aria-pressed', v === financeQuickKind ? 'true' : 'false');
-    }
-  }
-
-  // Sync the type checkboxes in the filter menu.
-  const incomeCb = $('financeTypeIncome');
-  const expenseCb = $('financeTypeExpense');
-  if (incomeCb instanceof HTMLInputElement && expenseCb instanceof HTMLInputElement) {
-    if (financeQuickKind === 'expense') {
-      incomeCb.checked = false;
-      expenseCb.checked = true;
-    } else if (financeQuickKind === 'income') {
-      incomeCb.checked = true;
-      expenseCb.checked = false;
-    } else {
-      incomeCb.checked = true;
-      expenseCb.checked = true;
-    }
-  }
-
-  if (render) renderFinances();
-}
-
-function financeClearQuickKind({ render = true } = {}) {
-  financeQuickKind = '';
-
-  const tabs = $('financeQuickTabs');
-  if (tabs) {
-    for (const btn of tabs.querySelectorAll('[data-fin-kind]')) {
-      btn.setAttribute('aria-pressed', 'false');
-    }
-  }
-
-  const incomeCb = $('financeTypeIncome');
-  const expenseCb = $('financeTypeExpense');
-  if (incomeCb instanceof HTMLInputElement) incomeCb.checked = true;
-  if (expenseCb instanceof HTMLInputElement) expenseCb.checked = true;
-
-  if (render) renderFinances();
-}
-
-function financeDateRangeSelection() {
-  const checked = document.querySelector('input[name="financeDateRange"]:checked');
-  const value = String(checked?.value || '').trim().toLowerCase();
-  if (value === '7' || value === '30' || value === '90' || value === 'custom' || value === 'all') return value;
-  return 'all';
-}
-
-function financeCustomRangeValidation() {
-  const from = String($('financeFrom')?.value || '').trim();
-  const to = String($('financeTo')?.value || '').trim();
-  if (!from || !to) {
-    return { ok: false, from, to, message: 'Choose both From and To dates.' };
-  }
-  if (from > to) {
-    return { ok: false, from, to, message: 'From date cannot be after To date.' };
-  }
-  return { ok: true, from, to, message: '' };
-}
-
-function financeRangeFromSelection(selection) {
-  const sel = String(selection || 'all').trim().toLowerCase();
-  if (sel === 'custom') {
-    const check = financeCustomRangeValidation();
-    return {
-      from: check.ok ? check.from : '',
-      to: check.ok ? check.to : '',
-      rangeError: check.ok ? '' : check.message
-    };
-  }
-  if (sel === '7' || sel === '30' || sel === '90') {
-    const days = Number(sel);
-    const to = isoDateToday();
-    const from = addDaysToIsoDate(to, -(days - 1));
-    return { from, to, rangeError: '' };
-  }
-  return { from: '', to: '', rangeError: '' };
-}
-
-function financeDateRangeLabel(filters) {
-  const selection = String(filters?.dateRange || 'all');
-  if (selection === '7') return 'Last 7 days (inclusive)';
-  if (selection === '30') return 'Last 30 days (inclusive)';
-  if (selection === '90') return 'Last 90 days (inclusive)';
-  if (selection === 'custom') {
-    if (filters?.from && filters?.to) return `Custom: ${filters.from} to ${filters.to} (To date inclusive)`;
-    return 'Custom date range';
-  }
-  return 'All dates';
-}
-
-function financeRenderFilterSummary(filters, rowCount) {
-  const el = $('financeFilterSummary');
-  if (!el) return;
-
-  const types = Array.isArray(filters?.types) ? filters.types : [];
-  let kindPhrase = 'all transactions';
-  if (types.length === 1 && types[0] === 'income') kindPhrase = 'Money Received';
-  else if (types.length === 1 && types[0] === 'expense') kindPhrase = 'Money Spent';
-
-  const selection = String(filters?.dateRange || 'all');
-  let rangePhrase = 'all dates';
-  if (selection === '7') rangePhrase = 'the last 7 days';
-  else if (selection === '30') rangePhrase = 'the last 30 days';
-  else if (selection === '90') rangePhrase = 'the last 90 days';
-  else if (selection === 'custom' && filters?.from && filters?.to) rangePhrase = `${filters.from} to ${filters.to}`;
-
-  const extra = [];
-  if (filters?.category) extra.push(`category "${filters.category}"`);
-  if (filters?.fund) extra.push(`fund "${filters.fund}"`);
-  if (filters?.method) extra.push(`payment method "${financeMethodLabel(filters.method)}"`);
-  const searchText = String(filters?.search || '').trim();
-  if (searchText) extra.push(`search "${searchText}"`);
-  const extraPhrase = extra.length ? `, filtered by ${extra.join(', ')}` : '';
-
-  const countText = Number.isFinite(Number(rowCount)) ? ` (${rowCount} matching)` : '';
-  el.textContent = `Showing ${kindPhrase} from ${rangePhrase}${extraPhrase}${countText}.`;
-}
-
-function financeCurrentFilters() {
-  const selectedTypes = financeSelectedTypes();
-  const dateRange = financeDateRangeSelection();
-  const range = financeRangeFromSelection(dateRange);
-  return {
-    from: range.from,
-    to: range.to,
-    dateRange,
-    rangeError: range.rangeError,
-    type: String($('financeTypeFilter')?.value || ''),
-    types: selectedTypes,
-    kind: String(financeQuickKind || ''),
-    search: String($('financeSearch')?.value || '').trim().toLowerCase(),
-    category: String($('financeFilterCategory')?.value || '').trim(),
-    fund: String($('financeFilterFund')?.value || '').trim(),
-    method: String($('financeFilterMethod')?.value || '').trim()
-  };
-}
-
-function setFinanceRangePreset(days) {
-  const fromEl = $('financeFrom');
-  const toEl = $('financeTo');
-  if (!fromEl || !toEl) return;
-
-  const d = Number(days);
-  if (!Number.isFinite(d) || d <= 0) return;
-
-  const to = isoDateToday();
-  const from = addDaysToIsoDate(to, -(d - 1));
-  fromEl.value = from;
-  toEl.value = to;
-}
-
-function setFinanceCustomMode(enabled) {
-  const panel = $('financeCustomRange');
-  if (!panel) return;
-  panel.hidden = !enabled;
-}
-
-function financeEntryMatches(entry, filters) {
-  const date = String(entry?.date || '');
-  if (filters.from && date && date < filters.from) return false;
-  if (filters.to && date && date > filters.to) return false;
-
-  const entryType = financeNormalizeKey(entry?.type);
-  if (Array.isArray(filters.types) && filters.types.length > 0) {
-    if (!filters.types.includes(entryType)) return false;
-  } else if (filters.type && entryType !== filters.type) {
-    // Legacy single-select support
-    return false;
-  }
-
-  const kind = String(filters?.kind || '').trim();
-  if (kind === 'income' && entryType !== 'income') return false;
-  if (kind === 'expense' && entryType !== 'expense') return false;
-  if (kind === 'tithes') {
-    if (entryType !== 'income') return false;
-    if (!financeNormalizeKey(entry?.category).includes('tithe')) return false;
-  }
-  if (kind === 'offerings') {
-    if (entryType !== 'income') return false;
-    if (!financeNormalizeKey(entry?.category).includes('offering')) return false;
-  }
-
-  if (filters.category && financeNormalizeKey(entry?.category) !== financeNormalizeKey(filters.category)) return false;
-  if (filters.fund && financeNormalizeKey(entry?.fund) !== financeNormalizeKey(filters.fund)) return false;
-  if (filters.method && financeNormalizeKey(entry?.method) !== financeNormalizeKey(filters.method)) return false;
-
-  if (filters.search) {
-    const hay = [
-      entry?.category,
-      entry?.fund,
-      entry?.method,
-      entry?.party,
-      entry?.memo,
-      entry?.type,
-      entry?.date
-    ].map((v) => String(v || '').toLowerCase()).join(' ');
-    if (!hay.includes(filters.search)) return false;
-  }
-  return true;
-}
-
-function populateFinanceDatalists() {
-  const catSel = $('financeCategory');
-  const fundSel = $('financeFund');
-
-  const categories = Array.isArray(finances?.meta?.categories) ? finances.meta.categories : [];
-  const funds = Array.isArray(finances?.meta?.funds) ? finances.meta.funds : [];
-
-  const setOptions = (sel, values, { required = false, allowDelete = false } = {}) => {
-    if (!(sel instanceof HTMLSelectElement)) return;
-    const current = String(sel.value || '');
-    sel.innerHTML = '';
-
-    const blank = document.createElement('option');
-    blank.value = '';
-    blank.textContent = required ? '(Pick one)' : '(None)';
-    sel.appendChild(blank);
-
-    const unique = Array.from(new Set(values.map((v) => String(v || '').trim()).filter(Boolean)));
-    unique.sort((a, b) => a.localeCompare(b));
-
-    // Ensure current value remains selectable even if it isn't in meta.
-    if (current && !unique.includes(current) && current !== FIN_CREATE_VALUE && current !== FIN_DELETE_VALUE) unique.unshift(current);
-
-    for (const v of unique) {
-      const opt = document.createElement('option');
-      opt.value = v;
-      opt.textContent = v;
-      sel.appendChild(opt);
-    }
-
-    const createOpt = document.createElement('option');
-    createOpt.value = FIN_CREATE_VALUE;
-    createOpt.textContent = 'Create…';
-    sel.appendChild(createOpt);
-
-    if (allowDelete) {
-      const deleteOpt = document.createElement('option');
-      deleteOpt.value = FIN_DELETE_VALUE;
-      deleteOpt.textContent = 'Delete…';
-      sel.appendChild(deleteOpt);
-    }
-
-    if (current && Array.from(sel.options).some((o) => o.value === current)) sel.value = current;
-  };
-
-  setOptions(catSel, categories, { required: true, allowDelete: true });
-  setFundSelectOptions(fundSel);
-
-  const setFilterOptions = (sel, values, allLabel) => {
-    if (!(sel instanceof HTMLSelectElement)) return;
-    const current = String(sel.value || '');
-    sel.innerHTML = '';
-    const blank = document.createElement('option');
-    blank.value = '';
-    blank.textContent = allLabel;
-    sel.appendChild(blank);
-    const unique = Array.from(new Set(values.map((v) => String(v || '').trim()).filter(Boolean)));
-    unique.sort((a, b) => a.localeCompare(b));
-    for (const v of unique) {
-      const opt = document.createElement('option');
-      opt.value = v;
-      opt.textContent = v;
-      sel.appendChild(opt);
-    }
-    if (current && Array.from(sel.options).some((o) => o.value === current)) sel.value = current;
-  };
-
-  setFilterOptions($('financeFilterCategory'), categories, '(All categories)');
-  setFilterOptions($('financeFilterFund'), funds, '(All funds)');
-}
-
-// Populates the Record Money wizard's Fund select from the real, registered fund
-// records (option value = fund id) so a save always resolves to a valid fund on
-// the server \u2014 rather than the legacy free-text `finances.meta.funds` name list,
-// which isn't guaranteed to match any actual fund and caused saves to silently fail.
-function setFundSelectOptions(sel) {
-  if (!(sel instanceof HTMLSelectElement)) return;
-  const current = String(sel.value || '');
-  sel.innerHTML = '';
-
-  const blank = document.createElement('option');
-  blank.value = '';
-  blank.textContent = '(Pick a fund)';
-  sel.appendChild(blank);
-
-  const activeFunds = financeActiveFunds();
-  for (const f of activeFunds) {
-    const opt = document.createElement('option');
-    opt.value = String(f.id);
-    opt.textContent = f.fundCode ? `${f.fundName} (${f.fundCode})` : String(f.fundName || '');
-    sel.appendChild(opt);
-  }
-
-  if (!activeFunds.length) {
-    const empty = document.createElement('option');
-    empty.value = '';
-    empty.textContent = 'No funds set up yet — add one on the Funds page';
-    empty.disabled = true;
-    sel.appendChild(empty);
-  }
-
-  const createOpt = document.createElement('option');
-  createOpt.value = FIN_CREATE_VALUE;
-  createOpt.textContent = 'Create…';
-  sel.appendChild(createOpt);
-
-  if (activeFunds.length) {
-    const deleteOpt = document.createElement('option');
-    deleteOpt.value = FIN_DELETE_VALUE;
-    deleteOpt.textContent = 'Delete…';
-    sel.appendChild(deleteOpt);
-  }
-
-  const hint = $('financeFundHint');
-  if (hint) {
-    hint.textContent = activeFunds.length
-      ? 'Choose where this money should be recorded, such as General Fund or Building Fund.'
-      : 'No church funds are set up yet. Go to Church Finances → Funds to add one before recording money.';
-  }
-
-  if (current && Array.from(sel.options).some((o) => o.value === current)) sel.value = current;
-}
-
-function normalizeFinanceName(value) {
-  return String(value || '').trim().replace(/\s+/g, ' ');
-}
-
-function financePromptDeleteTarget(kindLabel, names) {
-  const options = Array.from(new Set((Array.isArray(names) ? names : [])
-    .map((name) => normalizeFinanceName(name))
-    .filter(Boolean)));
-  if (!options.length) return '';
-
-  options.sort((a, b) => a.localeCompare(b));
-  const numbered = options.map((name, index) => `${index + 1}. ${name}`).join('\n');
-  const raw = prompt(`Type the ${kindLabel} name or number to delete:\n${numbered}`);
-  if (raw === null) return null;
-  const typed = normalizeFinanceName(raw);
-  if (!typed) return '';
-
-  const asNumber = Number(typed);
-  if (Number.isInteger(asNumber) && asNumber >= 1 && asNumber <= options.length) {
-    return options[asNumber - 1];
-  }
-
-  const matched = options.find((name) => financeNormalizeKey(name) === financeNormalizeKey(typed));
-  return matched || '';
-}
-
-async function financeHandleCreateSelect(kind) {
-  const sel = kind === 'fund' ? $('financeFund') : $('financeCategory');
-  if (!(sel instanceof HTMLSelectElement)) return;
-  const selected = String(sel.value || '');
-  if (selected !== FIN_CREATE_VALUE && selected !== FIN_DELETE_VALUE) return;
-
-  if (selected === FIN_DELETE_VALUE) {
-    sel.value = '';
-    if (kind === 'fund') {
-      const activeFunds = financeActiveFunds();
-      if (!activeFunds.length) {
-        setFinanceHint('There are no funds to delete.');
-        return;
-      }
-
-      const typed = financePromptDeleteTarget('fund', activeFunds.map((fund) => fund?.fundName));
-      if (typed === null) return;
-      if (!typed) {
-        setFinanceHint('Fund not found. Enter an existing fund name.');
-        return;
-      }
-
-      const matched = activeFunds.find((fund) => financeNormalizeKey(fund?.fundName) === financeNormalizeKey(typed));
-      if (!matched) {
-        setFinanceHint('Fund not found. Enter an existing fund name.');
-        return;
-      }
-
-      if (!confirmWrite(`Delete fund "${matched.fundName}"?`)) return;
-
-      setFinanceHint('Deleting fund…');
-      try {
-        await api(`/api/finances/funds/${encodeURIComponent(String(matched.id || ''))}/archive`, {
-          method: 'POST',
-          body: '{}'
-        });
-        await loadFinanceFundsRegistry();
-        populateFinanceDatalists();
-        setFinanceHint('Fund deleted.');
-      } catch (e) {
-        setFinanceHint(String(e?.message || e || 'Unable to delete fund.'));
-      }
-      return;
-    }
-
-    if (kind !== 'category') return;
-
-    const currentCats = Array.isArray(finances?.meta?.categories) ? finances.meta.categories : [];
-    if (!currentCats.length) {
-      setFinanceHint('There are no categories to delete.');
-      return;
-    }
-
-    const typed = financePromptDeleteTarget('category', currentCats);
-    if (typed === null) return;
-    if (!typed) {
-      setFinanceHint('Category not found. Enter an existing category name.');
-      return;
-    }
-
-    const matched = currentCats.find((name) => financeNormalizeKey(name) === financeNormalizeKey(typed));
-    if (!matched) {
-      setFinanceHint('Category not found. Enter an existing category name.');
-      return;
-    }
-
-    const entries = Array.isArray(finances?.entries) ? finances.entries : [];
-    const inUse = entries.some((entry) => financeNormalizeKey(entry?.category) === financeNormalizeKey(matched));
-    if (inUse) {
-      setFinanceHint('That category is in use by existing ledger entries and cannot be deleted.');
-      return;
-    }
-
-    if (!confirmWrite(`Delete category "${matched}"?`)) return;
-
-    const currentFunds = Array.isArray(finances?.meta?.funds) ? finances.meta.funds : [];
-    const cats = currentCats.filter((name) => financeNormalizeKey(name) !== financeNormalizeKey(matched));
-
-    setFinanceHint('Saving…');
-    try {
-      const res = await api('/api/finances/meta', {
-        method: 'PUT',
-        body: JSON.stringify({ categories: cats, funds: currentFunds })
-      });
-      finances = res.data;
-      populateFinanceDatalists();
-      setFinanceHint('Category deleted.');
-    } catch (e) {
-      setFinanceHint(String(e?.message || e || 'Unable to save.'));
-    }
-    return;
-  }
-
-  // Reset immediately so cancel doesn't leave it stuck on the sentinel.
-  sel.value = '';
-
-  const label = kind === 'fund' ? 'fund' : 'category';
-  const next = normalizeFinanceName(prompt(`Create new ${label} name`));
-  if (!next) return;
-
-  if (kind === 'fund') {
-    const activeFunds = financeActiveFunds();
-    const exists = activeFunds.some((fund) => financeNormalizeKey(fund?.fundName) === financeNormalizeKey(next));
-    if (exists) {
-      setFinanceHint('That fund already exists.');
-      return;
-    }
-
-    setFinanceHint('Saving…');
-    try {
-      const res = await api('/api/finances/funds', {
-        method: 'POST',
-        body: JSON.stringify({ fundName: next })
-      });
-      await loadFinanceFundsRegistry();
-      populateFinanceDatalists();
-      const newId = String(res?.fund?.id || '');
-      if (newId && $('financeFund')) $('financeFund').value = newId;
-      setFinanceHint('Saved.');
-    } catch (e) {
-      setFinanceHint(String(e?.message || e || 'Unable to save.'));
-    }
-    return;
-  }
-
-  const currentCats = Array.isArray(finances?.meta?.categories) ? finances.meta.categories : [];
-  const currentFunds = Array.isArray(finances?.meta?.funds) ? finances.meta.funds : [];
-
-  const cats = (kind === 'category') ? Array.from(new Set([...currentCats, next])) : currentCats;
-  const funds = (kind === 'fund') ? Array.from(new Set([...currentFunds, next])) : currentFunds;
-
-  setFinanceHint('Saving…');
-  try {
-    const res = await api('/api/finances/meta', {
-      method: 'PUT',
-      body: JSON.stringify({ categories: cats, funds })
-    });
-    finances = res.data;
-    populateFinanceDatalists();
-    if (kind === 'category') $('financeCategory').value = next;
-    else $('financeFund').value = next;
-    setFinanceHint('Saved.');
-  } catch (e) {
-    setFinanceHint(String(e?.message || e || 'Unable to save.'));
-  }
-}
-
-function financeSetEditMode(isEditing) {
-  const saveBtn = $('financeSaveBtn');
-  const heading = $('financeWizardHeading');
-  const reviewHeading = $('financeReviewHeading');
-  if (saveBtn) saveBtn.textContent = isEditing ? 'Save Changes' : 'Save Entry';
-  if (heading) heading.textContent = isEditing ? 'Edit Transaction' : 'Record Money';
-  if (reviewHeading) reviewHeading.textContent = isEditing ? 'Review changes' : 'Review this entry';
-  financeWizard.mode = isEditing ? 'edit' : 'add';
-}
-
-function financeResetForm() {
-  $('financeEditId').value = '';
-  $('financeType').value = 'income';
-  $('financeCategory').value = '';
-  $('financeFund').value = '';
-  $('financeMethod').value = '';
-  $('financeAmount').value = '';
-  $('financeParty').value = '';
-  $('financeMemo').value = '';
-
-  // Default date to today if empty.
-  if (!$('financeDate').value) {
-    $('financeDate').value = new Date().toISOString().slice(0, 10);
-  }
-
-  financeSetEditMode(false);
-  financeApplyKindToForm('income');
-  financeClearAllFieldErrors();
-  financeWizard.maxStepIndex = 0;
-  financeWizard.dirty = false;
-  try { resetUnsavedBaseline($('financeEntryForm')); } catch { /* ignore */ }
-  financeGoToStep('direction', { focus: false });
-}
-
-function financeStartEdit(entry) {
-  if (!entry) return;
-  setFinanceSubTab('panel-finances-record');
-  const kind = financeDetectKindFromEntry(entry) === 'expense' ? 'expense' : 'income';
-  $('financeEditId').value = String(entry.id || '');
-  $('financeDate').value = String(entry.date || '');
-  $('financeType').value = String(entry.type || 'income');
-  $('financeCategory').value = String(entry.category || '');
-  // The fund select's option values are fund ids; prefer the entry's stored fundId,
-  // falling back to matching by fund name for older entries saved before that field existed.
-  const entryFundId = String(entry.fundId || '');
-  const fundByName = entryFundId ? null : financeActiveFunds().find((f) => financeNormalizeKey(f.fundName) === financeNormalizeKey(entry.fund));
-  $('financeFund').value = entryFundId || (fundByName ? String(fundByName.id) : '');
-  $('financeMethod').value = String(entry.method || '');
-  $('financeAmount').value = (Number(entry.amountCents || 0) / 100).toFixed(2);
-  $('financeParty').value = String(entry.party || '');
-  $('financeMemo').value = String(entry.memo || '');
-  financeApplyKindToForm(kind);
-  financeSetEditMode(true);
-  financeClearAllFieldErrors();
-  financeWizard.maxStepIndex = FINANCE_WIZARD_STEPS.indexOf('details');
-  financeWizard.dirty = false;
-  try { resetUnsavedBaseline($('financeEntryForm')); } catch { /* ignore */ }
-  financeGoToStep('details');
-}
-
-// ---------------------------------------------------------------------------
-// Record Money wizard engine
-// ---------------------------------------------------------------------------
-const FINANCE_WIZARD_STEPS = ['direction', 'details', 'payment', 'review', 'saved'];
-const financeWizard = { mode: 'add', step: 'direction', maxStepIndex: 0, dirty: false, saving: false, lastSavedId: '' };
-
-function financeClearAllFieldErrors() {
-  for (const id of ['financeCategoryError', 'financeFundError', 'financeAmountError', 'financeMethodError', 'financePartyError']) {
-    const el = $(id);
-    if (el) { el.textContent = ''; el.hidden = true; }
-  }
-}
-
-function financeSetFieldError(id, message) {
-  const el = $(id);
-  if (!el) return;
-  el.textContent = message;
-  el.hidden = !message;
-}
-
-function financeMarkDirty() {
-  financeWizard.dirty = true;
-}
-
-function financeWizardHasUnsavedChanges() {
-  return financeWizard.dirty && financeWizard.step !== 'saved';
-}
-
-function financeGoToStep(step, { focus = true } = {}) {
-  if (!FINANCE_WIZARD_STEPS.includes(step)) return;
-  const idx = FINANCE_WIZARD_STEPS.indexOf(step);
-  if (idx > financeWizard.maxStepIndex) financeWizard.maxStepIndex = idx;
-  financeWizard.step = step;
-
-  for (const s of FINANCE_WIZARD_STEPS) {
-    const panel = document.querySelector(`.wizardStep[data-step-panel="${s}"]`);
-    if (panel) panel.hidden = s !== step;
-  }
-
-  const progress = $('financeWizardProgress');
-  if (progress) {
-    const navSteps = ['direction', 'details', 'payment', 'review'];
-    for (const btn of progress.querySelectorAll('[data-wizard-goto]')) {
-      const target = btn.getAttribute('data-wizard-goto');
-      const targetIdx = navSteps.indexOf(target);
-      const isCurrent = target === step;
-      // Keep the chip compact (just the step number) until it becomes the active step,
-      // where it expands to show the full step name too.
-      const label = btn.getAttribute('aria-label') || '';
-      btn.textContent = isCurrent ? `${targetIdx + 1} ${label}` : String(targetIdx + 1);
-      btn.classList.toggle('wizardProgress__step--current', isCurrent);
-      btn.classList.toggle('wizardProgress__step--done', targetIdx < navSteps.indexOf(step) || (step === 'saved'));
-      if (isCurrent) btn.setAttribute('aria-current', 'step'); else btn.removeAttribute('aria-current');
-      // Only allow returning to steps already reached.
-      btn.disabled = targetIdx > financeWizard.maxStepIndex;
-    }
-  }
-
-  if (step === 'review') financeRenderReviewSummary();
-
-  if (focus) {
-    const panel = document.querySelector(`.wizardStep[data-step-panel="${step}"]`);
-    const heading = panel?.querySelector('.wizardStep__question, .wizardStep__heading');
-    try {
-      if (heading) { heading.setAttribute('tabindex', '-1'); heading.focus(); }
-      else panel?.querySelector('input, select, button')?.focus();
-    } catch { /* ignore */ }
-  }
-}
-
-function financeValidateDirectionStep() {
-  const value = String($('financeType')?.value || '').trim();
-  if (value !== 'income' && value !== 'expense') {
-    setFinanceHint('Choose whether this is money received or money spent.');
-    return false;
-  }
-  return true;
-}
-
-function financeValidateDetailsStep() {
-  financeClearAllFieldErrors();
-  let ok = true;
-  let focusEl = null;
-
-  const category = String($('financeCategory')?.value || '').trim();
-  if (!category) {
-    const kind = String($('financeType')?.value || 'income');
-    financeSetFieldError('financeCategoryError', kind === 'expense' ? 'Choose what this expense was for.' : 'Choose what the money was received for.');
-    focusEl = focusEl || $('financeCategory');
-    ok = false;
-  }
-
-  const fundId = String($('financeFund')?.value || '').trim();
-  if (!fundId) {
-    financeSetFieldError('financeFundError', 'Choose which church fund this belongs to.');
-    focusEl = focusEl || $('financeFund');
-    ok = false;
-  }
-
-  const amountRaw = String($('financeAmount')?.value || '').trim();
-  const amount = Number(amountRaw);
-  if (!amountRaw || !Number.isFinite(amount) || amount <= 0) {
-    financeSetFieldError('financeAmountError', 'Enter an amount greater than $0.00.');
-    focusEl = focusEl || $('financeAmount');
-    ok = false;
-  }
-
-  if (!ok && focusEl) { try { focusEl.focus(); } catch { /* ignore */ } }
-  return ok;
-}
-
-function financeValidatePaymentStep() {
-  financeClearAllFieldErrors();
-  let ok = true;
-  let focusEl = null;
-
-  const method = String($('financeMethod')?.value || '').trim();
-  if (!method) {
-    financeSetFieldError('financeMethodError', 'Choose a payment method.');
-    focusEl = focusEl || $('financeMethod');
-    ok = false;
-  }
-
-  const kind = String($('financeType')?.value || 'income');
-  const party = String($('financeParty')?.value || '').trim();
-  if (kind === 'expense' && !party) {
-    financeSetFieldError('financePartyError', 'Enter who was paid.');
-    focusEl = focusEl || $('financeParty');
-    ok = false;
-  }
-
-  if (!ok && focusEl) { try { focusEl.focus(); } catch { /* ignore */ } }
-  return ok;
-}
-
-function financeFormatReviewDate(dateStr) {
-  const s = String(dateStr || '');
-  if (!s) return '';
-  const d = new Date(`${s}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return s;
-  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-}
-
-function financeMethodLabel(value) {
-  const map = { cash: 'Cash', check: 'Check', card: 'Card', online: 'Online', other: 'Other' };
-  return map[String(value || '').trim()] || String(value || '');
-}
-
-function financeRenderReviewSummary() {
-  const dl = $('financeReviewSummary');
-  if (!dl) return;
-  const kind = String($('financeType')?.value || 'income');
-  const isExpense = kind === 'expense';
-  const amount = Number($('financeAmount')?.value || 0) || 0;
-  const date = financeFormatReviewDate($('financeDate')?.value);
-  const category = String($('financeCategory')?.value || '').trim();
-  const fund = financeFundNameById($('financeFund')?.value);
-  const method = financeMethodLabel($('financeMethod')?.value);
-  const party = String($('financeParty')?.value || '').trim();
-  const memo = String($('financeMemo')?.value || '').trim();
-
-  const rows = [];
-  rows.push(['', `${formatMoneyCents(Math.round(amount * 100))} ${isExpense ? 'paid' : 'received'} on ${date}`]);
-  if (category) rows.push(['Category', category]);
-  if (fund) rows.push(['Fund', fund]);
-  if (method) rows.push(['Payment method', method]);
-  if (party) rows.push([isExpense ? 'Paid to' : 'Received from', party]);
-  if (memo) rows.push(['Note', memo]);
-
-  dl.innerHTML = '';
-  for (const [label, value] of rows) {
-    if (label) {
-      const dt = document.createElement('dt');
-      dt.textContent = label;
-      dl.appendChild(dt);
-    }
-    const dd = document.createElement('dd');
-    dd.className = label ? '' : 'wizardReview__headline';
-    dd.textContent = value;
-    dl.appendChild(dd);
-  }
-}
-
-function financeRenderSavedPanel(entry) {
-  const summary = $('financeSavedSummary');
-  if (!summary || !entry) return;
-  const isExpense = String(entry.type) === 'expense';
-  const amount = formatMoneyCents(Number(entry.amountCents || 0));
-  const date = financeFormatReviewDate(entry.date);
-  const category = String(entry.category || '').trim();
-  const descriptor = category ? category.toLowerCase() : (isExpense ? 'expense' : 'income');
-  summary.textContent = `The ${amount} ${descriptor} ${isExpense ? 'paid' : 'received'} on ${date} was saved.`;
-  const heading = $('financeSavedHeading');
-  try { heading?.focus(); } catch { /* ignore */ }
-}
-
-function financeOpenUnsavedDialog(onDiscard) {
-  const dialog = $('financeUnsavedDialog');
-  if (!(dialog instanceof HTMLDialogElement)) {
-    if (confirmWrite('You have entered information for a new transaction that has not been saved. Discard this entry?')) onDiscard();
-    return;
-  }
-  openManagedDialog(dialog);
-  const keepBtn = $('financeUnsavedKeepBtn');
-  const discardBtn = $('financeUnsavedDiscardBtn');
-  const cleanup = () => {
-    keepBtn?.removeEventListener('click', onKeep);
-    discardBtn?.removeEventListener('click', onDiscardClick);
-  };
-  const onKeep = () => { cleanup(); closeManagedDialog(dialog); };
-  const onDiscardClick = () => { cleanup(); closeManagedDialog(dialog); onDiscard(); };
-  keepBtn?.addEventListener('click', onKeep);
-  discardBtn?.addEventListener('click', onDiscardClick);
-}
-
-function financeOpenDeleteDialog(entry) {
-  const dialog = $('financeDeleteDialog');
-  const isExpense = String(entry?.type) === 'expense';
-  const body = $('financeDeleteDialogBody');
-  const reasonEl = $('financeDeleteReason');
-  if (reasonEl) reasonEl.value = '';
-  if (body) {
-    const amount = formatMoneyCents(Number(entry?.amountCents || 0));
-    const category = String(entry?.category || '').trim();
-    const descriptor = category ? `${category.toLowerCase()} ${isExpense ? 'expense' : 'income'}` : (isExpense ? 'expense' : 'income');
-    const date = financeFormatReviewDate(entry?.date);
-    const party = String(entry?.party || '').trim();
-    const partyLine = party ? `${isExpense ? 'Paid to' : 'Received from'} ${party}` : '';
-    body.innerHTML = '';
-    const p1 = document.createElement('p');
-    p1.textContent = `${amount} ${descriptor}`;
-    const p2 = document.createElement('p');
-    p2.textContent = date;
-    body.appendChild(p1);
-    body.appendChild(p2);
-    if (partyLine) {
-      const p3 = document.createElement('p');
-      p3.textContent = partyLine;
-      body.appendChild(p3);
-    }
-  }
-
-  if (!(dialog instanceof HTMLDialogElement)) {
-    if (confirmWrite('Void this transaction? The record stays in history.')) financeDeleteEntry(entry, 'Legacy confirmation flow');
-    return;
-  }
-
-  openManagedDialog(dialog);
-  const confirmBtn = $('financeDeleteConfirmBtn');
-  const keepBtn = $('financeDeleteKeepBtn');
-  const cleanup = () => {
-    confirmBtn?.removeEventListener('click', onConfirm);
-    keepBtn?.removeEventListener('click', onKeep);
-  };
-  const onConfirm = () => {
-    const reason = String(reasonEl?.value || '').trim();
-    if (!reason) {
-      setFinanceHint('Enter a reason to void this transaction.');
-      try { reasonEl?.focus(); } catch { /* ignore */ }
-      return;
-    }
-    cleanup();
-    closeManagedDialog(dialog);
-    financeDeleteEntry(entry, reason);
-  };
-  const onKeep = () => { cleanup(); closeManagedDialog(dialog); };
-  confirmBtn?.addEventListener('click', onConfirm);
-  keepBtn?.addEventListener('click', onKeep);
-}
-
-async function financeDeleteEntry(entry, reason) {
-  if (!entry?.id) return;
-  setFinanceHint('Voiding…');
-  try {
-    const res = await api(`/api/finances/entries/${encodeURIComponent(String(entry.id))}/void`, {
-      method: 'POST',
-      body: JSON.stringify({ reason: String(reason || '').trim() })
-    });
-    finances = res.data;
-    financeResetForm();
-    renderFinances();
-    setFinanceHint('Transaction voided.');
-  } catch (err) {
-    setFinanceHint(err.message);
-  }
-}
-
-function setFinanceSubTab(panelId) {
-  const previous = document.querySelector('#panel-finances-record:not([hidden])');
-  if (previous && panelId !== 'panel-finances-record' && financeWizardHasUnsavedChanges()) {
-    financeOpenUnsavedDialog(() => {
-      financeResetForm();
-      setFinanceSubTab(panelId);
-    });
-    return;
-  }
-
-  setSubTab(
-    ['subTabBtn-finances-record', 'subTabBtn-finances-review', 'subTabBtn-finances-reports'],
-    ['panel-finances-record', 'panel-finances-review', 'panel-finances-reports'],
-    panelId
-  );
-
-  if (panelId === 'panel-finances-review' || panelId === 'panel-finances-reports') {
-    renderFinances();
-  }
-}
-
-function populateFinancePartyDatalist() {
-  const dl = $('financePartiesList');
-  if (!dl) return;
-
-  const all = Array.isArray(finances?.entries) ? finances.entries : [];
-  const seen = new Set();
-  const names = [];
-
-  for (const e of all) {
-    const raw = String(e?.party || '').trim();
-    if (!raw) continue;
-    const key = raw.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    names.push(raw);
-  }
-
-  names.sort((a, b) => a.localeCompare(b));
-  dl.innerHTML = '';
-  for (const n of names) {
-    const opt = document.createElement('option');
-    opt.value = n;
-    dl.appendChild(opt);
-  }
-}
-
-function financeBuildDescription(e) {
-  const status = String(e?.status || '').trim().toLowerCase();
-  const baseCategory = String(e?.category || '').trim() || (String(e?.type) === 'expense' ? 'Expense' : 'Income');
-  const category = status === 'voided' ? `${baseCategory} (Voided)` : (status === 'reversed' ? `${baseCategory} (Reversed)` : baseCategory);
-  const parts = [e?.fund, financeMethodLabel(e?.method), e?.party].map((v) => String(v || '').trim()).filter(Boolean);
-  return { title: category, subtitle: parts.join(' · ') };
-}
-
-function financeBuildDetailFields(e) {
-  const isExpense = String(e?.type) === 'expense';
-  const fields = [];
-  fields.push(['Transaction type', isExpense ? 'Money Spent' : 'Money Received']);
-  if (e?.sourceLabel || e?.source) fields.push(['Source', String(e.sourceLabel || e.source || '').replace(/_/g, ' ')]);
-  if (e?.status) fields.push(['Status', String(e.status || '').replace(/_/g, ' ')]);
-  if (e?.reconciliationStatus) fields.push(['Reconciliation', String(e.reconciliationStatus || '').replace(/_/g, ' ')]);
-  if (e?.category) fields.push(['Category', e.category]);
-  if (e?.fund) fields.push(['Fund', e.fund]);
-  if (e?.accountName) fields.push(['Account', e.accountName]);
-  if (e?.checkNumber) fields.push(['Check number', e.checkNumber]);
-  if (e?.method) fields.push(['Payment method', financeMethodLabel(e.method)]);
-  if (e?.party) fields.push([isExpense ? 'Paid to' : 'Received from', e.party]);
-  if (e?.memo) fields.push(['Note', e.memo]);
-  if (e?.voidReason) fields.push(['Void reason', e.voidReason]);
-  if (e?.createdAt) fields.push(['Created', formatLocalTimestamp(new Date(e.createdAt))]);
-  if (e?.updatedAt && e.updatedAt !== e.createdAt) fields.push(['Last edited', formatLocalTimestamp(new Date(e.updatedAt))]);
-  return fields;
-}
-
-function financeRowActionButtons(e, { onToggle }) {
-  const wrap = document.createElement('div');
-  wrap.className = 'row__actions financeRowActions';
-
-  const viewBtn = document.createElement('button');
-  viewBtn.type = 'button';
-  viewBtn.className = 'btn btn--sm';
-  setActionIconButton(viewBtn, 'view', 'View details');
-  viewBtn.setAttribute('aria-expanded', 'false');
-  viewBtn.addEventListener('click', () => onToggle(viewBtn));
-
-  const editBtn = document.createElement('button');
-  editBtn.type = 'button';
-  editBtn.className = 'btn btn--sm';
-  setActionIconButton(editBtn, 'edit', 'Edit entry');
-  editBtn.addEventListener('click', () => financeStartEdit(e));
-
-  const delBtn = document.createElement('button');
-  delBtn.type = 'button';
-  delBtn.className = 'btn btn--sm btn--danger';
-  delBtn.textContent = 'Void';
-  if (String(e?.status || '').toLowerCase() === 'voided' || String(e?.status || '').toLowerCase() === 'reversed') {
-    delBtn.disabled = true;
-  }
-  delBtn.addEventListener('click', () => financeOpenDeleteDialog(e));
-
-  wrap.appendChild(viewBtn);
-  wrap.appendChild(editBtn);
-  if (financeCanPrintReceipt(e)) {
-    const receiptBtn = document.createElement('button');
-    receiptBtn.type = 'button';
-    receiptBtn.className = 'btn btn--sm';
-    receiptBtn.textContent = 'Print Receipt';
-    receiptBtn.addEventListener('click', () => financePrintReceipts([e]));
-    wrap.appendChild(receiptBtn);
-  }
-  wrap.appendChild(delBtn);
-  return wrap;
-}
-
-function renderFinances() {
-  populateFinanceDatalists();
-  populateFinancePartyDatalist();
-
-  const filters = financeCurrentFilters();
-  const all = Array.isArray(finances?.entries) ? finances.entries : [];
-  const rows = all.filter((e) => financeEntryMatches(e, filters));
-  const rangeHint = $('financeDateRangeHint');
-  if (rangeHint) rangeHint.textContent = String(filters?.rangeError || '');
-
-  const totalsRows = rows;
-
-  let income = 0;
-  let expense = 0;
-  for (const e of totalsRows) {
-    const cents = Number(e?.amountCents || 0);
-    const t = financeNormalizeKey(e?.type);
-    if (t === 'income') income += cents;
-    if (t === 'expense') expense += cents;
-  }
-  const net = income - expense;
-
-  if ($('financeIncomeTotal')) $('financeIncomeTotal').textContent = formatMoneyCents(income);
-  if ($('financeExpenseTotal')) $('financeExpenseTotal').textContent = formatMoneyCents(expense);
-  const netEl = $('financeNetTotal');
-  if (netEl) {
-    netEl.textContent = formatMoneyCents(net);
-    netEl.classList.toggle('financeAmt--income', net > 0);
-    netEl.classList.toggle('financeAmt--expense', net < 0);
-  }
-
-  renderFinancePieChart('financeFlowPie', [
-    { label: 'Money Received', value: income, color: '#2f9e44' },
-    { label: 'Money Spent', value: expense, color: 'var(--danger)' }
-  ], 'No money movement for the selected filters.');
-
-  const meta = $('financePrintMeta');
-  if (meta) {
-    const range = financeDateRangeLabel(filters);
-    meta.textContent = `Printed: ${formatLocalTimestamp()} • Report: Transaction History • ${range} • ${rows.length} entries • Money Received ${formatMoneyCents(income)} • Money Spent ${formatMoneyCents(expense)} • Net Total ${formatMoneyCents(net)}`;
-  }
-
-  financeRenderFilterSummary(filters, rows.length);
-
-  const tbody = $('financeTableBody');
-  const cardList = $('financeCardList');
-  if (tbody) tbody.innerHTML = '';
-  if (cardList) cardList.innerHTML = '';
-
-  renderWeeklyGiving(filters);
-
-  if (!tbody && !cardList) return;
-
-  if (!rows.length) {
-    if (tbody) {
-      const tr = document.createElement('tr');
-      const td = document.createElement('td');
-      td.colSpan = 5;
-      td.textContent = 'No transactions match the current filters.';
-      tr.appendChild(td);
-      tbody.appendChild(tr);
-    }
-    if (cardList) {
-      const empty = document.createElement('p');
-      empty.className = 'hint';
-      empty.textContent = 'No transactions match the current filters.';
-      cardList.appendChild(empty);
-    }
-    return;
-  }
-
-  const sorted = [...rows].sort((a, b) => String(b?.date || '').localeCompare(String(a?.date || '')));
-
-  for (const e of sorted) {
-    const amountCents = Number(e?.amountCents || 0);
-    const isExpense = String(e?.type) === 'expense';
-    const { title, subtitle } = financeBuildDescription(e);
-    const detailFields = financeBuildDetailFields(e);
-
-    // Desktop table row
-    if (tbody) {
-      const tr = document.createElement('tr');
-      const detailRow = document.createElement('tr');
-      detailRow.className = 'financeDetailRow';
-      detailRow.hidden = true;
-
-      const mkTd = (text) => { const td = document.createElement('td'); td.textContent = String(text || ''); return td; };
-      tr.appendChild(mkTd(financeFormatReviewDate(e?.date)));
-
-      const descTd = document.createElement('td');
-      descTd.className = 'financeDescCell';
-      const titleEl = document.createElement('div');
-      titleEl.className = 'financeDescCell__title';
-      titleEl.textContent = title;
-      descTd.appendChild(titleEl);
-      if (subtitle) {
-        const subEl = document.createElement('div');
-        subEl.className = 'financeDescCell__subtitle';
-        subEl.textContent = subtitle;
-        descTd.appendChild(subEl);
-      }
-      tr.appendChild(descTd);
-
-      const inTd = document.createElement('td');
-      inTd.className = 'num';
-      inTd.textContent = isExpense ? '' : formatMoneyCents(amountCents);
-      tr.appendChild(inTd);
-
-      const outTd = document.createElement('td');
-      outTd.className = 'num';
-      outTd.textContent = isExpense ? formatMoneyCents(amountCents) : '';
-      tr.appendChild(outTd);
-
-      const actionsTd = document.createElement('td');
-      actionsTd.className = 'noPrint';
-      const toggleDetail = (btn) => {
-        const expanded = !detailRow.hidden;
-        detailRow.hidden = expanded;
-        btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-        const label = expanded ? 'View details' : 'Hide details';
-        setActionIconButton(btn, 'view', label);
-      };
-      actionsTd.appendChild(financeRowActionButtons(e, { onToggle: toggleDetail }));
-      tr.appendChild(actionsTd);
-
-      const detailTd = document.createElement('td');
-      detailTd.colSpan = 5;
-      const dl = document.createElement('dl');
-      dl.className = 'wizardReview financeDetailFields';
-      for (const [label, value] of detailFields) {
-        const dt = document.createElement('dt'); dt.textContent = label;
-        const dd = document.createElement('dd'); dd.textContent = value;
-        dl.appendChild(dt); dl.appendChild(dd);
-      }
-      detailTd.appendChild(dl);
-      detailRow.appendChild(detailTd);
-
-      tbody.appendChild(tr);
-      tbody.appendChild(detailRow);
-    }
-
-    // Mobile stacked card
-    if (cardList) {
-      const card = document.createElement('div');
-      card.className = 'financeCard';
-
-      const head = document.createElement('div');
-      head.className = 'financeCard__head';
-      const dateEl = document.createElement('div');
-      dateEl.className = 'financeCard__date';
-      dateEl.textContent = financeFormatReviewDate(e?.date);
-      const amtEl = document.createElement('div');
-      amtEl.className = `financeCard__amount ${isExpense ? 'financeAmt--expense' : 'financeAmt--income'}`;
-      amtEl.textContent = `${isExpense ? '-' : ''}${formatMoneyCents(amountCents)}`;
-      head.appendChild(dateEl);
-      head.appendChild(amtEl);
-
-      const titleEl = document.createElement('div');
-      titleEl.className = 'financeCard__title';
-      titleEl.textContent = title;
-      const subEl = document.createElement('div');
-      subEl.className = 'financeCard__subtitle';
-      subEl.textContent = subtitle;
-
-      const detailWrap = document.createElement('dl');
-      detailWrap.className = 'wizardReview financeDetailFields';
-      detailWrap.hidden = true;
-      for (const [label, value] of detailFields) {
-        const dt = document.createElement('dt'); dt.textContent = label;
-        const dd = document.createElement('dd'); dd.textContent = value;
-        detailWrap.appendChild(dt); detailWrap.appendChild(dd);
-      }
-
-      const toggleDetail = (btn) => {
-        const expanded = !detailWrap.hidden;
-        detailWrap.hidden = expanded;
-        btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-        const label = expanded ? 'View details' : 'Hide details';
-        setActionIconButton(btn, 'view', label);
-      };
-      const actions = financeRowActionButtons(e, { onToggle: toggleDetail });
-
-      card.appendChild(head);
-      card.appendChild(titleEl);
-      if (subtitle) card.appendChild(subEl);
-      card.appendChild(actions);
-      card.appendChild(detailWrap);
-      cardList.appendChild(card);
-    }
-  }
-
-  renderWeeklyGiving(filters);
-}
-
-async function loadFinances() {
-  const [data] = await Promise.all([
-    api('/api/finances', { method: 'GET' }),
-    loadFinanceFundsRegistry()
-  ]);
-  finances = data;
-  financeResetForm();
-  // Hide custom range UI unless the user explicitly opens it.
-  if ($('financeCustomRange')) {
-    const customToggle = $('financeRangeCustom');
-    const wantsCustom = (customToggle instanceof HTMLInputElement) ? !!customToggle.checked : false;
-    setFinanceCustomMode(wantsCustom);
-  }
-  renderFinances();
-}
-
-function financeCsvEscape(value) {
-  const raw = String(value ?? '');
-  const s = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
-  if (/[\n\r,\"]/g.test(s)) return `"${s.replace(/\"/g, '""')}"`;
-  return s;
-}
-
-function downloadTextFile(name, text, mime) {
-  const blob = new Blob([text], { type: mime || 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
-}
-
-function downloadBinaryFile(name, bytes, mime) {
-  const blob = new Blob([bytes], { type: mime || 'application/octet-stream' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
-}
-
-function financeExportRows(filters = financeCurrentFilters()) {
-  const rows = Array.isArray(finances?.entries) ? finances.entries : [];
-  return rows
-    .filter((entry) => financeEntryMatches(entry, filters))
-    .sort((a, b) => String(a?.date || '').localeCompare(String(b?.date || '')));
-}
-
-function financeExportColumns(entries) {
-  return (Array.isArray(entries) ? entries : []).map((entry, index) => ({
-    'Receipt Number': financeCanPrintReceipt(entry) ? financeReceiptNoForEntry(entry, index) : '',
-    'Date': String(entry?.date || '').trim(),
-    'Transaction Type': financeNormalizeKey(entry?.type) === 'expense' ? 'Money Spent' : 'Money Received',
-    'Category': String(entry?.category || '').trim(),
-    'Fund': String(entry?.fund || '').trim(),
-    'Payment Method': financeMethodLabel(entry?.method),
-    'From / To': String(entry?.party || '').trim(),
-    'Amount': (Number(entry?.amountCents || 0) / 100).toFixed(2),
-    'Memo': String(entry?.memo || '').trim()
-  }));
-}
-
-function financeExportFileStamp() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function financeExportToCsv(rows, { announce = true } = {}) {
-  const dataRows = financeExportColumns(rows);
-  const headers = ['Receipt Number', 'Date', 'Transaction Type', 'Category', 'Fund', 'Payment Method', 'From / To', 'Amount', 'Memo'];
-  const lines = [headers.map(financeCsvEscape).join(',')];
-  for (const row of dataRows) {
-    lines.push(headers.map((header) => financeCsvEscape(row[header])).join(','));
-  }
-  downloadTextFile(`finance-transactions-${financeExportFileStamp()}.csv`, lines.join('\n'), 'text/csv;charset=utf-8');
-  if (announce) setFinanceExportHint(`Downloaded CSV for ${rows.length} transaction${rows.length === 1 ? '' : 's'}.`);
-}
-
-async function financeExportToGoogleSheets(rows) {
-  const headers = ['Receipt Number', 'Date', 'Transaction Type', 'Category', 'Fund', 'Payment Method', 'From / To', 'Amount', 'Memo'];
-  const sheetRows = financeExportColumns(rows);
-  const tsv = [
-    headers.join('\t'),
-    ...sheetRows.map((row) => headers.map((header) => String(row[header] ?? '')).join('\t'))
-  ].join('\n');
-
-  const sheetWindow = window.open('https://sheets.new', '_blank', 'noopener');
-  let copied = false;
-  try {
-    await navigator.clipboard.writeText(tsv);
-    copied = true;
-  } catch {
-    copied = false;
-  }
-
-  closeDetailsMenu('financeExportMenu');
-
-  if (sheetWindow && copied) {
-    setFinanceExportHint('Opened a new Google Sheet and copied the filtered transactions. Paste into cell A1.');
-    return;
-  }
-
-  financeExportToCsv(rows, { announce: false });
-  if (!sheetWindow && !copied) {
-    setFinanceExportHint('Google Sheets could not be opened and clipboard access was blocked. A CSV download was provided instead.');
-    return;
-  }
-  if (!sheetWindow) {
-    setFinanceExportHint('Google Sheets was blocked by your browser. The data was copied to your clipboard and a CSV download was provided as a fallback.');
-    return;
-  }
-  setFinanceExportHint('Opened a new Google Sheet, but clipboard access was blocked. A CSV download was provided; paste it into cell A1 after opening the file if needed.');
-}
-
-function isoDateToday() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function addDaysToIsoDate(isoDate, days) {
-  const d = new Date(`${isoDate}T00:00:00`);
-  d.setDate(d.getDate() + Number(days || 0));
-  return d.toISOString().slice(0, 10);
-}
-
-function startOfMonth(isoDate) {
-  const d = new Date(`${isoDate}T00:00:00`);
-  d.setDate(1);
-  return d.toISOString().slice(0, 10);
-}
-
-function startOfWeekSunday(isoDate) {
-  const d = new Date(`${isoDate}T00:00:00`);
-  const day = d.getDay(); // 0=Sun
-  d.setDate(d.getDate() - day);
-  return d.toISOString().slice(0, 10);
-}
-
-function normalizeCategoryKey(value) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function renderWeeklyGiving(baseFilters = financeCurrentFilters()) {
-  const today = isoDateToday();
-  let from = '';
-  let to = '';
-
-  if (financeGivingPeriod === 'month') {
-    from = startOfMonth(today);
-    to = today;
-  } else {
-    from = startOfWeekSunday(today);
-    to = addDaysToIsoDate(from, 6);
-  }
-
-  const tithesKey = 'tithes';
-  const offeringsKey = 'offerings';
-
-  const entries = Array.isArray(finances?.entries) ? finances.entries : [];
-  const effectiveFilters = {
-    ...(baseFilters || {}),
-    from,
-    to,
-    dateRange: 'custom'
-  };
-  const inRange = entries.filter((e) => financeEntryMatches(e, effectiveFilters));
-
-  let tithes = 0;
-  let offerings = 0;
-
-  for (const e of inRange) {
-    if (financeNormalizeKey(e?.type) !== 'income') continue;
-    const cat = normalizeCategoryKey(e?.category);
-    const cents = Number(e?.amountCents || 0);
-    if (!Number.isFinite(cents)) continue;
-    if (cat === tithesKey || (tithesKey === 'tithes' && cat.includes('tithe'))) tithes += cents;
-    if (cat === offeringsKey || (offeringsKey === 'offerings' && cat.includes('offering'))) offerings += cents;
-  }
-
-  const total = tithes + offerings;
-  const periodLabel = $('financeGivingPeriodLabel');
-  if (periodLabel) periodLabel.textContent = financeGivingPeriod === 'month' ? '(This Month)' : '(This Week)';
-  if ($('financeTithesTotal')) $('financeTithesTotal').textContent = formatMoneyCents(tithes);
-  if ($('financeOfferingsTotal')) $('financeOfferingsTotal').textContent = formatMoneyCents(offerings);
-  if ($('financeGivingTotal')) $('financeGivingTotal').textContent = formatMoneyCents(total);
-
-  renderFinancePieChart('financeGivingPie', [
-    { label: 'Tithes', value: tithes, color: 'var(--accent)' },
-    { label: 'Offerings', value: offerings, color: '#2f9e44' }
-  ], 'No giving entries in the selected period.');
-}
-
-function renderFinancePieChart(pieId, slices, emptyLabel) {
-  const pie = $(pieId);
-  if (!pie) return;
-
-  const normalized = Array.isArray(slices)
-    ? slices.map((slice) => ({
-      label: String(slice?.label || '').trim(),
-      color: String(slice?.color || 'rgba(255,255,255,.2)'),
-      value: Math.max(0, Number(slice?.value || 0))
-    }))
-    : [];
-
-  const total = normalized.reduce((sum, slice) => sum + slice.value, 0);
-  if (!(total > 0)) {
-    pie.style.background = 'conic-gradient(rgba(255,255,255,.18) 0deg 360deg)';
-    pie.setAttribute('aria-label', String(emptyLabel || 'No data available.'));
-    return;
-  }
-
-  let start = 0;
-  const parts = [];
-  const labels = [];
-
-  for (const slice of normalized) {
-    if (!(slice.value > 0)) continue;
-    const degrees = (slice.value / total) * 360;
-    const end = start + degrees;
-    parts.push(`${slice.color} ${start}deg ${end}deg`);
-    const pct = Math.round((slice.value / total) * 1000) / 10;
-    labels.push(`${slice.label} ${pct}%`);
-    start = end;
-  }
-
-  pie.style.background = `conic-gradient(${parts.join(', ')})`;
-  pie.setAttribute('aria-label', labels.join(', '));
 }
 
 function setSubTab(buttonIds, panelIds, activePanelId) {
@@ -3058,7 +1800,7 @@ function setDirectorySubTab(panelId) {
 let galleryItems = [];
 let photoArrangeAlbum = '';
 let photoSelectedIds = new Set();
-let photoFilteredItems = [];
+let photoTotalItems = 0;
 let photoCurrentPage = 1;
 let photoGalleryDisplaySettings = { showImageNames: true };
 const PHOTO_ROWS_PER_PAGE = 6;
@@ -3176,7 +1918,7 @@ function photoUpdatePager() {
   const nextBottom = $('photoNextPageBtnBottom');
 
   const pageSize = photoPageSize();
-  const total = photoFilteredItems.length;
+  const total = photoTotalItems;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   if (photoCurrentPage > totalPages) photoCurrentPage = totalPages;
@@ -3206,7 +1948,7 @@ function photoUpdatePager() {
 
 function photoPromptJumpToPage() {
   const pageSize = photoPageSize();
-  const totalPages = Math.max(1, Math.ceil(photoFilteredItems.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(photoTotalItems / pageSize));
   if (totalPages <= 1) return;
 
   const raw = window.prompt(`Go to photo page (1-${totalPages}):`, String(photoCurrentPage));
@@ -3249,16 +1991,10 @@ function toNumberOrNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-function buildAlbumList(items) {
-  const albums = Array.from(new Set((items || []).map((i) => String(i.album || '').trim()).filter(Boolean)));
-  albums.sort((a, b) => a.localeCompare(b));
-  return albums;
-}
-
 function renderArrangeAlbumOptions() {
   const select = $('photoArrangeAlbum');
   if (!select) return;
-  const albums = buildAlbumList(galleryItems);
+  const albums = photoAlbums;
   const current = String(photoArrangeAlbum || '');
 
   select.innerHTML = '<option value="">(Pick an album)</option>';
@@ -3275,44 +2011,51 @@ function isManualMode() {
   return $('photoSort')?.value === 'manual' && String(photoArrangeAlbum || '').trim();
 }
 
-function applyPhotoFilters({ resetPage = true } = {}) {
-  const sort = $('photoSort').value;
-  const albumFilter = $('photoAlbumFilter').value.trim().toLowerCase();
-  const tagFilter = $('photoTagFilter').value.trim().toLowerCase();
+let photoRequestSeq = 0;
+let photoAbort = null;
+let photoAlbums = [];
 
-  let items = [...galleryItems];
-  if (albumFilter) items = items.filter((i) => String(i.album || '').toLowerCase().includes(albumFilter));
-  if (tagFilter) items = items.filter((i) => (i.tags || []).some((t) => String(t).toLowerCase().includes(tagFilter)));
-
-  const manualAlbum = String(photoArrangeAlbum || '').trim();
-  if (sort === 'manual' && manualAlbum) {
-    items = items.filter((i) => String(i.album || '') === manualAlbum);
-    items.sort((a, b) => {
-      const ap = toNumberOrNull(a.position);
-      const bp = toNumberOrNull(b.position);
-      if (ap === null && bp === null) return String(b.createdAt).localeCompare(String(a.createdAt));
-      if (ap === null) return 1;
-      if (bp === null) return -1;
-      if (ap !== bp) return ap - bp;
-      return String(b.createdAt).localeCompare(String(a.createdAt));
-    });
-  } else {
-    items.sort((a, b) => {
-      if (sort === 'name-asc') return String(a.originalName).localeCompare(String(b.originalName));
-      if (sort === 'name-desc') return String(b.originalName).localeCompare(String(a.originalName));
-      if (sort === 'date-asc') return String(a.createdAt).localeCompare(String(b.createdAt));
-      return String(b.createdAt).localeCompare(String(a.createdAt));
-    });
-  }
-
-  photoFilteredItems = items;
+// Filtering, sorting, and paging run on the server; stale responses are discarded.
+async function applyPhotoFilters({ resetPage = true } = {}) {
   if (resetPage) photoCurrentPage = 1;
-
   const pageSize = photoPageSize();
-  const start = (photoCurrentPage - 1) * pageSize;
-  const pageItems = items.slice(start, start + pageSize);
-  photoUpdatePager();
-  renderPhotoGrid(pageItems);
+  const params = new URLSearchParams({
+    limit: String(pageSize),
+    offset: String((Math.max(1, photoCurrentPage) - 1) * pageSize),
+    sort: $('photoSort').value || 'date-desc'
+  });
+  const album = $('photoAlbumFilter').value.trim();
+  const tag = $('photoTagFilter').value.trim();
+  if (album) params.set('album', album);
+  if (tag) params.set('tag', tag);
+  if (String(photoArrangeAlbum || '').trim()) params.set('arrangeAlbum', photoArrangeAlbum);
+
+  const seq = ++photoRequestSeq;
+  if (photoAbort) photoAbort.abort();
+  photoAbort = new AbortController();
+  const grid = $('photoGrid');
+  if (grid) grid.setAttribute('aria-busy', 'true');
+  try {
+    const data = await api('/api/gallery?' + params.toString(), { method: 'GET', signal: photoAbort.signal });
+    if (seq !== photoRequestSeq) return;
+    const total = Number(data.total) || 0;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    if (photoCurrentPage > totalPages) {
+      photoCurrentPage = totalPages;
+      return applyPhotoFilters({ resetPage: false });
+    }
+    galleryItems = data.items || [];
+    photoAlbums = data.albums || [];
+    photoTotalItems = total;
+    renderArrangeAlbumOptions();
+    photoUpdatePager();
+    renderPhotoGrid(galleryItems);
+  } catch (err) {
+    if (err?.name === 'AbortError' || seq !== photoRequestSeq) return;
+    throw err;
+  } finally {
+    if (seq === photoRequestSeq && grid) grid.removeAttribute('aria-busy');
+  }
 }
 
 async function saveManualOrder(album, orderedIds) {
@@ -3520,10 +2263,7 @@ function renderPhotoGrid(items) {
 }
 
 async function loadGallery() {
-  const data = await api('/api/gallery', { method: 'GET' });
-  galleryItems = data.items || [];
-  renderArrangeAlbumOptions();
-  applyPhotoFilters();
+  await applyPhotoFilters({ resetPage: false });
   if ($('photoShowImageNames')) {
     try {
       await loadPhotoDisplayNameSetting();
@@ -3606,7 +2346,7 @@ function renderR2Breadcrumb(prefix) {
   }
 }
 
-function formatBytes(n) {
+function formatR2ObjectBytes(n) {
   const num = Number(n);
   if (!Number.isFinite(num) || num < 0) return '';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -3678,7 +2418,7 @@ function renderR2Tree(prefix, data) {
     const meta = document.createElement('div');
     meta.className = 'r2Row__meta muted';
     const when = o.uploaded ? ` • ${formatDate(o.uploaded)}` : '';
-    meta.textContent = `${formatBytes(o.size)}${when}`.trim();
+    meta.textContent = `${formatR2ObjectBytes(o.size)}${when}`.trim();
 
     main.appendChild(title);
     main.appendChild(meta);
@@ -3891,34 +2631,24 @@ function renderPreviewRows(listId, rows, emptyText) {
 
 function actionIconSvg(kind) {
   const type = String(kind || '').trim().toLowerCase();
-  if (type === 'close') {
-    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>';
-  }
-  if (type === 'refresh' || type === 'sync') {
-    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M20 4v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
-  }
-  if (type === 'prev' || type === 'left') {
-    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
-  }
-  if (type === 'next' || type === 'right' || type === 'go') {
-    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
-  }
-  if (type === 'up') {
-    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
-  }
-  if (type === 'upload') {
-    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 16V4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M7 9l5-5 5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4 20h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>';
-  }
-  if (type === 'edit') {
-    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20h4l10-10-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M13 7l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
-  }
-  if (type === 'delete') {
-    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 7h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M9 7V5h6v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8 7l1 12h6l1-12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
-  }
-  if (type === 'print') {
-    return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 9V4h10v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><rect x="4" y="9" width="16" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect><path d="M7 17h10v3H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
-  }
-  return '<svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+  const iconNames = {
+    close: 'close',
+    refresh: 'refresh',
+    sync: 'sync',
+    prev: 'chevron_left',
+    left: 'chevron_left',
+    next: 'chevron_right',
+    right: 'chevron_right',
+    go: 'chevron_right',
+    up: 'arrow_upward',
+    upload: 'upload_file',
+    edit: 'edit',
+    delete: 'delete',
+    print: 'print',
+    view: 'visibility'
+  };
+  const iconName = iconNames[type] || 'visibility';
+  return `<span class="material-icons-round" aria-hidden="true">${iconName}</span>`;
 }
 
 function setActionIconButton(el, kind, label) {
@@ -4241,7 +2971,7 @@ function normalizeTitle(t) {
 }
 
 function setPrintMode(mode) {
-  document.body.dataset.printMode = String(mode || 'finance');
+  document.body.dataset.printMode = String(mode || 'events');
   const body = $('adminPrintBody');
   if (body) body.innerHTML = '';
 }
@@ -4251,11 +2981,11 @@ function closeDetailsMenu(id) {
   if (el && el.tagName === 'DETAILS') el.open = false;
 }
 
-function setFinancePrintHeader(reportLabel, extraMetaParts = []) {
-  const title = $('financePrintTitle');
-  if (title) title.textContent = 'Mt. Moriah Missionary Baptist Church — Finance';
+function setEventsPrintHeader(reportLabel, extraMetaParts = []) {
+  const title = $('eventsPrintTitle');
+  if (title) title.textContent = 'Mt. Moriah Missionary Baptist Church — Events';
 
-  const meta = $('financePrintMeta');
+  const meta = $('eventsPrintMeta');
   if (!meta) return;
 
   const parts = [`Printed: ${formatLocalTimestamp()}`];
@@ -4264,452 +2994,6 @@ function setFinancePrintHeader(reportLabel, extraMetaParts = []) {
     if (p) parts.push(String(p));
   }
   meta.textContent = parts.join(' • ');
-}
-
-function financePartyLabelForEntry(entry) {
-  const kind = financeDetectKindFromEntry(entry);
-  if (kind === 'expense') return 'To';
-  if (kind === 'tithes') return 'Giver';
-  if (kind === 'offerings') return 'Giver';
-  return 'From';
-}
-
-function financeReceiptTitleForEntry(entry) {
-  const date = String(entry?.date || '').trim();
-  const type = financeNormalizeKey(entry?.type);
-  const amount = formatMoneyCents(Number(entry?.amountCents || 0));
-  const cat = String(entry?.category || '').trim();
-  const t = type ? (type[0].toUpperCase() + type.slice(1)) : 'Entry';
-  return `${date}${date ? ' • ' : ''}${t}${cat ? ` • ${cat}` : ''} • ${amount}`;
-}
-
-function financeReceiptHay(entry) {
-  return [
-    entry?.id,
-    entry?.date,
-    entry?.type,
-    entry?.category,
-    entry?.fund,
-    entry?.method,
-    entry?.party,
-    entry?.memo,
-    financeDetectKindFromEntry(entry)
-  ].map((v) => String(v || '').toLowerCase()).join(' ');
-}
-
-function financeGetReceiptsUniverse() {
-  const all = Array.isArray(finances?.entries) ? finances.entries : [];
-  const filters = financeCurrentFilters();
-  return all.filter((e) => financeEntryMatches(e, filters));
-}
-
-function financeRenderReceiptsPicker({ keepSelection = true } = {}) {
-  const list = $('financeReceiptsList');
-  const countEl = $('financeReceiptsCount');
-  const searchEl = $('financeReceiptsSearch');
-  if (!list || !countEl || !(searchEl instanceof HTMLInputElement)) return;
-
-  const universe = financeGetReceiptsUniverse();
-  const q = String(searchEl.value || '').trim().toLowerCase();
-  const filtered = q ? universe.filter((e) => financeReceiptHay(e).includes(q)) : universe;
-
-  if (!window.__financeReceiptSelectedIds || !keepSelection) {
-    window.__financeReceiptSelectedIds = new Set();
-  }
-  const selectedIds = window.__financeReceiptSelectedIds;
-
-  // Prune selections that are no longer in scope.
-  const availableIds = new Set(filtered.map((e) => String(e?.id || '')));
-  for (const id of Array.from(selectedIds)) {
-    if (!availableIds.has(id)) selectedIds.delete(id);
-  }
-
-  list.innerHTML = '';
-  if (!filtered.length) {
-    const empty = document.createElement('div');
-    empty.className = 'muted';
-    empty.textContent = 'No entries match your filters/search.';
-    list.appendChild(empty);
-  } else {
-    for (const e of filtered) {
-      const id = String(e?.id || '');
-      const row = document.createElement('div');
-      row.className = 'row';
-
-      const main = document.createElement('div');
-      main.className = 'row__main';
-
-      const title = document.createElement('div');
-      title.className = 'row__title';
-      title.textContent = financeReceiptTitleForEntry(e);
-
-      const meta = document.createElement('div');
-      meta.className = 'row__meta';
-      const kind = financeDetectKindFromEntry(e);
-      const partyLabel = financePartyLabelForEntry(e);
-      const party = String(e?.party || '').trim();
-      const fund = String(e?.fund || '').trim();
-      const method = String(e?.method || '').trim();
-      meta.textContent = [
-        kind ? `Kind: ${kind}` : '',
-        fund ? `Fund: ${fund}` : '',
-        method ? `Method: ${method}` : '',
-        party ? `${partyLabel}: ${party}` : ''
-      ].filter(Boolean).join(' • ');
-
-      main.appendChild(title);
-      main.appendChild(meta);
-
-      const actions = document.createElement('div');
-      actions.className = 'row__actions';
-
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.className = 'checkbox';
-      cb.checked = selectedIds.has(id);
-      cb.addEventListener('change', () => {
-        if (cb.checked) selectedIds.add(id);
-        else selectedIds.delete(id);
-        financeRenderReceiptsCount({ universe, filtered, selectedIds });
-      });
-
-      actions.appendChild(cb);
-      row.appendChild(main);
-      row.appendChild(actions);
-
-      // Clicking the row toggles the checkbox (except when clicking the checkbox).
-      row.addEventListener('click', (ev) => {
-        if (ev.target === cb) return;
-        cb.checked = !cb.checked;
-        cb.dispatchEvent(new Event('change'));
-      });
-
-      list.appendChild(row);
-    }
-  }
-
-  financeRenderReceiptsCount({ universe, filtered, selectedIds });
-}
-
-function financeRenderReceiptsCount({ universe, filtered, selectedIds }) {
-  const countEl = $('financeReceiptsCount');
-  if (!countEl) return;
-  const sel = selectedIds ? selectedIds.size : 0;
-  countEl.textContent = `${filtered.length} shown • ${universe.length} in current filters • ${sel} selected`;
-}
-
-function financeBuildReceiptBlock(entry, { index, total }) {
-  const id = String(entry?.id || '').trim();
-  const date = String(entry?.date || '').trim();
-  const type = financeNormalizeKey(entry?.type);
-  const category = String(entry?.category || '').trim();
-  const fund = String(entry?.fund || '').trim();
-  const method = String(entry?.method || '').trim();
-  const party = String(entry?.party || '').trim();
-  const memo = String(entry?.memo || '').trim();
-  const cents = Number(entry?.amountCents || 0);
-  const amount = formatMoneyCents(cents);
-  const partyLabel = financePartyLabelForEntry(entry);
-  const kind = financeDetectKindFromEntry(entry);
-
-  const churchName = 'Mt. Moriah Missionary Baptist Church';
-  const digits = String(entry?.id || '').replace(/\D+/g, '');
-  const receiptSuffix = (digits ? digits.slice(-4) : String((Number.isFinite(index) ? index : 0) + 1)).padStart(4, '0');
-  const receiptNo = `MMMBC-${receiptSuffix}`;
-
-  const wrap = document.createElement('section');
-  wrap.className = 'receipt receipt--page';
-
-  const head = document.createElement('div');
-  head.className = 'receipt__head';
-
-  const headLeft = document.createElement('div');
-  headLeft.className = 'receipt__headLeft';
-  const church = document.createElement('div');
-  church.className = 'receipt__church';
-  church.textContent = churchName;
-  const report = document.createElement('div');
-  report.className = 'receipt__report';
-  report.textContent = 'Financial Report';
-  headLeft.appendChild(church);
-  headLeft.appendChild(report);
-
-  const headRight = document.createElement('div');
-  headRight.className = 'receipt__headRight';
-  const receiptNoEl = document.createElement('div');
-  receiptNoEl.className = 'receipt__receiptNo';
-  receiptNoEl.textContent = receiptNo;
-  headRight.appendChild(receiptNoEl);
-
-  head.appendChild(headLeft);
-  head.appendChild(headRight);
-
-  const meta = document.createElement('div');
-  meta.className = 'receipt__meta';
-  const parts = [
-    date ? `Date: ${date}` : '',
-    kind ? `Kind: ${kind}` : '',
-    (Number.isFinite(index) && Number.isFinite(total)) ? `Item: ${index + 1}/${total}` : ''
-  ].filter(Boolean);
-  meta.textContent = parts.join(' • ');
-
-  const table = document.createElement('table');
-  table.className = 'receipt__table';
-
-  const rows = [
-    ['Receipt #', receiptNo],
-    ['Type', type || ''],
-    ['Category', category],
-    ['Fund', fund],
-    ['Method', method],
-    [partyLabel, party],
-    ['Amount', amount],
-    ['Memo', memo]
-  ].filter(([, v]) => String(v || '').trim());
-
-  const tbody = document.createElement('tbody');
-  for (const [k, v] of rows) {
-    const tr = document.createElement('tr');
-    const tdK = document.createElement('td');
-    tdK.className = 'receipt__label';
-    tdK.textContent = k;
-    const tdV = document.createElement('td');
-    tdV.className = 'receipt__value';
-    tdV.textContent = String(v);
-    tr.appendChild(tdK);
-    tr.appendChild(tdV);
-    tbody.appendChild(tr);
-  }
-  table.appendChild(tbody);
-
-  const sign = document.createElement('div');
-  sign.className = 'receipt__sign';
-  sign.innerHTML = '<div class="receipt__line"><span>Signature</span><span class="receipt__blank"></span></div><div class="receipt__line"><span>Date</span><span class="receipt__blank"></span></div>';
-
-  wrap.appendChild(head);
-  wrap.appendChild(meta);
-  wrap.appendChild(table);
-  wrap.appendChild(sign);
-  return wrap;
-}
-
-function financeReceiptNoForEntry(entry, index) {
-  const digits = String(entry?.id || '').replace(/\D+/g, '');
-  const receiptSuffix = (digits ? digits.slice(-4) : String((Number.isFinite(index) ? index : 0) + 1)).padStart(4, '0');
-  return `MMMBC-${receiptSuffix}`;
-}
-
-function financeCanPrintReceipt(entry) {
-  if (!entry || typeof entry !== 'object') return false;
-  if (!String(entry?.id || '').trim()) return false;
-  if (!String(entry?.date || '').trim()) return false;
-  const type = financeNormalizeKey(entry?.type);
-  if (type !== 'income' && type !== 'expense') return false;
-  return Number.isFinite(Number(entry?.amountCents || 0));
-}
-
-function financeAppendSignatureLines(root) {
-  const sign = document.createElement('div');
-  sign.className = 'receipt__sign';
-  sign.innerHTML = '<div class="receipt__line"><span>Signature</span><span class="receipt__blank"></span></div><div class="receipt__line"><span>Date</span><span class="receipt__blank"></span></div>';
-  root.appendChild(sign);
-}
-
-function financeBuildReceiptsTable(entries) {
-  const safe = Array.isArray(entries) ? entries.filter(Boolean) : [];
-  const table = document.createElement('table');
-  table.className = 'printTable';
-
-  const thead = document.createElement('thead');
-  thead.innerHTML = '<tr><th>Receipt #</th><th>Date</th><th>Kind</th><th>Type</th><th>Category</th><th>Fund</th><th>Method</th><th>Party</th><th>Amount</th><th>Memo</th></tr>';
-  table.appendChild(thead);
-
-  const tbody = document.createElement('tbody');
-  safe.forEach((e, idx) => {
-    const tr = document.createElement('tr');
-
-    const receiptNo = financeReceiptNoForEntry(e, idx);
-    const date = String(e?.date || '').trim();
-    const kind = financeDetectKindFromEntry(e);
-    const type = financeNormalizeKey(e?.type);
-    const category = String(e?.category || '').trim();
-    const fund = String(e?.fund || '').trim();
-    const method = String(e?.method || '').trim();
-    const party = String(e?.party || '').trim();
-    const cents = Number(e?.amountCents || 0);
-    const amount = formatMoneyCents(cents);
-    const memo = String(e?.memo || '').trim();
-
-    const partyLabel = financePartyLabelForEntry(e);
-    const partyCell = partyLabel ? `${partyLabel}: ${party}` : party;
-
-    const cols = [
-      receiptNo,
-      date,
-      kind,
-      type,
-      category,
-      fund,
-      method,
-      partyCell,
-      amount,
-      memo
-    ];
-
-    for (const v of cols) {
-      const td = document.createElement('td');
-      td.textContent = String(v || '');
-      tr.appendChild(td);
-    }
-    tbody.appendChild(tr);
-  });
-
-  table.appendChild(tbody);
-  return table;
-}
-
-function financePrintReceipts(entries, { reportLabel } = {}) {
-  const safe = Array.isArray(entries) ? entries.filter((entry) => financeCanPrintReceipt(entry)) : [];
-  if (!safe.length) {
-    alert('No valid transactions are available to print.');
-    return;
-  }
-
-  setPrintMode('receipts');
-  setFinancePrintHeader(safe.length === 1 ? 'Receipt' : (reportLabel || 'Receipts'), [`${safe.length} item(s)`]);
-
-  const root = $('adminPrintBody');
-  if (!root) return;
-  root.innerHTML = '';
-
-  if (safe.length === 1) {
-    const block = financeBuildReceiptBlock(safe[0], { index: 0, total: 1 });
-    block.classList.remove('receipt--page');
-    root.appendChild(block);
-  } else {
-    const h = document.createElement('div');
-    h.className = 'printReportTitle';
-    h.textContent = reportLabel || 'Receipts';
-    root.appendChild(h);
-
-    root.appendChild(financeBuildReceiptsTable(safe));
-    financeAppendSignatureLines(root);
-  }
-
-  window.print();
-}
-
-function refreshEventsPrintOptions() {
-  const groupSel = $('printEventsGroupTitle');
-  const eventSel = $('printEventId');
-  if (!groupSel || !eventSel) return;
-
-  const sorted = [...events].sort((a, b) => {
-    const ad = String(a?.date || '');
-    const bd = String(b?.date || '');
-    if (ad !== bd) return ad.localeCompare(bd);
-    const at = String(a?.time || '');
-    const bt = String(b?.time || '');
-    if (at !== bt) return at.localeCompare(bt);
-    return String(a?.title || '').localeCompare(String(b?.title || ''));
-  });
-
-  const titles = Array.from(new Set(sorted.map((e) => normalizeTitle(e?.title)).filter(Boolean)))
-    .sort((a, b) => a.localeCompare(b));
-
-  groupSel.innerHTML = '';
-  const opt0 = document.createElement('option');
-  opt0.value = '';
-  opt0.textContent = 'Choose a title…';
-  groupSel.appendChild(opt0);
-  for (const t of titles) {
-    const o = document.createElement('option');
-    o.value = t;
-    o.textContent = t;
-    groupSel.appendChild(o);
-  }
-
-  eventSel.innerHTML = '';
-  const optE0 = document.createElement('option');
-  optE0.value = '';
-  optE0.textContent = 'Choose an event…';
-  eventSel.appendChild(optE0);
-  for (const ev of sorted) {
-    const o = document.createElement('option');
-    o.value = String(ev?.id || '');
-    const d = String(ev?.date || '').trim();
-    const t = formatEventTime12h(ev?.time);
-    const titleText = normalizeTitle(ev?.title) || 'Event';
-    o.textContent = `${d}${d ? ' • ' : ''}${t}${t ? ' • ' : ''}${titleText}`.trim();
-    eventSel.appendChild(o);
-  }
-}
-
-function financeBuildLedgerPrintReport() {
-  const root = $('adminPrintBody');
-  if (!root) return;
-  root.innerHTML = '';
-
-  const filters = financeCurrentFilters();
-  const all = Array.isArray(finances?.entries) ? finances.entries : [];
-  const rows = [...all.filter((e) => financeEntryMatches(e, filters))]
-    .sort((a, b) => String(b?.date || '').localeCompare(String(a?.date || '')));
-
-  let income = 0;
-  let expense = 0;
-  for (const e of rows) {
-    const cents = Number(e?.amountCents || 0);
-    if (String(e?.type) === 'income') income += cents; else expense += cents;
-  }
-
-  setFinancePrintHeader('Mt. Moriah Missionary Baptist Church', [
-    'Transaction History',
-    financeDateRangeLabel(filters),
-    `${rows.length} entries`,
-    `Money Received ${formatMoneyCents(income)}`,
-    `Money Spent ${formatMoneyCents(expense)}`,
-    `Net Total ${formatMoneyCents(income - expense)}`
-  ]);
-
-  const h = document.createElement('div');
-  h.className = 'printReportTitle';
-  h.textContent = 'Transaction History';
-  root.appendChild(h);
-
-  if (!rows.length) {
-    const empty = document.createElement('div');
-    empty.className = 'printMuted';
-    empty.textContent = 'No transactions match the current filters.';
-    root.appendChild(empty);
-    return;
-  }
-
-  const table = document.createElement('table');
-  table.className = 'printTable';
-  const thead = document.createElement('thead');
-  thead.innerHTML = '<tr><th style="width:110px">Date</th><th>Description</th><th style="width:100px">Money In</th><th style="width:100px">Money Out</th></tr>';
-  table.appendChild(thead);
-  const tbody = document.createElement('tbody');
-  for (const e of rows) {
-    const isExpense = String(e?.type) === 'expense';
-    const { title, subtitle } = financeBuildDescription(e);
-    const tr = document.createElement('tr');
-    const tdDate = document.createElement('td');
-    tdDate.textContent = financeFormatReviewDate(e?.date);
-    const tdDesc = document.createElement('td');
-    tdDesc.textContent = subtitle ? `${title} — ${subtitle}` : title;
-    const tdIn = document.createElement('td');
-    tdIn.textContent = isExpense ? '' : formatMoneyCents(Number(e?.amountCents || 0));
-    const tdOut = document.createElement('td');
-    tdOut.textContent = isExpense ? formatMoneyCents(Number(e?.amountCents || 0)) : '';
-    tr.appendChild(tdDate);
-    tr.appendChild(tdDesc);
-    tr.appendChild(tdIn);
-    tr.appendChild(tdOut);
-    tbody.appendChild(tr);
-  }
-  table.appendChild(tbody);
-  root.appendChild(table);
 }
 
 function renderEventsPrintReport(rows, reportTitle) {
@@ -4761,6 +3045,57 @@ function renderEventsPrintReport(rows, reportTitle) {
   }
   table.appendChild(tbody);
   root.appendChild(table);
+}
+
+function refreshEventsPrintOptions() {
+  const groupSel = $('printEventsGroupTitle');
+  const eventSel = $('printEventId');
+  if (!groupSel || !eventSel) return;
+
+  const previousGroup = String(groupSel.value || '');
+  const previousEvent = String(eventSel.value || '');
+
+  const sorted = [...events].sort((a, b) => {
+    const ad = String(a?.date || '');
+    const bd = String(b?.date || '');
+    if (ad !== bd) return ad.localeCompare(bd);
+    const at = String(a?.time || '');
+    const bt = String(b?.time || '');
+    if (at !== bt) return at.localeCompare(bt);
+    return String(a?.title || '').localeCompare(String(b?.title || ''));
+  });
+
+  const titles = Array.from(new Set(sorted.map((e) => normalizeTitle(e?.title)).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b));
+
+  groupSel.replaceChildren();
+  const groupPrompt = document.createElement('option');
+  groupPrompt.value = '';
+  groupPrompt.textContent = 'Choose a title…';
+  groupSel.appendChild(groupPrompt);
+  for (const title of titles) {
+    const option = document.createElement('option');
+    option.value = title;
+    option.textContent = title;
+    groupSel.appendChild(option);
+  }
+  if (titles.includes(previousGroup)) groupSel.value = previousGroup;
+
+  eventSel.replaceChildren();
+  const eventPrompt = document.createElement('option');
+  eventPrompt.value = '';
+  eventPrompt.textContent = 'Choose an event…';
+  eventSel.appendChild(eventPrompt);
+  for (const event of sorted) {
+    const option = document.createElement('option');
+    option.value = String(event?.id || '');
+    const date = String(event?.date || '').trim();
+    const time = formatEventTime12h(event?.time);
+    const title = normalizeTitle(event?.title) || 'Event';
+    option.textContent = [date, time, title].filter(Boolean).join(' • ');
+    eventSel.appendChild(option);
+  }
+  if (sorted.some((event) => String(event?.id || '') === previousEvent)) eventSel.value = previousEvent;
 }
 
 function normalizeTimeValue(value) {
@@ -5232,154 +3567,6 @@ async function loadUsers() {
   renderUsers();
 }
 
-// -------- Livestream --------
-let livestream = null;
-
-function getSelectedLivePlatforms() {
-  const inputs = Array.from(document.querySelectorAll('input[name="livePlatforms"]'));
-  return uniqStringsLower(inputs.filter((i) => i.checked).map((i) => i.value));
-}
-
-function setSelectedLivePlatforms(platforms) {
-  const set = new Set(uniqStringsLower(platforms));
-  const inputs = Array.from(document.querySelectorAll('input[name="livePlatforms"]'));
-  for (const el of inputs) el.checked = set.has(String(el.value || '').toLowerCase());
-}
-
-function renderLivestream() {
-  $('ytEmbed').value = livestream?.embeds?.youtube || '';
-  $('fbEmbed').value = livestream?.embeds?.facebook || '';
-  $('siteEmbed').value = livestream?.embeds?.website || '';
-  $('activePlatform').value = livestream?.active?.platform || 'website';
-
-  const activePlatforms = (livestream?.active?.platforms && Array.isArray(livestream.active.platforms))
-    ? livestream.active.platforms
-    : [livestream?.active?.platform || 'website'];
-  setSelectedLivePlatforms(activePlatforms);
-
-  const isLive = (livestream?.active?.status || 'offline') === 'live';
-  const chip = $('liveStatus');
-  chip.textContent = isLive ? 'Live' : 'Offline';
-  chip.classList.toggle('statusChip--live', isLive);
-
-  const list = $('recurringList');
-  list.innerHTML = '';
-
-  for (const r of (livestream?.recurring || [])) {
-    const row = document.createElement('div');
-    row.className = 'row';
-
-    const main = document.createElement('div');
-    main.className = 'row__main';
-    const t = document.createElement('div');
-    t.className = 'row__title';
-    t.textContent = `${r.label}`;
-    const meta = document.createElement('div');
-    meta.className = 'row__meta';
-    meta.textContent = `${r.day} • ${r.time}`;
-    main.appendChild(t);
-    main.appendChild(meta);
-
-    const actions = document.createElement('div');
-    actions.className = 'row__actions';
-    const del = document.createElement('button');
-    del.className = 'btn';
-    del.type = 'button';
-    setActionIconButton(del, 'delete', 'Delete recurring stream');
-    del.addEventListener('click', async () => {
-      if (!confirm('Delete this recurring stream?')) return;
-      livestream.recurring = (livestream.recurring || []).filter((x) => x.id !== r.id);
-      await saveLivestream();
-    });
-
-    actions.appendChild(del);
-    row.appendChild(main);
-    row.appendChild(actions);
-    list.appendChild(row);
-  }
-
-  if (!(livestream?.recurring || []).length) {
-    list.innerHTML = '<div class="muted">No recurring streams set.</div>';
-  }
-}
-
-async function loadLivestream() {
-  livestream = await api('/api/livestream', { method: 'GET' });
-  renderLivestream();
-}
-
-async function saveLivestream() {
-  const payload = {
-    active: livestream.active,
-    embeds: {
-      youtube: $('ytEmbed').value.trim(),
-      facebook: $('fbEmbed').value.trim(),
-      website: $('siteEmbed').value.trim()
-    },
-    recurring: livestream.recurring || []
-  };
-  const res = await api('/api/livestream', { method: 'PUT', body: JSON.stringify(payload) });
-  livestream = res.data;
-  renderLivestream();
-}
-
-// -------- Settings --------
-let settings = null;
-
-async function loadSettings() {
-  if (!$('socialForm') || !$('themeForm')) return;
-  settings = await api('/api/settings', { method: 'GET' });
-
-  $('socialForm').facebook.value = settings?.social?.facebook || '';
-  $('socialForm').youtube.value = settings?.social?.youtube || '';
-  $('socialForm').email.value = settings?.social?.email || '';
-  $('socialForm').phone.value = settings?.social?.phone || '';
-  $('socialForm').address.value = settings?.social?.address || '';
-
-  $('themeForm').accent.value = settings?.theme?.accent || '#c46123';
-  $('themeForm').text.value = settings?.theme?.text || '#ffffff';
-  $('themeForm').background.value = settings?.theme?.background || '#000000';
-
-  // Sync hex fields
-  const a = $('themeForm').accent.value;
-  const t = $('themeForm').text.value;
-  const b = $('themeForm').background.value;
-  if ($('themeAccentHex')) $('themeAccentHex').value = a;
-  if ($('themeTextHex')) $('themeTextHex').value = t;
-  if ($('themeBackgroundHex')) $('themeBackgroundHex').value = b;
-
-  applyThemePreviewCard({ accent: a, text: t, background: b });
-}
-
-async function saveSettingsPatch(patch) {
-  const res = await api('/api/settings', { method: 'PUT', body: JSON.stringify(patch) });
-  settings = res.data;
-  await loadSettings();
-}
-
-function normalizeHex(value) {
-  const v = String(value || '').trim();
-  if (!v) return '';
-  const withHash = v.startsWith('#') ? v : `#${v}`;
-  if (/^#[0-9a-fA-F]{6}$/.test(withHash)) return withHash.toLowerCase();
-  return '';
-}
-
-function getThemeFromInputs() {
-  const accent = String($('themeForm').accent.value || '#c46123');
-  const text = String($('themeForm').text.value || '#ffffff');
-  const background = String($('themeForm').background.value || '#000000');
-  return { accent, text, background };
-}
-
-function applyThemePreviewCard(theme) {
-  const card = $('themePreviewCard');
-  if (!card) return;
-  card.style.setProperty('--mmmbc-accent', theme.accent);
-  card.style.setProperty('--mmmbc-text', theme.text);
-  card.style.setProperty('--mmmbc-bg', theme.background);
-}
-
 // -------- Newsletter --------
 let subscribers = [];
 let newsletterRecords = { drafts: [], scheduled: [], history: [] };
@@ -5437,7 +3624,7 @@ function updateNewsletterStepSummaries() {
     const subject = payload.subject || '(no subject yet)';
     const schedule = (payload.scheduleDate && payload.scheduleTime)
       ? `Scheduled for ${payload.scheduleDate} at ${payload.scheduleTime} ${payload.scheduleTimezone || 'America/Chicago'}.`
-      : 'This newsletter will be sent immediately when you choose Send Now.';
+      : 'This newsletter will be queued for delivery when you choose Send Now.';
     review.textContent = `${recipients} recipient(s) • Subject: ${subject}. ${schedule}`;
   }
 }
@@ -5868,7 +4055,6 @@ const SETTINGS_PERMISSION_ROWS = [
   { label: 'Events', view: 'events.view', manage: ['events.manage'] },
   { label: 'Photos', view: 'photos.view', manage: ['photos.manage'] },
   { label: 'Newsletter', view: 'newsletter.view', manage: ['newsletter.manage'] },
-  { label: 'Finance', view: 'finance.view', manage: ['finance.record', 'finance.edit_void', 'finance.funds_categories', 'finance.export', 'finance.statements_controls'] },
   { label: 'Directory', view: 'directory.view', manage: ['directory.manage'] },
   { label: 'Help & Support', view: 'support.send', manage: ['support.send'] },
   { label: 'Users & Roles', view: 'users.manage', manage: ['users.manage'] }
@@ -5886,6 +4072,18 @@ function settingsDate(value, fallback = 'Never') {
   const timestamp = Date.parse(raw);
   if (!Number.isFinite(timestamp)) return raw;
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(timestamp));
+}
+
+function settingsShortDate(value, fallback = 'Never') {
+  const raw = String(value || '').trim();
+  if (!raw) return fallback;
+  const timestamp = Date.parse(raw);
+  if (!Number.isFinite(timestamp)) return raw;
+  const date = new Date(timestamp);
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const yy = String(date.getFullYear()).slice(-2);
+  return `${mm}/${dd}/${yy}`;
 }
 
 function settingsRoleByKey(key) {
@@ -6038,8 +4236,8 @@ function renderSettingsUsers(data) {
     const statusCell = settingsCell(String(user.status || 'unknown').replace(/\b\w/g, (character) => character.toUpperCase()));
     statusCell.dataset.status = String(user.status || '').toLowerCase();
     row.appendChild(statusCell);
-    row.appendChild(settingsCell(settingsDate(user.lastLoginAt)));
-    row.appendChild(settingsCell(settingsDate(user.createdAt, 'Unknown')));
+    row.appendChild(settingsCell(settingsShortDate(user.lastLoginAt)));
+    row.appendChild(settingsCell(settingsShortDate(user.createdAt, 'Unknown')));
 
     const actionsCell = document.createElement('td');
     actionsCell.className = 'settingsUserActions';
@@ -6140,29 +4338,24 @@ async function loadSettings() {
   }
 }
 
-// -------- Load everything --------
-async function loadAll() {
-  const tasks = [];
-  if (currentPermissions.has('photos.view')) tasks.push(loadGallery());
-  if (currentPermissions.has('announcements.view')) tasks.push(loadAnnouncements(), loadBulletins());
-  if (currentPermissions.has('events.view')) tasks.push(loadEvents());
-  if (currentPermissions.has('finance.view')) tasks.push(loadFinances());
-  if (currentPermissions.has('newsletter.view')) tasks.push(loadSubscribers(), loadNewsletterRecords());
-  const results = await Promise.allSettled(tasks);
-
-  for (const r of results) {
-    if (r.status === 'rejected') throw r.reason;
-  }
-
-  if (window.AdminDashboard && typeof window.AdminDashboard.refresh === 'function') {
-    try {
-      await window.AdminDashboard.refresh();
-    } catch {
-      // Dashboard should not block admin boot if overview data is unavailable.
-    }
-  }
+// The unified shell loads a module only when it becomes visible. Existing forms
+// keep their original event handlers, APIs, and unsaved-change guards.
+const workspaceLoadedSections = new Set();
+window.MMWorkspaceLoadSection = async (panel) => {
+  if (workspaceLoadedSections.has(panel)) return;
+  const loaders = {
+    'tab-photos': () => loadGallery(),
+    'tab-content': () => Promise.all([loadAnnouncements(), loadBulletins()]),
+    'tab-events': () => loadEvents(),
+    'tab-directory': () => window.AdminDirectory?.refresh(),
+    'tab-newsletter': () => Promise.all([loadSubscribers(), loadNewsletterRecords()]),
+    'tab-settings': () => loadSettings()
+  };
+  if (loaders[panel]) await loaders[panel]();
+  workspaceLoadedSections.add(panel);
   applyPermissionVisibility(true);
-}
+  document.getElementById(panel)?.querySelectorAll('form[id]').forEach(resetUnsavedBaseline);
+};
 
 function renderStorageHealthStatus(data) {
   const summary = $('adminStorageHealthSummary');
@@ -6171,17 +4364,35 @@ function renderStorageHealthStatus(data) {
 
   if (!data || typeof data !== 'object') {
     summary.textContent = 'Diagnostics unavailable.';
+    summary.className = 'hint diagnosticStatus diagnosticStatus--error';
     details.textContent = '';
     return;
   }
 
-  const degraded = !!data.degraded;
-  const storageMode = String(data?.storage?.mode || 'unknown').replace(/_/g, ' ');
-  const pgStatus = data?.storage?.postgresConnected ? 'connected' : 'not connected';
-  summary.textContent = degraded
-    ? `Storage health degraded. Active mode: ${storageMode}.`
-    : `Storage health OK. Active mode: ${storageMode}.`;
-  details.textContent = `Postgres: ${pgStatus}. Finance storage: ${String(data?.storage?.financeStorage || 'unknown')}. Gallery storage: ${String(data?.storage?.galleryStorage || 'unknown')}.`;
+  const checks = data.checks || {};
+  const statuses = [
+    ['Admin database (D1)', checks.adminDatabase],
+    ['Site database (D1)', checks.siteDatabase],
+    ['Gallery bucket (R2)', checks.galleryBucket],
+    ['Static assets', checks.staticAssets]
+  ];
+  const degraded = data.degraded === true || statuses.some(([, status]) => !['healthy', 'configured'].includes(status));
+  summary.textContent = degraded ? 'Storage health degraded.' : 'Storage health OK.';
+  summary.className = `hint diagnosticStatus diagnosticStatus--${degraded ? 'error' : 'ok'}`;
+  details.replaceChildren();
+  const mode = document.createElement('div');
+  mode.textContent = `Active mode: ${String(data?.storage?.mode || 'Cloudflare D1 + R2')}.`;
+  details.append(mode);
+  for (const [label, rawStatus] of statuses) {
+    const status = String(rawStatus || 'unknown');
+    const row = document.createElement('div');
+    row.textContent = `${label}: `;
+    const value = document.createElement('span');
+    value.className = `diagnosticStatus diagnosticStatus--${['healthy', 'configured'].includes(status) ? 'ok' : 'error'}`;
+    value.textContent = status;
+    row.append(value);
+    details.append(row);
+  }
 }
 
 async function loadAdminStorageHealth() {
@@ -6191,6 +4402,7 @@ async function loadAdminStorageHealth() {
   if (!card || !summary || !details) return;
 
   summary.textContent = 'Checking storage health…';
+  summary.className = 'hint diagnosticStatus';
   details.textContent = '';
 
   try {
@@ -6198,9 +4410,20 @@ async function loadAdminStorageHealth() {
     renderStorageHealthStatus(data);
   } catch (err) {
     summary.textContent = err instanceof Error ? err.message : 'Storage diagnostics failed.';
+    summary.className = 'hint diagnosticStatus diagnosticStatus--error';
     details.textContent = '';
   }
 }
+
+// Small public bridge for focused admin modules. Keeping the shared request and
+// unsaved-change handling here means section-specific editors use the same CSRF,
+// session-expiry, and navigation behavior as the rest of the dashboard.
+window.MMBCAdmin = Object.assign(window.MMBCAdmin || {}, {
+  api,
+  confirmWrite,
+  resetUnsavedBaseline,
+  updateUnsavedForForm
+});
 
 // -------- Wire UI --------
 document.addEventListener('DOMContentLoaded', async () => {
@@ -6214,6 +4437,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   resetTransientUiState();
 
   applyAppearancePreference(getAppearancePreference());
+  document.querySelectorAll('[data-appearance-mode]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const value = String(button.getAttribute('data-appearance-mode') || 'light').toLowerCase();
+      try { window.localStorage.setItem(APPEARANCE_PREF_KEY, value); } catch { /* ignore */ }
+      applyAppearancePreference(value);
+      if ($('appearanceHint')) {
+        $('appearanceHint').textContent = value === 'system' ? 'Using your device appearance setting.' : `${value[0].toUpperCase()}${value.slice(1)} appearance selected.`;
+      }
+    });
+  });
   if ($('adminStorageHealthRefreshBtn')) {
     $('adminStorageHealthRefreshBtn').addEventListener('click', async () => {
       await loadAdminStorageHealth();
@@ -6248,12 +4481,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { resetTransientUiState(); } catch { /* ignore */ }
   });
 
-  // Default print mode (prints are initiated from Finances).
-  setPrintMode('finance');
-  window.addEventListener('afterprint', () => {
-    try { setPrintMode('finance'); } catch { /* ignore */ }
-  });
-
   setAdminDrawerOpen(false, { restoreFocus: false });
   if ($('navDrawerToggle')) {
     renderDrawerToggleButton($('navDrawerToggle'), false);
@@ -6266,26 +4493,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       setAdminDrawerOpen(false, { restoreFocus: true });
     });
   }
-  if ($('adminSideNav')) {
-    $('adminSideNav').addEventListener('click', (e) => {
-      const trigger = e.target?.closest?.('.tab--nav,[data-section-target]');
-      if (!trigger) return;
-
-      if (trigger.classList.contains('tab--nav')) {
-        const target = String(trigger.getAttribute('aria-controls') || '').trim();
-        if (target) {
-          e.preventDefault();
-          activateMainSection(target, {
-            subTabId: target === 'tab-photos' ? 'panel-photos-manage' : (target === 'tab-content' ? 'panel-content-announcements' : '')
-          });
-          setAdminDrawerOpen(false, { restoreFocus: true });
-          return;
-        }
-      }
-
-      setAdminDrawerOpen(false, { restoreFocus: true });
-    });
-  }
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && adminDrawerOpen) {
       e.preventDefault();
@@ -6295,32 +4502,62 @@ document.addEventListener('DOMContentLoaded', async () => {
     trapDrawerFocus(e);
   });
 
-  // Tabs
-  if ($('tabBtn-home')) $('tabBtn-home').addEventListener('click', () => activateMainSection('tab-home'));
-  if ($('tabBtn-photos')) $('tabBtn-photos').addEventListener('click', () => activateMainSection('tab-photos', { subTabId: 'panel-photos-manage' }));
-  if ($('tabBtn-events')) $('tabBtn-events').addEventListener('click', () => activateMainSection('tab-events'));
-  if ($('tabBtn-content')) $('tabBtn-content').addEventListener('click', () => activateMainSection('tab-content', { subTabId: 'panel-content-announcements' }));
-  if ($('tabBtn-finances')) $('tabBtn-finances').addEventListener('click', () => activateMainSection('tab-finances'));
-  if ($('tabBtn-directory')) $('tabBtn-directory').addEventListener('click', () => activateMainSection('tab-directory', { subTabId: 'panel-directory-contacts' }));
-  if ($('tabBtn-submissions')) $('tabBtn-submissions').addEventListener('click', () => { activateMainSection('tab-submissions'); loadWebsiteSubmissions().catch(() => {}); });
-  if ($('tabBtn-newsletter')) $('tabBtn-newsletter').addEventListener('click', () => activateMainSection('tab-newsletter'));
-  if ($('tabBtn-support')) $('tabBtn-support').addEventListener('click', () => activateMainSection('tab-support'));
-  if ($('tabBtn-settings')) $('tabBtn-settings').addEventListener('click', () => activateMainSection('tab-settings'));
-
-  for (const trigger of Array.from(document.querySelectorAll('[data-section-target]'))) {
-    trigger.addEventListener('click', (e) => {
-      const target = String(trigger.getAttribute('data-section-target') || '').trim();
-      const subTab = String(trigger.getAttribute('data-subtab-target') || '').trim();
-      if (!target) return;
-      e.preventDefault();
-      activateMainSection(target, { subTabId: subTab });
+  if ($('submissionsRefreshBtn')) $('submissionsRefreshBtn').addEventListener('click', () => loadWebsiteSubmissions().catch(() => {}));
+  if ($('submissionsSearch')) $('submissionsSearch').addEventListener('input', () => {
+    window.clearTimeout(submissionsSearchTimer);
+    submissionsSearchTimer = window.setTimeout(() => loadWebsiteSubmissions({ resetPage: true }).catch(() => {}), 250);
+  });
+  if ($('submissionsPrevBtn')) $('submissionsPrevBtn').addEventListener('click', () => {
+    submissionsOffset = Math.max(0, submissionsOffset - SUBMISSIONS_PAGE_SIZE);
+    loadWebsiteSubmissions().catch(() => {});
+  });
+  if ($('submissionsNextBtn')) $('submissionsNextBtn').addEventListener('click', () => {
+    submissionsOffset += SUBMISSIONS_PAGE_SIZE;
+    loadWebsiteSubmissions().catch(() => {});
+  });
+  if ($('submissionDialogCloseBtn')) $('submissionDialogCloseBtn').addEventListener('click', closeSubmissionDialog);
+  if ($('submissionDialog')) {
+    $('submissionDialog').addEventListener('click', (event) => { if (event.target === $('submissionDialog')) closeSubmissionDialog(); });
+    $('submissionDialog').addEventListener('close', () => {
+      const dialog = $('submissionDialog');
+      const trigger = dialog._returnFocus;
+      dialog.dataset.submissionId = '';
+      if (trigger?.isConnected) trigger.focus();
+      loadWebsiteSubmissions().catch(() => {});
     });
   }
+  document.querySelectorAll('[data-submission-type-filter]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      submissionsTypeFilter = String(chip.getAttribute('data-submission-type-filter') || 'all').toLowerCase();
+      loadWebsiteSubmissions({ resetPage: true }).catch(() => {});
+    });
+  });
+
+  // The single navigation handler for tabs, dashboard shortcuts, and data-section-target links.
+  document.addEventListener('click', (event) => {
+    const trigger = event.target instanceof Element ? event.target.closest('.tab--nav,[data-section-target]') : null;
+    if (!trigger) return;
+    const target = String(trigger.getAttribute('data-section-target') || trigger.getAttribute('aria-controls') || '').trim();
+    if (!target) return;
+    event.preventDefault();
+    activateMainSection(target, {
+      subTabId: String(trigger.getAttribute('data-subtab-target') || '').trim(),
+      closeDrawer: true
+    });
+  });
 
   queueHeaderNavLayoutSync();
 
   if ($('settingsRefreshBtn')) $('settingsRefreshBtn').addEventListener('click', () => loadSettings());
   if ($('settingsAddRole')) $('settingsAddRole').addEventListener('change', renderSettingsRoleSummary);
+  const settingsRolesDialog = $('settingsRolesDialog');
+  if ($('settingsRolesBtn') && settingsRolesDialog instanceof HTMLDialogElement) {
+    $('settingsRolesBtn').addEventListener('click', () => openManagedDialog(settingsRolesDialog, { initialFocusId: 'settingsRolesDialogCloseBtn' }));
+  }
+  if ($('settingsRolesDialogCloseBtn') && settingsRolesDialog instanceof HTMLDialogElement) {
+    $('settingsRolesDialogCloseBtn').addEventListener('click', () => closeManagedDialog(settingsRolesDialog));
+  }
+  if (settingsRolesDialog instanceof HTMLDialogElement) wireDialogDismissBehavior(settingsRolesDialog);
   if ($('settingsUserFilters')) {
     $('settingsUserFilters').addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -6428,11 +4665,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     'announceForm',
     'eventForm',
     'bulletinForm',
-    'financeEntryForm',
     'newsletterForm',
     'photoUploadForm',
     'supportForm',
-    'directoryContactForm'
+    'directoryContactForm',
+    'ministriesPageForm'
   ];
   for (const formId of unsavedFormIds) {
     const form = $(formId);
@@ -6451,415 +4688,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     e.returnValue = UNSAVED_WARNING_TEXT;
   });
 
-  // Finances
-  if ($('financeEntryForm')) {
-    const forceDatePickerOpen = (inputId) => {
-      const input = $(inputId);
-      if (!(input instanceof HTMLInputElement)) return;
-      if (String(input.type || '') !== 'date') return;
-      const open = () => {
-        try { input.focus(); } catch { /* ignore */ }
-        const sp = input.showPicker;
-        if (typeof sp === 'function') {
-          try { sp.call(input); } catch { /* ignore */ }
-        }
-      };
-
-      // Clicking the label/container should also open the picker.
-      const label = input.closest('label');
-      if (label) {
-        label.addEventListener('click', (e) => {
-          if (e.target === input) return;
-          open();
-        });
-      }
-
-      // Clicking in the input should open it too (consistent behavior).
-      input.addEventListener('click', () => open());
-    };
-
-    forceDatePickerOpen('financeDate');
-    forceDatePickerOpen('financeFrom');
-    forceDatePickerOpen('financeTo');
-
-    $('financeEntryForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (financeWizard.saving) return;
-      setFinanceHint('');
-
-      const id = String($('financeEditId').value || '');
-      const payload = {
-        date: String($('financeDate').value || ''),
-        type: String($('financeType').value || ''),
-        category: String($('financeCategory').value || ''),
-        fund: '',
-        fundId: String($('financeFund').value || ''),
-        method: String($('financeMethod').value || ''),
-        amount: String($('financeAmount').value || ''),
-        party: String($('financeParty').value || ''),
-        memo: String($('financeMemo').value || '')
-      };
-
-      financeWizard.saving = true;
-      const saveBtn = $('financeSaveBtn');
-      if (saveBtn) saveBtn.disabled = true;
-      setFinanceHint(id ? 'Saving…' : 'Adding…');
-
-      try {
-        const res = await api(id
-          ? `/api/finances/entries/${encodeURIComponent(id)}`
-          : '/api/finances/entries',
-        {
-          method: id ? 'PUT' : 'POST',
-          body: JSON.stringify(payload)
-        });
-        finances = res.data;
-        const savedEntry = Array.isArray(finances?.entries)
-          ? (finances.entries.find((x) => String(x.id) === String(id)) || finances.entries[finances.entries.length - 1])
-          : null;
-        financeWizard.dirty = false;
-        try { resetUnsavedBaseline($('financeEntryForm')); } catch { /* ignore */ }
-        setFinanceHint('');
-        financeRenderSavedPanel(savedEntry);
-        financeWizard.lastSavedId = savedEntry ? String(savedEntry.id || '') : '';
-        financeGoToStep('saved');
-        renderFinances();
-      } catch (err) {
-        setFinanceHint(err.message);
-      } finally {
-        financeWizard.saving = false;
-        if (saveBtn) saveBtn.disabled = false;
-      }
-    });
-
-    // “Create … / Delete …” option handling for Category and Fund dropdowns.
-    // Funds use the real fund registry APIs, while categories use finance meta.
-    if ($('financeCategory')) {
-      $('financeCategory').addEventListener('change', () => financeHandleCreateSelect('category'));
-    }
-    if ($('financeFund')) {
-      $('financeFund').addEventListener('change', () => financeHandleCreateSelect('fund'));
-    }
-
-    // Mark the wizard dirty on any field change so unsaved-change prompts fire correctly.
-    $('financeEntryForm').addEventListener('input', financeMarkDirty);
-    $('financeEntryForm').addEventListener('change', financeMarkDirty);
-
-    // Step 1: Money direction
-    const chooseDirection = (direction) => {
-      financeApplyKindToForm(direction);
-      financeMarkDirty();
-    };
-    if ($('financeChoiceIncomeBtn')) {
-      $('financeChoiceIncomeBtn').addEventListener('click', () => chooseDirection('income'));
-    }
-    if ($('financeChoiceExpenseBtn')) {
-      $('financeChoiceExpenseBtn').addEventListener('click', () => chooseDirection('expense'));
-    }
-    if ($('financeStepDirectionContinueBtn')) {
-      $('financeStepDirectionContinueBtn').addEventListener('click', () => {
-        if (financeValidateDirectionStep()) financeGoToStep('details');
-      });
-    }
-
-    // Step 2: Details
-    if ($('financeStepDetailsContinueBtn')) {
-      $('financeStepDetailsContinueBtn').addEventListener('click', () => {
-        if (financeValidateDetailsStep()) financeGoToStep('payment');
-      });
-    }
-
-    // Step 3: Payment
-    if ($('financeStepPaymentContinueBtn')) {
-      $('financeStepPaymentContinueBtn').addEventListener('click', () => {
-        if (financeValidatePaymentStep()) financeGoToStep('review');
-      });
-    }
-
-    // Back buttons
-    for (const btn of document.querySelectorAll('[data-wizard-back]')) {
-      btn.addEventListener('click', () => financeGoToStep(btn.getAttribute('data-wizard-back')));
-    }
-
-    // Progress indicator: jump to any previously-reached step
-    if ($('financeWizardProgress')) {
-      for (const btn of $('financeWizardProgress').querySelectorAll('[data-wizard-goto]')) {
-        btn.addEventListener('click', () => financeGoToStep(btn.getAttribute('data-wizard-goto')));
-      }
-    }
-
-    // Saved panel actions
-    if ($('financeSavedAddAnotherBtn')) {
-      $('financeSavedAddAnotherBtn').addEventListener('click', () => financeResetForm());
-    }
-    if ($('financeSavedViewBtn')) {
-      $('financeSavedViewBtn').addEventListener('click', () => {
-        const savedId = financeWizard.lastSavedId;
-        financeResetForm();
-        setFinanceSubTab('panel-finances-review');
-        const search = $('financeSearch');
-        const entry = Array.isArray(finances?.entries) ? finances.entries.find((x) => String(x.id) === savedId) : null;
-        if (search instanceof HTMLInputElement && entry) {
-          search.value = String(entry.party || entry.category || '');
-          renderFinances();
-        }
-      });
-    }
-    if ($('financeSavedReviewAllBtn')) {
-      $('financeSavedReviewAllBtn').addEventListener('click', () => {
-        financeResetForm();
-        setFinanceSubTab('panel-finances-review');
-      });
-    }
-
-    if ($('financeCancelEditBtn')) {
-      $('financeCancelEditBtn').addEventListener('click', () => {
-        if (financeWizardHasUnsavedChanges()) {
-          financeOpenUnsavedDialog(() => {
-            financeResetForm();
-            setFinanceHint('');
-          });
-          return;
-        }
-        financeResetForm();
-        setFinanceHint('');
-      });
-    }
-  }
-
-  // Main Finance sub-tab navigation
-  for (const id of ['subTabBtn-finances-record', 'subTabBtn-finances-review', 'subTabBtn-finances-reports']) {
-    const btn = $(id);
-    if (!btn) continue;
-    btn.addEventListener('click', () => setFinanceSubTab(btn.getAttribute('aria-controls')));
-  }
-
-  for (const id of ['financeFrom', 'financeTo', 'financeSearch']) {
-    const el = $(id);
-    if (!el) continue;
-    el.addEventListener('input', () => renderFinances());
-    el.addEventListener('change', () => renderFinances());
-  }
-
-  for (const id of ['financeTypeIncome', 'financeTypeExpense']) {
-    const el = $(id);
-    if (!el) continue;
-    el.addEventListener('change', () => renderFinances());
-  }
-
-  // Finance quick tabs (Money Received / Money Spent)
-  if ($('financeQuickTabs')) {
-    const wrap = $('financeQuickTabs');
-    const btns = Array.from(wrap.querySelectorAll('[data-fin-kind]'));
-    for (const b of btns) {
-      b.addEventListener('click', () => {
-        const kind = b.getAttribute('data-fin-kind');
-        financeSetQuickKind(kind, { toggle: true });
-      });
-    }
-  }
-
-  const setGivingPeriod = (period) => {
-    financeGivingPeriod = (period === 'month') ? 'month' : 'week';
-    const wk = $('financePeriodWeekBtn');
-    const mon = $('financePeriodMonthBtn');
-    if (wk) wk.setAttribute('aria-selected', financeGivingPeriod === 'week' ? 'true' : 'false');
-    if (mon) mon.setAttribute('aria-selected', financeGivingPeriod === 'month' ? 'true' : 'false');
-    renderWeeklyGiving();
-  };
-
-  if ($('financePeriodWeekBtn')) {
-    $('financePeriodWeekBtn').addEventListener('click', () => setGivingPeriod('week'));
-  }
-  if ($('financePeriodMonthBtn')) {
-    $('financePeriodMonthBtn').addEventListener('click', () => setGivingPeriod('month'));
-  }
-
-  // Default to current week in the giving chips.
-  setGivingPeriod(financeGivingPeriod);
-
-  // Default quick view: show all transactions until the user picks a filter.
-
-  if ($('financeSearchForm')) {
-    $('financeSearchForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-      renderFinances();
-      const menu = $('financeFilterMenu');
-      if (menu && menu.open) menu.open = false;
-    });
-  }
-
-  // Filter dropdown (single-choice date range + independent type toggles)
-  if ($('financeFilterMenu')) {
-    const menu = $('financeFilterMenu');
-    const rangeInputs = Array.from(menu.querySelectorAll('input[name="financeDateRange"]'))
-      .filter((el) => el instanceof HTMLInputElement);
-
-    const syncDateRangeUi = () => {
-      const selection = financeDateRangeSelection();
-      setFinanceCustomMode(selection === 'custom');
-      if (selection !== 'custom' && $('financeDateRangeHint')) $('financeDateRangeHint').textContent = '';
-    };
-
-    for (const el of rangeInputs) {
-      el.addEventListener('change', () => {
-        syncDateRangeUi();
-        if (String(el.value || '') === 'custom' && el.checked) return;
-        renderFinances();
-      });
-    }
-
-    syncDateRangeUi();
-  }
-
-  if ($('financeApplyCustomRangeBtn')) {
-    $('financeApplyCustomRangeBtn').addEventListener('click', () => {
-      const selection = financeDateRangeSelection();
-      if (selection !== 'custom') {
-        const customRadio = $('financeRangeCustom');
-        if (customRadio instanceof HTMLInputElement) customRadio.checked = true;
-      }
-
-      const check = financeCustomRangeValidation();
-      const hint = $('financeDateRangeHint');
-      if (!check.ok) {
-        if (hint) hint.textContent = check.message;
-        renderFinances();
-        return;
-      }
-
-      if (hint) hint.textContent = '';
-      renderFinances();
-      const menu = $('financeFilterMenu');
-      if (menu) menu.open = false;
-    });
-  }
-
-  if ($('financeClearRangeBtn')) {
-    $('financeClearRangeBtn').addEventListener('click', () => {
-      const allDates = $('financeRangeAll');
-      if (allDates instanceof HTMLInputElement) allDates.checked = true;
-      if ($('financeFrom')) $('financeFrom').value = '';
-      if ($('financeTo')) $('financeTo').value = '';
-      if ($('financeSearch')) $('financeSearch').value = '';
-      if ($('financeFilterCategory')) $('financeFilterCategory').value = '';
-      if ($('financeFilterFund')) $('financeFilterFund').value = '';
-      if ($('financeFilterMethod')) $('financeFilterMethod').value = '';
-      if ($('financeTypeIncome') instanceof HTMLInputElement) $('financeTypeIncome').checked = true;
-      if ($('financeTypeExpense') instanceof HTMLInputElement) $('financeTypeExpense').checked = true;
-      if ($('financeDateRangeHint')) $('financeDateRangeHint').textContent = '';
-      setFinanceCustomMode(false);
-      financeClearQuickKind({ render: false });
-      renderFinances();
-      const menu = $('financeFilterMenu');
-      if (menu) menu.open = false;
-    });
-  }
-
-  if ($('financeExportCsvBtn')) {
-    $('financeExportCsvBtn').addEventListener('click', () => {
-      const rows = financeExportRows();
-      financeExportToCsv(rows);
-      closeDetailsMenu('financeExportMenu');
-    });
-  }
-
-  if ($('financeExportSheetsBtn')) {
-    $('financeExportSheetsBtn').addEventListener('click', async () => {
-      const rows = financeExportRows();
-      await financeExportToGoogleSheets(rows);
-    });
-  }
-
-  if ($('printFinanceLedgerBtn')) {
-    $('printFinanceLedgerBtn').addEventListener('click', () => {
-      setPrintMode('finance');
-      financeBuildLedgerPrintReport();
-      window.print();
-    });
-  }
-
-  if ($('printFinanceReceiptsBtn')) {
-    $('printFinanceReceiptsBtn').addEventListener('click', () => {
-      const dlg = $('financeReceiptsDialog');
-      if (!dlg) return;
-
-      openManagedDialog(dlg, { initialFocusId: 'financeReceiptsSearch' });
-
-      // Render the picker list using current filters.
-      financeRenderReceiptsPicker({ keepSelection: true });
-    });
-  }
-
-  if ($('financeReceiptsDialog')) {
-    const dlg = $('financeReceiptsDialog');
-    const closeDlg = () => closeManagedDialog(dlg);
-    wireDialogDismissBehavior(dlg, { onClose: closeDlg });
-
-    if ($('financeReceiptsSearch') instanceof HTMLInputElement) {
-      $('financeReceiptsSearch').addEventListener('input', () => financeRenderReceiptsPicker({ keepSelection: true }));
-    }
-    if ($('financeReceiptsSearchClear')) {
-      $('financeReceiptsSearchClear').addEventListener('click', () => {
-        const s = $('financeReceiptsSearch');
-        if (s instanceof HTMLInputElement) s.value = '';
-        financeRenderReceiptsPicker({ keepSelection: true });
-        try { $('financeReceiptsSearch')?.focus(); } catch { /* ignore */ }
-      });
-    }
-
-    if ($('financeReceiptsSelectAllBtn')) {
-      $('financeReceiptsSelectAllBtn').addEventListener('click', () => {
-        const universe = financeGetReceiptsUniverse();
-        const s = $('financeReceiptsSearch');
-        const q = (s instanceof HTMLInputElement) ? String(s.value || '').trim().toLowerCase() : '';
-        const filtered = q ? universe.filter((e) => financeReceiptHay(e).includes(q)) : universe;
-        if (!window.__financeReceiptSelectedIds) window.__financeReceiptSelectedIds = new Set();
-        for (const e of filtered) {
-          const id = String(e?.id || '');
-          if (id) window.__financeReceiptSelectedIds.add(id);
-        }
-        financeRenderReceiptsPicker({ keepSelection: true });
-      });
-    }
-
-    if ($('financeReceiptsClearBtn')) {
-      $('financeReceiptsClearBtn').addEventListener('click', () => {
-        if (window.__financeReceiptSelectedIds) window.__financeReceiptSelectedIds.clear();
-        financeRenderReceiptsPicker({ keepSelection: true });
-      });
-    }
-
-    if ($('financeReceiptsPrintSelectedBtn')) {
-      $('financeReceiptsPrintSelectedBtn').addEventListener('click', () => {
-        const selectedIds = window.__financeReceiptSelectedIds || new Set();
-        const universe = financeGetReceiptsUniverse();
-        const picked = universe.filter((e) => selectedIds.has(String(e?.id || '')));
-        closeDlg();
-        financePrintReceipts(picked, { reportLabel: 'Receipts (selected entries)' });
-      });
-    }
-
-    if ($('financeReceiptsPrintAllBtn')) {
-      $('financeReceiptsPrintAllBtn').addEventListener('click', () => {
-        const universe = financeGetReceiptsUniverse();
-        closeDlg();
-        financePrintReceipts(universe, { reportLabel: 'Receipts (all entries in current filters)' });
-      });
-    }
-
-    if ($('financeReceiptsCloseBtn')) {
-      $('financeReceiptsCloseBtn').addEventListener('click', () => closeDlg());
-    }
-  }
-
-  if ($('financeUnsavedDialog')) {
-    wireDialogDismissBehavior($('financeUnsavedDialog'));
-  }
-  if ($('financeDeleteDialog')) {
-    wireDialogDismissBehavior($('financeDeleteDialog'));
-  }
-
   if ($('printEventsAllBtn')) {
     $('printEventsAllBtn').addEventListener('click', async () => {
       closeDetailsMenu('eventsPrintMenu');
@@ -6867,7 +4695,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try { await loadEvents(); } catch { /* ignore */ }
       }
       setPrintMode('events');
-      setFinancePrintHeader('Events report', [`All events (${events.length})`]);
+      setEventsPrintHeader('Events report', [`All events (${events.length})`]);
       renderEventsPrintReport(events, 'Events Report — All Events');
       window.print();
     });
@@ -6883,7 +4711,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       const rows = events.filter((e) => normalizeTitle(e?.title) === title);
       setPrintMode('events');
-      setFinancePrintHeader('Events report', [`Group: ${title}`, `${rows.length} event(s)`]);
+      setEventsPrintHeader('Events report', [`Group: ${title}`, `${rows.length} event(s)`]);
       renderEventsPrintReport(rows, `Events Report — ${title}`);
       window.print();
     });
@@ -6901,7 +4729,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const rows = ev ? [ev] : [];
       const label = ev ? `${String(ev?.date || '')} ${formatEventTime12h(ev?.time)} ${normalizeTitle(ev?.title)}`.trim() : `Event ID: ${id}`;
       setPrintMode('events');
-      setFinancePrintHeader('Events report', [`Single: ${label}`, `${rows.length} event(s)`]);
+      setEventsPrintHeader('Events report', [`Single: ${label}`, `${rows.length} event(s)`]);
       renderEventsPrintReport(rows, 'Events Report — Single Event');
       window.print();
     });
@@ -7104,7 +4932,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             emails: payload.emails
           })
         });
-        if (hint) hint.textContent = out?.disabled ? 'Sending is disabled on this server.' : `Sent to ${Number(out?.sent || 0)} recipient(s).`;
+        if (hint) hint.textContent = out?.disabled ? 'Sending is disabled on this server.' : out?.queued ? 'Queued for delivery. Check newsletter history for the result.' : `Sent to ${Number(out?.sent || 0)} recipient(s).`;
         await loadNewsletterRecords();
         const newsletterForm = $('newsletterForm');
         if (newsletterForm instanceof HTMLFormElement) resetUnsavedBaseline(newsletterForm);
@@ -7674,7 +5502,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Hash navigation (e.g. /admin/#announcements)
   window.addEventListener('hashchange', () => {
-    refreshAuthUI().catch(() => {});
+    if (sessionInitialized) applyHashNavigation();
   });
 
   // Events
@@ -7773,181 +5601,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Livestream controls
-  if ($('goLiveBtn')) {
-    $('goLiveBtn').addEventListener('click', async () => {
-      if (!confirmWrite('Set livestream status to LIVE now?')) return;
-      const platform = $('activePlatform').value;
-      const platforms = getSelectedLivePlatforms();
-      const nextPlatforms = platforms.length ? platforms : [platform];
-      if (!nextPlatforms.includes(platform)) nextPlatforms.unshift(platform);
-      livestream.active = { platform, platforms: nextPlatforms, status: 'live' };
-      await saveLivestream();
-    });
-  }
-  if ($('goOfflineBtn')) {
-    $('goOfflineBtn').addEventListener('click', async () => {
-      if (!confirmWrite('Set livestream status to OFFLINE now?')) return;
-      const platform = $('activePlatform').value;
-      const platforms = getSelectedLivePlatforms();
-      const nextPlatforms = platforms.length ? platforms : [platform];
-      if (!nextPlatforms.includes(platform)) nextPlatforms.unshift(platform);
-      livestream.active = { platform, platforms: nextPlatforms, status: 'offline' };
-      await saveLivestream();
-    });
-  }
-  if ($('saveLivestreamBtn')) {
-    $('saveLivestreamBtn').addEventListener('click', async () => {
-      if (!confirmWrite('Save livestream settings?')) return;
-      const platform = $('activePlatform').value;
-      const platforms = getSelectedLivePlatforms();
-      const nextPlatforms = platforms.length ? platforms : [platform];
-      if (!nextPlatforms.includes(platform)) nextPlatforms.unshift(platform);
-      livestream.active = { platform, platforms: nextPlatforms, status: livestream.active?.status || 'offline' };
-      await saveLivestream();
-      alert('Saved livestream settings.');
-    });
-  }
-
-  if ($('recurringForm')) {
-    $('recurringForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      if (!confirmWrite('Add this recurring stream?')) return;
-
-      const fd = new FormData(e.currentTarget);
-      const item = {
-        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-        day: String(fd.get('day')),
-        time: String(fd.get('time')),
-        label: String(fd.get('label'))
-      };
-      livestream.recurring = [...(livestream.recurring || []), item];
-      await saveLivestream();
-      safeResetForm(e);
-    });
-  }
-
-  // Social settings
-  if ($('socialForm')) {
-    $('socialForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const hint = $('socialHint');
-
-      if (!confirmWrite('Save social links?')) return;
-
-      hint.textContent = 'Saving…';
-      const fd = new FormData(e.currentTarget);
-      await saveSettingsPatch({
-        social: {
-          facebook: String(fd.get('facebook') || ''),
-          youtube: String(fd.get('youtube') || ''),
-          email: String(fd.get('email') || ''),
-          phone: String(fd.get('phone') || ''),
-          address: String(fd.get('address') || '')
-        }
-      });
-      hint.textContent = 'Saved.';
-    });
-  }
-
-  // Theme settings
-  if ($('themeForm')) {
-    $('themeForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const hint = $('themeHint');
-
-      if (!confirmWrite('Save theme settings?')) return;
-
-      hint.textContent = 'Saving…';
-      const fd = new FormData(e.currentTarget);
-      await saveSettingsPatch({
-        theme: {
-          accent: String(fd.get('accent') || '#c46123'),
-          text: String(fd.get('text') || '#ffffff'),
-          background: String(fd.get('background') || '#000000')
-        }
-      });
-      hint.textContent = 'Saved (theme.css updated if exports enabled).';
-    });
-  }
-
-  // Theme: hex input syncing
-  const syncHex = (colorInputId, hexInputId) => {
-    const colorEl = $(colorInputId);
-    const hexEl = $(hexInputId);
-    if (!colorEl || !hexEl) return;
-
-    const pushToHex = () => {
-      hexEl.value = String(colorEl.value || '').toLowerCase();
-      applyThemePreviewCard(getThemeFromInputs());
-    };
-
-    const pushToColor = () => {
-      const normalized = normalizeHex(hexEl.value);
-      if (!normalized) return;
-      colorEl.value = normalized;
-      applyThemePreviewCard(getThemeFromInputs());
-    };
-
-    colorEl.addEventListener('input', pushToHex);
-    hexEl.addEventListener('input', () => {
-      // live preview only when valid hex
-      const normalized = normalizeHex(hexEl.value);
-      if (normalized) {
-        colorEl.value = normalized;
-        applyThemePreviewCard(getThemeFromInputs());
-      }
-    });
-    hexEl.addEventListener('change', pushToColor);
-
-    pushToHex();
-  };
-
-  syncHex('themeAccent', 'themeAccentHex');
-
   // Time pickers
-  if ($('recurringTimePicker') && $('recurringTime')) initTimePicker('recurringTimePicker', 'recurringTime', { required: true, defaultValue: '10:00' });
   if ($('eventTimePicker') && $('eventTime')) initTimePicker('eventTimePicker', 'eventTime', { required: false });
-  syncHex('themeText', 'themeTextHex');
-  syncHex('themeBackground', 'themeBackgroundHex');
-
-  // Theme: Preview before saving
-  const previewBtn = $('previewThemeBtn');
-  const clearBtn = $('clearThemePreviewBtn');
-  if (previewBtn) {
-    previewBtn.addEventListener('click', async () => {
-      const hint = $('themeHint');
-      hint.textContent = 'Enabling preview…';
-      const theme = getThemeFromInputs();
-      applyThemePreviewCard(theme);
-      await api('/api/theme/preview', { method: 'POST', body: JSON.stringify({ theme }) });
-      hint.textContent = 'Preview enabled. A new tab will open with your preview.';
-      window.open('/', '_blank');
-    });
-  }
-  if (clearBtn) {
-    clearBtn.addEventListener('click', async () => {
-      const hint = $('themeHint');
-      hint.textContent = 'Clearing preview…';
-      await api('/api/theme/preview/clear', { method: 'POST', body: '{}' });
-      hint.textContent = 'Preview cleared.';
-    });
-  }
-
-  const exportAllBtn = $('exportAllBtn');
-  if (exportAllBtn) {
-    exportAllBtn.addEventListener('click', async () => {
-      if (!confirmWrite('Export current content to website files now?')) return;
-      await api('/api/export', { method: 'POST', body: '{}' });
-      alert('Exported to website files.');
-    });
-  }
 
   // Initial
-  refreshAuthUI().catch((err) => {
-    $('authStatus').textContent = 'Admin server not running.';
-    $('loginError').textContent = err.message;
-    $('loginError').hidden = false;
+  initializeSession().catch((err) => {
+    console.error('Admin initialization failed', err);
+    const authStatus = $('authStatus');
+    if (authStatus) authStatus.textContent = 'Admin connection needs attention.';
+    showSessionWarning(err instanceof Error ? err.message : 'The admin could not finish loading. Refresh and try again.');
   });
 });

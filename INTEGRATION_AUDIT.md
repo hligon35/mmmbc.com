@@ -17,8 +17,8 @@ Generated for Cloudflare Worker stack (`src/worker-admin-api-wrapper.js` -> `src
 | 9 | Newsletter signup (public) | `POST /api/public/newsletter/subscribe` | `GET/PUT /api/subscribers` | Public write + admin read/write | D1 `subscribers` | `script.js` + worker communications routes | Connected |
 | 10 | Facility rental request (member) | `POST /api/public/facility-rental-request` (mailto fallback) | N/A | Public write | Email delivery via Resend | `facility_rental_form.js` | Connected |
 | 11 | Facility rental request (non-member) | `POST /api/public/facility-rental-request` (mailto fallback) | N/A | Public write | Email delivery via Resend | `facility_rental_nonmembers_form.js` | Connected |
-| 12 | Giving checkout | `POST /api/giving/checkout` from public giving page | Admin reporting paths separate | Public write | Stripe + D1 giving tables | `Pages/giving.js`, `src/worker-giving.js` | Connected |
-| 13 | Public page CMS hydration | `GET /api/site-content/:page` | Admin editor APIs under `/api/admin/site-pages*` | Public read / admin write | D1 `site_page_content` | `site-content-loader.js`, `src/worker-site-editor.js` | Connected |
+| 12 | Public giving | `/give` redirects to the church's Zeffy donation form; the former branded giving page is detached | Admin reporting paths remain separate | External redirect | Zeffy | `src/worker-giving-pages.js` | Connected |
+| 13 | Profile page hydration | `GET /api/site-content/:page` (profile pages only) | Profile-management APIs under `/api/admin/site-pages/:page*` | Public read / admin write | D1 `site_page_content` | `site-content-loader.js`, `src/worker-site-editor.js` | Connected |
 | 14 | Directory contacts | N/A | `/api/directory/contacts*` + duplicate-check/archive aliases | Admin-only | D1 directory tables | `admin/public/admin-directory.js`, `src/worker-directory.js` | Connected |
 | 15 | Directory subscribers/lists/groups | N/A | `/api/directory/subscribers*`, `/api/directory/lists*`, `/api/directory/groups*` | Admin-only | D1 directory tables | admin directory module + worker routes | Connected |
 | 16 | Admin users/invites | N/A | `/api/users`, `/api/users/invite`, `/api/users/:id` | Admin-only | D1 `admin_invites` + static allowlist var | admin UI + `worker-communications.js` | Connected |
@@ -36,5 +36,5 @@ Generated for Cloudflare Worker stack (`src/worker-admin-api-wrapper.js` -> `src
 ## Remaining known gaps
 
 - Admin UI calls to `/api/livestream`, `/api/settings`, `/api/theme/preview*`, and `/api/export` are still not implemented in production Worker routes.
-- Wrapper interception of `/api/finances` and `/api/profiles` remains a compatibility bridge and not full source-of-truth parity with the local `admin/server.js` implementation.
-- Full role/permission model parity between local `admin/server.js` and production Worker is still incomplete in finance and several advanced admin modules.
+- Wrapper interception of `/api/profiles` remains a compatibility bridge and not full source-of-truth parity with the local `admin/server.js` implementation.
+- Full role/permission model parity between local `admin/server.js` and production Worker is still incomplete in several advanced admin modules. The mailbox workspace now includes the lightweight Church Finances workflow; the retired advanced finance dashboard and accounting tooling remain removed.

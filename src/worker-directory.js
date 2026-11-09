@@ -144,20 +144,6 @@ function isDirectoryContactActive(status) {
   return cleanStatus(status, 'active') !== 'archived';
 }
 
-function directoryContactDonorKind(contactType) {
-  const normalized = normalizeContactType(contactType, 'member');
-  return (normalized === 'visitor' || normalized === 'one_time_donor') ? 'one_time' : 'member';
-}
-
-function composeMailingAddress(payload) {
-  return [
-    payload.addressLine1,
-    payload.addressLine2,
-    [payload.city, payload.state].filter(Boolean).join(', '),
-    payload.postalCode
-  ].map((part) => cleanText(part, 180)).filter(Boolean).join(', ').slice(0, 500);
-}
-
 async function accountNumberExistsForContact(env, accountNumber, excludeContactId = '') {
   if (!env.DB || !accountNumber) return false;
   const row = await env.DB.prepare(
@@ -185,147 +171,6 @@ async function ensureDirectoryAccountNumber(env, requestedValue, excludeContactI
   }
 
   throw new Error('Unable to generate a unique account number. Please try again.');
-}
-
-async function syncFinanceDonorForDirectoryContact(env, contactId, payload, actorEmail, { existingContactRow = null } = {}) {
-  if (!env.DB || !contactId || !payload) return null;
-
-  const now = nowIso();
-  const accountNumber = normalizeAccountNumber(payload.accountNumber);
-  const primaryEmail = normalizeEmail(payload.primaryEmail);
-  const donorKind = directoryContactDonorKind(payload.contactType);
-  const mailingAddress = composeMailingAddress(payload);
-  const activeFlag = isDirectoryContactActive(payload.status) ? 1 : 0;
-  const statementEligible = donorKind === 'one_time' ? 0 : 1;
-  const phone = cleanText(payload.mobilePhone || payload.homePhone, 80);
-
-  const linked = await env.DB.prepare(
-    `SELECT * FROM finance_donors WHERE directory_contact_id = ? LIMIT 1`
-  ).bind(contactId).first().catch(() => null);
-
-  let candidate = linked;
-  if (!candidate && accountNumber) {
-    candidate = await env.DB.prepare(
-      `SELECT * FROM finance_donors
-       WHERE account_number = ?
-       LIMIT 1`
-    ).bind(accountNumber).first().catch(() => null);
-  }
-
-  if (!candidate && primaryEmail) {
-    candidate = await env.DB.prepare(
-      `SELECT * FROM finance_donors
-       WHERE lower(coalesce(email, '')) = lower(?)
-       LIMIT 1`
-    ).bind(primaryEmail).first().catch(() => null);
-  }
-
-  if (!candidate && payload.firstName && payload.lastName) {
-    const byName = await env.DB.prepare(
-      `SELECT * FROM finance_donors
-       WHERE lower(first_name) = lower(?)
-         AND lower(last_name) = lower(?)
-       ORDER BY created_at ASC`
-    ).bind(payload.firstName, payload.lastName).all().catch(() => ({ results: [] }));
-    if ((byName?.results || []).length === 1) candidate = byName.results[0];
-  }
-
-  if (candidate?.directory_contact_id && String(candidate.directory_contact_id) !== String(contactId)) {
-    throw new Error('A linked finance donor already exists for a different directory contact. Resolve that donor link before saving this account number.');
-  }
-
-  if (candidate?.id) {
-    await env.DB.prepare(
-      `UPDATE finance_donors
-       SET first_name = ?,
-           middle_name = ?,
-           last_name = ?,
-           preferred_name = ?,
-           mailing_address = ?,
-           email = ?,
-           phone = ?,
-           active = ?,
-           statement_eligible = ?,
-           directory_contact_id = ?,
-           account_number = ?,
-           donor_kind = ?,
-           updated_at = ?
-       WHERE id = ?`
-    ).bind(
-      payload.firstName,
-      payload.middleName || null,
-      payload.lastName,
-      payload.preferredName || null,
-      mailingAddress || null,
-      primaryEmail || null,
-      phone || null,
-      activeFlag,
-      statementEligible,
-      contactId,
-      accountNumber || null,
-      donorKind,
-      now,
-      String(candidate.id)
-    ).run();
-
-    await logDirectoryActivity(env, {
-      actorEmail,
-      eventType: 'finance_donor_synced',
-      entityType: 'contact',
-      entityId: String(contactId),
-      summary: 'Linked finance donor synchronized from directory contact.',
-      metadata: {
-        donorId: String(candidate.id),
-        accountNumber
-      }
-    });
-
-    return String(candidate.id);
-  }
-
-  const donorId = crypto.randomUUID();
-  await env.DB.prepare(
-    `INSERT INTO finance_donors (
-      id, first_name, middle_name, last_name, preferred_name,
-      household_id, mailing_address, email, phone, statement_delivery,
-      active, statement_eligible, directory_contact_id, account_number,
-      donor_kind, merged_into_donor_id,
-      envelope_number, envelope_code, envelope_code_status,
-      envelope_code_issued_at, envelope_code_updated_at,
-      created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'mail', ?, ?, ?, ?, ?, NULL, NULL, '', 'inactive', NULL, NULL, ?, ?)`
-  ).bind(
-    donorId,
-    payload.firstName,
-    payload.middleName || null,
-    payload.lastName,
-    payload.preferredName || null,
-    null,
-    mailingAddress || null,
-    primaryEmail || null,
-    phone || null,
-    activeFlag,
-    statementEligible,
-    contactId,
-    accountNumber || null,
-    donorKind,
-    existingContactRow?.created_at || now,
-    now
-  ).run();
-
-  await logDirectoryActivity(env, {
-    actorEmail,
-    eventType: 'finance_donor_created',
-    entityType: 'contact',
-    entityId: String(contactId),
-    summary: 'Finance donor created from directory contact.',
-    metadata: {
-      donorId,
-      accountNumber
-    }
-  });
-
-  return donorId;
 }
 
 const DEFAULT_CONTACT_TYPES = [
@@ -451,12 +296,12 @@ function contactSelectColumns(includePrivate, schema = {}) {
 
   if (schema.hasNewsletterSubscribers) {
     cols.push(
-      `(SELECT ns.status FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC LIMIT 1) AS newsletter_status`,
-      `(SELECT ns.email FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC LIMIT 1) AS newsletter_email`,
-      `(SELECT ns.consent_source FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC LIMIT 1) AS newsletter_consent_source`,
-      `(SELECT ns.consent_date FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC LIMIT 1) AS newsletter_consent_date`,
-      `(SELECT ns.confirmed_at FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC LIMIT 1) AS newsletter_confirmed_at`,
-      `(SELECT ns.unsubscribed_at FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY CASE WHEN ns.contact_id = c.id THEN 0 ELSE 1 END, ns.updated_at DESC LIMIT 1) AS newsletter_unsubscribed_at`
+      `(SELECT ns.status FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY (ns.contact_id IS NULL), ns.updated_at DESC LIMIT 1) AS newsletter_status`,
+      `(SELECT ns.email FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY (ns.contact_id IS NULL), ns.updated_at DESC LIMIT 1) AS newsletter_email`,
+      `(SELECT ns.consent_source FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY (ns.contact_id IS NULL), ns.updated_at DESC LIMIT 1) AS newsletter_consent_source`,
+      `(SELECT ns.consent_date FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY (ns.contact_id IS NULL), ns.updated_at DESC LIMIT 1) AS newsletter_consent_date`,
+      `(SELECT ns.confirmed_at FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY (ns.contact_id IS NULL), ns.updated_at DESC LIMIT 1) AS newsletter_confirmed_at`,
+      `(SELECT ns.unsubscribed_at FROM newsletter_subscribers ns WHERE ns.contact_id = c.id OR (ns.contact_id IS NULL AND lower(ns.email) = lower(c.primary_email)) ORDER BY (ns.contact_id IS NULL), ns.updated_at DESC LIMIT 1) AS newsletter_unsubscribed_at`
     );
   } else {
     cols.push(
@@ -697,7 +542,7 @@ async function handleDirectoryContactsList(request, env, authCtx) {
     ).bind(...whereData.params).first();
 
     const rows = await env.DB.prepare(
-      `SELECT ${contactSelectColumns(includePrivate)}
+      `SELECT ${contactSelectColumns(includePrivate, schema)}
        FROM directory_contacts c
        ${whereData.where}
        ORDER BY c.updated_at DESC
@@ -739,10 +584,11 @@ async function handleDirectoryContactGet(request, env, authCtx, contactId) {
   if (!env.DB) return fail(503, 'Database is not configured.');
 
   const includePrivate = Boolean(authCtx.permissions.canReadPrivate);
+  const schema = await getDirectorySchemaFlags(env);
 
   try {
     const row = await env.DB.prepare(
-      `SELECT ${contactSelectColumns(includePrivate)}
+      `SELECT ${contactSelectColumns(includePrivate, schema)}
        FROM directory_contacts c
        WHERE c.id = ?
        LIMIT 1`
@@ -956,7 +802,7 @@ async function handleDirectoryContactCreate(request, env, authCtx) {
         member_since, notes,
         created_by, updated_by, created_at, updated_at, archived_at,
         normalized_primary_phone, normalized_home_phone
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       id,
       payload.firstName,
@@ -998,10 +844,6 @@ async function handleDirectoryContactCreate(request, env, authCtx) {
     await upsertNewsletterFromContact(env, id, payload, authCtx.email, {
       isCreate: true,
       allowReactivate: Boolean(body?.reactivateConfirmed)
-    });
-
-    await syncFinanceDonorForDirectoryContact(env, id, payload, authCtx.email, {
-      existingContactRow: { created_at: now }
     });
 
     await logDirectoryActivity(env, {
@@ -1120,10 +962,6 @@ async function handleDirectoryContactUpdate(request, env, authCtx, contactId) {
     await upsertNewsletterFromContact(env, String(contactId || ''), payload, authCtx.email, {
       isCreate: false,
       allowReactivate: Boolean(body?.reactivateConfirmed)
-    });
-
-    await syncFinanceDonorForDirectoryContact(env, String(contactId || ''), payload, authCtx.email, {
-      existingContactRow: existing
     });
 
     await logDirectoryActivity(env, {
@@ -2032,8 +1870,5 @@ export const __directoryTestHooks = {
   normalizeAccountNumber,
   buildDirectoryAccountNumberSeed,
   ensureDirectoryAccountNumber,
-  directoryContactDonorKind,
-  composeMailingAddress,
-  validateContactPayload,
-  syncFinanceDonorForDirectoryContact
+  validateContactPayload
 };

@@ -25,12 +25,36 @@ function expect(actual) {
   };
 }
 
+const staticCss = fs.readFileSync(path.join(__dirname, '..', 'static-style.css'), 'utf8');
+
+describe('Admin layout delivery', () => {
+  const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+
+  test('ships the refined layout directly instead of relying on Worker HTML injection', () => {
+    expect(indexHtml).toContain('id="mmmbc-admin-structure-js"');
+    expect(indexHtml).toContain('/admin/admin-structure-overrides.js?v=20261005a');
+    expect(indexHtml).toContain('/admin/admin.js?v=20261005a');
+  });
+});
+
+describe('Admin shell selection', () => {
+  const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+
+  test('uses the mailbox workspace as the primary shell while retaining legacy module panels', () => {
+    expect(indexHtml).toContain('window.MMWorkspaceEnabled = true');
+    expect(indexHtml).toContain('/admin/workspace/shell.mjs');
+    expect(indexHtml).toContain('/admin/workspace/workspace.css');
+    expect(indexHtml).toContain('id="tabBtn-content"');
+    expect(indexHtml).toContain('id="tabBtn-events"');
+    expect(indexHtml).toContain('id="tabBtn-submissions"');
+  });
+});
+
 describe('Admin accessibility redesign guards', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+  const cloudflareIndexHtml = fs.readFileSync(path.join(__dirname, '..', 'cf_site', 'admin', 'index.html'), 'utf8');
   const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
-  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin.css'), 'utf8');
-  const canonicalCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-header-canonical.css'), 'utf8');
-  const overrideCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-structure-overrides.css'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-style.css'), 'utf8');
   const overrideJs = fs.readFileSync(path.join(__dirname, 'public', 'admin-structure-overrides.js'), 'utf8');
   const workerJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'worker.js'), 'utf8');
   const adminAuthJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin-auth.js'), 'utf8');
@@ -40,7 +64,15 @@ describe('Admin accessibility redesign guards', () => {
   test('Home is the default section after authentication', () => {
     expect(indexHtml).toContain('id="tabBtn-home"');
     expect(indexHtml).toContain('aria-controls="tab-home"');
-    expect(adminJs).toContain("activateMainSection('tab-home')");
+    expect(adminJs).toContain("home: { section: 'tab-home' }");
+    expect(adminJs).toContain("|| 'home'");
+  });
+
+  test('Admin HTML contains no unresolved merge-conflict markers', () => {
+    expect(indexHtml).not.toMatch(/^(<<<<<<<|=======|>>>>>>>)/m);
+    expect(cloudflareIndexHtml).not.toMatch(/^(<<<<<<<|=======|>>>>>>>)/m);
+    expect(indexHtml).toContain('/admin/admin-ministry-profiles.js');
+    expect(cloudflareIndexHtml).toContain('/admin/admin-ministry-profiles.js');
   });
 
   test('Home task cards map to expected sections', () => {
@@ -48,8 +80,7 @@ describe('Admin accessibility redesign guards', () => {
     expect(indexHtml).toContain('id="tabBtn-events"');
     expect(indexHtml).toContain('id="tabBtn-newsletter"');
     expect(indexHtml).toContain('id="tabBtn-photos"');
-    expect(indexHtml).toContain('id="tabBtn-finances"');
-    expect(adminJs).toContain("for (const trigger of Array.from(document.querySelectorAll('[data-section-target]'))) {");
+    expect(adminJs).toContain("closest('.tab--nav,[data-section-target]')");
   });
 
   test('Sidebar labels and groups render with plain-language naming', () => {
@@ -57,13 +88,20 @@ describe('Admin accessibility redesign guards', () => {
     expect(indexHtml).toContain('Communication');
     expect(indexHtml).toContain('Administration');
     expect(indexHtml).not.toContain('Edit Website Pages');
-    expect(indexHtml).toContain('Church Finances');
     expect(indexHtml).toContain('Help &amp; Support');
   });
 
   test('Drawer toggle states are present', () => {
     expect(indexHtml).toContain('Open Menu');
     expect(adminJs).toContain("const label = isOpen ? 'Close menu' : 'Open menu';");
+  });
+
+  test('Signed-in status stacks label above username', () => {
+    expect(indexHtml).toContain('id="authStatus"');
+    expect(adminJs).toContain("label.className = 'headerSignedIn__label';");
+    expect(adminJs).toContain("name.className = 'headerSignedIn__name';");
+    expect(adminCss).toContain('#adminHeader .headerSignedIn__label{');
+    expect(adminCss).toContain('#adminHeader .headerSignedIn__name{');
   });
 
   test('Advanced Photo Tools are collapsed by default', () => {
@@ -84,7 +122,7 @@ describe('Admin accessibility redesign guards', () => {
     expect(indexHtml).toContain('id="photoShowImageNames"');
     expect(indexHtml).toContain('class="photoSettingToggle__label"');
     expect(adminCss).toContain('.photoSettingToggle__label{');
-    expect(overrideCss).toContain('#tab-photos #photoToolbar > .photoSettingToggle .photoSettingToggle__label');
+    expect(adminCss).toContain('#tab-photos #photoToolbar > .photoSettingToggle .photoSettingToggle__label');
     expect(overrideJs).not.toContain('contentEventsSplit__eventHeader');
   });
 
@@ -105,6 +143,21 @@ describe('Admin accessibility redesign guards', () => {
     expect(adminJs).toContain('This newsletter will be sent to ${recipients}');
   });
 
+  test('Website Messages type filters show count badges and drive filtering', () => {
+    expect(indexHtml).toContain('class="formRow submissionsControls"');
+    expect(indexHtml).toContain('data-submission-type-filter="all"');
+    expect(indexHtml).toContain('data-submission-type-filter="contact"');
+    expect(indexHtml).toContain('data-submission-type-filter="facility_rental"');
+    expect(indexHtml).toContain('id="submissionsTypeCountAll"');
+    expect(indexHtml).toContain('id="submissionsTypeCountContact"');
+    expect(indexHtml).toContain('id="submissionsTypeCountFacility"');
+    expect(adminCss).toContain('#tab-submissions .submissionsTypeFilters{');
+    expect(adminCss).toContain('background:var(--danger);');
+    expect(adminJs).toContain('let submissionsTypeFilter = \'all\';');
+    expect(adminJs).toContain('function updateSubmissionTypeFilters(counts)');
+    expect(adminJs).toContain("type: submissionsTypeFilter");
+  });
+
   test('Newsletter actions retain send/test/draft/schedule behavior', () => {
     expect(adminJs).toContain("await api('/api/newsletter/send'");
     expect(adminJs).toContain("await api('/api/newsletter/test'");
@@ -119,7 +172,7 @@ describe('Admin accessibility redesign guards', () => {
     expect(indexHtml).toContain('id="newsletterWeekOfDate"');
     expect(indexHtml).toContain('id="newsletterScheduleTimezone"');
     expect(adminCss).toContain('.newsletterComposeGrid--schedule{');
-    expect(overrideCss).toContain('#tab-newsletter .newsletterComposeGrid--schedule');
+    expect(adminCss).toContain('#tab-newsletter .newsletterComposeGrid--schedule');
   });
 
   test('Unsaved-change warnings trigger only when dirty state exists', () => {
@@ -128,17 +181,29 @@ describe('Admin accessibility redesign guards', () => {
     expect(adminJs).toContain('window.addEventListener(\'beforeunload\'');
   });
 
-  test('Finance period controls use full labels', () => {
-    expect(indexHtml).toContain('This Week');
-    expect(indexHtml).toContain('This Month');
-  });
-
   test('Appearance controls support light dark and device options', () => {
     expect(indexHtml).toContain('id="appearanceSelect"');
+    expect(indexHtml).toContain('id="headerThemeToggle"');
+    expect(indexHtml).toContain('data-appearance-mode="light"');
+    expect(indexHtml).toContain('data-appearance-mode="system"');
+    expect(indexHtml).toContain('data-appearance-mode="dark"');
     expect(indexHtml).toContain('option value="light"');
     expect(indexHtml).toContain('option value="dark"');
     expect(indexHtml).toContain('option value="system"');
     expect(adminJs).toContain('applyAppearancePreference');
+    expect(adminJs).toContain('function syncAppearanceControls(selected)');
+    expect(adminJs).toContain("document.querySelectorAll('[data-appearance-mode]')");
+    expect(adminJs).toContain('document.documentElement.style.colorScheme');
+    expect(adminCss).toContain('#adminHeader .headerThemeToggle{');
+    expect(adminCss).toContain('html body #adminHeader .headerThemeToggle{');
+    expect(adminCss).toContain('html body #adminHeader .adminHeader__tabs #adminSideNav .sideNav__groupLabel');
+    expect(adminCss).toContain('body.theme-light,');
+    expect(adminCss).toContain('body.theme-system.theme-effective-light');
+    expect(adminCss).toContain('body.theme-dark .input:not([type="time"])');
+    expect(adminCss).toContain('body.theme-light .select,');
+    expect(adminCss).toContain('background-repeat:no-repeat;');
+    expect(adminCss).toContain('body.theme-dark .settingsMatrix td[data-access="manage"]');
+    expect(adminCss).toContain('body.theme-dark .newsletterTemplate,');
   });
 
   test('Keyboard accessibility handlers remain for tabs and popovers', () => {
@@ -195,7 +260,7 @@ describe('Admin accessibility redesign guards', () => {
 describe('Users and roles settings', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
-  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin.css'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-style.css'), 'utf8');
 
   test('Settings navigation and administrator list expose the required structure', () => {
     expect(indexHtml).toContain('id="tabBtn-settings"');
@@ -219,12 +284,17 @@ describe('Users and roles settings', () => {
     expect(adminJs).toContain("suspended: ['reactivate', 'revoke']");
   });
 
+  test('Retired livestream, theme, and export handlers are not shipped', () => {
+    expect(adminJs).not.toContain('/api/livestream');
+    expect(adminJs).not.toContain('/api/export');
+    expect(adminJs).not.toContain('Exported to website files');
+  });
+
   test('Main sections and Settings are hidden from users without matching permissions', () => {
     expect(adminJs).toContain("'tab-content': 'announcements.view'");
     expect(adminJs).toContain("'tab-events': 'events.view'");
     expect(adminJs).toContain("'tab-photos': 'photos.view'");
     expect(adminJs).toContain("'tab-newsletter': 'newsletter.view'");
-    expect(adminJs).toContain("'tab-finances': 'finance.view'");
     expect(adminJs).toContain("'tab-directory': 'directory.view'");
     expect(adminJs).toContain("'tab-support': 'support.send'");
     expect(adminJs).toContain("'tab-settings': USERS_MANAGE_PERMISSION");
@@ -249,138 +319,15 @@ describe('Users and roles settings', () => {
     expect(adminJs).toContain("return 'No access'");
     expect(adminJs).toContain('role.description');
     expect(adminCss).toContain('.settingsMatrix td[data-access="manage"]');
-    expect(adminCss).toContain('.settingsGrid{');
+    expect(adminCss).toContain('.settingsRolesDialog__inner{');
   });
 });
 
-describe('Church Finances wizard redesign', () => {
+describe('Event printing and responsive layout', () => {
   const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
-  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin.css'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-style.css'), 'utf8');
   const serverJs = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
-
-  test('Finance section keeps its section target and heading', () => {
-    expect(indexHtml).toContain('id="tabBtn-finances"');
-    expect(indexHtml).toContain('aria-controls="tab-finances"');
-    expect(indexHtml).toMatch(/Church Finances/);
-  });
-
-  test('Record Money defaults to the first sub-tab with a 4-step wizard', () => {
-    expect(indexHtml).toContain('id="subTabBtn-finances-record"');
-    expect(indexHtml).toContain('id="subTabBtn-finances-review"');
-    expect(indexHtml).toContain('id="subTabBtn-finances-reports"');
-    expect(indexHtml).toContain('id="panel-finances-record"');
-    expect(indexHtml).toContain('data-wizard-goto="direction"');
-    expect(indexHtml).toContain('data-wizard-goto="details"');
-    expect(indexHtml).toContain('data-wizard-goto="payment"');
-    expect(indexHtml).toContain('data-wizard-goto="review"');
-  });
-
-  test('Money Direction step offers plain-language choices', () => {
-    expect(indexHtml).toContain('What are you recording?');
-    expect(indexHtml).toContain('Money Received');
-    expect(indexHtml).toContain('Money Spent');
-  });
-
-  test('Payment method step removes the old "(Any)" option and requires a real choice', () => {
-    expect(indexHtml).toContain('Choose payment method');
-    expect(indexHtml).not.toContain('(Any)');
-  });
-
-  test('Review step reuses field values and is not gated by confirm()', () => {
-    expect(indexHtml).toContain('id="financeReviewSummary"');
-    expect(indexHtml).toContain('Review this entry');
-    expect(adminJs).toContain('function financeRenderReviewSummary()');
-    expect(adminJs).not.toContain("confirmWrite(id ? 'Save changes to this entry?' : 'Add this finance entry?')");
-  });
-
-  test('Saving is protected against duplicate submits', () => {
-    expect(adminJs).toContain('if (financeWizard.saving) return;');
-    expect(adminJs).toContain('financeWizard.saving = true;');
-  });
-
-  test('Edit mode reuses the wizard and relabels the heading/buttons', () => {
-    expect(adminJs).toContain("heading.textContent = isEditing ? 'Edit Transaction' : 'Record Money';");
-    expect(adminJs).toContain("reviewHeading.textContent = isEditing ? 'Review changes' : 'Review this entry';");
-    expect(adminJs).toContain("saveBtn.textContent = isEditing ? 'Save Changes' : 'Save Entry';");
-  });
-
-  test('Client-side validation uses the exact required copy', () => {
-    expect(adminJs).toContain('Enter an amount greater than $0.00.');
-    expect(adminJs).toContain('Choose what the money was received for.');
-    expect(adminJs).toContain('Choose what this expense was for.');
-    expect(adminJs).toContain('Choose a payment method.');
-    expect(adminJs).toContain('Enter who was paid.');
-  });
-
-  test('Server enforces Paid To for expenses without breaking existing validation', () => {
-    expect(serverJs).toContain("if (type === 'expense' && !party) return res.status(400).json({ error: 'Enter who was paid.' });");
-    expect(serverJs).toContain("if (!Number.isFinite(amountCents) || amountCents <= 0) return res.status(400).json({ error: 'Amount must be greater than 0.' });");
-  });
-
-  test('Unsaved-change and delete confirmations use dedicated accessible dialogs', () => {
-    expect(indexHtml).toContain('id="financeUnsavedDialog"');
-    expect(indexHtml).toContain('Keep Editing');
-    expect(indexHtml).toContain('Discard Entry');
-    expect(indexHtml).toContain('id="financeDeleteDialog"');
-    expect(indexHtml).toContain('Void Transaction');
-    expect(indexHtml).toContain('Keep Transaction');
-    expect(adminJs).toContain('function financeOpenUnsavedDialog(');
-    expect(adminJs).toContain('function financeOpenDeleteDialog(');
-  });
-
-  test('Review Transactions shows a simplified table with visible-label actions', () => {
-    expect(indexHtml).toContain('Transaction History');
-    expect(indexHtml).toContain('Money In');
-    expect(indexHtml).toContain('Money Out');
-    expect(adminJs).toContain("setActionIconButton(viewBtn, 'view', 'View details');");
-    expect(adminJs).toContain("setActionIconButton(editBtn, 'edit', 'Edit entry');");
-    expect(adminJs).toContain("receiptBtn.textContent = 'Print Receipt';");
-    expect(adminJs).toContain("delBtn.textContent = 'Void';");
-  });
-
-  test('Review Transactions supports advanced filters and Reset All Filters', () => {
-    expect(indexHtml).toContain('id="financeAdvancedFilters"');
-    expect(indexHtml).toContain('id="financeFilterCategory"');
-    expect(indexHtml).toContain('id="financeFilterFund"');
-    expect(indexHtml).toContain('id="financeFilterMethod"');
-    expect(indexHtml).toContain('Reset All Filters');
-    expect(adminJs).toContain('financeClearQuickKind({ render: false });');
-  });
-
-  test('Reports & Printing view keeps summary, printing, and new export actions while hiding removed entry points', () => {
-    expect(indexHtml).toContain('Print Transaction History');
-    expect(indexHtml).toContain('Print Selected Receipts');
-    expect(indexHtml).toContain('Export Transactions');
-    expect(indexHtml).toContain('id="financeExportCsvBtn"');
-    expect(indexHtml).toContain('id="financeExportSheetsBtn"');
-    expect(indexHtml).not.toContain('financeViewSummaryBtn');
-    expect(indexHtml).toContain('Money Flow');
-    expect(indexHtml).toContain('Giving Breakdown');
-    expect(indexHtml).not.toContain('Design &amp; Print Envelopes');
-    expect(indexHtml).not.toContain('Finance Dashboard');
-    expect(indexHtml).not.toMatch(/id="financeReportsTotals"[^>]*hidden|hidden[^>]*id="financeReportsTotals"/);
-    expect(adminJs).not.toContain('function toggleFinanceSummaryPanel(');
-    expect(adminJs).toContain('function financeExportToGoogleSheets(rows)');
-  });
-
-  test('Receipt printing only renders when an entry is valid for receipt output', () => {
-    expect(adminJs).toContain('function financeCanPrintReceipt(entry)');
-    expect(adminJs).toContain('if (financeCanPrintReceipt(e)) {');
-    expect(adminJs).toContain('No valid transactions are available to print.');
-  });
-
-  test('Record Money removes the visible scan QR action and keeps the wider two-column detail layout', () => {
-    expect(indexHtml).not.toContain('id="financeScanQrBtn"');
-    expect(indexHtml).toContain('class="label financeWizardField"');
-    expect(adminCss).toContain('.financeWizardField{');
-    expect(adminCss).toContain('.financeWizardPanel{');
-  });
-
-  test('Finance period controls use full labels', () => {
-    expect(indexHtml).toContain('This Week');
-    expect(indexHtml).toContain('This Month');
-  });
 
   test('Event printing moved out of Finances and into the Events tab', () => {
     expect(indexHtml).toContain('id="eventsPrintMenu"');
@@ -388,12 +335,118 @@ describe('Church Finances wizard redesign', () => {
     expect(indexHtml).toContain('id="printEventsGroupBtn"');
     expect(indexHtml).toContain('id="printEventId"');
 
-    const financesSectionMatch = indexHtml.match(/<section class="tabPanel"[^>]*id="tab-finances"[\s\S]*?<\/section>/);
-    expect(financesSectionMatch).not.toBeNull();
-    expect(financesSectionMatch[0]).not.toContain('printEventsAllBtn');
+    expect(indexHtml).not.toContain('id="tab-finances"');
 
     const eventsSectionMatch = indexHtml.match(/<section class="tabPanel"[^>]*id="tab-events"[\s\S]*?<\/section>/);
     expect(eventsSectionMatch).not.toBeNull();
     expect(eventsSectionMatch[0]).toContain('printEventsAllBtn');
+  });
+
+  test('refreshEventsPrintOptions repopulates both event print selectors', () => {
+    expect(adminJs).toContain('function refreshEventsPrintOptions() {');
+    expect(adminJs).toContain("const groupSel = $('printEventsGroupTitle');");
+    expect(adminJs).toContain("const eventSel = $('printEventId');");
+    expect(adminJs).toContain('groupSel.replaceChildren();');
+    expect(adminJs).toContain('eventSel.replaceChildren();');
+  });
+
+  test('Responsive layout guards cover tablet and phone overflow points', () => {
+    expect(staticCss).toContain('Final responsive layout pass');
+    expect(staticCss).toContain('body:not(.admin-page) .nav-links a {');
+    expect(staticCss).toContain('width: min(360px, calc(100vw - 24px));');
+    expect(staticCss).toContain('white-space: normal;');
+    expect(adminCss).toContain('Final responsive layout pass');
+    expect(adminCss).toContain('@media (min-width: 901px) and (max-width: 1100px)');
+    expect(adminCss).toContain('#tab-photos .iconGroup__row {');
+    expect(adminCss).toContain('overflow-x: auto;');
+  });
+});
+
+describe('Profile page editor', () => {
+  const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+  const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin-ministry-profiles.js'), 'utf8');
+  const sharedAdminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
+  const directoryJs = fs.readFileSync(path.join(__dirname, 'public', 'admin-directory.js'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-style.css'), 'utf8');
+
+  test('page chips cover all leadership and staff profile pages', () => {
+    expect(indexHtml).toContain('id="ministriesProfilePageChips"');
+    expect(adminJs).toContain("label: 'Leadership & Staff'");
+    expect(adminJs).toContain("label: 'Associate Ministers'");
+    expect(adminJs).toContain("label: 'Deacons'");
+    expect(adminJs).toContain("label: 'Deaconesses'");
+    expect(adminJs).toContain("label: 'Official Team & Trustees'");
+    expect(adminJs).toContain("/api/admin/site-pages/${page}/media");
+    expect(adminCss).toContain('.ministryProfilePageChip');
+  });
+
+  test('editor loads and saves each page independently', () => {
+    expect(adminJs).toContain('Promise.all(PROFILE_PAGES.map');
+    expect(adminJs).toContain('/draft');
+    expect(adminJs).toContain('/publish');
+    expect(adminJs).toContain('/restore-previous');
+    expect(indexHtml).toContain('id="ministryProfileGroup"');
+  });
+
+  test('profile controls use Material Icons and the requested form layout', () => {
+    expect(indexHtml).toContain('https://fonts.googleapis.com/icon?family=Material+Icons+Round');
+    expect(indexHtml).toContain('id="ministriesRefreshBtn"');
+    expect(indexHtml).toContain('title="Refresh ministry profiles"');
+    expect(indexHtml).toContain('title="Add ministry profile"');
+    expect(indexHtml).toContain('>person_add</span>');
+    expect(indexHtml).toContain('id="ministriesProfilePageChips"');
+    expect(indexHtml).toContain('class="ministryPageForm__divider"');
+    assert.ok(indexHtml.indexOf('id="ministriesProfilePageChips"') < indexHtml.indexOf('class="ministryPageForm__divider"'));
+    assert.ok(indexHtml.indexOf('class="ministryPageForm__divider"') < indexHtml.indexOf('id="ministriesPageTitle"'));
+    expect(adminJs).toContain("icon.className = 'material-icons-round';");
+    expect(adminJs).not.toContain('actionIconBtn__svg');
+    expect(sharedAdminJs).toContain("return `<span class=\"material-icons-round\"");
+    expect(directoryJs).toContain('material-icons-round');
+    expect(directoryJs).not.toContain('actionIconBtn__svg');
+    expect(adminCss).toContain('.material-icons-round{');
+    expect(adminCss).toContain('.actionIconBtn .material-icons-round');
+    expect(sharedAdminJs).toContain("el.setAttribute('title', safeLabel);");
+    expect(directoryJs).toContain("title=\"${safeLabel}\"");
+    expect(adminJs).toContain("iconNames = { edit: 'edit', up: 'arrow_upward', down: 'arrow_downward', delete: 'delete' }");
+  });
+
+  test('ministry publishing actions align with the label editor and print action has a visible background', () => {
+    assert.ok(indexHtml.indexOf('id="ministriesPageTitle"') < indexHtml.indexOf('id="ministriesSaveDraftBtn"'));
+    expect(indexHtml).toContain('aria-label="Ministry profile publishing actions"');
+    expect(adminCss).toContain('.ministryPageForm__fields{\n  grid-template-columns:minmax(220px,.75fr) minmax(320px,1.25fr) auto;');
+    expect(adminCss).toContain('.eventsPrintMenu--inline > summary.actionIconBtn{');
+    expect(adminCss).toContain('background:var(--accent);');
+  });
+});
+
+
+describe('Admin boot resilience', () => {
+  const adminJs = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
+
+  test('does not require the removed loginError element during startup failures', () => {
+    expect(adminJs).not.toContain("$('loginError').textContent = err.message");
+    expect(adminJs).toContain("console.error('Admin initialization failed'");
+  });
+
+  test('keeps the dashboard available when a module API fails', () => {
+    expect(adminJs).toContain("console.error('Admin section failed to load', sectionId, error)");
+    expect(adminJs).not.toContain("if (r.status === 'rejected') throw r.reason");
+  });
+});
+
+
+describe('Contact and profile editor overlay sizing', () => {
+  const adminCss = fs.readFileSync(path.join(__dirname, 'public', 'admin-style.css'), 'utf8');
+
+  test('widens contact and profile editor overlays without breaking mobile layouts', () => {
+    expect(adminCss).toContain('#directoryContactDialog{');
+    expect(adminCss).toContain('width:min(1180px,calc(100vw - 32px));');
+    expect(adminCss).toContain('#directoryContactDialog #directoryContactForm .formRow{');
+    expect(adminCss).toContain('grid-template-columns:repeat(3,minmax(0,1fr));');
+    expect(adminCss).toContain('#ministryProfileDialog{');
+    expect(adminCss).toContain('width:min(1100px,calc(100vw - 32px));');
+    expect(adminCss).toContain('#ministryProfileDialog #ministryProfileForm > .formRow{');
+    expect(adminCss).toContain('#ministryProfileDialog .ministryProfileImageEditor{');
+    expect(adminCss).toContain('#directoryContactDialog,\n  #ministryProfileDialog{');
   });
 });

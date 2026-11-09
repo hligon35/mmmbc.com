@@ -23,8 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeLeadershipMenus = () => {
         document.querySelectorAll('.nav-item-group--leadership.is-open').forEach((group) => {
             group.classList.remove('is-open');
-            const btn = group.querySelector('.nav-parent-toggle');
-            if (btn) btn.setAttribute('aria-expanded', 'false');
+            group.querySelectorAll('.nav-parent-toggle, .nav-parent-link').forEach((control) => {
+                control.setAttribute('aria-expanded', 'false');
+            });
         });
     };
 
@@ -47,12 +48,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const group = document.createElement('div');
             group.className = 'nav-item-group nav-item-group--leadership';
 
+            const parentLink = document.createElement('a');
+            parentLink.className = 'nav-parent-link';
+            const leadershipHref = buildLeadershipHref(baseHref, 'leadership.html');
+            parentLink.href = leadershipHref;
+            parentLink.setAttribute('href', leadershipHref);
+            parentLink.textContent = parentLabel;
+            parentLink.setAttribute('aria-haspopup', 'true');
+            parentLink.setAttribute('aria-expanded', 'false');
+
             const toggle = document.createElement('button');
             toggle.type = 'button';
             toggle.className = 'nav-parent-toggle';
             toggle.setAttribute('aria-haspopup', 'true');
             toggle.setAttribute('aria-expanded', 'false');
-            toggle.innerHTML = `${parentLabel}<span class="nav-parent-caret" aria-hidden="true">&#9662;</span>`;
+            toggle.setAttribute('aria-label', `Show ${parentLabel} menu`);
+            toggle.innerHTML = '<span class="nav-parent-caret" aria-hidden="true">&#9662;</span>';
 
             const submenu = document.createElement('div');
             submenu.className = 'nav-submenu';
@@ -67,19 +78,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 submenu.appendChild(a);
             });
 
+            group.appendChild(parentLink);
             group.appendChild(toggle);
             group.appendChild(submenu);
             leadershipLink.replaceWith(group);
+
+            const openLeadershipMenu = () => {
+                group.classList.add('is-open');
+                toggle.setAttribute('aria-expanded', 'true');
+                parentLink.setAttribute('aria-expanded', 'true');
+            };
 
             toggle.addEventListener('click', (event) => {
                 event.preventDefault();
                 event.stopPropagation();
                 const isOpen = group.classList.contains('is-open');
                 closeLeadershipMenus();
-                if (!isOpen) {
-                    group.classList.add('is-open');
-                    toggle.setAttribute('aria-expanded', 'true');
-                }
+                if (!isOpen) openLeadershipMenu();
+            });
+
+            group.addEventListener('mouseenter', openLeadershipMenu);
+            group.addEventListener('mouseleave', closeLeadershipMenus);
+            group.addEventListener('focusin', openLeadershipMenu);
+            group.addEventListener('focusout', (event) => {
+                if (!group.contains(event.relatedTarget)) closeLeadershipMenus();
             });
 
             submenu.querySelectorAll('a').forEach((a) => {
@@ -140,26 +162,6 @@ document.addEventListener('DOMContentLoaded', () => {
         list.style.paddingLeft = '0';
         list.querySelectorAll('li').forEach((item) => { item.style.listStyle = 'none'; });
     });
-    document.querySelectorAll('.givingTrustCard').forEach((aside) => aside.remove());
-    const givingLayout = document.querySelector('.givingLayout');
-    if (givingLayout) {
-        givingLayout.style.display = 'block';
-        givingLayout.style.maxWidth = '860px';
-        givingLayout.style.margin = '0 auto';
-    }
-    const givingSubmit = document.getElementById('givingSubmit');
-    if (givingSubmit && !document.querySelector('.givingStripeNote')) {
-        const stripeNote = document.createElement('p');
-        stripeNote.className = 'givingStripeNote';
-        stripeNote.textContent = 'Powered by Stripe';
-        stripeNote.style.margin = '12px 0 0';
-        stripeNote.style.textAlign = 'center';
-        stripeNote.style.fontSize = '0.9rem';
-        stripeNote.style.fontWeight = '700';
-        stripeNote.style.opacity = '0.72';
-        givingSubmit.insertAdjacentElement('afterend', stripeNote);
-    }
-
     const footer = document.querySelector('footer');
     if (footer) {
         const currentYear = new Date().getFullYear();
@@ -177,32 +179,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="footer-links-section" id="quick-links">
                     <h4>Quick Links</h4>
                     <ul>
-                        <li><a href="${root}index.html"><img src="${root}Icons/home.png" alt="Home icon" class="link-icon"><span class="link-text">Home</span></a></li>
-                        <li><a href="${page('ministries.html')}"><img src="${root}Icons/ministries.png" alt="Ministries icon" class="link-icon"><span class="link-text">Ministries</span></a></li>
-                        <li><a href="${page('associate_ministers.html')}"><img src="${root}Icons/leadership.png" alt="Leadership icon" class="link-icon"><span class="link-text">Leadership</span></a></li>
-                        <li><a href="${page('church_history.html')}"><img src="${root}Icons/churchhistory.png" alt="Church History icon" class="link-icon"><span class="link-text">Church History</span></a></li>
-                        <li><a href="${page('giving.html')}"><img src="${root}Icons/give.png" alt="Give icon" class="link-icon"><span class="link-text">Give</span></a></li>
-                        <li><a href="${page('facility_rental.html')}"><img src="${root}Icons/facilityrental.png" alt="Facility Rental icon" class="link-icon"><span class="link-text">Facility Rental</span></a></li>
-                        <li><a href="${page('contact.html')}"><img src="${root}Icons/contactus.png" alt="Contact Us icon" class="link-icon"><span class="link-text">Contact Us</span></a></li>
+                        <li><a href="${root}index.html"><span class="material-icons-round link-icon" aria-hidden="true">home</span><span class="link-text">Home</span></a></li>
+                        <li><a href="${page('ministries.html')}"><span class="material-icons-round link-icon" aria-hidden="true">groups</span><span class="link-text">Ministries</span></a></li>
+                        <li><a href="${page('leadership.html')}"><span class="material-icons-round link-icon" aria-hidden="true">badge</span><span class="link-text">Leadership</span></a></li>
+                        <li><a href="${page('church_history.html')}"><span class="material-icons-round link-icon" aria-hidden="true">history_edu</span><span class="link-text">Church History</span></a></li>
+                        <li><a href="/give"><span class="material-icons-round link-icon" aria-hidden="true">volunteer_activism</span><span class="link-text">Give</span></a></li>
+                        <li><a href="${page('facility_rental.html')}"><span class="material-icons-round link-icon" aria-hidden="true">meeting_room</span><span class="link-text">Facility Rental</span></a></li>
+                        <li><a href="${page('contact.html')}"><span class="material-icons-round link-icon" aria-hidden="true">contact_mail</span><span class="link-text">Contact Us</span></a></li>
                     </ul>
                 </div>
                 <div class="footer-links-section" id="connect-us">
                     <h4>Connect With Us</h4>
                     <ul>
-                        <li><a href="https://www.google.com/maps/search/?api=1&query=1201+South+8th+Street+Paducah+KY" target="_blank" rel="noopener noreferrer"><img src="${root}Icons/address.png" alt="Address icon" class="link-icon"><span class="link-text">1201 South 8th Street, Paducah, KY</span></a></li>
-                        <li><a href="tel:2704433714"><img src="${root}Icons/phone.png" alt="Phone icon" class="link-icon"><span class="link-text">(270) 443-3714</span></a></li>
-                        <li><a href="mailto:mtmoriahmbc1201@gmail.com"><img src="${root}Icons/mailus.png" alt="Email Us icon" class="link-icon"><span class="link-text">Email Us</span></a></li>
-                        <li><a href="https://www.facebook.com/MtMoriahPaducah"><img src="${root}Icons/facebook.png" alt="Facebook icon" class="link-icon"><span class="link-text">Like us on Facebook</span></a></li>
-                        <li><a href="https://youtube.com/channel/UCkAaHiYmUKIdKePifg1D2pg"><img src="${root}Icons/youtube.png" alt="YouTube icon" class="link-icon"><span class="link-text">Subscribe on YouTube</span></a></li>
+                        <li><a href="https://www.google.com/maps/search/?api=1&query=1201+South+8th+Street+Paducah+KY" target="_blank" rel="noopener noreferrer"><span class="material-icons-round link-icon" aria-hidden="true">location_on</span><span class="link-text">1201 South 8th Street, Paducah, KY</span></a></li>
+                        <li><a href="tel:2704433714"><span class="material-icons-round link-icon" aria-hidden="true">phone</span><span class="link-text">(270) 443-3714</span></a></li>
+                        <li><a href="mailto:mtmoriahmbc1201@gmail.com"><span class="material-icons-round link-icon" aria-hidden="true">mail</span><span class="link-text">Email Us</span></a></li>
+                        <li><a href="https://www.facebook.com/MtMoriahPaducah"><span class="material-icons-round link-icon" aria-hidden="true">public</span><span class="link-text">Like us on Facebook</span></a></li>
+                        <li><a href="https://youtube.com/channel/UCkAaHiYmUKIdKePifg1D2pg"><span class="material-icons-round link-icon" aria-hidden="true">smart_display</span><span class="link-text">Subscribe on YouTube</span></a></li>
                     </ul>
                 </div>
                 <div class="footer-links-section" id="newsletter-signup">
                     <h4>Newsletter</h4>
-                    <form class="footer-subscribe-form" data-subscriber-form>
-                        <label for="footerSubscriberEmail">Subscriber email</label>
-                        <input class="input" id="footerSubscriberEmail" type="email" list="siteSubscriberOptions" placeholder="you@example.com" required>
+                    <form class="footer-subscribe-form" data-subscriber-form data-cloudflare-form>
+                        <div class="subscriber-name-fields">
+                            <label>First name<input type="text" name="firstName" autocomplete="given-name" maxlength="60" required></label>
+                            <label>Last name<input type="text" name="lastName" autocomplete="family-name" maxlength="80" required></label>
+                        </div>
+                        <label class="subscriber-email-field">Email address<input type="email" name="email" autocomplete="email" placeholder="you@example.com" maxlength="254" required></label>
+                        <div class="form-turnstile" data-turnstile-container hidden></div>
                         <button class="btn-contact btn-contact--spaced" type="submit">Join List</button>
-                        <p class="muted" data-subscriber-help>We will open your email app with a pre-filled request.</p>
+                        <p class="muted" data-subscriber-help role="status" aria-live="polite"></p>
                     </form>
                 </div>
             </div>
@@ -218,30 +224,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const answer = item.querySelector('.faq-answer');
         if (!question) return;
         if (!question.hasAttribute('tabindex')) question.setAttribute('tabindex', '0');
-        question.setAttribute('role', 'button');
         if (answer) {
             if (!answer.id) answer.id = `faq-answer-${Math.random().toString(36).slice(2, 9)}`;
             question.setAttribute('aria-controls', answer.id);
         }
-        question.setAttribute('aria-expanded', item.classList.contains('active') ? 'true' : 'false');
-        question.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                question.click();
-            }
-        });
-        question.addEventListener('click', () => {
-            const isActive = item.classList.contains('active');
-            faqItems.forEach((otherItem) => {
-                otherItem.classList.remove('active');
-                const otherQuestion = otherItem.querySelector('.faq-question');
-                if (otherQuestion) otherQuestion.setAttribute('aria-expanded', 'false');
-            });
-            if (!isActive) {
-                item.classList.add('active');
-                question.setAttribute('aria-expanded', 'true');
-            }
-        });
+        question.setAttribute('aria-expanded', 'false');
+        const syncFaqState = () => {
+            question.setAttribute('aria-expanded', item.matches(':hover, :focus-within') ? 'true' : 'false');
+        };
+        item.addEventListener('mouseenter', syncFaqState);
+        item.addEventListener('mouseleave', syncFaqState);
+        item.addEventListener('focusin', syncFaqState);
+        item.addEventListener('focusout', syncFaqState);
     });
 
     const menuButton = document.getElementById('menuButton');
@@ -316,44 +310,93 @@ document.addEventListener('DOMContentLoaded', () => {
         return data;
     };
 
-    const applySiteSettings = (settings) => {
-        if (!settings || typeof settings !== 'object') return;
-        const subscribers = Array.isArray(settings.subscribers)
-            ? settings.subscribers.map((s) => typeof s === 'string' ? { email: s.trim(), name: '', group: 'general' } : {
-                email: String(s?.email || '').trim(), name: String(s?.name || '').trim(), group: String(s?.group || 'general').trim() || 'general'
-            }).filter((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.email))
-            : [];
-        let list = document.getElementById('siteSubscriberOptions');
-        if (!list) {
-            list = document.createElement('datalist');
-            list.id = 'siteSubscriberOptions';
-            document.body.appendChild(list);
-        }
-        list.innerHTML = '';
-        subscribers.forEach((sub) => {
-            const option = document.createElement('option');
-            option.value = sub.email;
-            option.label = sub.name ? `${sub.name} (${sub.group})` : sub.group;
-            list.appendChild(option);
+    const ensureFormUtils = () => {
+        if (window.MMmbcForms) return Promise.resolve();
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = '/public-form-utils.js?v=20260927g';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
         });
+    };
+    const protectedForms = document.querySelectorAll('form[data-cloudflare-form]');
+    protectedForms.forEach((form) => {
+        const submit = form.querySelector('button[type="submit"]');
+        if (submit) submit.disabled = true;
+    });
+    const applySiteSettings = async (settings) => {
+        if (!settings || typeof settings !== 'object') return false;
+        let forms = window.MMmbcForms || {};
+        const verificationUnavailable = settings.formVerificationUnavailable ||
+            (settings.verificationRequired !== false && !settings.turnstileSiteKey);
+        let widgetReady = false;
+        if (!verificationUnavailable) {
+            try {
+                await ensureFormUtils();
+                forms = window.MMmbcForms || {};
+                if (settings.turnstileSiteKey && typeof forms.loadTurnstile === 'function') {
+                    const results = await Promise.all(Array.from(protectedForms, (form) => forms.loadTurnstile(form, settings.turnstileSiteKey)));
+                    widgetReady = results.length === protectedForms.length && results.every(Boolean);
+                } else if (settings.verificationRequired === false) {
+                    widgetReady = true;
+                }
+            } catch { /* Show the unavailable state below. */ }
+        }
+        if (!widgetReady) {
+            protectedForms.forEach((form) => {
+                const status = form.querySelector('.form-status, [data-subscriber-help]');
+                if (status) {
+                    status.textContent = 'This form is temporarily unavailable. Please email us at ';
+                    const email = String(settings.email || 'mtmoriahmbc1201@gmail.com').trim();
+                    const link = document.createElement('a');
+                    link.href = `mailto:${email}`;
+                    link.textContent = email;
+                    status.append(link, '.');
+                }
+                const submit = form.querySelector('button[type="submit"]');
+                if (submit) submit.disabled = true;
+            });
+        } else {
+            protectedForms.forEach((form) => {
+                const submit = form.querySelector('button[type="submit"]');
+                if (submit) submit.disabled = false;
+            });
+        }
         document.querySelectorAll('[data-subscriber-form]').forEach((form) => {
+            if (!widgetReady) return;
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const emailInput = form.querySelector('input[type="email"]');
                 const help = form.querySelector('[data-subscriber-help]');
                 const email = String(emailInput?.value || '').trim();
+                const firstName = String(form.querySelector('[name="firstName"]')?.value || '').trim();
+                const lastName = String(form.querySelector('[name="lastName"]')?.value || '').trim();
+                if (!firstName || !lastName) {
+                    if (help) help.textContent = 'Please enter your first and last name.';
+                    return;
+                }
                 if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
                     if (help) help.textContent = 'Please enter a valid email address.';
                     return;
                 }
-                const to = String(settings.email || 'mtmoriahmbc1201@gmail.com').trim();
+                const turnstileToken = typeof forms.getTurnstileToken === 'function' ? forms.getTurnstileToken(form) : '';
+                if (settings.verificationRequired !== false && !turnstileToken) {
+                    if (help) help.textContent = 'Please complete the Cloudflare verification before joining.';
+                    return;
+                }
+                const submit = form.querySelector('button[type="submit"]');
+                if (submit) submit.disabled = true;
                 if (help) help.textContent = `Adding ${email} to the newsletter list...`;
                 try {
-                    await postJson('/api/public/newsletter/subscribe', { email });
+                    await postJson('/api/public/newsletter/subscribe', { firstName, lastName, email, turnstileToken });
                     if (help) help.textContent = `${email} has been added to the newsletter list.`;
-                } catch {
-                    window.location.href = `mailto:${to}?subject=${encodeURIComponent('Newsletter Subscription Request')}&body=${encodeURIComponent(`Please add ${email} to the church newsletter list.`)}`;
-                    if (help) help.textContent = `Preparing email subscription request for ${email}.`;
+                    form.reset();
+                } catch (error) {
+                    if (help) help.textContent = String(error?.message || 'Unable to join the list. Please try again.');
+                } finally {
+                    if (typeof forms.resetTurnstile === 'function') forms.resetTurnstile(form);
+                    if (submit) submit.disabled = false;
                 }
             });
         });
@@ -375,24 +418,80 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (span) span.textContent = String(settings.address);
             }
         });
+        return widgetReady;
     };
 
     const wireContactForm = (settings) => {
         if (!contactForm) return;
+        const forms = window.MMmbcForms || {};
         const submitBtn = contactForm.querySelector('button[type="submit"]');
+        const status = contactForm.querySelector('#contactFormStatus');
+        if (settings.formVerificationUnavailable || (settings.verificationRequired !== false && !settings.turnstileSiteKey)) return;
+        if (typeof forms.wireFormatting === 'function') forms.wireFormatting(contactForm);
         contactForm.addEventListener('submit', async (event) => {
             event.preventDefault();
 
+            if (!contactForm.reportValidity()) {
+                if (status) status.textContent = 'Please correct the highlighted fields before sending.';
+                return;
+            }
+
+            const phoneInput = contactForm.querySelector('#contactPhone');
+            const postalInput = contactForm.querySelector('#contactPostalCode');
+            const email = typeof forms.normalizeEmail === 'function'
+                ? forms.normalizeEmail(contactForm.querySelector('#contactEmail')?.value)
+                : String(contactForm.querySelector('#contactEmail')?.value || '').trim().toLowerCase();
+            const phone = typeof forms.normalizePhone === 'function'
+                ? forms.normalizePhone(phoneInput?.value)
+                : String(phoneInput?.value || '').trim();
+            const postalCode = typeof forms.normalizePostalCode === 'function'
+                ? forms.normalizePostalCode(postalInput?.value)
+                : String(postalInput?.value || '').trim();
+            const state = typeof forms.normalizeState === 'function'
+                ? forms.normalizeState(contactForm.querySelector('#contactState')?.value)
+                : String(contactForm.querySelector('#contactState')?.value || '').trim().toUpperCase();
+
+            if (phoneInput && String(phoneInput.value || '').trim() && !phone) {
+                phoneInput.setCustomValidity('Enter a valid 10-digit phone number.');
+            } else if (phoneInput) {
+                phoneInput.setCustomValidity('');
+            }
+            if (postalInput && String(postalInput.value || '').trim() && !postalCode) {
+                postalInput.setCustomValidity('Enter a 5-digit ZIP code or ZIP+4.');
+            } else if (postalInput) {
+                postalInput.setCustomValidity('');
+            }
+            if (typeof forms.isValidEmail === 'function' && !forms.isValidEmail(email)) {
+                contactForm.querySelector('#contactEmail')?.setCustomValidity('Enter a valid email address.');
+            } else {
+                contactForm.querySelector('#contactEmail')?.setCustomValidity('');
+            }
+            if (!contactForm.reportValidity()) {
+                if (status) status.textContent = 'Please correct the highlighted fields before sending.';
+                return;
+            }
+
+            if (phoneInput && phone) phoneInput.value = phone;
+            if (postalInput && postalCode) postalInput.value = postalCode;
+            const firstName = String(contactForm.querySelector('#contactFirstName')?.value || '').trim();
+            const lastName = String(contactForm.querySelector('#contactLastName')?.value || '').trim();
             const payload = {
-                name: String(contactForm.querySelector('#contactName')?.value || '').trim(),
-                phone: String(contactForm.querySelector('#contactPhone')?.value || '').trim(),
-                address: String(contactForm.querySelector('#contactAddress')?.value || '').trim(),
-                email: String(contactForm.querySelector('#contactEmail')?.value || '').trim(),
-                message: String(contactForm.querySelector('#contactMessage')?.value || '').trim()
+                firstName,
+                lastName,
+                name: `${firstName} ${lastName}`.trim(),
+                phone,
+                addressLine1: String(contactForm.querySelector('#contactAddressLine1')?.value || '').trim(),
+                addressLine2: String(contactForm.querySelector('#contactAddressLine2')?.value || '').trim(),
+                city: String(contactForm.querySelector('#contactCity')?.value || '').trim(),
+                state,
+                postalCode,
+                email,
+                message: String(contactForm.querySelector('#contactMessage')?.value || '').trim(),
+                turnstileToken: typeof forms.getTurnstileToken === 'function' ? forms.getTurnstileToken(contactForm) : ''
             };
 
-            if (!payload.name || !payload.email || !payload.message) {
-                alert('Please complete your name, email, and message.');
+            if (contactForm.querySelector('[data-turnstile-container]')?.hidden === false && !payload.turnstileToken) {
+                if (status) status.textContent = 'Please complete the Cloudflare verification before sending.';
                 return;
             }
 
@@ -401,22 +500,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Sending...';
             }
+            if (status) status.textContent = 'Sending your message securely...';
 
             try {
-                await postJson('/api/public/contact-message', payload);
-                alert('Thank you. Your message has been sent.');
+                const result = await postJson('/api/public/contact-message', payload);
+                if (status) status.textContent = result?.warning || 'Thank you. Your message has been received.';
                 contactForm.reset();
-            } catch {
-                const to = String(settings?.email || 'info@mmmbc.com').trim();
-                const body = [
-                    `Name: ${payload.name}`,
-                    `Phone: ${payload.phone || ''}`,
-                    `Address: ${payload.address || ''}`,
-                    `Email: ${payload.email}`,
-                    '',
-                    payload.message
-                ].join('\n');
-                window.location.href = `mailto:${to}?subject=${encodeURIComponent('New Contact Message')}&body=${encodeURIComponent(body)}`;
+                if (typeof forms.resetTurnstile === 'function') forms.resetTurnstile(contactForm);
+            } catch (error) {
+                if (typeof forms.resetTurnstile === 'function') forms.resetTurnstile(contactForm);
+                if (status) status.textContent = String(error?.message || 'Unable to send your message. Please try again.');
             } finally {
                 if (submitBtn) {
                     submitBtn.disabled = false;
@@ -428,7 +521,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     (async () => {
         const settings = await tryFetchJson(['/api/public/site-settings', 'site-settings.json', '../site-settings.json', '/site-settings.json']);
-        if (settings) applySiteSettings(settings);
-        wireContactForm(settings || {});
+        if (settings) {
+            if (await applySiteSettings(settings)) wireContactForm(settings);
+        } else {
+            protectedForms.forEach((form) => {
+                const status = form.querySelector('.form-status, [data-subscriber-help]');
+                if (status) status.textContent = 'Forms are temporarily unavailable. Please try again later.';
+            });
+        }
     })();
 });

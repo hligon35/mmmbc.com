@@ -301,7 +301,11 @@ test('shared home navigation toggles, closes, and preserves Leadership submenu b
   const leadershipGroup = navLinks.querySelector('.nav-item-group--leadership');
   assert.ok(leadershipGroup, 'Leadership group should be created by the shared nav script.');
 
-  const submenuLinks = leadershipGroup.querySelectorAll('a');
+  const parentLink = leadershipGroup.querySelector('.nav-parent-link');
+  assert.ok(parentLink, 'Leadership label should remain a direct link.');
+  assert.equal(parentLink.getAttribute('href'), 'Pages/leadership.html');
+  const submenu = leadershipGroup.querySelector('.nav-submenu');
+  const submenuLinks = submenu.querySelectorAll('a');
   assert.equal(submenuLinks.length, 4);
   assert.deepEqual(
     submenuLinks.map((link) => link.getAttribute('href')),
@@ -327,6 +331,11 @@ test('shared home navigation toggles, closes, and preserves Leadership submenu b
   leadershipToggle.click();
   assert.equal(leadershipGroup.classList.contains('is-open'), true);
   assert.equal(leadershipToggle.getAttribute('aria-expanded'), 'true');
+  leadershipGroup.dispatchEvent({ type: 'mouseleave', target: leadershipGroup });
+  assert.equal(leadershipGroup.classList.contains('is-open'), false);
+
+  leadershipGroup.dispatchEvent({ type: 'mouseenter', target: leadershipGroup });
+  assert.equal(leadershipGroup.classList.contains('is-open'), true);
 
   submenuLinks[1].click();
   assert.equal(navLinks.classList.contains('active'), false);

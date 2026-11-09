@@ -23,9 +23,8 @@
     "mime-types": "^2.1.35",
     "multer": "^1.4.5-lts.1",
     "pg": "^8.17.2",
-    "qrcode": "^1.5.4",
     "session-file-store": "^1.5.0",
-    "sharp": "^0.33.5",
+    "sharp": "^0.35.5",
     "speakeasy": "^2.0.0",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0"

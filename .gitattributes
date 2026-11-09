@@ -1,0 +1,2 @@
+# Preserve PDF bytes and suppress text diffs/newline conversion.
+*.pdf binary

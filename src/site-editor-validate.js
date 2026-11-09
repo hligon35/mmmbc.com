@@ -1,5 +1,5 @@
-// Server-side validation + sanitization for the visual website editor.
-// Client-side controls also validate (admin/public/site-editor.js), but per the
+// Server-side validation + sanitization for retained profile-content management.
+// Client-side profile controls also validate, but per the
 // security requirements, the server never trusts client validation alone.
 
 import {

@@ -5,6 +5,7 @@
 //
 // Run with: node --test src/site-editor.test.mjs
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { test } from 'node:test';
 import { validatePageFields } from './site-editor-validate.js';
 import { getPageSchema, INITIAL_PUBLISHED_CONTENT } from './site-editor-schema.js';
@@ -63,4 +64,105 @@ test('publish-time validation enforces required page.title on ministries page', 
   const { ok, errors } = validatePageFields('ministries', {}, { partial: false });
   assert.equal(ok, false);
   assert.ok(errors.some((e) => /page.title.*required/i.test(e)));
+});
+
+test('ministries editor seed exposes the fourteen ministry profiles', () => {
+  const profiles = INITIAL_PUBLISHED_CONTENT.ministries.profiles;
+  assert.equal(profiles.length, 14);
+  assert.deepEqual(profiles.map((profile) => profile.id), [
+    'ministries-1', 'ministries-2', 'ministries-3',
+    'ministries-4', 'ministries-5', 'ministries-6',
+    'ministries-7', 'ministries-8', 'ministries-9',
+    'ministries-10', 'ministries-11', 'ministries-12',
+    'ministries-13', 'ministries-14'
+  ]);
+  assert.ok(profiles.every((profile) => profile.name && profile.image.url && profile.bio));
+
+  const { ok, fields, errors } = validatePageFields('ministries', {
+    'page.title': INITIAL_PUBLISHED_CONTENT.ministries['page.title'],
+    'page.intro': INITIAL_PUBLISHED_CONTENT.ministries['page.intro'],
+    profiles
+  }, { partial: false });
+  assert.equal(errors.length, 0, `expected no errors, got: ${JSON.stringify(errors)}`);
+  assert.ok(ok);
+  assert.equal(fields.profiles.length, profiles.length);
+});
+
+test('leadership editor seed contains the staff profiles', () => {
+  const profiles = INITIAL_PUBLISHED_CONTENT.leadership.profiles;
+  assert.deepEqual(profiles.map((profile) => profile.name), [
+    'Rev. Stephen Harvey', 'Marsha Roundtree', 'Weldon Stokes', 'John Burnett'
+  ]);
+  assert.ok(profiles.every((profile) => profile.group === 'staff' && profile.image.url && profile.bio));
+  assert.equal(profiles[0].image.url, '/cdn/gallery/site/pastorHarvey.jpeg');
+
+  const { ok, errors } = validatePageFields('leadership', {
+    ...INITIAL_PUBLISHED_CONTENT.leadership,
+    profiles
+  }, { partial: false });
+  assert.equal(errors.length, 0, `expected no errors, got: ${JSON.stringify(errors)}`);
+  assert.ok(ok);
+});
+
+test('profile editor exposes every leadership subpage with seeded profiles', () => {
+  const pages = [
+    ['leadership', 4],
+    ['associate_ministers', 6],
+    ['deacons', 6],
+    ['deaconesses', 7],
+    ['official_team_trustees', 8]
+  ];
+  pages.forEach(([page, count]) => {
+    const schema = getPageSchema(page);
+    assert.ok(schema, `${page} schema should exist`);
+    assert.equal(schema.fields.profiles.type, 'collection');
+    const profiles = INITIAL_PUBLISHED_CONTENT[page].profiles;
+    assert.equal(profiles.length, count);
+    const { ok, errors } = validatePageFields(page, {
+      ...INITIAL_PUBLISHED_CONTENT[page],
+      profiles
+    }, { partial: false });
+    assert.equal(errors.length, 0, `${page} should validate: ${JSON.stringify(errors)}`);
+    assert.ok(ok);
+  });
+});
+
+test('public profile pages keep their corrected assignments', () => {
+  const leadership = fs.readFileSync(new URL('../Pages/leadership.html', import.meta.url), 'utf8');
+  const associates = fs.readFileSync(new URL('../Pages/associate_ministers.html', import.meta.url), 'utf8');
+  const deacons = fs.readFileSync(new URL('../Pages/deacons.html', import.meta.url), 'utf8');
+  const deaconesses = fs.readFileSync(new URL('../Pages/deaconesses.html', import.meta.url), 'utf8');
+  const officialTeam = fs.readFileSync(new URL('../Pages/official_team_trustees.html', import.meta.url), 'utf8');
+  const ministries = fs.readFileSync(new URL('../Pages/ministries.html', import.meta.url), 'utf8');
+
+  assert.match(leadership, /Rev\. Stephen Harvey/);
+  assert.match(leadership, /Marsha Roundtree/);
+  assert.doesNotMatch(leadership, /meta http-equiv="refresh"/i);
+  assert.match(associates, /Evangelist Melanie Nunn/);
+  assert.match(associates, /Rev\. Dennis Gray/);
+  assert.match(deacons, /data-cms-page="deacons"/);
+  assert.match(deaconesses, /data-cms-page="deaconesses"/);
+  assert.match(officialTeam, /data-cms-page="official_team_trustees"/);
+  assert.match(ministries, /Music Department/);
+  assert.match(ministries, /Video \/ Audio Ministry/);
+  assert.doesNotMatch(ministries, /Evangelist Melanie Nunn/);
+});
+
+test('live praise header uses the channel live embed with the configured video as CMS default', () => {
+  const expectedEmbed = 'https://www.youtube.com/embed/QQXSV759Zys?rel=0';
+  const channelLiveEmbed = 'https://www.youtube.com/embed/live_stream?channel=UCkAaHiYmUKIdKePifg1D2pg&rel=0';
+  const channelLiveLink = 'id="livePraiseWatchLink" href="https://www.youtube.com/channel/UCkAaHiYmUKIdKePifg1D2pg/live"';
+  assert.equal(INITIAL_PUBLISHED_CONTENT.live_praise['stream.url'], expectedEmbed);
+
+  const sourcePage = fs.readFileSync(new URL('../Pages/live_praise.html', import.meta.url), 'utf8');
+  const generatedPage = fs.readFileSync(new URL('../cf_site/Pages/live_praise.html', import.meta.url), 'utf8');
+  const sourceLivestream = JSON.parse(fs.readFileSync(new URL('../livestream.json', import.meta.url), 'utf8'));
+  const generatedLivestream = JSON.parse(fs.readFileSync(new URL('../cf_site/livestream.json', import.meta.url), 'utf8'));
+
+  assert.ok(sourcePage.includes(`src="${channelLiveEmbed}"`));
+  assert.ok(generatedPage.includes(`src="${channelLiveEmbed}"`));
+  assert.ok(sourcePage.includes(channelLiveLink));
+  assert.ok(generatedPage.includes(channelLiveLink));
+  assert.equal(sourceLivestream.embeds.youtube, expectedEmbed);
+  assert.equal(generatedLivestream.embeds.youtube, expectedEmbed);
 });

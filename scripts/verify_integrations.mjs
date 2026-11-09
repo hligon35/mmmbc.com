@@ -141,7 +141,7 @@ const checks = [
     method: 'GET',
     path: '/api/admin/integration-health',
     expectedStatuses: [401],
-    validate: (json) => typeof json?.error === 'string'
+    validate: (json) => typeof json?.error === 'string' || typeof json?.error?.code === 'string'
   },
   {
     name: 'Unknown API returns JSON 404',
@@ -184,3 +184,4 @@ if (failed.length) {
   process.exit(1);
 }
 console.log('Integration verification passed.');
+

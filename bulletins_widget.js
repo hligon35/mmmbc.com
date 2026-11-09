@@ -104,10 +104,10 @@
   function applyHomepageUpdates() {
     if (!document.body.classList.contains('home')) return;
 
-    if (!document.querySelector('link[href="home-layout-updates.css"]')) {
+    if (!document.querySelector('link[href*="static-style.css"]')) {
       const stylesheet = document.createElement('link');
       stylesheet.rel = 'stylesheet';
-      stylesheet.href = 'home-layout-updates.css';
+      stylesheet.href = 'static-style.css';
       document.head.appendChild(stylesheet);
     }
 
@@ -126,15 +126,9 @@
       });
     });
 
-    const giveLink = document.querySelector('.footer-links-section a[href$="giving.html"]');
-    const giveIcon = giveLink?.querySelector('img.link-icon');
-    if (giveIcon) {
-      giveIcon.src = 'Icons/give.png';
-      giveIcon.onerror = () => {
-        giveIcon.onerror = null;
-        giveIcon.src = 'Icons/finances.png';
-      };
-    }
+    const giveLink = document.querySelector('.footer-links-section a[href="/give"]');
+    const giveIcon = giveLink?.querySelector('.material-icons-round.link-icon');
+    if (giveIcon) giveIcon.textContent = 'volunteer_activism';
 
     const designedBy = document.querySelector('.footer-copyright-row p:first-child');
     if (designedBy) {

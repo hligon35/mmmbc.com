@@ -3,12 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Church Website Manager</title>
+  <title>Mount Moriah Church Administration</title>
   <meta name="description" content="Admin dashboard for Mt. Moriah Missionary Baptist Church website." />
-  <link rel="stylesheet" href="/admin/admin.css?v=20260802a" />
-  <link rel="stylesheet" href="/admin/admin-dashboard.css?v=20260730a" />
-  <link rel="stylesheet" href="/admin/admin-directory.css?v=20260730a" />
-  <link rel="stylesheet" href="/admin/admin-header-canonical.css?v=20260915c" />
+  <link rel="stylesheet" href="/admin/admin-style.css?v=20261005a" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" />
+  <link rel="stylesheet" href="/admin/workspace/workspace.css?v=20261006a" />
+  <link rel="manifest" href="/admin/manifest.webmanifest" crossorigin="use-credentials" />
+  <meta name="theme-color" content="#a54c1e" />
+  <link rel="apple-touch-icon" href="/admin/icons/icon-192.png" />
+  <script>window.MMWorkspaceEnabled = true;</script>
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
@@ -33,6 +36,11 @@
           <div class="adminHeader__account">
             <div class="headerSignedIn status" id="authStatus" aria-live="polite"></div>
             <div class="headerActions">
+              <div class="headerThemeToggle" id="headerThemeToggle" role="group" aria-label="Appearance mode">
+                <button class="headerThemeToggle__btn" type="button" data-appearance-mode="light" aria-label="Light mode" title="Light mode"><span class="material-icons-round" aria-hidden="true">light_mode</span></button>
+                <button class="headerThemeToggle__btn" type="button" data-appearance-mode="system" aria-label="Use device appearance" title="Use device appearance"><span class="material-icons-round" aria-hidden="true">contrast</span></button>
+                <button class="headerThemeToggle__btn" type="button" data-appearance-mode="dark" aria-label="Dark mode" title="Dark mode"><span class="material-icons-round" aria-hidden="true">dark_mode</span></button>
+              </div>
               <button class="btn btn--drawerToggle" id="navDrawerToggle" type="button" aria-expanded="false" aria-controls="adminSideNav" aria-label="Open Menu">Open Menu</button>
               <button class="btn" id="logoutBtn" type="button" hidden>Log out</button>
             </div>
@@ -45,6 +53,9 @@
 
             <p class="sideNav__groupLabel" aria-hidden="true">Website Updates</p>
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-content" id="tabBtn-content">Announcements</button>
+            <!-- Profile Manager navigation intentionally hidden for now.
+            <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-ministries" id="tabBtn-ministries">Ministry Profiles</button>
+            -->
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-events" id="tabBtn-events">Events</button>
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-photos" id="tabBtn-photos">Photos</button>
 
@@ -53,7 +64,7 @@
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-newsletter" id="tabBtn-newsletter">Newsletter</button>
 
             <p class="sideNav__groupLabel" aria-hidden="true">Administration</p>
-            <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-finances" id="tabBtn-finances">Church Finances</button>
+
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-directory" id="tabBtn-directory">Directory</button>
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-support" id="tabBtn-support">Help &amp; Support</button>
             <button class="tab tab--nav" role="tab" aria-selected="false" aria-controls="tab-settings" id="tabBtn-settings">Settings</button>
@@ -73,7 +84,7 @@
               <p class="dashboardHome__subtitle" id="dashboardGeneratedAt">Loading current status...</p>
             </div>
             <div class="dashboardHome__actions">
-              <button class="btn" id="dashboardRefreshBtn" type="button">Refresh</button>
+              <button class="btn actionIconBtn" id="dashboardRefreshBtn" type="button" aria-label="Refresh" title="Refresh"><span class="material-icons-round" aria-hidden="true">refresh</span></button>
             </div>
           </div>
 
@@ -96,12 +107,6 @@
           </div>
 
           <div class="dashboardColumns">
-            <section class="card dashboardCard" aria-labelledby="dashboardGivingTitle" id="dashboardGivingCard">
-              <div class="dashboardCard__head">
-                <h3 class="card__subtitle" id="dashboardGivingTitle">Giving Snapshot</h3>
-              </div>
-              <div class="dashboardStats" id="dashboardGivingStats"></div>
-            </section>
 
             <section class="card dashboardCard" aria-labelledby="dashboardNewsletterTitle">
               <div class="dashboardCard__head">
@@ -142,12 +147,12 @@
           </div>
           <div class="iconGroup" aria-label="Photo gallery actions">
             <div class="iconGroup__row">
-              <a class="iconBtn iconBtn--help" id="photoHelpBtn" href="#photoHelpDialog" aria-label="Photo upload instructions" title="Photo upload instructions">?</a>
-              <button class="btn" id="exportBtn" type="button">Refresh Website Gallery</button>
+              <a class="iconBtn iconBtn--help" id="photoHelpBtn" href="#photoHelpDialog" aria-label="Photo upload instructions" title="Photo upload instructions"><span class="material-icons-round" aria-hidden="true">help_outline</span></a>
+              <button class="btn actionIconBtn" id="exportBtn" type="button" aria-label="Refresh Website Gallery" title="Refresh Website Gallery"><span class="material-icons-round" aria-hidden="true">refresh</span></button>
             </div>
               <div class="photoBulkBar" id="photoBulkBar" hidden>
                 <button class="btn" id="photoBulkEditBtn" type="button">Edit selected photos</button>
-                <button class="btn btn--danger" id="photoBulkDeleteBtn" type="button">Delete selected photos</button>
+                <button class="btn actionIconBtn btn--danger" id="photoBulkDeleteBtn" type="button" aria-label="Delete selected photos" title="Delete selected photos"><span class="material-icons-round" aria-hidden="true">delete</span></button>
                 <span class="muted" id="photoBulkCount" aria-live="polite"></span>
               </div>
             <div class="syncProgress" id="syncProgressWrap" aria-live="polite" hidden>
@@ -162,7 +167,7 @@
           <div class="card dialog__inner">
             <div class="sectionHeader sectionHeader--compact">
               <h3 class="sectionHeader__title" id="photoHelpDialogTitle">How to add photos</h3>
-              <button class="btn" id="photoHelpCloseBtn" type="button">Close</button>
+              <button class="btn actionIconBtn" id="photoHelpCloseBtn" type="button" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
             </div>
 
             <p class="muted">Use these steps when you want to add a new album or update an existing one.</p>
@@ -192,7 +197,7 @@
           <div class="card dialog__inner photoViewDialog__inner">
             <div class="sectionHeader sectionHeader--compact">
               <h3 class="sectionHeader__title" id="photoViewDialogTitle">Photo preview</h3>
-              <button class="btn" id="photoViewCloseBtn" type="button">Close</button>
+              <button class="btn actionIconBtn" id="photoViewCloseBtn" type="button" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
             </div>
             <div class="photoViewDialog__body">
               <img class="photoViewDialog__image" id="photoViewImage" alt="Photo preview" />
@@ -260,17 +265,17 @@
           <div class="hint" id="photoDisplayNameToggleHint" aria-live="polite"></div>
 
           <div class="toolbar toolbar--tightTop photoPager" id="photoPager" aria-label="Photo gallery pagination" hidden>
-            <button class="btn" id="photoPrevPageBtn" type="button">Prev</button>
+            <button class="btn actionIconBtn" id="photoPrevPageBtn" type="button" aria-label="Prev" title="Prev"><span class="material-icons-round" aria-hidden="true">chevron_left</span></button>
             <span class="muted" id="photoPageInfo" aria-live="polite"></span>
-            <button class="btn" id="photoNextPageBtn" type="button">Next</button>
+            <button class="btn actionIconBtn" id="photoNextPageBtn" type="button" aria-label="Next" title="Next"><span class="material-icons-round" aria-hidden="true">chevron_right</span></button>
           </div>
 
           <div class="grid" id="photoGrid" aria-live="polite" tabindex="-1"></div>
 
           <div class="toolbar toolbar--tightTop photoPager photoPager--bottom" id="photoPagerBottom" aria-label="Photo gallery pagination (bottom)" hidden>
-            <button class="btn" id="photoPrevPageBtnBottom" type="button">Prev</button>
+            <button class="btn actionIconBtn" id="photoPrevPageBtnBottom" type="button" aria-label="Prev" title="Prev"><span class="material-icons-round" aria-hidden="true">chevron_left</span></button>
             <span class="muted" id="photoPageInfoBottom" aria-live="polite"></span>
-            <button class="btn" id="photoNextPageBtnBottom" type="button">Next</button>
+            <button class="btn actionIconBtn" id="photoNextPageBtnBottom" type="button" aria-label="Next" title="Next"><span class="material-icons-round" aria-hidden="true">chevron_right</span></button>
           </div>
 
           <details class="advancedTools" id="advancedPhotoTools">
@@ -280,9 +285,9 @@
               <div class="sectionHeader sectionHeader--compact">
                 <h3 class="sectionHeader__title">Photo Storage</h3>
                 <div class="inlineRow" aria-label="Photo storage actions">
-                  <button class="btn" id="r2RefreshBtn" type="button">Refresh</button>
-                  <button class="btn" id="r2UpBtn" type="button">Up</button>
-                  <button class="btn" id="r2SyncFolderBtn" type="button">Refresh This Folder</button>
+                  <button class="btn actionIconBtn" id="r2RefreshBtn" type="button" aria-label="Refresh" title="Refresh"><span class="material-icons-round" aria-hidden="true">refresh</span></button>
+                  <button class="btn actionIconBtn" id="r2UpBtn" type="button" aria-label="Up" title="Up"><span class="material-icons-round" aria-hidden="true">arrow_upward</span></button>
+                  <button class="btn actionIconBtn" id="r2SyncFolderBtn" type="button" aria-label="Refresh This Folder" title="Refresh This Folder"><span class="material-icons-round" aria-hidden="true">sync</span></button>
                 </div>
               </div>
 
@@ -293,7 +298,7 @@
                   Folder
                   <div class="inlineRow">
                     <input class="input" id="r2PrefixInput" type="text" value="gallery/" />
-                    <button class="btn" id="r2GoBtn" type="button">Go</button>
+                    <button class="btn actionIconBtn" id="r2GoBtn" type="button" aria-label="Go" title="Go"><span class="material-icons-round" aria-hidden="true">arrow_forward</span></button>
                   </div>
                 </label>
               </div>
@@ -400,388 +405,6 @@
         </div>
       </section>
 
-      <!-- Finances -->
-      <section class="tabPanel" role="tabpanel" id="tab-finances" aria-labelledby="tabBtn-finances" hidden data-header-crumb="Church Finances" data-header-description="Record gifts, review transactions, and generate reports.">
-        <div class="tabs subTabs financeMainTabs" role="tablist" aria-label="Church Finances views">
-          <button class="tab tab--sub" role="tab" aria-selected="true" aria-controls="panel-finances-record" id="subTabBtn-finances-record" type="button">Record Money</button>
-          <button class="tab tab--sub" role="tab" aria-selected="false" aria-controls="panel-finances-review" id="subTabBtn-finances-review" type="button">Review Transactions</button>
-          <button class="tab tab--sub" role="tab" aria-selected="false" aria-controls="panel-finances-reports" id="subTabBtn-finances-reports" type="button">Reports &amp; Printing</button>
-        </div>
-
-        <div class="printOnly" id="adminPrintBody" aria-label="Print report body"></div>
-        <div class="financePrintHeader printOnly" aria-label="Print header">
-          <div class="financePrintHeader__title" id="financePrintTitle">Mt. Moriah Missionary Baptist Church — Finance</div>
-          <div class="financePrintHeader__meta" id="financePrintMeta"></div>
-        </div>
-
-        <!-- Record Money -->
-        <div class="subTabPanel financeWizardPanel noPrint" role="tabpanel" id="panel-finances-record" aria-labelledby="subTabBtn-finances-record">
-          <h3 class="wizard__heading" id="financeWizardHeading">Record Money</h3>
-
-          <ol class="wizardProgress" id="financeWizardProgress" aria-label="Entry steps">
-            <li><button class="wizardProgress__step" type="button" data-wizard-goto="direction" aria-current="step" aria-label="Money Type">1 Money Type</button></li>
-            <li><button class="wizardProgress__step" type="button" data-wizard-goto="details" aria-label="Details">2</button></li>
-            <li><button class="wizardProgress__step" type="button" data-wizard-goto="payment" aria-label="Payment">3</button></li>
-            <li><button class="wizardProgress__step" type="button" data-wizard-goto="review" aria-label="Review">4</button></li>
-          </ol>
-
-          <form id="financeEntryForm" class="form wizardForm" aria-label="Record money">
-            <input id="financeEditId" type="hidden" />
-            <input id="financeType" type="hidden" value="income" />
-
-            <!-- Step 1: Money Direction -->
-            <div class="wizardStep" data-step-panel="direction">
-              <p class="wizardStep__question" id="financeDirectionQuestion">What are you recording?</p>
-              <div class="wizardChoices" role="group" aria-label="What are you recording?">
-                <button class="wizardChoice" type="button" id="financeChoiceIncomeBtn" data-direction="income" aria-pressed="true">Money Received</button>
-                <button class="wizardChoice" type="button" id="financeChoiceExpenseBtn" data-direction="expense" aria-pressed="false">Money Spent</button>
-              </div>
-              <div class="wizardNav">
-                <button class="btn btn--primary" type="button" id="financeStepDirectionContinueBtn">Continue</button>
-              </div>
-            </div>
-
-            <!-- Step 2: Details -->
-            <div class="wizardStep" data-step-panel="details" hidden>
-              <div class="formRow formRow--wizard financeDetailsGrid">
-                <label class="label financeWizardField">
-                  <span id="financeDateLabelText">Date received</span>
-                  <input class="input" id="financeDate" type="date" required />
-                </label>
-                <label class="label financeWizardField">
-                  <span id="financeCategoryLabelText">What kind of giving?</span>
-                  <select class="select" id="financeCategory" required></select>
-                  <span class="fieldHint" id="financeCategoryHint">Choose what the money was received for.</span>
-                  <span class="fieldError" id="financeCategoryError" role="alert" hidden></span>
-                </label>
-                <label class="label financeWizardField">
-                  Amount
-                  <input class="input" id="financeAmount" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" required />
-                  <span class="fieldError" id="financeAmountError" role="alert" hidden></span>
-                </label>
-                <label class="label financeWizardField">
-                  <span id="financeFundLabelText">Which church fund?</span>
-                  <select class="select" id="financeFund" required></select>
-                  <span class="fieldHint" id="financeFundHint">Choose where this money should be recorded, such as General Fund or Building Fund.</span>
-                  <span class="fieldError" id="financeFundError" role="alert" hidden></span>
-                </label>
-              </div>
-              <div class="wizardNav">
-                <button class="btn" type="button" data-wizard-back="direction">Back</button>
-                <button class="btn btn--primary" type="button" id="financeStepDetailsContinueBtn">Continue to Payment</button>
-              </div>
-            </div>
-
-            <!-- Step 3: Payment Information -->
-            <div class="wizardStep" data-step-panel="payment" hidden>
-              <div class="formRow formRow--wizard">
-                <label class="label">
-                  Payment method
-                  <select class="select" id="financeMethod" required>
-                    <option value="">Choose payment method</option>
-                    <option value="cash">Cash</option>
-                    <option value="check">Check</option>
-                    <option value="card">Card</option>
-                    <option value="online">Online</option>
-                    <option value="other">Other</option>
-                  </select>
-                  <span class="fieldError" id="financeMethodError" role="alert" hidden></span>
-                </label>
-                <label class="label">
-                  <span id="financePartyLabel">Received From (optional)</span>
-                  <input class="input" id="financeParty" type="text" maxlength="120" list="financePartiesList" autocomplete="off" />
-                  <span class="fieldError" id="financePartyError" role="alert" hidden></span>
-                </label>
-                <label class="label">
-                  Note (optional)
-                  <input class="input" id="financeMemo" type="text" maxlength="200" placeholder="Notes" />
-                </label>
-              </div>
-              <p class="fieldHint">Choose how the money was received or paid.</p>
-              <div class="wizardNav">
-                <button class="btn" type="button" data-wizard-back="details">Back</button>
-                <button class="btn btn--primary" type="button" id="financeStepPaymentContinueBtn">Continue to Review</button>
-              </div>
-            </div>
-
-            <!-- Step 4: Review -->
-            <div class="wizardStep" data-step-panel="review" hidden>
-              <h4 class="wizardStep__question" id="financeReviewHeading">Review this entry</h4>
-              <dl class="wizardReview" id="financeReviewSummary"></dl>
-              <div class="wizardNav">
-                <button class="btn" type="button" data-wizard-back="payment">Back and Edit</button>
-                <button class="btn" type="button" id="financeCancelEditBtn">Cancel</button>
-                <button class="btn btn--primary" type="submit" id="financeSaveBtn">Save Entry</button>
-              </div>
-              <div class="hint" id="financeHint" aria-live="polite"></div>
-            </div>
-
-            <!-- Step 5: Saved -->
-            <div class="wizardStep wizardStep--saved" data-step-panel="saved" hidden>
-              <h4 class="wizardStep__question" id="financeSavedHeading" tabindex="-1">Entry saved</h4>
-              <p id="financeSavedSummary" aria-live="polite"></p>
-              <div class="wizardNav">
-                <button class="btn btn--primary" type="button" id="financeSavedAddAnotherBtn">Record Another Entry</button>
-                <button class="btn" type="button" id="financeSavedViewBtn">View This Transaction</button>
-                <button class="btn" type="button" id="financeSavedReviewAllBtn">Review All Transactions</button>
-              </div>
-            </div>
-          </form>
-
-          <datalist id="financePartiesList"></datalist>
-        </div>
-
-        <!-- Review Transactions -->
-        <div class="subTabPanel" role="tabpanel" id="panel-finances-review" aria-labelledby="subTabBtn-finances-review" hidden>
-          <h3 class="sectionHeader__title">Transaction History</h3>
-
-          <div class="financeContextActions noPrint">
-            <form class="financeHeaderSearch" id="financeSearchForm" role="search" aria-label="Search transactions">
-              <div class="inputGroup">
-                <input class="input" id="financeSearch" type="text" placeholder="Search transactions&hellip;" autocomplete="off" />
-                <button class="inputIconBtn" type="submit" aria-label="Search" title="Search">
-                  <img class="inputIconBtn__icon" src="/Icons/fsearch.png" alt="" aria-hidden="true" />
-                </button>
-              </div>
-            </form>
-
-            <div class="financeQuickTabs noPrint" id="financeQuickTabs" role="group" aria-label="Filter by money direction">
-              <button class="miniTab" type="button" aria-pressed="true" data-fin-kind="income">Money Received</button>
-              <button class="miniTab" type="button" aria-pressed="false" data-fin-kind="expense">Money Spent</button>
-            </div>
-
-            <div class="financeHeaderRight">
-              <details class="menu" id="financeFilterMenu">
-                <summary class="btn" aria-label="Filters" title="Filters">Filters</summary>
-                <form class="menu__panel financeFilterPanel" id="financeFilterForm" aria-label="Finance filters">
-                  <fieldset class="financeFilterFieldset financeFilterFieldset--presets">
-                    <legend class="menu__title">Date range</legend>
-
-                    <div class="financeFilterPresetGrid">
-                      <label class="menu__checkItem">
-                        <input class="menu__check" type="radio" name="financeDateRange" value="all" id="financeRangeAll" checked />
-                        <span>All dates</span>
-                      </label>
-                      <label class="menu__checkItem">
-                        <input class="menu__check" type="radio" name="financeDateRange" value="7" id="financeRange7" />
-                        <span>Last 7 days</span>
-                      </label>
-                      <label class="menu__checkItem">
-                        <input class="menu__check" type="radio" name="financeDateRange" value="30" id="financeRange30" />
-                        <span>Last 30 days</span>
-                      </label>
-                      <label class="menu__checkItem">
-                        <input class="menu__check" type="radio" name="financeDateRange" value="90" id="financeRange90" />
-                        <span>Last 90 days</span>
-                      </label>
-                      <label class="menu__checkItem">
-                        <input class="menu__check" type="radio" name="financeDateRange" value="custom" id="financeRangeCustom" />
-                        <span>Custom date range</span>
-                      </label>
-                    </div>
-                  </fieldset>
-
-                  <div class="menu__custom financeFilterCustomGrid" id="financeCustomRange" hidden>
-                    <div class="formRow financeFilterDateGrid">
-                      <label class="label">
-                        From
-                        <input class="input" id="financeFrom" type="date" />
-                      </label>
-                      <label class="label">
-                        To
-                        <input class="input" id="financeTo" type="date" />
-                      </label>
-                    </div>
-                    <p class="hint" id="financeDateRangeHint" aria-live="polite"></p>
-                  </div>
-
-                  <div class="menu__divider" role="separator" aria-hidden="true"></div>
-
-                  <details class="financeAdvancedFilters" id="financeAdvancedFilters">
-                    <summary class="menu__title menu__title--spaced">Advanced filters</summary>
-                    <div class="formRow financeFilterDetailGrid">
-                      <label class="label">
-                        Category
-                        <select class="select" id="financeFilterCategory"><option value="">(All categories)</option></select>
-                      </label>
-                      <label class="label">
-                        Fund
-                        <select class="select" id="financeFilterFund"><option value="">(All funds)</option></select>
-                      </label>
-                      <label class="label">
-                        Payment method
-                        <select class="select" id="financeFilterMethod">
-                          <option value="">(All payment methods)</option>
-                          <option value="cash">Cash</option>
-                          <option value="check">Check</option>
-                          <option value="card">Card</option>
-                          <option value="online">Online</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </label>
-                    </div>
-                  </details>
-
-                  <div class="toolbar toolbar--tightTop financeFilterActions">
-                    <button class="btn btn--primary" id="financeApplyCustomRangeBtn" type="button">Apply custom dates</button>
-                    <button class="btn" id="financeClearRangeBtn" type="button">Reset All Filters</button>
-                  </div>
-                </form>
-              </details>
-            </div>
-          </div>
-
-          <p class="hint" id="financeFilterSummary" aria-live="polite">Showing all dates and all entry types.</p>
-
-          <div class="tableWrap financeReviewTableWrap" aria-label="Transaction table">
-            <table class="financeTable financeTable--simple">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Description</th>
-                  <th class="num">Money In</th>
-                  <th class="num">Money Out</th>
-                  <th class="noPrint">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="financeTableBody"></tbody>
-            </table>
-          </div>
-          <div class="financeCardList" id="financeCardList" aria-label="Transactions"></div>
-        </div>
-
-        <!-- Reports & Printing -->
-        <div class="subTabPanel" role="tabpanel" id="panel-finances-reports" aria-labelledby="subTabBtn-finances-reports" hidden>
-          <h3 class="sectionHeader__title">Reports &amp; Printing</h3>
-
-          <div class="financeReportsLayout">
-            <div class="financeReportsLayout__left">
-              <div class="list financeReportActions" aria-label="Reports and printing actions">
-                <div class="row">
-                  <div class="row__main">
-                    <div class="row__title">Print Transaction History</div>
-                    <div class="row__meta">Prints the transaction list using your current filters.</div>
-                  </div>
-                  <div class="row__actions">
-                    <button class="btn btn--primary" id="printFinanceLedgerBtn" type="button">Print Transaction History</button>
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="row__main">
-                    <div class="row__title">Print Selected Receipts</div>
-                    <div class="row__meta">Search and select one, multiple, or all transactions to print as receipts.</div>
-                  </div>
-                  <div class="row__actions">
-                    <button class="btn btn--primary" id="printFinanceReceiptsBtn" type="button">Print Selected Receipts</button>
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="row__main">
-                    <div class="row__title">Export Transactions</div>
-                    <div class="row__meta">Export the currently filtered transactions as CSV or into a new Google Sheet.</div>
-                    <div class="hint" id="financeExportHint" aria-live="polite"></div>
-                  </div>
-                  <div class="row__actions">
-                    <details class="menu financeExportMenu" id="financeExportMenu">
-                      <summary class="btn btn--primary" aria-label="Export transactions" title="Export transactions">Export Transactions</summary>
-                      <div class="menu__panel" aria-label="Export transaction formats">
-                        <div class="menu__title">Choose export format</div>
-                        <button class="menu__item" id="financeExportCsvBtn" type="button">CSV</button>
-                        <button class="menu__item" id="financeExportSheetsBtn" type="button">Google Sheets</button>
-                      </div>
-                    </details>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="financeReportsLayout__right">
-              <div class="financePeriodTabs" role="tablist" aria-label="Giving period">
-                <button class="miniTab miniTab--xs" id="financePeriodWeekBtn" type="button" role="tab" aria-selected="true">This Week</button>
-                <button class="miniTab miniTab--xs" id="financePeriodMonthBtn" type="button" role="tab" aria-selected="false">This Month</button>
-              </div>
-
-              <div class="financeCharts" id="financeReportsTotals" aria-label="Financial summary charts">
-                <section class="financeChartCard" aria-label="Money flow">
-                  <h4 class="financeChartCard__title">Money Flow</h4>
-                  <div class="financePie" id="financeFlowPie" role="img" aria-label="Money flow chart"></div>
-                  <ul class="financePieLegend" aria-label="Money flow values">
-                    <li class="financePieLegend__item"><span class="financePieLegend__dot financePieLegend__dot--income" aria-hidden="true"></span><span class="financePieLegend__label">Money Received</span><span class="financePieLegend__value" id="financeIncomeTotal">$0.00</span></li>
-                    <li class="financePieLegend__item"><span class="financePieLegend__dot financePieLegend__dot--expense" aria-hidden="true"></span><span class="financePieLegend__label">Money Spent</span><span class="financePieLegend__value" id="financeExpenseTotal">$0.00</span></li>
-                    <li class="financePieLegend__item financePieLegend__item--net"><span class="financePieLegend__label">Net Total</span><span class="financePieLegend__value" id="financeNetTotal">$0.00</span></li>
-                  </ul>
-                </section>
-
-                <section class="financeChartCard" aria-label="Giving breakdown">
-                  <h4 class="financeChartCard__title">Giving Breakdown <span class="financeChartCard__period" id="financeGivingPeriodLabel">(This Week)</span></h4>
-                  <div class="financePie" id="financeGivingPie" role="img" aria-label="Giving breakdown chart"></div>
-                  <ul class="financePieLegend" aria-label="Giving values">
-                    <li class="financePieLegend__item"><span class="financePieLegend__dot financePieLegend__dot--tithes" aria-hidden="true"></span><span class="financePieLegend__label">Tithes</span><span class="financePieLegend__value" id="financeTithesTotal">$0.00</span></li>
-                    <li class="financePieLegend__item"><span class="financePieLegend__dot financePieLegend__dot--offerings" aria-hidden="true"></span><span class="financePieLegend__label">Offerings</span><span class="financePieLegend__value" id="financeOfferingsTotal">$0.00</span></li>
-                    <li class="financePieLegend__item"><span class="financePieLegend__dot financePieLegend__dot--giving" aria-hidden="true"></span><span class="financePieLegend__label">Total Giving</span><span class="financePieLegend__value" id="financeGivingTotal">$0.00</span></li>
-                  </ul>
-                </section>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <dialog class="dialog" id="financeReceiptsDialog" aria-labelledby="financeReceiptsDialogTitle" aria-modal="true">
-          <form method="dialog" class="card dialog__inner">
-            <div class="sectionHeader sectionHeader--compact">
-              <h3 class="sectionHeader__title" id="financeReceiptsDialogTitle">Print receipts</h3>
-              <button class="btn" id="financeReceiptsCloseBtn" type="submit">Close</button>
-            </div>
-
-            <p class="muted">Search and select one, multiple, or all finance entries to print as receipts.</p>
-
-            <div class="toolbarGroup">
-              <div class="inputGroup financeReceiptsSearchGroup">
-                <input class="input" id="financeReceiptsSearch" type="search" placeholder="Search entries…" autocomplete="off" />
-                <button class="inputIconBtn" id="financeReceiptsSearchClear" type="button" aria-label="Clear search" title="Clear">×</button>
-              </div>
-              <button class="btn" id="financeReceiptsSelectAllBtn" type="button">Select all</button>
-              <button class="btn" id="financeReceiptsClearBtn" type="button">Clear</button>
-            </div>
-
-            <div class="hint" id="financeReceiptsCount" aria-live="polite"></div>
-            <div class="list list--scroll5" id="financeReceiptsList" aria-label="Receipt entries"></div>
-
-            <div class="toolbar">
-              <button class="btn btn--primary" id="financeReceiptsPrintSelectedBtn" type="button">Print selected</button>
-              <button class="btn" id="financeReceiptsPrintAllBtn" type="button">Print all (current filters)</button>
-            </div>
-          </form>
-        </dialog>
-
-        <dialog class="dialog" id="financeUnsavedDialog" aria-labelledby="financeUnsavedDialogTitle" aria-modal="true">
-          <div class="card dialog__inner">
-            <h3 class="sectionHeader__title" id="financeUnsavedDialogTitle">Unsaved entry</h3>
-            <p id="financeUnsavedDialogBody">You have entered information for a new transaction that has not been saved.</p>
-            <div class="toolbar">
-              <button class="btn btn--primary" id="financeUnsavedKeepBtn" type="button">Keep Editing</button>
-              <button class="btn btn--danger" id="financeUnsavedDiscardBtn" type="button">Discard Entry</button>
-            </div>
-          </div>
-        </dialog>
-
-        <dialog class="dialog" id="financeDeleteDialog" aria-labelledby="financeDeleteDialogTitle" aria-modal="true">
-          <div class="card dialog__inner">
-            <h3 class="sectionHeader__title" id="financeDeleteDialogTitle">Void this transaction?</h3>
-            <p id="financeDeleteDialogBody"></p>
-            <label class="label" for="financeDeleteReason">
-              Reason for void
-              <textarea class="textarea" id="financeDeleteReason" rows="3" maxlength="500" placeholder="Briefly explain why this transaction is being voided."></textarea>
-            </label>
-            <p class="muted">The original transaction stays in history and will be marked as voided.</p>
-            <div class="toolbar">
-              <button class="btn btn--danger" id="financeDeleteConfirmBtn" type="button">Void Transaction</button>
-              <button class="btn" id="financeDeleteKeepBtn" type="button">Keep Transaction</button>
-            </div>
-          </div>
-        </dialog>
-      </section>
-
       <!-- Directory -->
       <section class="tabPanel" role="tabpanel" id="tab-directory" aria-labelledby="tabBtn-directory" hidden data-header-crumb="Directory" data-header-description="Manage church contacts, households, communication preferences, and newsletter subscribers.">
         <div class="sectionHeader sectionHeader--compact directoryHeaderActions" aria-label="Directory actions">
@@ -877,7 +500,7 @@
                     <option value="missing_both">Missing Email and Phone</option>
                   </select>
                 </label>
-                <button class="btn" id="directoryContactsClearFiltersBtn" type="button">Clear filters</button>
+                <button class="btn actionIconBtn" id="directoryContactsClearFiltersBtn" type="button" aria-label="Clear filters" title="Clear filters"><span class="material-icons-round" aria-hidden="true">filter_alt_off</span></button>
               </div>
             </div>
           </details>
@@ -936,7 +559,7 @@
                 <option value="missing_both">Missing Email and Phone</option>
               </select>
             </label>
-            <button class="btn" id="directoryContactsClearFiltersBtnDesktop" type="button">Clear filters</button>
+            <button class="btn actionIconBtn" id="directoryContactsClearFiltersBtnDesktop" type="button" aria-label="Clear filters" title="Clear filters"><span class="material-icons-round" aria-hidden="true">filter_alt_off</span></button>
           </div>
 
           <div class="directoryListMeta">
@@ -945,7 +568,7 @@
           </div>
 
           <div class="tableWrap directoryTableWrap" id="directoryContactsTableWrap" aria-label="Directory contacts table">
-            <table class="financeTable directoryTable" aria-describedby="directoryContactsResultCount">
+            <table class="directoryTable" aria-describedby="directoryContactsResultCount">
               <thead>
                 <tr>
                   <th scope="col">Select</th>
@@ -970,9 +593,9 @@
           <div class="directoryState directoryState--error" id="directoryContactsError" hidden></div>
 
           <div class="toolbar directoryPager" id="directoryContactsPager" aria-label="Directory contacts pagination">
-            <button class="btn" id="directoryContactsPrevBtn" type="button">Prev</button>
+            <button class="btn actionIconBtn" id="directoryContactsPrevBtn" type="button" aria-label="Prev" title="Prev"><span class="material-icons-round" aria-hidden="true">chevron_left</span></button>
             <span class="muted" id="directoryContactsPageInfo" aria-live="polite">Page 1 of 1</span>
-            <button class="btn" id="directoryContactsNextBtn" type="button">Next</button>
+            <button class="btn actionIconBtn" id="directoryContactsNextBtn" type="button" aria-label="Next" title="Next"><span class="material-icons-round" aria-hidden="true">chevron_right</span></button>
           </div>
         </div>
 
@@ -1019,7 +642,7 @@
                 <option value="all">All</option>
               </select>
             </label>
-            <button class="btn" id="directorySubscribersClearFiltersBtn" type="button">Clear filters</button>
+            <button class="btn actionIconBtn" id="directorySubscribersClearFiltersBtn" type="button" aria-label="Clear filters" title="Clear filters"><span class="material-icons-round" aria-hidden="true">filter_alt_off</span></button>
           </div>
 
           <div class="directoryListMeta">
@@ -1028,7 +651,7 @@
           </div>
 
           <div class="tableWrap directoryTableWrap" aria-label="Newsletter subscribers table">
-            <table class="financeTable directoryTable">
+            <table class="directoryTable">
               <thead>
                 <tr>
                   <th scope="col">Select</th>
@@ -1052,9 +675,9 @@
           <div class="directoryState directoryState--error" id="directorySubscribersError" hidden></div>
 
           <div class="toolbar directoryPager" id="directorySubscribersPager" aria-label="Subscriber pagination">
-            <button class="btn" id="directorySubscribersPrevBtn" type="button">Prev</button>
+            <button class="btn actionIconBtn" id="directorySubscribersPrevBtn" type="button" aria-label="Prev" title="Prev"><span class="material-icons-round" aria-hidden="true">chevron_left</span></button>
             <span class="muted" id="directorySubscribersPageInfo" aria-live="polite">Page 1 of 1</span>
-            <button class="btn" id="directorySubscribersNextBtn" type="button">Next</button>
+            <button class="btn actionIconBtn" id="directorySubscribersNextBtn" type="button" aria-label="Next" title="Next"><span class="material-icons-round" aria-hidden="true">chevron_right</span></button>
           </div>
         </div>
 
@@ -1089,11 +712,11 @@
               <div class="directoryDrawerTopActions" aria-label="Contact actions">
                 <button class="btn actionIconBtn" id="directoryDrawerEditBtn" type="button" aria-label="Edit contact" title="Edit contact">
                   <span class="srOnly">Edit</span>
-                  <svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20h4l10-10-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M13 7l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  <span class="material-icons-round" aria-hidden="true">edit</span>
                 </button>
                 <button class="btn actionIconBtn" id="directoryContactDrawerCloseBtn" type="button" aria-label="Close contact details" title="Close contact details">
                   <span class="srOnly">Close</span>
-                  <svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+                  <span class="material-icons-round" aria-hidden="true">close</span>
                 </button>
               </div>
             </div>
@@ -1140,7 +763,7 @@
           <div class="card dialog__inner directoryFormDialog__inner">
             <div class="sectionHeader sectionHeader--compact">
               <h3 class="sectionHeader__title" id="directoryContactDialogTitle">Add Contact</h3>
-              <button class="btn" id="directoryContactDialogCloseBtn" type="button">Close</button>
+              <button class="btn actionIconBtn" id="directoryContactDialogCloseBtn" type="button" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
             </div>
 
             <form id="directoryContactForm" class="form" novalidate>
@@ -1245,7 +868,7 @@
 
               <div class="toolbar">
                 <button class="btn btn--primary" id="directoryContactSaveBtn" type="submit">Save Contact</button>
-                <button class="btn" id="directoryContactCancelBtn" type="button">Cancel</button>
+                <button class="btn actionIconBtn" id="directoryContactCancelBtn" type="button" aria-label="Cancel" title="Cancel"><span class="material-icons-round" aria-hidden="true">close</span></button>
               </div>
               <div class="hint" id="directoryContactFormHint" aria-live="polite"></div>
               <div class="error" id="directoryContactFormError" role="alert" hidden></div>
@@ -1258,7 +881,7 @@
           <div class="card dialog__inner">
             <div class="sectionHeader sectionHeader--compact">
               <h3 class="sectionHeader__title" id="directoryImportDialogTitle">Import Contacts</h3>
-              <button class="btn" id="directoryImportCloseBtn" type="button">Close</button>
+              <button class="btn actionIconBtn" id="directoryImportCloseBtn" type="button" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
             </div>
             <ol class="directoryWorkflowList">
               <li>Upload file</li>
@@ -1277,7 +900,7 @@
           <div class="card dialog__inner">
             <div class="sectionHeader sectionHeader--compact">
               <h3 class="sectionHeader__title" id="directoryExportDialogTitle">Export Directory</h3>
-              <button class="btn" id="directoryExportCloseBtn" type="button">Close</button>
+              <button class="btn actionIconBtn" id="directoryExportCloseBtn" type="button" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
             </div>
             <form id="directoryExportForm" class="form">
               <label class="label label--inline"><input class="checkbox" type="radio" name="scope" value="all_contacts" checked /> All contacts</label>
@@ -1296,6 +919,99 @@
         <div class="srOnly" id="directoryLiveRegion" aria-live="polite" aria-atomic="true"></div>
       </section>
 
+      <!-- Ministry Profiles -->
+      <section class="tabPanel ministryProfilesPanel" role="tabpanel" id="tab-ministries" aria-labelledby="tabBtn-ministries" hidden inert aria-hidden="true" data-feature-disabled="true" data-header-crumb="Ministry Profiles" data-header-description="Add, edit, reorder, and publish profiles across the leadership and ministry pages.">
+        <form class="card form ministryPageForm" id="ministriesPageForm">
+          <input type="hidden" name="profilesState" id="ministriesProfilesState" value="[]" />
+          <div class="ministryPageForm__top">
+            <div class="ministryPageForm__topLeft">
+              <h2 class="sectionHeader__title">Ministry Profiles</h2>
+              <p class="muted">Manage the profile cards shown on Leadership &amp; Staff and its related public pages. Select a page chip, edit its profiles, then save and publish that page.</p>
+              <div class="ministryProfilePageChips" id="ministriesProfilePageChips" role="tablist" aria-label="Profile pages"></div>
+              <p class="hint" id="ministriesProfileFilterSummary" role="status" aria-live="polite"></p>
+            </div>
+            <div class="toolbar ministryPageForm__topActions" aria-label="Ministry profile actions">
+              <button class="btn actionIconBtn" id="ministriesRefreshBtn" type="button" aria-label="Refresh ministry profiles" title="Refresh ministry profiles"><span class="material-icons-round" aria-hidden="true">refresh</span></button>
+              <button class="btn btn--primary actionIconBtn" id="ministriesAddProfileBtn" type="button" aria-label="Add ministry profile" title="Add ministry profile"><span class="material-icons-round" aria-hidden="true">person_add</span></button>
+            </div>
+          </div>
+          <div class="ministryPageForm__divider" aria-hidden="true"></div>
+          <div class="formRow ministryPageForm__fields">
+            <label class="label">Page heading<input class="input" id="ministriesPageTitle" name="pageTitle" type="text" maxlength="100" required /></label>
+            <label class="label ministryPageForm__intro">Intro text<textarea class="textarea" id="ministriesPageIntro" name="pageIntro" rows="3" maxlength="2000"></textarea></label>
+            <div class="toolbar ministryPageForm__actions" aria-label="Ministry profile publishing actions">
+              <button class="btn btn--primary" id="ministriesSaveDraftBtn" type="button">Save Draft</button>
+              <button class="btn" id="ministriesPublishBtn" type="button">Publish to Website</button>
+              <button class="btn btn--danger" id="ministriesRestoreBtn" type="button">Restore Previous Publish</button>
+            </div>
+          </div>
+          <div class="hint" id="ministriesEditorStatus" role="status" aria-live="polite">Loading ministry profiles…</div>
+          <div class="error" id="ministriesEditorError" role="alert" hidden></div>
+        </form>
+
+        <section class="card ministryProfilesListCard" aria-labelledby="ministriesProfilesListTitle">
+          <div class="sectionHeader sectionHeader--compact">
+            <div>
+              <h3 class="card__subtitle" id="ministriesProfilesListTitle">Profiles on the page</h3>
+              <p class="muted" id="ministriesProfilesCount">0 profiles</p>
+            </div>
+            <p class="hint" id="ministriesVersionSummary" aria-live="polite"></p>
+          </div>
+          <div class="ministryProfileAdminGrid" id="ministriesProfilesList" aria-live="polite"></div>
+          <div class="directoryState" id="ministriesProfilesEmpty" hidden>No profiles have been added yet. Select Add Profile to create the first card.</div>
+        </section>
+      </section>
+
+      <dialog class="dialog ministryProfileDialog" id="ministryProfileDialog" aria-labelledby="ministryProfileDialogTitle" aria-modal="true">
+        <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
+        <div class="card dialog__inner ministryProfileDialog__inner">
+          <div class="sectionHeader sectionHeader--compact">
+            <div>
+              <h2 class="sectionHeader__title" id="ministryProfileDialogTitle">Add Ministry Profile</h2>
+              <p class="muted">This edits one card. Save the page draft after making your card changes.</p>
+            </div>
+            <button class="btn actionIconBtn" id="ministryProfileDialogCloseBtn" type="button" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
+          </div>
+          <form class="form" id="ministryProfileForm">
+            <input type="hidden" id="ministryProfileId" name="id" />
+            <div class="formRow">
+              <label class="label">Name<input class="input" id="ministryProfileName" name="name" type="text" maxlength="120" required /></label>
+              <label class="label">Title or role<input class="input" id="ministryProfileTitle" name="title" type="text" maxlength="160" placeholder="Optional" /></label>
+            </div>
+            <div class="formRow">
+              <label class="label">Page key<input class="input" id="ministryProfilePage" name="page" type="text" maxlength="120" readonly /></label>
+              <label class="label" id="ministryProfileGroupField" hidden>Leadership section
+                <select class="select" id="ministryProfileGroup" name="group">
+                  <option value="staff">Leadership &amp; Staff</option>
+                  <option value="deacons">Deacons</option>
+                  <option value="deaconesses">Deaconesses</option>
+                  <option value="official_team">Official Team &amp; Trustees</option>
+                </select>
+              </label>
+              <label class="label" id="ministryProfileSectionField">Section<input class="input" id="ministryProfileSection" name="section" type="text" maxlength="120" readonly /></label>
+            </div>
+            <label class="label">Biography<textarea class="textarea" id="ministryProfileBio" name="bio" rows="10" maxlength="4000" placeholder="Write the biography shown on the public card."></textarea></label>
+            <div class="ministryProfileImageEditor">
+              <div class="ministryProfileImagePreviewWrap">
+                <img id="ministryProfileImagePreview" class="ministryProfileImagePreview" alt="" hidden />
+                <div id="ministryProfileImageEmpty" class="ministryProfileImageEmpty">No photo selected</div>
+              </div>
+              <div class="form">
+                <label class="label">Photo file<input class="input" id="ministryProfileImageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
+                <label class="label">Photo URL<input class="input" id="ministryProfileImageUrl" name="imageUrl" type="url" maxlength="500" placeholder="Optional existing image URL" /></label>
+                <label class="label">Photo description<input class="input" id="ministryProfileImageAlt" name="imageAlt" type="text" maxlength="200" placeholder="Accessible description" /></label>
+                <p class="hint">Choose a file to upload it to Cloudflare storage when you save this profile. A URL may be used for an existing image.</p>
+              </div>
+            </div>
+            <div class="toolbar ministryProfileDialog__actions">
+              <button class="btn actionIconBtn" id="ministryProfileCancelBtn" type="button" aria-label="Cancel" title="Cancel"><span class="material-icons-round" aria-hidden="true">close</span></button>
+              <button class="btn btn--primary" type="submit">Save Profile</button>
+            </div>
+            <div class="error" id="ministryProfileFormError" role="alert" hidden></div>
+          </form>
+        </div>
+      </dialog>
+
       <!-- Events -->
       <section class="tabPanel" role="tabpanel" id="tab-events" aria-labelledby="tabBtn-events" hidden data-header-crumb="Events" data-header-description="Add service times, meetings, and church programs.">
         <div class="sectionHeader sectionHeader--compact eventsHeaderRow">
@@ -1303,7 +1019,7 @@
           <details class="menu eventsPrintMenu eventsPrintMenu--inline noPrint" id="eventsPrintMenu">
             <summary class="btn actionIconBtn" aria-label="Print events" title="Print events">
               <span class="srOnly">Print events</span>
-              <svg class="actionIconBtn__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 9V4h10v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><rect x="4" y="9" width="16" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect><path d="M7 17h10v3H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span class="material-icons-round" aria-hidden="true">print</span>
             </summary>
             <div class="menu__panel" aria-label="Print events">
               <div class="menu__title">Print events</div>
@@ -1358,11 +1074,22 @@
 
       <section class="tabPanel" role="tabpanel" id="tab-submissions" aria-labelledby="tabBtn-submissions" hidden data-header-crumb="Website Messages" data-header-description="Review contact and facility-rental submissions received through the website.">
         <div class="card">
-          <div class="sectionHeading"><div><h2>Website Messages</h2><p class="muted">Website submissions only. This is not an external email mailbox.</p></div><button class="btn" id="submissionsRefreshBtn" type="button">Refresh</button></div>
-          <div class="formRow"><input class="input" id="submissionsSearch" type="search" placeholder="Search name, email, subject, or message" autocomplete="off" /><label class="checkboxLabel"><input id="submissionsShowArchived" type="checkbox" /> Show archived</label></div>
-          <div class="tableWrap"><table class="dataTable"><thead><tr><th>Status</th><th>Type</th><th>From</th><th>Subject</th><th>Received</th><th>Actions</th></tr></thead><tbody id="submissionsTableBody"><tr><td colspan="6" class="muted">No submissions loaded.</td></tr></tbody></table></div>
-          <div class="card" id="submissionDetail" hidden></div>
+          <div class="sectionHeading"><div><h2>Website Messages</h2><p class="muted">Website submissions only. This is not an external email mailbox.</p></div></div>
+          <div class="formRow submissionsControls"><button class="btn actionIconBtn" id="submissionsRefreshBtn" type="button" aria-label="Refresh website messages" title="Refresh website messages"><span class="material-icons-round" aria-hidden="true">refresh</span></button><input class="input" id="submissionsSearch" type="search" placeholder="Search name, email, subject, or message" autocomplete="off" /></div>
+          <div class="submissionsTypeFilters" id="submissionsTypeFilters" aria-label="Filter website messages by type">
+            <button class="submissionsTypeChip" type="button" data-submission-type-filter="all" aria-pressed="true">All <span class="submissionsTypeChip__badge" id="submissionsTypeCountAll">0</span></button>
+            <button class="submissionsTypeChip" type="button" data-submission-type-filter="contact" aria-pressed="false">Contact <span class="submissionsTypeChip__badge" id="submissionsTypeCountContact">0</span></button>
+            <button class="submissionsTypeChip" type="button" data-submission-type-filter="facility_rental" aria-pressed="false">Facility Rental <span class="submissionsTypeChip__badge" id="submissionsTypeCountFacility">0</span></button>
+          </div>
+          <div class="tableWrap submissionsTableWrap"><table class="dataTable submissionsTable"><thead><tr><th scope="col">Status</th><th scope="col">Type</th><th scope="col">From</th><th scope="col">Subject</th><th scope="col">Received</th><th scope="col">Actions</th></tr></thead><tbody id="submissionsTableBody"><tr><td colspan="6" class="muted">No submissions loaded.</td></tr></tbody></table></div>
+          <div class="submissionsPager" role="navigation" aria-label="Website messages pages"><button class="btn actionIconBtn" id="submissionsPrevBtn" type="button" aria-label="Previous page" title="Previous page" disabled><span class="material-icons-round" aria-hidden="true">chevron_left</span></button><span class="muted" id="submissionsPageInfo" aria-live="polite">0 messages</span><button class="btn actionIconBtn" id="submissionsNextBtn" type="button" aria-label="Next page" title="Next page" disabled><span class="material-icons-round" aria-hidden="true">chevron_right</span></button></div>
         </div>
+        <dialog class="dialog submissionDialog" id="submissionDialog" aria-labelledby="submissionDialogTitle">
+          <div class="card dialog__inner">
+            <div class="submissionDialog__header"><h3 id="submissionDialogTitle">Website Message</h3><button class="btn actionIconBtn" id="submissionDialogCloseBtn" type="button" aria-label="Close message" title="Close message"><span class="material-icons-round" aria-hidden="true">close</span></button></div>
+            <div id="submissionDetail"></div>
+          </div>
+        </dialog>
       </section>
 
       <!-- Newsletter -->
@@ -1523,11 +1250,11 @@
         <div class="supportTopRow">
           <section class="card" id="adminStorageHealthCard" hidden aria-labelledby="adminStorageHealthTitle">
             <h3 class="card__subtitle" id="adminStorageHealthTitle">Admin Diagnostics</h3>
-            <p class="muted">Shows current storage mode and backend availability for production troubleshooting.</p>
+            <p class="muted">Shows D1 database health and Cloudflare storage bindings.</p>
             <div class="hint" id="adminStorageHealthSummary" aria-live="polite">Checking storage health…</div>
             <div class="hint" id="adminStorageHealthDetails"></div>
             <div class="toolbar">
-              <button class="btn" id="adminStorageHealthRefreshBtn" type="button">Refresh Diagnostics</button>
+              <button class="btn actionIconBtn" id="adminStorageHealthRefreshBtn" type="button" aria-label="Refresh Diagnostics" title="Refresh Diagnostics"><span class="material-icons-round" aria-hidden="true">refresh</span></button>
             </div>
           </section>
 
@@ -1577,39 +1304,30 @@
             <h2 class="sectionHeader__title">Users &amp; Roles</h2>
             <p class="muted">Add administrators and control exactly what each standard role can access.</p>
           </div>
-          <button class="btn" id="settingsRefreshBtn" type="button">Refresh</button>
+          <div class="settingsHeaderActions">
+            <button class="btn" id="settingsRolesBtn" type="button">Standard role permissions</button>
+            <button class="btn actionIconBtn" id="settingsRefreshBtn" type="button" aria-label="Refresh" title="Refresh"><span class="material-icons-round" aria-hidden="true">refresh</span></button>
+          </div>
         </div>
 
-        <div class="settingsGrid">
-          <section class="card settingsAddCard" aria-labelledby="settingsAddTitle">
-            <h3 class="card__subtitle" id="settingsAddTitle">Add administrator</h3>
-            <form class="form" id="settingsAddUserForm">
-              <div class="formRow">
-                <label class="label">Full name<input class="input" name="fullName" type="text" maxlength="120" autocomplete="name" required /></label>
-                <label class="label">Email<input class="input" name="email" type="email" maxlength="254" autocomplete="email" required /></label>
-              </div>
-              <div class="formRow">
-                <label class="label">Role<select class="select" id="settingsAddRole" name="role" required></select></label>
-                <label class="label">Status
-                  <select class="select" id="settingsAddStatus" name="status" required>
-                    <option value="pending" selected>Pending</option>
-                    <option value="active">Active</option>
-                    <option value="suspended">Suspended</option>
-                  </select>
-                </label>
-              </div>
-              <div class="settingsRoleSummary" id="settingsSelectedRoleSummary" aria-live="polite"></div>
-              <button class="btn btn--primary" type="submit">Add administrator</button>
-              <div class="hint" id="settingsAddHint" aria-live="polite"></div>
-            </form>
-          </section>
-
-          <section class="card settingsRolesCard" aria-labelledby="settingsRolesTitle">
-            <h3 class="card__subtitle" id="settingsRolesTitle">Standard role permissions</h3>
-            <p class="muted">View means read-only access. Manage means the role can create or change records.</p>
-            <div class="tableWrap"><table class="table settingsMatrix"><thead id="settingsRolesHead"></thead><tbody id="settingsRolesBody"></tbody></table></div>
-          </section>
-        </div>
+        <section class="card settingsAddCard settingsAddCard--horizontal" aria-labelledby="settingsAddTitle">
+          <h3 class="card__subtitle" id="settingsAddTitle">Add administrator</h3>
+          <form class="form settingsAddForm" id="settingsAddUserForm">
+            <label class="label">Full name<input class="input" name="fullName" type="text" maxlength="120" autocomplete="name" required /></label>
+            <label class="label">Email<input class="input" name="email" type="email" maxlength="254" autocomplete="email" required /></label>
+            <label class="label">Role<select class="select" id="settingsAddRole" name="role" required></select></label>
+            <label class="label">Status
+              <select class="select" id="settingsAddStatus" name="status" required>
+                <option value="pending" selected>Pending</option>
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+              </select>
+            </label>
+            <button class="btn btn--primary settingsAddForm__submit" type="submit">Add administrator</button>
+          </form>
+          <div class="settingsRoleSummary" id="settingsSelectedRoleSummary" aria-live="polite"></div>
+          <div class="hint" id="settingsAddHint" aria-live="polite"></div>
+        </section>
 
         <section class="card settingsUsersCard" aria-labelledby="settingsUsersTitle">
           <div class="sectionHeader sectionHeader--compact">
@@ -1624,19 +1342,30 @@
           </form>
           <div class="tableWrap"><table class="table settingsUsersTable"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last login</th><th>Date added</th><th>Actions</th></tr></thead><tbody id="settingsUsersBody"></tbody></table></div>
           <div class="settingsPager" aria-label="Administrator list pagination">
-            <button class="btn" id="settingsUsersPrevBtn" type="button">Previous</button>
+            <button class="btn actionIconBtn" id="settingsUsersPrevBtn" type="button" aria-label="Previous" title="Previous"><span class="material-icons-round" aria-hidden="true">chevron_left</span></button>
             <span id="settingsUsersPageInfo" aria-live="polite"></span>
-            <button class="btn" id="settingsUsersNextBtn" type="button">Next</button>
+            <button class="btn actionIconBtn" id="settingsUsersNextBtn" type="button" aria-label="Next" title="Next"><span class="material-icons-round" aria-hidden="true">chevron_right</span></button>
           </div>
         </section>
 
         <section class="card settingsAuditCard" aria-labelledby="settingsAuditTitle">
           <h3 class="card__subtitle" id="settingsAuditTitle">Recent administrator activity</h3>
-          <div class="tableWrap"><table class="table"><thead><tr><th>Actor</th><th>Action</th><th>Target</th><th>Date</th></tr></thead><tbody id="settingsAuditBody"></tbody></table></div>
+          <div class="tableWrap"><table class="table settingsAuditTable"><thead><tr><th>Actor</th><th>Action</th><th>Target</th><th>Date</th></tr></thead><tbody id="settingsAuditBody"></tbody></table></div>
         </section>
       </section>
 
-
+      <dialog class="dialog" id="settingsRolesDialog" aria-labelledby="settingsRolesDialogTitle" aria-modal="true">
+        <a class="dialog__backdrop" href="#" aria-hidden="true" tabindex="-1"></a>
+        <div class="card dialog__inner settingsRolesDialog__inner">
+          <div class="sectionHeader sectionHeader--compact">
+            <h3 class="sectionHeader__title" id="settingsRolesDialogTitle">Standard role permissions</h3>
+            <button class="btn actionIconBtn" id="settingsRolesDialogCloseBtn" type="button" aria-label="Close" title="Close"><span class="material-icons-round" aria-hidden="true">close</span></button>
+          </div>
+          <p class="muted">View means read-only access. Manage means the role can create or change records.</p>
+          <p class="hint">Roster labels are mapped to these standard roles: Administrator manages all modules. Directory roles manage contacts and support. Website Manager manages website content and communications.</p>
+          <div class="tableWrap"><table class="table settingsMatrix"><thead id="settingsRolesHead"></thead><tbody id="settingsRolesBody"></tbody></table></div>
+        </div>
+      </dialog>
 
         </div>
       </div>
@@ -1649,14 +1378,19 @@
       <h2 class="card__subtitle" id="settingsConfirmTitle">Confirm administrator change</h2>
       <p id="settingsConfirmMessage"></p>
       <div class="toolbar">
-        <button class="btn" id="settingsConfirmCancelBtn" type="button">Cancel</button>
+        <button class="btn actionIconBtn" id="settingsConfirmCancelBtn" type="button" aria-label="Cancel" title="Cancel"><span class="material-icons-round" aria-hidden="true">close</span></button>
         <button class="btn btn--primary" id="settingsConfirmApplyBtn" type="button">Confirm change</button>
       </div>
     </div>
   </dialog>
 
-  <script src="/admin/admin.js?v=20260730k" defer></script>
-  <script src="/admin/admin-directory.js?v=20260730a" defer></script>
+  <script id="mmmbc-admin-structure-js" src="/admin/admin-structure-overrides.js?v=20261005a" defer></script>
+  <script src="/admin/admin.js?v=20261005a" defer></script>
+  <script src="/admin/admin-ministry-profiles.js?v=20260927a" defer></script>
+  <script src="/admin/admin-directory.js?v=20260927a" defer></script>
+  <script type="module" src="/admin/workspace/shell.mjs?v=20261006a"></script>
   <script src="/admin/admin-dashboard.js?v=20260730a" defer></script>
+  <div class="eventsPrintHeader printOnly"><div id="eventsPrintTitle"></div><div id="eventsPrintMeta"></div></div>
+  <div class="printOnly" id="adminPrintBody"></div>
 </body>
 </html>

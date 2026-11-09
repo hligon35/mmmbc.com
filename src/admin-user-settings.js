@@ -88,15 +88,16 @@ async function getUser(env, id) {
 
 async function activeAdministratorCount(env) {
   const row = await env.DB.prepare(
-    `SELECT COUNT(*) AS total FROM admin_users WHERE role = 'administrator' AND status = 'active'`
+    `SELECT COUNT(*) AS total FROM admin_users WHERE role IN ('master_admin', 'administrator') AND status = 'active'`
   ).first();
   return Number(row?.total || 0);
 }
 
 async function assertCanRestrictUser(env, actor, target, { nextRole, nextStatus }) {
-  const removesActiveAdmin = target.role === 'administrator'
+  const adminRoles = new Set(['master_admin', 'administrator']);
+  const removesActiveAdmin = adminRoles.has(target.role)
     && target.status === 'active'
-    && (nextRole !== 'administrator' || nextStatus !== 'active');
+    && (!adminRoles.has(nextRole) || nextStatus !== 'active');
 
   if (target.id === actor.id && (nextRole !== target.role || nextStatus !== target.status)) {
     throw new AdminAuthError(

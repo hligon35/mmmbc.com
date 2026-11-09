@@ -1,0 +1,52 @@
+CREATE TABLE IF NOT EXISTS events (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  event_date TEXT NOT NULL,
+  event_time TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS announcements (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  expires_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS bulletins (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  file_key TEXT NOT NULL,
+  original_name TEXT,
+  starts_at TEXT,
+  ends_at TEXT,
+  created_at TEXT NOT NULL
+);
+
+-- NOTE: `subscribers` (newsletter opt-in) moved to the separate "site" D1 database;
+-- see migrations/0012_site_init_public_forms.sql. It never lived here in production data
+-- (both D1s were freshly created empty), so no data migration is required.
+
+CREATE TABLE IF NOT EXISTS profiles (
+  id TEXT PRIMARY KEY,
+  section TEXT NOT NULL,
+  name TEXT NOT NULL,
+  title TEXT,
+  bio TEXT,
+  image_key TEXT,
+  position INTEGER,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS newsletter_records (
+  id TEXT PRIMARY KEY,
+  subject TEXT NOT NULL,
+  body TEXT NOT NULL,
+  recipient_count INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL,
+  sent_at TEXT,
+  created_at TEXT NOT NULL
+);

@@ -1,0 +1,37 @@
+export const modules = Object.freeze([
+  {id:'mail',label:'Mailbox',icon:'inbox',permissions:['submissions.view'],view:'mail'},
+  {id:'rentals',label:'Facility Rentals',icon:'meeting_room',permissions:['submissions.view'],view:'mail'},
+  {id:'calendar',label:'Calendar / Schedule',icon:'calendar_month',permissions:['events.view','submissions.view'],view:'calendar'},
+  {id:'directory',label:'Church Directory',icon:'contacts',permissions:['directory.view'],panel:'tab-directory'},
+  // Profile Manager is intentionally hidden from the admin workspace for now.
+  // {id:'profiles',label:'Profile Manager',icon:'manage_accounts',permissions:['settings.manage'],panel:'tab-ministries',profile:'leadership'},
+  {id:'newsletter',label:'Newsletter',icon:'campaign',permissions:['newsletter.view'],panel:'tab-newsletter'},
+  {id:'reports',label:'Reports',icon:'bar_chart',permissions:['submissions.view','newsletter.view','finance.view'],view:'reports'},
+  {id:'finances',label:'Church Finances',icon:'payments',permissions:['finance.view'],view:'finance'},
+  {id:'announcements',label:'Announcements & Bulletins',icon:'feed',permissions:['announcements.view'],panel:'tab-content'},
+  {id:'photos',label:'Photos',icon:'photo_library',permissions:['photos.view'],panel:'tab-photos'},
+  {id:'access',label:'Access Management',icon:'admin_panel_settings',permissions:['users.manage'],panel:'tab-settings'},
+  {id:'settings',label:'Settings & Support',icon:'settings',permissions:['support.send'],panel:'tab-support'},
+]);
+export const canOpen = (module,permissions) => module.permissions.some(p=>permissions.includes(p));
+export const legacyRoutes = Object.freeze({});
+export function resolveRoute(path,hash='') {
+  const normalized=path.replace(/\/$/,'');
+  if(legacyRoutes[normalized])return {module:legacyRoutes[normalized],key:''};
+  const match=/^\/admin\/(mail|rentals)\/(?:thread|record)\/([^/]+)$/.exec(normalized);
+  if(match) {
+    try{return {module:match[1],key:decodeURIComponent(match[2])};}catch{return null;}
+  }
+  if(normalized!=='/admin'&&!normalized.startsWith('/admin/'))return null;
+  const id=normalized.replace(/^\/admin\/?/,'');
+  if(modules.some(m=>m.id===id))return {module:id,key:''};
+  if(['','index.html'].includes(id)) {
+    const aliases={home:'mail',submissions:'mail',events:'calendar',content:'announcements',finance:'finances',finances:'finances',settings:'access',support:'settings'};
+    const old=hash.replace(/^#/,'');
+    return {module:aliases[old] || (modules.some(m=>m.id===old)?old:'mail'),key:''};
+  }
+  return null;
+}
+export function routeUrl(id,key='') {
+  return '/admin/'+id+(key?'/'+(id==='rentals'?'record':'thread')+'/'+encodeURIComponent(key):'');
+}

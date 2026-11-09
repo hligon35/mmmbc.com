@@ -52,27 +52,14 @@
     const root = $('dashboardSummaryGrid');
     if (!root) return;
 
+    // null/undefined means unavailable or restricted; only a real number is shown as a count.
+    const count = (value) => (Number.isFinite(value) && value !== null ? String(value) : '\u2014');
+    const meta = (value, suffix) => (Number.isFinite(value) && value !== null ? `${value} ${suffix}` : 'Unavailable');
     const cards = [
-      {
-        label: 'Upcoming Events (14 days)',
-        value: Number(summary?.upcomingEvents14d || 0),
-        meta: `${Number(summary?.todayEvents || 0)} today`
-      },
-      {
-        label: 'Active Announcements',
-        value: Number(summary?.activeAnnouncements || 0),
-        meta: `${Number(summary?.totalAnnouncements || 0)} total`
-      },
-      {
-        label: 'Newsletter Subscribers',
-        value: Number(summary?.subscribers || 0),
-        meta: `${Number(summary?.scheduledNewsletters || 0)} scheduled`
-      },
-      {
-        label: 'Photos in Gallery',
-        value: Number(summary?.galleryItems || 0),
-        meta: `${Number(summary?.galleryAlbums || 0)} albums`
-      }
+      { label: 'Upcoming Events (14 days)', value: count(summary?.upcomingEvents14d), meta: meta(summary?.todayEvents, 'today') },
+      { label: 'Active Announcements', value: count(summary?.activeAnnouncements), meta: meta(summary?.totalAnnouncements, 'total') },
+      { label: 'Newsletter Subscribers', value: count(summary?.subscribers), meta: meta(summary?.scheduledNewsletters, 'scheduled') },
+      { label: 'Photos in Gallery', value: count(summary?.galleryItems), meta: meta(summary?.galleryAlbums, 'albums') }
     ];
 
     root.innerHTML = cards.map((card) => `
@@ -110,19 +97,6 @@
     }).join('');
   }
 
-  function navigateToSection(sectionTarget, subTabTarget) {
-    const section = String(sectionTarget || '').trim();
-    if (!section) return;
-
-    const navButton = document.querySelector(`#adminSideNav .tab--nav[aria-controls="${section}"]`);
-    if (navButton instanceof HTMLButtonElement) navButton.click();
-
-    const sub = String(subTabTarget || '').trim();
-    if (!sub) return;
-    const subButton = document.querySelector(`.tab--sub[aria-controls="${sub}"]`);
-    if (subButton instanceof HTMLButtonElement) subButton.click();
-  }
-
   function renderUpcomingEvents(items) {
     const root = $('dashboardUpcomingEventsList');
     if (!root) return;
@@ -144,47 +118,17 @@
     }).join('');
   }
 
-  function renderGiving(giving, canView) {
-    const card = $('dashboardGivingCard');
-    const root = $('dashboardGivingStats');
-    if (!root || !card) return;
-
-    if (!canView) {
-      card.hidden = false;
-      root.innerHTML = '<div class="dashboardEmpty">Finance access is required to view giving details.</div>';
-      return;
-    }
-
-    card.hidden = false;
-
-    const safeGiving = giving && typeof giving === 'object' ? giving : {};
-
-    const stats = [
-      { label: 'Last 30 Days (Received)', value: formatMoneyCents(safeGiving.last30dIncomeCents) },
-      { label: 'Last 30 Days (Spent)', value: formatMoneyCents(safeGiving.last30dExpenseCents) },
-      { label: 'Pending Review Entries', value: Number(safeGiving.pendingReviewCount || 0) },
-      { label: 'Current Month Entries', value: Number(safeGiving.currentMonthEntries || 0) }
-    ];
-
-    root.innerHTML = stats.map((row) => `
-      <article class="dashboardStat">
-        <p class="dashboardStat__label">${row.label}</p>
-        <p class="dashboardStat__value">${row.value}</p>
-      </article>
-    `).join('');
-  }
-
   function renderNewsletter(newsletter) {
     const root = $('dashboardNewsletterStats');
     if (!root) return;
 
     if (!newsletter) {
-      renderEmpty('dashboardNewsletterStats', 'Newsletter data is unavailable.');
+      renderEmpty('dashboardNewsletterStats', 'Newsletter data is unavailable or not permitted for your role.');
       return;
     }
 
     const stats = [
-      { label: 'Drafts', value: Number(newsletter.drafts || 0) },
+      { label: 'Drafts', value: Number(newsletter.drafts) || 0 },
       { label: 'Scheduled', value: Number(newsletter.scheduled || 0) },
       { label: 'Sent/History', value: Number(newsletter.history || 0) },
       { label: 'Next Scheduled Send', value: newsletter.nextScheduledAt ? formatDateTime(newsletter.nextScheduledAt) : 'Not scheduled' }
@@ -215,17 +159,17 @@
       {
         title: 'Announcements Storage',
         detail: String(websiteStatus?.announcementsStorage || 'unknown'),
-        level: statusLevel(Boolean(subsystemStatus?.announcements?.ok))
+        level: statusLevel(subsystemStatus?.announcements?.ok !== false)
       },
       {
         title: 'Newsletter Scheduler',
-        detail: websiteStatus?.schedulerRunning ? 'Running' : 'Not running',
-        level: websiteStatus?.schedulerRunning ? 'ok' : 'warning'
+        detail: websiteStatus?.schedulerRunning == null ? 'Status not available' : (websiteStatus.schedulerRunning ? 'Running' : 'Overdue sends detected'),
+        level: websiteStatus?.schedulerRunning === false ? 'warning' : 'ok'
       },
       {
         title: 'Gallery Data',
-        detail: statusLevel(Boolean(subsystemStatus?.gallery?.ok)) === 'ok' ? 'Available' : String(subsystemStatus?.gallery?.error || 'Unavailable'),
-        level: statusLevel(Boolean(subsystemStatus?.gallery?.ok))
+        detail: subsystemStatus?.gallery?.ok === false ? String(subsystemStatus.gallery.error || 'Unavailable') : (subsystemStatus?.gallery?.restricted ? 'Not available for your role' : 'Available'),
+        level: statusLevel(subsystemStatus?.gallery?.ok !== false)
       }
     ];
 
@@ -291,11 +235,21 @@
     root.setAttribute('aria-busy', isBusy ? 'true' : 'false');
   }
 
-  async function refreshDashboard() {
-    if (!$('dashboardOverviewRoot')) return;
-    const dashboardCard = $('dashboardCard');
-    if (dashboardCard?.hidden) return;
+  const REFRESH_MIN_INTERVAL_MS = 30000;
+  let inFlight = null;
+  let lastLoadedAt = 0;
 
+  // Concurrent callers share one request; automatic refreshes skip recent data.
+  function refreshDashboard({ force = false } = {}) {
+    if (!$('dashboardOverviewRoot')) return Promise.resolve();
+    if ($('dashboardCard')?.hidden) return Promise.resolve();
+    if (inFlight) return inFlight;
+    if (!force && Date.now() - lastLoadedAt < REFRESH_MIN_INTERVAL_MS) return Promise.resolve();
+    inFlight = loadDashboard().finally(() => { inFlight = null; });
+    return inFlight;
+  }
+
+  async function loadDashboard() {
     setBusy(true);
     setStatus('Loading dashboard overview...');
     try {
@@ -304,10 +258,10 @@
       renderSummaryCards(data.summary || {});
       renderNeedsAttention(data.needsAttention || []);
       renderUpcomingEvents(data.upcomingEvents || []);
-      renderGiving(data.giving || null, Boolean(data?.permissions?.canViewFinance));
       renderNewsletter(data.newsletter || null);
       renderWebsiteStatus(data.websiteStatus || {}, data.status || {});
       renderRecentActivity(data.recentActivity || []);
+      lastLoadedAt = Date.now();
       setStatus('Dashboard updated.');
     } catch (error) {
       renderEmpty('dashboardSummaryGrid', 'Unable to load dashboard metrics.', { isError: true });
@@ -323,27 +277,11 @@
   }
 
   function wire() {
-    const root = $('dashboardOverviewRoot');
-    if (root && !root.dataset.actionWired) {
-      root.dataset.actionWired = '1';
-      root.addEventListener('click', (event) => {
-        const target = event.target instanceof Element
-          ? event.target.closest('[data-section-target]')
-          : null;
-        if (!(target instanceof HTMLElement)) return;
-        const section = String(target.getAttribute('data-section-target') || '').trim();
-        const subTab = String(target.getAttribute('data-subtab-target') || '').trim();
-        if (!section) return;
-        event.preventDefault();
-        navigateToSection(section, subTab);
-      });
-    }
-
     const refreshBtn = $('dashboardRefreshBtn');
     if (refreshBtn && !refreshBtn.dataset.wired) {
       refreshBtn.dataset.wired = '1';
       refreshBtn.addEventListener('click', () => {
-        refreshDashboard();
+        refreshDashboard({ force: true });
       });
     }
 
@@ -354,7 +292,6 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     wire();
-    refreshDashboard();
   });
 
   window.AdminDashboard = {

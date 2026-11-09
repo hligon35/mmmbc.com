@@ -1,3 +1,5 @@
+import { servePublishedMinistryImage } from './ministry-images.js';
+import { imageUploadAllowed, imageBytesAllowed } from './launch-security.js';
 // Cloudflare Worker (Option B scaffold)
 // - Serves static site assets from ./cf_site via env.ASSETS
 // - Implements gallery API + CDN endpoints using D1 + R2
@@ -24,7 +26,6 @@ import {
 } from './worker-communications.js';
 import {
   handlePublicSiteContentGet,
-  handleSitePagesList,
   handleSitePageGet,
   handleSitePageDraftPut,
   handleSitePagePublishPost,
@@ -53,6 +54,8 @@ import {
   handleDirectoryListsCreate,
   handleDirectoryListsUpdate
 } from './worker-directory.js';
+
+const PROFILE_CONTENT_PAGES = new Set(["leadership","associate_ministers","deacons","deaconesses","official_team_trustees","ministries"]);
 
 const adminAuthCache = new WeakMap();
 
@@ -100,12 +103,6 @@ function text(body, { status = 200, headers = {} } = {}) {
   });
 }
 
-function canonicalHost(env) {
-  // Optional: set this when you move from *.workers.dev to your real domain.
-  // Example: CANONICAL_HOST=mmmbc.com
-  return String(env.CANONICAL_HOST || '').trim().toLowerCase();
-}
-
 function sanitizeSegment(input) {
   return String(input || '')
     .trim()
@@ -126,6 +123,10 @@ function sanitizePrefix(input, { fallback = 'gallery/', ensureTrailingSlash = fa
 
 function youtubeChannelId(env) {
   return String(env.YOUTUBE_CHANNEL_ID || 'UCkAaHiYmUKIdKePifg1D2pg').trim();
+}
+
+function youtubeApiKey(env) {
+  return String(env.YOUTUBE_API_KEY || '').trim();
 }
 
 function decodeHtmlEntities(input) {
@@ -342,10 +343,14 @@ async function handlePublicNewsletterSubscribe(request, env) {
 
   const body = await request.json().catch(() => ({}));
   const email = String(body?.email || '').trim().toLowerCase();
-  const name = String(body?.name || '').trim().slice(0, 120);
+  const firstName = String(body?.firstName || '').trim().slice(0, 60);
+  const lastName = String(body?.lastName || '').trim().slice(0, 80);
+  if (Boolean(firstName) !== Boolean(lastName)) return json({ error: 'First and last name are required.' }, { status: 400 });
+  const name = (firstName ? `${firstName} ${lastName}` : String(body?.name || '').trim()).slice(0, 140);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return json({ error: 'A valid email is required.' }, { status: 400 });
   }
+  if (!name) return json({ error: 'First and last name are required.' }, { status: 400 });
 
   const now = new Date().toISOString();
   await env.SITE_DB.prepare(
@@ -355,6 +360,25 @@ async function handlePublicNewsletterSubscribe(request, env) {
        name = CASE WHEN excluded.name <> '' THEN excluded.name ELSE subscribers.name END,
        status = 'active'`
   ).bind(safeId(), email, name, now).run();
+
+  if (env.DB) {
+    try {
+      await env.DB.prepare(
+        `INSERT INTO newsletter_subscribers (
+           id, contact_id, email, status, consent_source, consent_date,
+           confirmed_at, unsubscribed_at, suppression_reason, created_at, updated_at
+         ) VALUES (?, NULL, ?, 'active', 'website_signup', ?, ?, NULL, NULL, ?, ?)
+         ON CONFLICT(email) DO UPDATE SET
+           status = 'active',
+           consent_source = CASE
+             WHEN newsletter_subscribers.consent_source IS NULL OR newsletter_subscribers.consent_source = ''
+             THEN 'website_signup' ELSE newsletter_subscribers.consent_source END,
+           consent_date = COALESCE(newsletter_subscribers.consent_date, excluded.consent_date),
+           confirmed_at = COALESCE(newsletter_subscribers.confirmed_at, excluded.confirmed_at),
+           updated_at = excluded.updated_at`
+      ).bind(safeId(), email, now.slice(0, 10), now, now, now).run();
+    } catch {}
+  }
 
   return json({ ok: true, email });
 }
@@ -471,6 +495,162 @@ async function fetchYoutubeFeed(channelId) {
   return entries;
 }
 
+async function fetchYoutubeApiJson(resource, params, apiKey) {
+  const url = new URL(`https://www.googleapis.com/youtube/v3/${resource}`);
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value != null && String(value) !== '') url.searchParams.set(key, String(value));
+  });
+  url.searchParams.set('key', apiKey);
+
+  const resp = await fetch(url.toString(), {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'MMMBC-Worker/1.0'
+    }
+  });
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    throw new Error(
+      `YouTube Data API ${resource} failed (${resp.status})${body ? ': ' + body.slice(0, 180) : ''}`
+    );
+  }
+  return resp.json();
+}
+
+async function fetchYoutubeApiChannelFeed(channelId, apiKey) {
+  const channelData = await fetchYoutubeApiJson(
+    'channels',
+    { part: 'contentDetails', id: channelId, maxResults: 1 },
+    apiKey
+  );
+  const uploadsPlaylistId =
+    channelData?.items?.[0]?.contentDetails?.relatedPlaylists?.uploads || '';
+  if (!uploadsPlaylistId) {
+    throw new Error('YouTube channel uploads playlist was not returned.');
+  }
+
+  const playlistData = await fetchYoutubeApiJson(
+    'playlistItems',
+    {
+      part: 'snippet,contentDetails',
+      playlistId: uploadsPlaylistId,
+      maxResults: 25
+    },
+    apiKey
+  );
+
+  const orderedIds = [];
+  for (const item of playlistData?.items || []) {
+    const id = String(item?.contentDetails?.videoId || item?.snippet?.resourceId?.videoId || '').trim();
+    if (id && !orderedIds.includes(id)) orderedIds.push(id);
+  }
+  if (!orderedIds.length) {
+    return {
+      live: { isLive: false, videoId: '', source: 'youtube-data-api' },
+      videos: []
+    };
+  }
+
+  const videosData = await fetchYoutubeApiJson(
+    'videos',
+    {
+      part: 'snippet,status,liveStreamingDetails',
+      id: orderedIds.join(',')
+    },
+    apiKey
+  );
+
+  const byId = new Map();
+  for (const item of videosData?.items || []) {
+    const id = String(item?.id || '').trim();
+    if (id) byId.set(id, item);
+  }
+
+  const videos = orderedIds
+    .map((id) => {
+      const item = byId.get(id);
+      if (!item) return null;
+      const snippet = item.snippet || {};
+      const status = item.status || {};
+      const liveDetails = item.liveStreamingDetails || {};
+      const broadcastState = String(snippet.liveBroadcastContent || 'none').toLowerCase();
+      const actualStartTime = String(liveDetails.actualStartTime || '');
+      const actualEndTime = String(liveDetails.actualEndTime || '');
+      const scheduledStartTime = String(liveDetails.scheduledStartTime || '');
+      const isLive =
+        broadcastState === 'live' ||
+        Boolean(actualStartTime && !actualEndTime);
+      const isUpcoming = !isLive && broadcastState === 'upcoming';
+
+      return {
+        id,
+        title: String(snippet.title || '').trim(),
+        published: String(snippet.publishedAt || '').trim(),
+        isLive,
+        isUpcoming,
+        scheduledStartTime,
+        embeddable: status.embeddable !== false
+      };
+    })
+    .filter(Boolean);
+
+  const liveItem = videos.find((video) => video.isLive && video.embeddable) || null;
+
+  // Smash Balloon's Channel feed is newest-first. Keep the live item at the top,
+  // then show completed/published channel videos. Upcoming streams do not replace
+  // the most recent service until YouTube marks them live.
+  const displayVideos = videos
+    .filter((video) => video.embeddable && (!video.isUpcoming || video.isLive))
+    .sort((a, b) => {
+      if (a.isLive && !b.isLive) return -1;
+      if (!a.isLive && b.isLive) return 1;
+      return orderedIds.indexOf(a.id) - orderedIds.indexOf(b.id);
+    })
+    .map((video) => ({
+      id: video.id,
+      title: video.title,
+      published: video.published
+    }));
+
+  return {
+    live: liveItem
+      ? { isLive: true, videoId: liveItem.id, source: 'youtube-data-api' }
+      : { isLive: false, videoId: '', source: 'youtube-data-api' },
+    videos: displayVideos
+  };
+}
+
+async function fetchYoutubeApiChannelFeedCached(request, channelId, apiKey) {
+  const cacheUrl = new URL(request.url);
+  cacheUrl.pathname = '/__internal/youtube-channel-feed';
+  cacheUrl.search = '';
+  cacheUrl.searchParams.set('channel', channelId);
+  const cacheKey = new Request(cacheUrl.toString(), { method: 'GET' });
+
+  try {
+    const cached = await caches.default.match(cacheKey);
+    if (cached) return await cached.json();
+  } catch {
+    // Cache API is best-effort; continue to YouTube if unavailable.
+  }
+
+  const data = await fetchYoutubeApiChannelFeed(channelId, apiKey);
+
+  try {
+    const cacheResponse = new Response(JSON.stringify(data), {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'public, max-age=55'
+      }
+    });
+    await caches.default.put(cacheKey, cacheResponse);
+  } catch {
+    // Cache write failure must never break the public feed.
+  }
+
+  return data;
+}
+
 function parseVideoIdFromWatchUrl(urlStr) {
   try {
     const u = new URL(urlStr);
@@ -492,44 +672,80 @@ async function detectYoutubeLiveVideo(channelId) {
   });
 
   const finalUrl = String(resp.url || url);
-  const fromUrl = parseVideoIdFromWatchUrl(finalUrl);
-  if (fromUrl) return { isLive: true, videoId: fromUrl, source: 'redirect' };
-
-  // Fallback: some setups may not redirect. Try a best-effort parse.
   const html = await resp.text().catch(() => '');
-  const fromHtml = (html.match(/\"videoId\"\s*:\s*\"([a-zA-Z0-9_-]{11})\"/) || [])[1];
-  if (fromHtml) {
-    // We can't reliably tell if it's live from HTML alone without a full parse.
-    // Only treat this as live if the /live page strongly indicates live content.
-    const indicatesLive = /isLiveContent\"\s*:\s*true|\"LIVE\"/i.test(html);
-    if (indicatesLive) return { isLive: true, videoId: fromHtml, source: 'html' };
+  const fromUrl = parseVideoIdFromWatchUrl(finalUrl);
+  const fromHtml = (html.match(/\"videoId\"\s*:\s*\"([a-zA-Z0-9_-]{11})\"/) || [])[1] || '';
+  const videoId = fromUrl || fromHtml;
+  const isLiveNow =
+    /\"isLiveNow\"\s*:\s*true/i.test(html) ||
+    /\"isLive\"\s*:\s*true/i.test(html) &&
+      !/\"isUpcoming\"\s*:\s*true/i.test(html) &&
+      !/\"isPostLiveDvr\"\s*:\s*true/i.test(html);
+
+  if (videoId && isLiveNow) {
+    return {
+      isLive: true,
+      videoId,
+      source: fromUrl ? 'redirect-live-now' : 'html-live-now'
+    };
   }
 
-  return { isLive: false, videoId: '', source: 'none' };
+  return {
+    isLive: false,
+    videoId: '',
+    source: videoId ? 'resolved-not-live' : 'none'
+  };
 }
 
 async function handlePublicYoutube(request, env) {
   const channelId = youtubeChannelId(env);
+  const apiKey = youtubeApiKey(env);
 
   let live = { isLive: false, videoId: '', source: 'none' };
   let videos = [];
   let errors = [];
+  let source = 'fallback';
 
-  try {
-    live = await detectYoutubeLiveVideo(channelId);
-  } catch (e) {
-    errors.push({ type: 'live', error: String(e?.message || e).slice(0, 200) });
+  if (apiKey) {
+    try {
+      const apiFeed = await fetchYoutubeApiChannelFeedCached(request, channelId, apiKey);
+      live = apiFeed.live;
+      videos = apiFeed.videos;
+      source = 'youtube-data-api';
+    } catch (e) {
+      errors.push({ type: 'youtube-data-api', error: String(e?.message || e).slice(0, 300) });
+    }
+  } else {
+    errors.push({
+      type: 'youtube-data-api',
+      error: 'YOUTUBE_API_KEY is not configured; using public fallbacks.'
+    });
   }
 
-  try {
-    videos = await fetchYoutubeFeed(channelId);
-  } catch (e) {
-    errors.push({ type: 'feed', error: String(e?.message || e).slice(0, 200) });
+  if (!videos.length) {
+    try {
+      videos = await fetchYoutubeFeed(channelId);
+      source = 'rss-fallback';
+    } catch (e) {
+      errors.push({ type: 'feed', error: String(e?.message || e).slice(0, 200) });
+    }
   }
 
-  // YouTube feeds can include scheduled/upcoming livestream entries. Embedding those
-  // often shows a "Live stream offline" state. Prefer videos already published.
-  if (Array.isArray(videos) && videos.length) {
+  if (!live.isLive) {
+    try {
+      const fallbackLive = await detectYoutubeLiveVideo(channelId);
+      if (fallbackLive.isLive) {
+        live = fallbackLive;
+        source = source === 'youtube-data-api' ? source : 'html-live-fallback';
+      }
+    } catch (e) {
+      errors.push({ type: 'live-fallback', error: String(e?.message || e).slice(0, 200) });
+    }
+  }
+
+  // Public RSS can contain scheduled/upcoming entries. The official API path above
+  // already classifies them; only apply this date guard to the fallback path.
+  if (source !== 'youtube-data-api' && Array.isArray(videos) && videos.length) {
     const now = Date.now();
     const graceMs = 5 * 60 * 1000;
     const published = videos.filter((v) => {
@@ -539,10 +755,19 @@ async function handlePublicYoutube(request, env) {
     if (published.length) videos = published;
   }
 
+  // Keep the current live broadcast first, matching the WordPress Channel feed.
+  if (live.isLive && live.videoId) {
+    const liveVideo = videos.find((video) => video?.id === live.videoId);
+    if (liveVideo) {
+      videos = [liveVideo, ...videos.filter((video) => video?.id !== live.videoId)];
+    }
+  }
+
   return json(
     {
       ok: true,
       channelId,
+      source,
       live,
       videos,
       fetchedAt: new Date().toISOString(),
@@ -550,7 +775,6 @@ async function handlePublicYoutube(request, env) {
     },
     {
       headers: {
-        // Keep this fresh so it can flip quickly when you start streaming.
         'Cache-Control': 'public, max-age=60'
       }
     }
@@ -999,31 +1223,81 @@ async function listGallery(env, { publicOnly = false } = {}) {
      ORDER BY datetime(created_at) DESC, id DESC`
   ).all();
 
-  const items = (rows.results || []).map((r) => {
-    const tags = (() => {
-      try {
-        const parsed = JSON.parse(r.tags_json || '[]');
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    })();
+  return { items: (rows.results || []).map(mapGalleryRow) };
+}
 
-    return {
-      id: r.id,
-      album: r.album,
-      label: r.label,
-      tags,
-      file: `/cdn/gallery/${encodeURI(r.file_key)}`,
-      thumb: r.thumb_key ? `/cdn/gallery/${encodeURI(r.thumb_key)}` : `/cdn/gallery/${encodeURI(r.file_key)}`,
-      originalName: r.original_name,
-      createdAt: r.created_at,
-      position: r.position,
-      hideFromPublic: Number(r.is_hidden || 0) !== 0
-    };
-  });
+function mapGalleryRow(r) {
+  let tags = [];
+  try {
+    const parsed = JSON.parse(r.tags_json || '[]');
+    tags = Array.isArray(parsed) ? parsed : [];
+  } catch { /* malformed tags are treated as untagged */ }
+  return {
+    id: r.id,
+    album: r.album,
+    label: r.label,
+    tags,
+    file: `/cdn/gallery/${encodeURI(r.file_key)}`,
+    thumb: r.thumb_key ? `/cdn/gallery/${encodeURI(r.thumb_key)}` : `/cdn/gallery/${encodeURI(r.file_key)}`,
+    originalName: r.original_name,
+    createdAt: r.created_at,
+    position: r.position,
+    hideFromPublic: Number(r.is_hidden || 0) !== 0
+  };
+}
 
-  return { items };
+const GALLERY_PAGE_DEFAULT = 48;
+const GALLERY_PAGE_MAX = 200;
+const GALLERY_SORTS = {
+  'date-desc': 'datetime(created_at) DESC, id DESC',
+  'date-asc': 'datetime(created_at) ASC, id ASC',
+  'name-asc': "lower(coalesce(original_name, '')) ASC, id ASC",
+  'name-desc': "lower(coalesce(original_name, '')) DESC, id DESC"
+};
+
+function galleryLikePattern(value) {
+  return '%' + String(value || '').trim().toLowerCase().slice(0, 80).replace(/[\\%_]/g, (c) => '\\' + c) + '%';
+}
+
+// Server-side filter, sort, and paging so the admin never downloads the whole library.
+async function listGalleryPage(env, params) {
+  const hasVisibility = await ensureGalleryVisibilityColumn(env);
+  const visibilityColumn = hasVisibility ? 'COALESCE(is_hidden, 0) AS is_hidden' : '0 AS is_hidden';
+  const limit = Math.min(GALLERY_PAGE_MAX, Math.max(1, Number.parseInt(params.get('limit'), 10) || GALLERY_PAGE_DEFAULT));
+  const offset = Math.max(0, Math.min(1_000_000, Number.parseInt(params.get('offset'), 10) || 0));
+  const where = [];
+  const binds = [];
+  const album = String(params.get('album') || '').trim();
+  const tag = String(params.get('tag') || '').trim();
+  const arrangeAlbum = String(params.get('arrangeAlbum') || '').trim();
+  if (album) {
+    where.push("lower(coalesce(album, '')) LIKE ? ESCAPE '\\'");
+    binds.push(galleryLikePattern(album));
+  }
+  if (tag) {
+    where.push("EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(tags_json) THEN tags_json ELSE '[]' END) WHERE lower(value) LIKE ? ESCAPE '\\')");
+    binds.push(galleryLikePattern(tag));
+  }
+  let orderBy = GALLERY_SORTS[String(params.get('sort') || '')] || GALLERY_SORTS['date-desc'];
+  if (params.get('sort') === 'manual' && arrangeAlbum) {
+    where.push("coalesce(album, '') = ?");
+    binds.push(arrangeAlbum);
+    orderBy = 'position IS NULL, position ASC, datetime(created_at) DESC, id DESC';
+  }
+  const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+  const [rows, count, albums] = await Promise.all([
+    env.DB.prepare(`SELECT id, album, label, tags_json, file_key, thumb_key, original_name, created_at, position, ${visibilityColumn}
+      FROM gallery_items ${whereSql} ORDER BY ${orderBy} LIMIT ? OFFSET ?`).bind(...binds, limit, offset).all(),
+    env.DB.prepare(`SELECT COUNT(*) AS total FROM gallery_items ${whereSql}`).bind(...binds).first(),
+    env.DB.prepare("SELECT DISTINCT trim(album) AS album FROM gallery_items WHERE trim(coalesce(album, '')) <> '' ORDER BY lower(trim(album))").all()
+  ]);
+  return {
+    items: (rows.results || []).map(mapGalleryRow),
+    total: Number(count?.total) || 0,
+    albums: (albums.results || []).map((row) => row.album),
+    limit,
+    offset
+  };
 }
 
 async function ensureGalleryPreferencesTable(env) {
@@ -1253,6 +1527,7 @@ async function handleGalleryUpload(request, env) {
   const files = form.getAll('images').filter((f) => f && typeof f === 'object' && 'arrayBuffer' in f);
   if (!files.length) return json({ error: 'No images uploaded.' }, { status: 400 });
 
+  if(files.length>10 || files.some(file=>!imageUploadAllowed(file))) return json({error:'Upload up to 10 JPG, PNG, GIF, or WebP images, each no larger than 10 MB.'},{status:400});
   const added = [];
   for (const file of files) {
     const id = crypto.randomUUID();
@@ -1263,8 +1538,10 @@ async function handleGalleryUpload(request, env) {
 
     const fileKey = `gallery/${album}/${createdAt.slice(0, 10)}_${safeBase}_${id}.${ext || 'jpg'}`;
 
+    const imageBytes=await file.arrayBuffer();
+    if(!imageBytesAllowed(imageBytes,file.type)) return json({error:'Image content does not match its file type.'},{status:400});
     // Store original in R2
-    await env.GALLERY_BUCKET.put(fileKey, await file.arrayBuffer(), {
+    await env.GALLERY_BUCKET.put(fileKey, imageBytes, {
       httpMetadata: {
         contentType: file.type || guessContentType(fileKey)
       }
@@ -1524,8 +1801,26 @@ async function handleCdn(request, env) {
   const url = new URL(request.url);
   const key = decodeURI(url.pathname.slice(prefix.length));
   if (!key) return new Response('Not found', { status: 404 });
+  if (key.startsWith('site/ministry/')) return servePublishedMinistryImage(request, env, key);
 
-  const obj = await env.GALLERY_BUCKET.get(key);
+  if (key.startsWith('gallery/')) {
+    const visibility=await env.DB.prepare('SELECT is_hidden FROM gallery_items WHERE file_key=? OR thumb_key=? LIMIT 1').bind(key,key).first();
+    if(!visibility || Number(visibility.is_hidden)) return new Response('Not found',{status:404});
+  }
+  let obj = await env.GALLERY_BUCKET.get(key);
+  // The pastor's profile image is shipped with the site source. Seed the
+  // canonical site/ R2 key lazily when the public URL is first requested so
+  // the image is available through the same bucket-backed CDN as editor uploads.
+  if (!obj && key === 'site/pastorHarvey.jpeg' && env.ASSETS && typeof env.ASSETS.fetch === 'function') {
+    const assetUrl = new URL('/pastorHarvey.jpeg', request.url);
+    const assetResponse = await env.ASSETS.fetch(new Request(assetUrl, { method: 'GET' }));
+    if (assetResponse.ok) {
+      await env.GALLERY_BUCKET.put(key, await assetResponse.arrayBuffer(), {
+        httpMetadata: { contentType: 'image/jpeg' }
+      });
+      obj = await env.GALLERY_BUCKET.get(key);
+    }
+  }
   if (!obj) return new Response('Not found', { status: 404 });
 
   const headers = new Headers();
@@ -1535,7 +1830,7 @@ async function handleCdn(request, env) {
   if (!ct || ct === 'application/octet-stream' || ct === 'binary/octet-stream') {
     headers.set('Content-Type', guessed);
   }
-  headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+  headers.set('Cache-Control', 'no-store');
   headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
 
   applySecurityHeaders(headers);
@@ -1635,27 +1930,6 @@ export default {
     const url = new URL(request.url);
     const isHttps = url.protocol === 'https:';
 
-    // Production hardening: once you have a real domain, force admin/api to it.
-    // This also avoids confusion where Cloudflare Access is configured only on the real hostname.
-    const canon = canonicalHost(env);
-    if (
-      canon
-      && url.hostname.endsWith('.workers.dev')
-      && (url.pathname.startsWith('/admin') || url.pathname.startsWith('/api'))
-      && (request.method === 'GET' || request.method === 'HEAD')
-    ) {
-      const dest = new URL(request.url);
-      dest.hostname = canon;
-      dest.protocol = 'https:';
-      return new Response(null, {
-        status: 302,
-        headers: {
-          Location: dest.toString(),
-          'Cache-Control': 'no-store'
-        }
-      });
-    }
-
     // Browsers commonly request /favicon.ico even when the site uses a PNG favicon.
     // Ensure this never 500s by redirecting to the existing asset.
     if (/\/favicon\.ico$/i.test(url.pathname) && (request.method === 'GET' || request.method === 'HEAD')) {
@@ -1720,34 +1994,11 @@ export default {
       return handlePublicFacilityRentalRequest(request, env);
     }
 
-    // Public published site-editor content (used by the public-page hydration loader).
-    // Unauthenticated by design — must only ever return PUBLISHED fields, never drafts.
+    // Published content is retained only for dedicated profile-management pages.
     if (url.pathname.startsWith('/api/site-content/') && request.method === 'GET') {
       const page = decodeURIComponent(url.pathname.slice('/api/site-content/'.length));
+      if (!PROFILE_CONTENT_PAGES.has(page)) return json({ error: 'Not found.' }, { status: 404 });
       return handlePublicSiteContentGet(request, env, page);
-    }
-
-    // Finance dashboard aliases map clean URLs to the shipped admin finance pages.
-    // This keeps links like /admin/finances/dashboard working in production.
-    if (request.method === 'GET' || request.method === 'HEAD') {
-      const financeRouteMap = {
-        '/admin/finances/dashboard': '/admin/finances_dashboard.html',
-        '/admin/finances/funds': '/admin/finances_funds.html',
-        '/admin/finances/donors': '/admin/finances_donors.html',
-        '/admin/finances/envelopes': '/admin/finance_envelope_designer.html',
-        '/admin/finances/reports/board': '/admin/finances_reports_board.html',
-        '/admin/finances/controls': '/admin/finances_controls.html',
-        '/admin/finances/clergy-housing': '/admin/finances_clergy_housing.html'
-      };
-      const mapped = financeRouteMap[url.pathname];
-      if (mapped) {
-        const headers = new Headers({
-          Location: mapped,
-          'Cache-Control': 'no-store'
-        });
-        applySecurityHeaders(headers, { isHttps });
-        return new Response(null, { status: 302, headers });
-      }
     }
 
     // CDN endpoint for gallery objects in R2
@@ -1902,6 +2153,7 @@ export default {
     if (url.pathname === '/api/gallery' && request.method === 'GET') {
       const auth = await requireAdmin(request, env);
       if (!auth.ok) return json({ error: auth.error }, { status: 401 });
+      if (url.searchParams.has('limit')) return json(await listGalleryPage(env, url.searchParams));
       return json(await listGallery(env));
     }
 
@@ -2001,14 +2253,11 @@ export default {
       return handleAdminIntegrationHealth(request, env);
     }
 
-    if (url.pathname === '/api/admin/site-pages' && request.method === 'GET') {
-      return handleSitePagesList(request, env);
-    }
-
     if (url.pathname.startsWith('/api/admin/site-pages/')) {
       const parts = url.pathname.split('/').filter(Boolean);
       const page = decodeURIComponent(parts[3] || '');
       const action = parts[4] || '';
+      if (!PROFILE_CONTENT_PAGES.has(page)) return json({ error: 'API endpoint not found.' }, { status: 404 });
       if (page && !action && request.method === 'GET') return handleSitePageGet(request, env, page);
       if (page && action === 'draft' && request.method === 'PUT') {
         const auth = await requireAdmin(request, env);
@@ -2101,7 +2350,22 @@ export default {
     }
 
     // Avoid stale admin assets at the edge during frequent updates.
-    const assetRes = await env.ASSETS.fetch(request);
+    // The wrapper may inspect and transform HTML responses after this fetch.
+    // Ask the Assets binding for an identity-encoded body for HTML routes so
+    // response.text() never interprets gzip/Brotli bytes as UTF-8 characters.
+    const isHtmlAsset = (request.method === 'GET' || request.method === 'HEAD')
+      && (url.pathname === '/'
+        || url.pathname === '/index.html'
+        || url.pathname === '/admin'
+        || url.pathname === '/admin/'
+        || url.pathname.endsWith('.html'));
+    let assetRequest = request;
+    if (isHtmlAsset) {
+      const assetHeaders = new Headers(request.headers);
+      assetHeaders.set('Accept-Encoding', 'identity');
+      assetRequest = new Request(request, { headers: assetHeaders });
+    }
+    const assetRes = await env.ASSETS.fetch(assetRequest);
     const headers = new Headers(assetRes.headers);
     applySecurityHeaders(headers, { isHttps });
 

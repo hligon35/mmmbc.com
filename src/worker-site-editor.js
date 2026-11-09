@@ -1,9 +1,11 @@
-// D1-backed storage + API handlers for the visual website editor (draft/published
+import { normalizeMinistryImages } from './ministry-images.js';
+import { imageBytesAllowed } from './launch-security.js';
+// D1-backed storage + API handlers retained for profile management (draft/published
 // content per public page). Mirrors the conventions in src/worker-communications.js.
 // Route wiring + admin-permission checks live in src/worker.js (which calls
 // requireAdmin() before invoking any handler here, passing the authenticated email).
 
-import { PAGE_KEYS, getPageSchema, INITIAL_PUBLISHED_CONTENT } from './site-editor-schema.js';
+import { getPageSchema, INITIAL_PUBLISHED_CONTENT } from './site-editor-schema.js';
 import { validatePageFields } from './site-editor-validate.js';
 
 function json(resBody, status = 200, extraHeaders = {}) {
@@ -34,12 +36,53 @@ function parseJsonColumn(raw, fallback) {
   }
 }
 
+function isLegacySeedRow(row) {
+  return String(row?.draft_updated_by || '') === 'system:migration'
+    && String(row?.published_updated_by || '') === 'system:migration'
+    && Number(row?.draft_version || 0) <= 1
+    && Number(row?.published_version || 0) <= 1;
+}
+
+function isLegacyMinistryProfiles(fields) {
+  const profiles = Array.isArray(fields?.profiles) ? fields.profiles : [];
+  return profiles.length === 6
+    && profiles.every((profile, index) => String(profile?.id || '') === `ministries-${index + 1}`);
+}
+
+function needsMinistryProfileSeed(row) {
+  if (!isLegacySeedRow(row)) return false;
+  const draft = parseJsonColumn(row?.draft_fields, {});
+  const published = parseJsonColumn(row?.published_fields, {});
+  return (Array.isArray(draft.profiles) && (draft.profiles.length === 0 || isLegacyMinistryProfiles(draft)))
+    && (Array.isArray(published.profiles) && (published.profiles.length === 0 || isLegacyMinistryProfiles(published)));
+}
+
+async function backfillLegacyMinistryProfiles(env, row) {
+  if (!row || !needsMinistryProfileSeed(row)) return row;
+
+  const seed = INITIAL_PUBLISHED_CONTENT.ministries || {};
+  const seedJson = JSON.stringify(seed);
+  try {
+    await env.DB.prepare(
+      `UPDATE site_page_content
+         SET draft_fields = ?, published_fields = ?, draft_updated_by = 'system:migration', published_updated_by = 'system:migration'
+       WHERE page = ? AND draft_version <= 1 AND published_version <= 1`
+    ).bind(seedJson, seedJson, 'ministries').run();
+  } catch {
+    // The existing row remains a safe fallback; a later read can retry the backfill.
+  }
+  return env.DB.prepare('SELECT * FROM site_page_content WHERE page = ?').bind('ministries').first();
+}
+
 // Idempotent migration: creates the D1 row for a page the first time it's needed,
 // seeded from INITIAL_PUBLISHED_CONTENT so the public site's appearance is unchanged.
 // Never overwrites an existing row.
 async function ensurePageRow(env, page) {
   const existing = await env.DB.prepare('SELECT * FROM site_page_content WHERE page = ?').bind(page).first();
-  if (existing) return existing;
+  if (existing) {
+    if (page === 'ministries') return backfillLegacyMinistryProfiles(env, existing);
+    return existing;
+  }
 
   const seed = INITIAL_PUBLISHED_CONTENT[page] || {};
   const seedJson = JSON.stringify(seed);
@@ -92,22 +135,6 @@ function rowToPageState(page, row) {
   };
 }
 
-export async function handleSitePagesList(request, env) {
-  const pages = [];
-  for (const page of PAGE_KEYS) {
-    const row = await ensurePageRow(env, page);
-    pages.push({
-      page,
-      label: getPageSchema(page).label,
-      draftVersion: row.draft_version,
-      publishedVersion: row.published_version,
-      draftUpdatedAt: row.draft_updated_at,
-      publishedUpdatedAt: row.published_updated_at
-    });
-  }
-  return json({ pages });
-}
-
 export async function handleSitePageGet(request, env, page) {
   const key = normalizePageKey(page);
   const schema = getPageSchema(key);
@@ -153,11 +180,12 @@ export async function handleSitePageDraftPut(request, env, page, actorEmail) {
   const nextVersion = row.draft_version + 1;
   const email = String(actorEmail || 'unknown').toLowerCase();
 
-  await env.DB.prepare(
+  const saved = await env.DB.prepare(
     `UPDATE site_page_content
        SET draft_fields = ?, draft_version = ?, draft_updated_at = ?, draft_updated_by = ?
-     WHERE page = ?`
-  ).bind(JSON.stringify(fields), nextVersion, ts, email, key).run();
+     WHERE page = ? AND draft_version = ?`
+  ).bind(JSON.stringify(fields), nextVersion, ts, email, key, row.draft_version).run();
+  if (!saved.meta?.changes) return json({ error: 'This draft changed elsewhere. Reload before saving.', code: 'STALE_DRAFT' }, 409);
 
   return json({
     page: key,
@@ -190,16 +218,17 @@ export async function handleSitePagePublishPost(request, env, page, actorEmail) 
   const email = String(actorEmail || 'unknown').toLowerCase();
   const nextPublishedVersion = row.published_version + 1;
 
-  await env.DB.prepare(
+  const published = await env.DB.prepare(
     `UPDATE site_page_content
        SET published_fields = ?, published_version = ?, published_updated_at = ?, published_updated_by = ?,
            previous_published_fields = ?, previous_published_version = ?, previous_published_updated_at = ?
-     WHERE page = ?`
+     WHERE page = ? AND draft_version = ? AND published_version = ?`
   ).bind(
     JSON.stringify(fields), nextPublishedVersion, ts, email,
     row.published_fields, row.published_version, row.published_updated_at,
-    key
+    key, row.draft_version, row.published_version
   ).run();
+  if (!published.meta?.changes) return json({ error: 'This draft changed elsewhere. Reload before publishing.', code: 'STALE_DRAFT' }, 409);
 
   return json({
     page: key,
@@ -226,16 +255,17 @@ export async function handleSitePageRestorePreviousPost(request, env, page, acto
   const email = String(actorEmail || 'unknown').toLowerCase();
   const nextPublishedVersion = row.published_version + 1;
 
-  await env.DB.prepare(
+  const restored = await env.DB.prepare(
     `UPDATE site_page_content
        SET published_fields = ?, published_version = ?, published_updated_at = ?, published_updated_by = ?,
            previous_published_fields = ?, previous_published_version = ?, previous_published_updated_at = ?
-     WHERE page = ?`
+     WHERE page = ? AND published_version = ?`
   ).bind(
     row.previous_published_fields, nextPublishedVersion, ts, email,
     row.published_fields, row.published_version, row.published_updated_at,
-    key
+    key, row.published_version
   ).run();
+  if (!restored.meta?.changes) return json({ error: 'The published page changed elsewhere. Reload before restoring.', code: 'STALE_PUBLISHED' }, 409);
 
   return json({
     page: key,
@@ -271,7 +301,9 @@ export async function handleSitePageMediaUpload(request, env, page) {
     .slice(-80);
   const fileKey = `site/${key}/${Date.now()}-${safeName}`;
 
-  await env.GALLERY_BUCKET.put(fileKey, await file.arrayBuffer(), {
+  const bytes = await file.arrayBuffer();
+  if (!imageBytesAllowed(bytes, type)) return json({ error: 'Image content does not match its file type.' }, 400);
+  await env.GALLERY_BUCKET.put(fileKey, bytes, {
     httpMetadata: { contentType: type }
   });
 
@@ -293,10 +325,17 @@ export async function handlePublicSiteContentGet(request, env, page) {
   if (env.DB) {
     try {
       const row = await env.DB.prepare(
-        'SELECT published_fields, published_version, published_updated_at FROM site_page_content WHERE page = ?'
+        'SELECT published_fields, published_version, published_updated_at, published_updated_by FROM site_page_content WHERE page = ?'
       ).bind(key).first();
       if (row) {
-        fields = mergeWithSeed(key, parseJsonColumn(row.published_fields, fields));
+        const storedFields = parseJsonColumn(row.published_fields, fields);
+        const legacyMinistryRow = key === 'ministries'
+          && (Array.isArray(storedFields.profiles) && (storedFields.profiles.length === 0 || isLegacyMinistryProfiles(storedFields)))
+          && String(row.published_updated_by || '') === 'system:migration'
+          && Number(row.published_version || 0) <= 1;
+        fields = legacyMinistryRow
+          ? mergeWithSeed(key, { ...storedFields, profiles: INITIAL_PUBLISHED_CONTENT.ministries.profiles })
+          : mergeWithSeed(key, storedFields);
         version = row.published_version;
         updatedAt = row.published_updated_at;
       }
@@ -304,6 +343,8 @@ export async function handlePublicSiteContentGet(request, env, page) {
       // Fall back to static seed on any D1 error — public page still renders.
     }
   }
+
+  if (key === 'ministries') fields = normalizeMinistryImages(fields);
 
   // Short, self-invalidating cache so publishes propagate within ~60s without any
   // explicit purge step; the admin editor also cache-busts its own iframe reload.
@@ -313,3 +354,4 @@ export async function handlePublicSiteContentGet(request, env, page) {
     { 'Cache-Control': 'public, max-age=60' }
   );
 }
+

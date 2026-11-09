@@ -1,84 +1,60 @@
-function rewriteGivingHtml(html, success = false) {
-  let output = String(html || '');
+// Existing MMMBC campaign; confirm its current share/embed URLs before release.
+const ZEFFY_DONATION_URL = 'https://www.zeffy.com/en-US/donation-form/tithes-and-offering-59';
+export const GIVING_PAGE_PATHS = new Set(['/give', '/give/', '/giving', '/giving.html', '/giving-success.html', '/Pages/giving.html', '/Pages/giving', '/Pages/giving-success.html']);
 
-  output = output
-    .replaceAll('href="../Icons/', 'href="/Icons/')
-    .replaceAll('href="../style.css"', 'href="/style.css"')
-    .replaceAll('href="../public-base.css"', 'href="/public-base.css"')
-    .replaceAll('href="../public-components.css"', 'href="/public-components.css"')
-    .replaceAll('href="giving.css', 'href="/Pages/giving.css')
-    .replaceAll('src="../ConImg/', 'src="/ConImg/')
-    .replaceAll('src="../script.js"', 'src="/script.js"')
-    .replaceAll('src="giving.js', 'src="/Pages/giving.js')
-    .replaceAll('href="../index.html"', 'href="/index.html"')
-    .replaceAll('href="ministries.html"', 'href="/Pages/ministries.html"')
-    .replaceAll('href="associate_ministers.html"', 'href="/Pages/associate_ministers.html"')
-    .replaceAll('href="church_history.html"', 'href="/Pages/church_history.html"')
-    .replaceAll('href="facility_rental.html"', 'href="/Pages/facility_rental.html"')
-    .replaceAll('href="photo_gallery.html"', 'href="/Pages/photo_gallery.html"')
-    .replaceAll('href="live_praise.html"', 'href="/Pages/live_praise.html"')
-    .replaceAll('href="contact.html"', 'href="/Pages/contact.html"')
-    .replaceAll('href="giving.html"', 'href="/giving.html"');
-
-  if (success) {
-    output = output.replaceAll('href="../index.html"', 'href="/index.html"');
-  }
-
-  return output;
+function zeffyUrl(value, embed = false) {
+  try {
+    const url = new URL(String(value).trim());
+    if (url.protocol !== 'https:' || url.hostname !== 'www.zeffy.com' || url.port || url.username || url.password) return '';
+    const path = embed ? /^\/(?:[a-z]{2}-[a-z]{2}\/)?embed\/(?:[a-z]{2}-[a-z]{2}\/)?donation-form\/[^/]+\/?$/i : /^\/(?:[a-z]{2}-[a-z]{2}\/)?donation-form\/[^/]+\/?$/i;
+    if (!path.test(url.pathname)) return '';
+    url.hash = '';
+    return url.href;
+  } catch { return ''; }
 }
 
-async function serveAssetAsRootPage(request, env, assetPath, success = false) {
-  if (!env.ASSETS || typeof env.ASSETS.fetch !== 'function') {
-    return new Response('Giving page is unavailable.', { status: 503 });
-  }
-
-  const assetUrl = new URL(request.url);
-  assetUrl.pathname = assetPath;
-  assetUrl.search = '';
-
-  const assetResponse = await env.ASSETS.fetch(new Request(assetUrl.toString(), {
-    method: 'GET',
-    headers: request.headers
-  }));
-
-  if (!assetResponse.ok) return assetResponse;
-
-  const html = rewriteGivingHtml(await assetResponse.text(), success);
-  const headers = new Headers(assetResponse.headers);
-  headers.delete('Content-Length');
-  headers.set('Content-Type', 'text/html; charset=utf-8');
-  headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
-  headers.set('Pragma', 'no-cache');
-  headers.set('X-MM-MBC-Giving-Route', 'root-v1');
-
-  return new Response(html, {
-    status: assetResponse.status,
-    headers
-  });
+export function givingConfiguration(env = {}) {
+  const donationUrl = zeffyUrl(env.ZEFFY_DONATION_URL ?? ZEFFY_DONATION_URL);
+  // Zeffy's documented embed path; a copied account-specific URL takes precedence.
+  const slug = donationUrl ? new URL(donationUrl).pathname.split('/').filter(Boolean).pop() : '';
+  const embedUrl = zeffyUrl(env.ZEFFY_EMBED_URL ?? (slug ? 'https://www.zeffy.com/embed/donation-form/' + slug : ''), true);
+  return { donationUrl, embedUrl: donationUrl ? embedUrl : '' };
 }
 
-export async function handleGivingPageRequest(request, env) {
-  if (request.method !== 'GET') return null;
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+}
 
+function redirectResponse(request) {
+  return new Response(null, { status: 302, headers: { Location: new URL('/give', request.url).href, 'Cache-Control': 'no-store' } });
+}
+
+export async function handleGivingPageRequest(request, env = {}) {
+  if (!['GET', 'HEAD'].includes(request.method)) return null;
   const url = new URL(request.url);
-  if (url.pathname === '/scan') {
-    if (!env.ASSETS || typeof env.ASSETS.fetch !== 'function') {
-      return new Response('Scan page is unavailable.', { status: 503 });
-    }
-    const assetUrl = new URL(request.url);
-    assetUrl.pathname = '/scan.html';
-    assetUrl.search = '';
-    return env.ASSETS.fetch(new Request(assetUrl.toString(), { method: 'GET', headers: request.headers }));
-  }
+  if (!GIVING_PAGE_PATHS.has(url.pathname)) return null;
+  if (url.pathname !== '/give') return redirectResponse(request);
+  if (!env.ASSETS?.fetch) return new Response('Online giving is temporarily unavailable. Please contact the church.', { status: 503, headers: { 'Cache-Control': 'no-store' } });
 
-  if (url.pathname === '/giving.html' || url.pathname === '/giving') {
-    return serveAssetAsRootPage(request, env, '/Pages/giving.html', false);
-  }
-
-  if (url.pathname === '/giving-success.html') {
-    return serveAssetAsRootPage(request, env, '/Pages/giving-success.html', true);
-  }
-
-  return null;
+  const assetHeaders = new Headers(request.headers);
+  assetHeaders.set('Accept-Encoding', 'identity');
+  const asset = await env.ASSETS.fetch(new Request(new URL('/Pages/giving.html', url.origin), { headers: assetHeaders }));
+  if (!asset.ok) return new Response('Online giving is temporarily unavailable. Please contact the church.', { status: 503, headers: { 'Cache-Control': 'no-store' } });
+  const { donationUrl, embedUrl } = givingConfiguration(env);
+  const checkout = donationUrl ? '<p class="givingDirect"><a href="' + escapeHtml(donationUrl) + '" target="_blank" rel="noopener noreferrer">Open secure Zeffy checkout in a new tab</a></p>' : '';
+  const embedPath = embedUrl ? new URL(embedUrl).pathname + new URL(embedUrl).search : '';
+  const form = embedUrl ? '<div id="givingEmbed" data-zeffy-embed data-form-url="' + escapeHtml(embedPath) + '"></div>' +
+    '<div id="givingEmbedFallback"><iframe title="Mt. Moriah secure donation form powered by Zeffy" src="' + escapeHtml(embedUrl) + '" allow="payment" allowpaymentrequest referrerpolicy="strict-origin-when-cross-origin"></iframe></div>' :
+    '<p role="status">The online giving form is temporarily unavailable. ' + (donationUrl ? 'Please use the secure checkout link below.' : 'Please contact the church for help giving.') + '</p>';
+  let html = await asset.text();
+  html = html.replace('<!-- ZEFFY_CHECKOUT -->', form + checkout)
+    .replace('<!-- GIVING_CANONICAL -->', '<link rel="canonical" href="' + escapeHtml(new URL('/give', env.PUBLIC_SITE_URL || url.origin).href) + '" />');
+  const headers = new Headers(asset.headers);
+  for (const name of ['Content-Length', 'Content-Encoding', 'ETag', 'Last-Modified', 'Location']) headers.delete(name);
+  headers.set('Content-Type', 'text/html; charset=utf-8');
+  headers.set('Cache-Control', 'no-store');
+  headers.set('X-MM-MBC-Giving-Route', 'zeffy-embed-v1');
+  return new Response(request.method === 'HEAD' ? null : html, { headers });
 }
 
+export { ZEFFY_DONATION_URL };
