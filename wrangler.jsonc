@@ -1,118 +1,114 @@
 {
-	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "mmmbc",
-	"account_id": "e02ea8e0b7fe319f04e2505df1138d4c",
-	"main": "./src/worker-admin-api-wrapper.js",
-	"compatibility_date": "2026-01-21",
-	"workers_dev": true,
-	"preview_urls": false,
-	"routes": [
-		{
-			"pattern": "mmmbc.com",
-			"custom_domain": true
-		},
-		{
-			"pattern": "mmmbc.alphazonelabs.com",
-			"custom_domain": true
-		}
-	],
-	"assets": {
-		"directory": "./cf_site",
-		"binding": "ASSETS",
-		"run_worker_first": true
-	},
-	"r2_buckets": [
-		{
-			"binding": "GALLERY_BUCKET",
-			"bucket_name": "mmmbc"
-		}
-	],
-	"d1_databases": [
-		{
-			"binding": "DB",
-			"database_name": "mmdb",
-			"database_id": "a981265d-7e16-486c-9d02-48dfa5017bed",
-			"migrations_dir": "./migrations"
-		},
-		{
-			"binding": "SITE_DB",
-			"database_name": "mmdb",
-			"database_id": "a981265d-7e16-486c-9d02-48dfa5017bed",
-			"migrations_dir": "./migrations"
-		}
-	],
-	"triggers": {
-		"crons": [
-			"*/5 * * * *"
-		]
-	},
-	"observability": {
-		"enabled": true,
-		"head_sampling_rate": 1,
-		"redact_query_string": false,
-		"logs": {
-			"enabled": true,
-			"head_sampling_rate": 1,
-			"invocation_logs": true,
-			"persist": true
-		},
-		"traces": {
-			"enabled": true,
-			"head_sampling_rate": 1,
-			"persist": true
-		}
-	},
-	"vars": {
-		"ENVIRONMENT": "production",
-		"CF_ACCESS_TEAM_DOMAIN": "https://getsparqd-server.cloudflareaccess.com",
-		"CF_ACCESS_AUD": "c54638d506e1d93d7c7a744bb74481441df23e6e0db17df247679fff0e36d271",
-		"ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-		"DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
-		"CANONICAL_HOST": "mmmbc.com",
-		"ALLOW_SERVICE_TOKEN_ADMIN": "false",
-		"DEV_BYPASS_AUTH": "false",
-		"SUPPORT_TO_EMAIL": "hligon@getsparqd.com",
-		"SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
-		"SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church",
-		"RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
-		"RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church",
-		"WEBSITE_REPLY_TO_EMAIL": "mtmoriahmbc1201@gmail.com",
-		"PUBLIC_SITE_URL": "https://mmmbc.com",
-		"TURNSTILE_ALLOWED_HOSTNAMES": "mmmbc.com,www.mmmbc.com,mmmbc.hligon.workers.dev,mmmbc.alphazonelabs.com",
-		"TURNSTILE_SITE_KEY": "0x4AAAAAAEzITVJnJAQvjUET",
-		"GIVING_PROVIDER": "zeffy",
-		"ZEFFY_DONATION_URL": "https://www.zeffy.com/en-US/donation-form/tithes-and-offering-59",
-		"NEWSLETTER_TIMEZONE": "America/Chicago"
-	},
-		"build": {
-		"command": "npm run build:cf",
-		"watch_dir": [
-			"index.html",
-			"Pages",
-			"admin/public",
-			"Icons",
-			"ConImg",
-			"rental",
-			"static-style.css",
-			"theme.css",
-			"script.js",
-			"schedule_app.js",
-			"site-content-loader.js",
-			"announcements_ticker.js",
-			"bulletins_widget.js",
-			"public-form-utils.js",
-			"facility_rental_form_shared.js",
-			"_headers",
-			"profiles.json",
-			"announcements.json",
-			"bulletins.json",
-			"documents.json",
-			"gallery.json",
-			"livestream.json",
-			"schedule.json",
-			"site-settings.json",
-			"robots.txt",
-			"sitemap.xml"
-		]
-	}
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mmmbc-production",
+  "account_id": "e02ea8e0b7fe319f04e2505df1138d4c",
+  "main": "./src/worker-admin-api-wrapper.js",
+  "compatibility_date": "2026-01-21",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "mmmbc.com",
+      "custom_domain": true
+    }
+  ],
+  "assets": {
+    "directory": "./cf_site",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "r2_buckets": [
+    {
+      "binding": "GALLERY_BUCKET",
+      "bucket_name": "mmmbc"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mmdb",
+      "database_id": "a981265d-7e16-486c-9d02-48dfa5017bed",
+      "migrations_dir": "./migrations"
+    },
+    {
+      "binding": "SITE_DB",
+      "database_name": "mmdb",
+      "database_id": "a981265d-7e16-486c-9d02-48dfa5017bed",
+      "migrations_dir": "./migrations"
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "redact_query_string": false,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+      "persist": true
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true
+    }
+  },
+  "vars": {
+    "ENVIRONMENT": "production",
+    "CF_ACCESS_TEAM_DOMAIN": "https://getsparqd-server.cloudflareaccess.com",
+    "CF_ACCESS_AUD": "c54638d506e1d93d7c7a744bb74481441df23e6e0db17df247679fff0e36d271",
+    "ADMIN_ALLOW_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+    "DEVELOPER_EMAILS": "hligon@getsparqd.com,hligon35@gmail.com,alphazonelabs@gmail.com",
+    "CANONICAL_HOST": "mmmbc.com",
+    "ALLOW_SERVICE_TOKEN_ADMIN": "false",
+    "DEV_BYPASS_AUTH": "false",
+    "SUPPORT_TO_EMAIL": "hligon@getsparqd.com",
+    "SUPPORT_EMAIL_DESTINATION": "hligon@getsparqd.com",
+    "SUPPORT_FROM_NAME": "Mount Moriah Missionary Baptist Church",
+    "RESEND_FROM_EMAIL": "no-reply@mmmbc.com",
+    "RESEND_FROM_NAME": "Mount Moriah Missionary Baptist Church",
+    "WEBSITE_REPLY_TO_EMAIL": "mtmoriahmbc1201@gmail.com",
+    "PUBLIC_SITE_URL": "https://mmmbc.com",
+    "TURNSTILE_ALLOWED_HOSTNAMES": "mmmbc.com,www.mmmbc.com",
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAEzITVJnJAQvjUET",
+    "GIVING_PROVIDER": "zeffy",
+    "ZEFFY_DONATION_URL": "https://www.zeffy.com/en-US/donation-form/tithes-and-offering-59",
+    "NEWSLETTER_TIMEZONE": "America/Chicago"
+  },
+  "build": {
+    "command": "npm run build:cf",
+    "watch_dir": [
+      "index.html",
+      "Pages",
+      "admin/public",
+      "Icons",
+      "ConImg",
+      "rental",
+      "static-style.css",
+      "theme.css",
+      "script.js",
+      "schedule_app.js",
+      "site-content-loader.js",
+      "announcements_ticker.js",
+      "bulletins_widget.js",
+      "public-form-utils.js",
+      "facility_rental_form_shared.js",
+      "_headers",
+      "profiles.json",
+      "announcements.json",
+      "bulletins.json",
+      "documents.json",
+      "gallery.json",
+      "livestream.json",
+      "schedule.json",
+      "site-settings.json",
+      "robots.txt",
+      "sitemap.xml"
+    ]
+  }
 }

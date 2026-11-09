@@ -1,0 +1,28 @@
+name: Deploy preview training
+on:
+  push:
+    branches: [preview]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mmmbc-preview-deployment
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/preview' && vars.MMMBC_PREVIEW_READY == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      MMMBC_PREVIEW_DATABASE_ID: ${{ vars.MMMBC_PREVIEW_DATABASE_ID }}
+      MMMBC_PREVIEW_ACCESS_AUD: ${{ vars.MMMBC_PREVIEW_ACCESS_AUD }}
+      MMMBC_PREVIEW_CUTOVER_CONFIRMED: 'yes'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node --test src/preview-config.test.mjs
+      - run: npm run deploy:preview

@@ -37,3 +37,6 @@ scripts/gallery_variant_audit_latest.json
 
 # Private/resumable WordPress migration manifests and local locks
 .migration/
+
+# Generated preview configuration
+wrangler.preview.generated.json

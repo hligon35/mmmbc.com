@@ -1,3 +1,4 @@
+import {previewResponse,previewHeaders} from './preview-safety.js';
 import { handleMediaImport } from './worker-media-import.js';
 import { canonicalAdminRedirect } from './worker-host-routing.js';
 import { securityHeaders, mutationDenied, checkBodySize } from './launch-security.js';
@@ -1531,6 +1532,7 @@ const applicationWorker = {
   },
 
   async scheduled(event, env, ctx) {
+    if (env.ENVIRONMENT === 'preview') return;
     try { await retrySubmissionEmails(env); } catch (error) { console.error('Submission email retry failed', { name: error?.name || 'Error' }); }
     const donationSync = syncZeffyDonations(env).catch(() => console.error('Zeffy sync failed; check Church Finances for sync status.'));
     if (ctx?.waitUntil) ctx.waitUntil(donationSync); else await donationSync;
@@ -1544,11 +1546,13 @@ const applicationWorker = {
 export default {
   async fetch(request,env,ctx) {
     const path=new URL(request.url).pathname;
+    const blocked=previewResponse(request,env);
+    if(blocked)return previewHeaders(blocked,env);
     try {
       if(mutationDenied(request)) return securityHeaders(json({error:'Requests must come from this website.'},403),path);
       const max=request.headers.get('content-type')?.includes('multipart/form-data') ? 20*1024*1024 : 1024*1024;
       if(!await checkBodySize(request,max)) return securityHeaders(json({error:'Request is too large.'},413),path);
-      return securityHeaders(await applicationWorker.fetch(request,env,ctx),path);
+      return previewHeaders(securityHeaders(await applicationWorker.fetch(request,env,ctx),path),env);
     } catch(error) {
       console.error('Request failed',{path,name:error?.name||'Error'});
       return securityHeaders(json({error:'This service is temporarily unavailable. Please try again.'},503),path);

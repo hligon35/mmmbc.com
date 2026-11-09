@@ -39,6 +39,7 @@ async function sendResendEmail(env, {
   idempotencyKey = '',
   emailHeaders = {}
 } = {}) {
+  if (env.ENVIRONMENT === 'preview') return {ok:false,status:403,sent:0,error:'Outbound email is disabled in training.'};
   const apiKey = String(env.RESEND_API_KEY || '').trim();
   if (!apiKey) return { ok: false, status: 0, error: 'RESEND_API_KEY is not configured.' };
 
@@ -95,6 +96,7 @@ async function sendResendBatch(env, {
   recipients = [],
   idempotencyKey = ''
 } = {}) {
+  if (env.ENVIRONMENT === 'preview') return {ok:false,status:403,sent:0,error:'Outbound email is disabled in training.'};
   const apiKey = String(env.RESEND_API_KEY || '').trim();
   if (!apiKey) return { ok: false, sent: 0, error: 'RESEND_API_KEY is not configured.' };
 

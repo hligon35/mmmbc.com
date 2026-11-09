@@ -18,7 +18,7 @@ export function honeypotTripped(body, fieldName = 'website') {
 
 export async function verifyTurnstile(env, token, remoteIp) {
   const secret = String(env.TURNSTILE_SECRET_KEY || '').trim();
-  const production = String(env.ENVIRONMENT || '').toLowerCase() === 'production';
+  const production = ['production','preview'].includes(String(env.ENVIRONMENT || '').toLowerCase());
   if (production && (!secret || !String(env.TURNSTILE_SITE_KEY || '').trim())) {
     return { ok: false, error: 'Form verification is temporarily unavailable.', status: 503 };
   }

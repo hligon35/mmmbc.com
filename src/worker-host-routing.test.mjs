@@ -10,8 +10,8 @@ const env = config.vars;
 const alternate = 'https://mmmbc.hligon.workers.dev';
 
 test('deployment enables the dedicated Worker URL and primary custom domain without moving storage', () => {
-  assert.equal(config.name, 'mmmbc');
-  assert.equal(config.workers_dev, true);
+  assert.equal(config.name, 'mmmbc-production');
+  assert.equal(config.workers_dev, false);
   assert.ok(config.routes.some(route => route.pattern === 'mmmbc.com' && route.custom_domain));
   assert.equal(env.PUBLIC_SITE_URL, 'https://mmmbc.com');
   assert.equal(env.CANONICAL_HOST, 'mmmbc.com');
@@ -59,10 +59,10 @@ test('Turnstile accepts configured origins and rejects other Worker accounts', a
   globalThis.fetch = async () => Response.json({ success: true, hostname });
   try {
     const verificationEnv = { ...env, TURNSTILE_SECRET_KEY: 'test-secret' };
-    for (hostname of ['mmmbc.com', 'mmmbc.hligon.workers.dev', 'mmmbc.alphazonelabs.com']) {
+    for (hostname of ['mmmbc.com', 'www.mmmbc.com']) {
       assert.equal((await verifyTurnstile(verificationEnv, 'test-token', '')).ok, true);
     }
-    for (hostname of ['mmmbc.other-account.workers.dev', 'mmmbc.com.attacker.example']) {
+    for (hostname of ['mmmbc.hligon.workers.dev', 'mmmbc.alphazonelabs.com', 'mmmbc.other-account.workers.dev', 'mmmbc.com.attacker.example']) {
       assert.equal((await verifyTurnstile(verificationEnv, 'test-token', '')).status, 403);
     }
   } finally { globalThis.fetch = originalFetch; }

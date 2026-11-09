@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import {execFileSync} from 'node:child_process';
+import {previewConfig} from './preview-config.mjs';
+const run=(cmd,args)=>execFileSync(cmd,args,{stdio:'inherit',shell:process.platform==='win32'});
+if(execFileSync('git',['branch','--show-current'],{encoding:'utf8'}).trim()!=='preview')throw new Error('Preview deployment requires the preview branch.');
+if(process.env.MMMBC_PREVIEW_CUTOVER_CONFIRMED!=='yes')throw new Error('First move production to mmmbc-production, verify it, remove the old Worker custom domains, and set MMMBC_PREVIEW_CUTOVER_CONFIRMED=yes. The mmmbc Worker currently owns the requested training URL.');
+const production=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8'));
+const config=previewConfig(production,process.env.MMMBC_PREVIEW_DATABASE_ID,process.env.MMMBC_PREVIEW_ACCESS_AUD);
+fs.writeFileSync('wrangler.preview.generated.json',JSON.stringify(config,null,2)+'\n');
+run('npm',['run','build:cf']);run('npm',['run','verify:admin-delivery']);
+run('npx',['wrangler','d1','migrations','apply','mmmbc-preview','--remote','--config','wrangler.preview.generated.json']);
+run('npx',['wrangler','deploy','--config','wrangler.preview.generated.json']);

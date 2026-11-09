@@ -21,7 +21,9 @@
     "prepare": "npm run build:cf",
     "verify:admin-delivery": "node scripts/verify_admin_delivery.mjs",
     "test:admin:browser": "npm run build:cf && npm run verify:admin-delivery && node scripts/test_admin_browser.mjs",
-    "test:workspace:browser": "npm run test:admin:browser"
+    "test:workspace:browser": "npm run test:admin:browser",
+    "deploy:production": "npm run build:cf && npm run verify:admin-delivery && npx wrangler deploy",
+    "deploy:preview": "node scripts/deploy_preview.mjs"
   },
   "dependencies": {
     "jose": "^6.2.12"
