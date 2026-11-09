@@ -32,7 +32,7 @@ npm run worker:dry-run
 npm run deploy
 ```
 
-The only deployment target is Worker `mmmbc` in Cloudflare account `e02ea8e0b7fe319f04e2505df1138d4c` (D1 `mmdb`, R2 `mmmbc`, primary domain `mmmbc.com`, alternate origin `mmmbc.hligon.workers.dev`). The previous `mmmbc.alphazonelabs.com` custom domain remains attached during cutover. There are no separate preview environments. See [deployment](docs/deployment.md) for domain, Access, and Turnstile setup.
+Production uses Worker `mmmbc` (D1 `mmdb`, R2 `mmmbc`, domain `mmmbc.com`). The `preview` branch deploys a separate Worker `mmmbc-preview` at `https://mmmbc-preview.hligon.workers.dev/admin`, using D1 and R2 `mmmbc-preview`. Production does not move. See [preview training setup](docs/preview-training-deployment.md) and [production deployment](docs/deployment.md).
 
 
 ## Source and generated output

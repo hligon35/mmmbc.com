@@ -1,10 +1,10 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "mmmbc-production",
+  "name": "mmmbc",
   "account_id": "e02ea8e0b7fe319f04e2505df1138d4c",
   "main": "./src/worker-admin-api-wrapper.js",
   "compatibility_date": "2026-01-21",
-  "workers_dev": false,
+  "workers_dev": true,
   "preview_urls": false,
   "routes": [
     {

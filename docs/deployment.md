@@ -15,7 +15,7 @@ Online giving: follow [Zeffy setup](zeffy-setup.md) to confirm the campaign and 
 Never test destructive admin, bulk-email, or real-payment behavior against production.
 
 
-The only deployment target is Worker `mmmbc` (D1 `mmdb`, R2 `mmmbc`). Production serves `https://mmmbc.com` and `https://mmmbc.hligon.workers.dev`. There are no separate preview environments. The old `mmmbc.alphazonelabs.com` custom domain remains attached during cutover. See launch-readiness-report.md for required secrets and migration prerequisites.
+Production uses Worker `mmmbc` (D1 `mmdb`, R2 `mmmbc`) at `https://mmmbc.com`, with its existing workers.dev origin. Training uses the separate Worker `mmmbc-preview`, D1 `mmmbc-preview`, and R2 `mmmbc-preview`; see [preview training deployment](preview-training-deployment.md). No production Worker migration is needed. The old alphazonelabs.com custom domain is absent from the checked-in routes; remove any remaining dashboard routes or redirects separately.
 
 `cf_site/` is generated output and is no longer committed. For Workers Builds, use `npm run build` as the build command and `npm run deploy` as the deploy command. A normal `npm ci` generates assets via `prepare`; if installing with `--ignore-scripts`, explicitly build before deploying.
 
@@ -26,7 +26,7 @@ Configure exactly one Workers Builds Git connection (repository `hligon35/mmmbc.
 - Ensure `mmmbc.com` is an active zone in the configured account. Back up current DNS before cutover. A conflicting apex CNAME must be removed before attaching the Worker custom domain; preserve mail/MX/TXT records. The custom domain makes this Worker the origin and Cloudflare manages its DNS/certificate.
 - Confirm Workers & Pages shows account subdomain `hligon`. Do not rename an account-wide subdomain blindly: that changes the URLs of other Workers.
 - Update the existing Cloudflare Access application to cover `mmmbc.com/admin`, `mmmbc.com/admin/*`, and the protected administrative APIs. Retain its approved Google identity provider and D1 permissions. Keep its audience unchanged if extending the existing application; if replacing it, set the new `CF_ACCESS_AUD` before deployment. Public pages, feeds, giving, forms, and signed/webhook endpoints must remain reachable.
-- Add `mmmbc.com` and `mmmbc.hligon.workers.dev` to the existing Turnstile widget's allowed hostnames. The repo's `TURNSTILE_ALLOWED_HOSTNAMES` list validates tokens for these explicit hosts and retains the old host during transition; this variable does not update the Cloudflare widget.
+- Add `mmmbc.com` and `mmmbc.hligon.workers.dev` to the existing Turnstile widget's allowed hostnames. The repo's production `TURNSTILE_ALLOWED_HOSTNAMES` list permits `mmmbc.com` and `www.mmmbc.com`; this variable does not update the Cloudflare widget.
 - Run `npm run deploy` with Cloudflare credentials authorized for this account and zone. This enables workers.dev and attaches `mmmbc.com` through the checked-in custom-domain route. Existing D1 and R2 bindings, Worker secrets, and cron triggers continue on Worker `mmmbc`.
 - Verify public navigation, same-origin public API responses, giving, and a form submission on both origins. Admin navigation from workers.dev redirects to `mmmbc.com` before authentication or asset delivery; private APIs still validate Access JWTs.
 - Verify a Google admin login, newsletter/invite links, live video, and the admin build fingerprint on `mmmbc.com`. Generated public links and canonicals use `https://mmmbc.com`.

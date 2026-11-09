@@ -1,44 +1,80 @@
 # Preview training deployment
 
-The preview branch is intended for review at https://mmmbc.hligon.workers.dev/admin.
-Its Worker must be named mmmbc. Production moves to mmmbc-production at mmmbc.com.
-Both preview database bindings use mmmbc-preview and its gallery uses R2 mmmbc-preview.
-The alternate alphazonelabs.com custom domain is removed from production configuration.
+Training site: https://mmmbc-preview.hligon.workers.dev/admin.
+Individual training guides should use this address for independent preparation before the scheduled session.
 
-## Complete the one time Cloudflare cutover first
+| Target | Branch | Worker | D1 | R2 |
+| --- | --- | --- | --- | --- |
+| Production: mmmbc.com | master | mmmbc | mmdb | mmmbc |
+| Training: mmmbc-preview.hligon.workers.dev | preview | mmmbc-preview | mmmbc-preview | mmmbc-preview |
 
-Do not enable preview deployment while the mmmbc Worker still serves production custom domains.
+Production stays on its current Worker, domain, database, storage, secrets, and build connection. There is no production cutover, no domain transfer, and no need to disable production builds. The old alphazonelabs.com domains are absent from the checked-in routes; remove any remaining dashboard custom domains/routes/redirects separately, preserving unrelated DNS and mail records.
 
-1. Back up production mmdb and R2 mmmbc. Record the current mmmbc deployment for rollback.
-2. Create Worker mmmbc-production in the same account. Copy the required production secrets directly in Cloudflare, including Resend, Turnstile, newsletter signing, and any enabled integrations. Keep the existing production DB and R2 bindings. Do not copy secrets into git.
-3. Deploy the reviewed production configuration in wrangler.jsonc to mmmbc-production. Transfer the mmmbc.com custom domain from mmmbc to mmmbc-production in Cloudflare. A domain conflict may require detaching before attaching; perform this as a coordinated cutover, not an unattended preview deploy. Verify public pages, authenticated administration, forms and integrations before proceeding.
-4. Remove mmmbc.alphazonelabs.com and www.mmmbc.alphazonelabs.com from Worker custom domains and any separate routes/redirects that still attach them. Only the non-www entry existed in the checked-in config; the dashboard can have additional entries. Preserve unrelated DNS and mail records.
-5. Disable or reconfigure the old Workers Builds connection that deploys master to Worker mmmbc. Production builds must target mmmbc-production from master. Deploy command: npm run deploy:production. Never connect both automatic build systems to the same Worker.
-6. Confirm D1 mmmbc-preview and R2 mmmbc-preview exist in the configured account. Find the preview database UUID in Cloudflare. The deployment script rejects the production UUID and does not create or guess a database ID.
-7. Configure Access on the training admin and protected APIs. Set MMMBC_PREVIEW_ACCESS_AUD to the training application's audience. Keep the production application on mmmbc.com. Confirm the desired sign-in identity provider and allowed users.
-8. Provide a training Turnstile widget/site key and secret for the preview hostname. Public forms fail closed without verification. Set TURNSTILE_SITE_KEY in the preview configuration generator if the production widget does not include this hostname, and set the mmmbc Worker TURNSTILE_SECRET_KEY secret. The preview Worker retains any previous mmmbc secrets; application guards block outbound email, scheduled processing and payments even if credentials remain. Remove unnecessary production secrets after the cutover. Preserve authentication and set a separate training newsletter signing secret if testing signed preference links.
-9. Activate appropriate approved users in the preview database. Migrations seed pending users; applying migrations alone does not make a usable training administrator. Follow the approved roster activation process, then verify each user's role. Use fictional records rather than copying member or payment data.
+## First deployment (Windows PowerShell)
 
-## Connect GitHub preview deployment
+Run from the repository root:
 
-The workflow .github/workflows/preview-deployment.yml deploys pushes to preview and supports manual dispatch on that branch.
-It stays disabled until repository variable MMMBC_PREVIEW_READY is true, so creating the branch cannot overwrite the old production Worker.
+```powershell
+git fetch origin
+git switch preview
+git pull --ff-only origin preview
+npm ci
+npx wrangler login
+npx wrangler d1 list
+npx wrangler r2 bucket list
+```
 
-Set these GitHub repository settings after successful cutover:
+If the preview resources do not already exist, create them once:
 
-- Secret CLOUDFLARE_API_TOKEN: token permitted to deploy the preview Worker, read/apply its D1 migrations and upload its static assets. Restrict account/resource access where supported.
-- Variable MMMBC_PREVIEW_DATABASE_ID: actual UUID for D1 mmmbc-preview.
-- Variable MMMBC_PREVIEW_ACCESS_AUD: configured Access audience for training.
-- Variable MMMBC_PREVIEW_READY: true, only after mmmbc no longer owns any production custom domain and the conflicting old build connection is removed.
+```powershell
+npx wrangler d1 create mmmbc-preview
+npx wrangler r2 bucket create mmmbc-preview
+```
 
-Use the GitHub workflow as the preview build connection. Do not add a second Workers Builds connection for preview. Each deploy serializes with other preview deploys, builds and verifies admin assets, applies only preview migrations and deploys the mmmbc Worker with no custom domains or cron triggers.
+Copy the actual mmmbc-preview database UUID. Configure a separate Cloudflare Access application for the training hostname, protecting administration and its private APIs, with the approved sign-in identities. Use the getsparqd-server team configured in the repository; a different team requires updating CF_ACCESS_TEAM_DOMAIN in the preview generator. Copy the training application's Application Audience (AUD). Do not disable authentication or reuse an arbitrary audience.
 
-For a local preview deployment from branch preview, set MMMBC_PREVIEW_DATABASE_ID and MMMBC_PREVIEW_ACCESS_AUD, and set MMMBC_PREVIEW_CUTOVER_CONFIRMED=yes only after the cutover. Run npm run deploy:preview. The generated config is ignored by git. Never deploy preview with plain npm run deploy, which targets the production configuration.
+```powershell
+$env:MMMBC_PREVIEW_DATABASE_ID = "<preview database UUID>"
+$env:MMMBC_PREVIEW_ACCESS_AUD = "<training Access AUD>"
+npm run deploy:preview
+```
+
+The script requires branch preview, rejects the production database UUID, generates wrangler.preview.generated.json, builds/verifies assets, applies preview migrations and deploys only Worker mmmbc-preview. No cutover confirmation variable is needed. The generated config is ignored by git.
+
+Do not run plain npm run deploy for training: it targets production.
+
+## Authentication and forms
+
+- Preview migrations seed pending users. Activate the approved initial administrator in preview D1 using the roster activation process, then verify each approved trainee's role and status. Never run preview account setup against mmdb. The training-material exclusions remain hligon@getsparqd.com, Elbert Spears, and Calvin Cole Jr; the maintainer can still administer the environment.
+- Add mmmbc-preview.hligon.workers.dev to the existing Turnstile widget matching the public TURNSTILE_SITE_KEY. Set its matching secret on the new Worker after the first deployment:
+
+```powershell
+npx wrangler secret put TURNSTILE_SECRET_KEY --config wrangler.preview.generated.json
+```
+
+- For a separate Turnstile widget, change TURNSTILE_SITE_KEY in scripts/preview-config.mjs to its public key and use the matching secret. Public forms fail closed without verification.
+- The new Worker has no inherited production secrets. Do not copy Resend/payment/integration credentials. If testing signed newsletter preference links, set a separate NEWSLETTER_UNSUBSCRIBE_SECRET using the same preview config.
+- Use fictional training records. Do not copy the production member database or real payment records.
+
+## Automatic deployment from GitHub
+
+The workflow .github/workflows/preview-deployment.yml deploys pushes to preview and supports manual dispatch on that branch. It remains gated until repository variable MMMBC_PREVIEW_READY is true.
+
+In GitHub Settings > Secrets and variables > Actions, configure:
+
+| Type | Name | Value |
+| --- | --- | --- |
+| Secret | CLOUDFLARE_API_TOKEN | Token authorized for Worker deployment, asset uploads and preview D1 migrations in this account |
+| Variable | MMMBC_PREVIEW_DATABASE_ID | Actual preview D1 UUID |
+| Variable | MMMBC_PREVIEW_ACCESS_AUD | Training application's Access audience |
+| Variable | MMMBC_PREVIEW_READY | true, once the preview settings are ready |
+
+Use GitHub Actions as the single preview deployment connection; do not add a second Cloudflare Workers Builds connection for preview. Keep the production Workers Builds connection on master with non-production builds disabled. Each preview deployment is serialized, has no custom domains or cron triggers, and uses separate storage.
+
+After setup, push another commit to preview or dispatch the workflow on preview. If a run fails before any jobs start, inspect GitHub Actions policy/billing settings; a pushed commit alone does not prove deployment succeeded.
 
 ## Review and release
 
-Commit work to preview, wait for its deployment, and review the training URL with each required role. Outbound email and payment actions are blocked in training, and Zeffy sync and scheduled jobs are disabled. The public training response has no-index headers. Preview requires real Access authentication and verified public forms.
+Open the training URL and verify real Access login, approved roles, and the admin build fingerprint. Confirm sample data persists only in preview and gallery uploads go to preview R2. Outbound email, payments, Zeffy synchronization and scheduled processing are disabled; a successful real email-delivery exercise is not available here. Training responses have no-index headers.
 
-After acceptance, open a PR from preview to master. Merge reviewed changes to release production through its configured production build. A preview push never deploys mmmbc-production. Revert a faulty preview commit normally; restore production from its recorded deployment only through the coordinated rollback plan.
-
-Repository configuration does not itself transfer Cloudflare domains, set credentials, activate users, or enable the GitHub repository variable. Confirm these actions in Cloudflare and GitHub before calling training live.
+Review changes on preview, then open a PR from preview to master for production release. Production continues targeting mmmbc. Repository changes do not create Cloudflare resources, configure Access, activate users, or set GitHub secrets automatically.

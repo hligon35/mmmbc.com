@@ -10,8 +10,8 @@ const env = config.vars;
 const alternate = 'https://mmmbc.hligon.workers.dev';
 
 test('deployment enables the dedicated Worker URL and primary custom domain without moving storage', () => {
-  assert.equal(config.name, 'mmmbc-production');
-  assert.equal(config.workers_dev, false);
+  assert.equal(config.name, 'mmmbc');
+  assert.equal(config.workers_dev, true);
   assert.ok(config.routes.some(route => route.pattern === 'mmmbc.com' && route.custom_domain));
   assert.equal(env.PUBLIC_SITE_URL, 'https://mmmbc.com');
   assert.equal(env.CANONICAL_HOST, 'mmmbc.com');

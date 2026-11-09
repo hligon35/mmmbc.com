@@ -92,11 +92,11 @@ function mockSiteDb({ oldSchema = false } = {}) {
 test('contact and rental forms save on the original site schema', async () => {
   const db = mockSiteDb({ oldSchema: true });
   const env = { ENVIRONMENT: 'preview', DEMO_MODE: 'true', SITE_DB: db, DB: db };
-  const contact = await worker.fetch(new Request('https://mmmbc.hligon.workers.dev/api/public/contact-message', {
+  const contact = await worker.fetch(new Request('https://mmmbc-preview.hligon.workers.dev/api/public/contact-message', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ firstName: 'Ada', lastName: 'Church', email: 'ada@example.com', message: 'Please call me.' })
   }), env, {});
-  const rental = await worker.fetch(new Request('https://mmmbc.hligon.workers.dev/api/public/facility-rental-request', {
+  const rental = await worker.fetch(new Request('https://mmmbc-preview.hligon.workers.dev/api/public/facility-rental-request', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ audience: 'member', form: {
       eventGroup: 'Choir', firstName: 'Ada', lastName: 'Church', phone: '(270) 555-0100', purpose: 'Meeting', contactEmail: 'ada@example.com',
@@ -145,7 +145,7 @@ test('contact form reports a failed auto-reply while keeping the saved submissio
       : Response.json({ id: 'email-123' });
   };
   try {
-    const response = await worker.fetch(new Request('https://mmmbc.hligon.workers.dev/api/public/contact-message', {
+    const response = await worker.fetch(new Request('https://mmmbc-preview.hligon.workers.dev/api/public/contact-message', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ firstName: 'Ada', lastName: 'Church', email: 'visitor@example.com', message: 'Please call me.' })
     }), { ENVIRONMENT: 'development', SITE_DB: db, RESEND_API_KEY: 'test-key', RESEND_FROM_EMAIL: 'no-reply@mmmbc.com', SUPPORT_TO_EMAIL: 'team@example.com' }, {});
@@ -164,7 +164,7 @@ test('contact form reports a failed auto-reply while keeping the saved submissio
 test('newsletter signup stores first and last name with its email', async () => {
   const db = mockSiteDb();
   const env = { ENVIRONMENT: 'preview', DEMO_MODE: 'true', SITE_DB: db, DB: db };
-  const response = await worker.fetch(new Request('https://mmmbc.hligon.workers.dev/api/public/newsletter/subscribe', {
+  const response = await worker.fetch(new Request('https://mmmbc-preview.hligon.workers.dev/api/public/newsletter/subscribe', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ firstName: 'Ada', lastName: 'Church', email: 'ada@example.com' })
   }), env, {});
@@ -172,7 +172,7 @@ test('newsletter signup stores first and last name with its email', async () => 
   assert.equal(db.binds.find(({ sql }) => /INSERT INTO subscribers/.test(sql)).args[2], 'Ada Church');
   const directorySubscriber = db.binds.find(({ sql }) => /INSERT INTO newsletter_subscribers/.test(sql));
   assert.equal(directorySubscriber.args[1], 'ada@example.com');
-  const missingName = await worker.fetch(new Request('https://mmmbc.hligon.workers.dev/api/public/newsletter/subscribe', {
+  const missingName = await worker.fetch(new Request('https://mmmbc-preview.hligon.workers.dev/api/public/newsletter/subscribe', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ firstName: 'Ada', email: 'ada@example.com' })
   }), env, {});
@@ -185,7 +185,7 @@ test('contact save failures return JSON rather than a Worker exception', async (
   const originalError = console.error;
   console.error = () => {};
   try {
-    const response = await worker.fetch(new Request('https://mmmbc.hligon.workers.dev/api/public/contact-message', {
+    const response = await worker.fetch(new Request('https://mmmbc-preview.hligon.workers.dev/api/public/contact-message', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'Ada Church', email: 'ada@example.com', message: 'Please call me.' })
     }), { ENVIRONMENT: 'preview', DEMO_MODE: 'true', SITE_DB: db }, {});
@@ -199,12 +199,12 @@ test('contact save failures return JSON rather than a Worker exception', async (
 test('preview demo mode stores public submissions without invoking email or anti-abuse checks', async () => {
   const db = mockSiteDb();
   const env = { ENVIRONMENT: 'preview', DEMO_MODE: 'true', SITE_DB: db };
-  const contact = await worker.fetch(new Request('https://mmmbc.hligon.workers.dev/api/public/contact-message', {
+  const contact = await worker.fetch(new Request('https://mmmbc-preview.hligon.workers.dev/api/public/contact-message', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name: 'Demo Contact', email: 'demo-contact@example.com', message: 'Synthetic message.' })
   }), env, {});
-  const rental = await worker.fetch(new Request('https://mmmbc.hligon.workers.dev/api/public/facility-rental-request', {
+  const rental = await worker.fetch(new Request('https://mmmbc-preview.hligon.workers.dev/api/public/facility-rental-request', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ audience: 'member', form: { eventGroup: 'Demo Event', firstName: 'Demo', lastName: 'Renter', personResponsible: 'Demo Renter', phone: '(270) 555-0100', purpose: 'Synthetic rental', dateOfUse: '2026-10-10', timeFrom: '10:00', timeTo: '12:00', contactEmail: 'demo-renter@example.com', facilities: ['Fellowship Hall'], responsibleSignature: 'Demo Renter', responsibleSignatureDate: '2026-09-27' } })
@@ -227,7 +227,7 @@ test('preview demo mode stores public submissions without invoking email or anti
 test('public form endpoints reject malformed contact details before persistence', async () => {
   const db = mockSiteDb();
   const env = { ENVIRONMENT: 'preview', DEMO_MODE: 'true', SITE_DB: db };
-  const response = await worker.fetch(new Request('https://mmmbc.hligon.workers.dev/api/public/contact-message', {
+  const response = await worker.fetch(new Request('https://mmmbc-preview.hligon.workers.dev/api/public/contact-message', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ firstName: 'Demo', lastName: 'Contact', email: 'demo@example.com', phone: 'not-a-phone', message: 'Synthetic message.' })
